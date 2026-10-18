@@ -5,6 +5,7 @@ import { map, switchMap } from 'rxjs';
 import { Seo } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
+import { SHOP_PHOTOS } from '../data/venue-photos';
 import { ProductCard } from '../shared/cards';
 import { Hero } from '../shared/hero';
 import { Reveal } from '../shared/reveal';
@@ -85,7 +86,7 @@ export class Artists {
   imports: [Hero, ProductCard, RouterLink],
   template: `
     <app-hero [title]="artist()?.name ?? nameFromSlug()" [eyebrow]="artist()?.medium ?? '6311arts artist'"
-      [images]="images()" />
+      [images]="shopPhotos" />
     <section class="band band--white" id="content">
       <div class="container">
         @if (works().length) {
@@ -114,7 +115,8 @@ export class ArtistDetail {
     ),
     { initialValue: [] },
   );
-  protected images = computed(() => this.works().map((w) => w.image));
+  /** The artist's own work fills the grid below; the banner shows the shop it sells in. */
+  protected shopPhotos = SHOP_PHOTOS;
 
   constructor() {
     const seo = inject(Seo);

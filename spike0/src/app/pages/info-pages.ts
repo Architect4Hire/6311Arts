@@ -6,6 +6,7 @@ import { Seo } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
 import { MEMBERSHIPS } from '../data/mock-shop';
+import { EVENT_PHOTOS, FRONT_PHOTOS, STUDIO_PHOTOS } from '../data/venue-photos';
 import { Contact } from '../shared/contact';
 import { MoneyPipe } from '../shared/format';
 import { Hero } from '../shared/hero';
@@ -19,7 +20,8 @@ import { Reveal } from '../shared/reveal';
   imports: [Hero, Icon, Reveal, MoneyPipe, RouterLink],
   template: `
     <app-hero title="Become a member" eyebrow="From $100 a year"
-      lead="Members save on every class, party with the artists once a year and keep a free gallery free for the whole neighborhood." />
+      lead="Members save on every class, party with the artists once a year and keep a free gallery free for the whole neighborhood."
+      [images]="eventPhotos" />
     <section class="band band--light" id="content">
       <div class="container tiers">
         @for (t of tiers; track t.slug; let i = $index) {
@@ -47,6 +49,8 @@ import { Reveal } from '../shared/reveal';
 export class Memberships {
   protected api = inject(WpApi);
   protected tiers = MEMBERSHIPS;
+  /** The annual members' party, which is most of what the page is selling. */
+  protected eventPhotos = EVENT_PHOTOS;
   constructor() {
     inject(Seo).set({
       title: 'Memberships: Save on Art Classes & Support a Local Gallery',
@@ -73,7 +77,7 @@ export class Memberships {
   imports: [Hero, Icon, Reveal, RouterLink, Newsletter],
   template: `
     <app-hero title="Who we are" eyebrow="6311arts · founded in 2025"
-      lead="An inclusive art center in a former funeral home on Clark Street." [images]="images()" />
+      lead="An inclusive art center in a former funeral home on Clark Street." [images]="images" />
     <section class="band band--light text-center" id="content">
       <div class="container container--mid" reveal>
         <h2 class="band__title">Our story</h2>
@@ -122,8 +126,8 @@ export class Memberships {
   `,
 })
 export class About {
-  private ex = toSignal(inject(WpApi).exhibitions(), { initialValue: [] });
-  protected images = computed(() => this.ex().map((e) => e.image).reverse());
+  /** A room full of people is the story this page tells; show posters are on /exhibitions. */
+  protected images = EVENT_PHOTOS;
   protected team = [
     { name: 'Holly King', role: 'Director' },
     { name: 'Ginger Plesha', role: 'Printmaking Manager' },
@@ -150,7 +154,8 @@ export class About {
   imports: [Hero, Contact, Icon, Reveal],
   template: `
     <app-hero title="Plan your visit" eyebrow="Free admission"
-      [lead]="site.address.street + ', ' + site.address.city + ' · ' + site.address.neighborhood" />
+      [lead]="site.address.street + ', ' + site.address.city + ' · ' + site.address.neighborhood"
+      [images]="frontPhotos" />
     <section class="band band--dark" id="content">
       <div class="container cols-3 text-center">
         <div class="feature" reveal><app-icon name="clock" [size]="56" [stroke]="1" /><h3 class="feature__title">Hours</h3>
@@ -170,6 +175,8 @@ export class About {
 })
 export class Visit {
   protected site = SITE;
+  /** The storefront, so visitors recognize the door before they get there. */
+  protected frontPhotos = FRONT_PHOTOS;
   constructor() {
     inject(Seo).set({
       title: 'Visit 6311arts | Hours, Directions & Contact',
@@ -186,7 +193,8 @@ export class Visit {
   imports: [Hero, Icon, Reveal],
   template: `
     <app-hero title="Submit your work" eyebrow="North Side artists wanted"
-      lead="Teach our classes, show in our galleries, sell in our shop. Submissions are open year-round." />
+      lead="Teach our classes, show in our galleries, sell in our shop. Submissions are open year-round."
+      [images]="studioPhotos" />
     <section class="band band--white" id="content">
       <div class="container cols-3 text-center">
         <div class="feature feature--dark" reveal><app-icon name="brush" [size]="64" [stroke]="1" /><h3 class="feature__title">Teach</h3>
@@ -208,6 +216,7 @@ export class Visit {
 })
 export class Submit {
   protected site = SITE;
+  protected studioPhotos = STUDIO_PHOTOS;
   constructor() {
     inject(Seo).set({
       title: 'Submit Your Work | Teach, Exhibit or Sell at 6311arts',

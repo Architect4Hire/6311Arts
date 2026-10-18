@@ -8,10 +8,14 @@ import {
   input,
   signal,
 } from '@angular/core';
+import { VENUE_PHOTOS } from '../data/venue-photos';
 
 /**
- * The CSoon intro header: a full-bleed black-and-white photo slideshow under a dark veil, the logo,
+ * The CSoon intro header: a full-bleed colour photo slideshow under a dark veil, the logo,
  * a big rotating headline and outlined buttons. `size="page"` gives the shorter banner used on inner pages.
+ *
+ * A page with no photos of its own falls back to `VENUE_PHOTOS`, so every hero carries a real photograph
+ * of the building rather than a flat gradient.
  *
  * Rotation and slide changes start only in the browser, so the server HTML is stable and fully readable.
  */
@@ -65,7 +69,10 @@ export class Hero {
   size = input<'full' | 'page'>('page');
   logo = input(false);
 
-  protected slides = computed(() => this.images().filter((s): s is string => !!s));
+  protected slides = computed(() => {
+    const given = this.images().filter((s): s is string => !!s);
+    return given.length ? given : VENUE_PHOTOS;
+  });
   protected slide = signal(0);
   protected word = signal(0);
 

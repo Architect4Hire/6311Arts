@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { Seo, exhibitionLd } from '../core/seo.service';
 import { WpApi } from '../core/wp-api.service';
+import { GALLERY_PHOTOS } from '../data/venue-photos';
 import { ArtImage } from '../shared/art-image';
 import { ExhibitionCard, exhibitionStatus } from '../shared/cards';
 import { WhenPipe } from '../shared/format';
@@ -17,7 +18,7 @@ import { Reveal } from '../shared/reveal';
   template: `
     <app-hero title="Exhibitions" eyebrow="Free · Open Wed – Sun"
       lead="A new show about every six weeks across the main, East and West galleries, from solo shows to work by students from the high schools nearby."
-      [images]="images()" />
+      [images]="galleryPhotos" />
 
     @for (e of spotlight(); track e.slug; let odd = $odd) {
       <section class="band" [class.band--dark]="!odd" [class.band--light]="odd" [attr.id]="$first ? 'content' : null">
@@ -68,7 +69,8 @@ export class Exhibitions {
       .sort((a, b) => a.start.localeCompare(b.start)),
   );
   protected past = computed(() => this.all().filter((e) => exhibitionStatus(e) === 'Past'));
-  protected images = computed(() => this.all().map((e) => e.image));
+  /** The banner shows the rooms; each show's own poster is the spotlight image below it. */
+  protected galleryPhotos = GALLERY_PHOTOS;
   protected status = exhibitionStatus;
 
   constructor() {

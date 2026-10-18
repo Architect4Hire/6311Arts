@@ -5,6 +5,7 @@ import { ClassType } from '../core/models';
 import { Seo, eventLd } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
+import { STUDIO_PHOTOS } from '../data/venue-photos';
 import { ClassCard } from '../shared/cards';
 import { WhenPipe } from '../shared/format';
 import { Hero } from '../shared/hero';
@@ -20,7 +21,7 @@ import { Reveal } from '../shared/reveal';
   template: `
     <app-hero title="Classes, workshops & events" eyebrow="Taught by local artists"
       lead="Small groups, hands-on, and open to first-timers. Pick a night and make something."
-      [images]="images()" />
+      [images]="studioPhotos" />
 
     <section class="band band--white" id="content">
       <div class="container">
@@ -71,7 +72,8 @@ export class Classes {
   protected levels = ['Beginner', 'Intermediate'];
 
   protected types = computed(() => ['All', ...new Set(this.all().map((c) => c.type))] as (ClassType | 'All')[]);
-  protected images = computed(() => this.all().map((c) => c.image));
+  /** Flyers are portrait posters, so the banner shows the studio and the cards carry the flyers. */
+  protected studioPhotos = STUDIO_PHOTOS;
 
   protected grouped = computed(() => {
     const list = this.all().filter(

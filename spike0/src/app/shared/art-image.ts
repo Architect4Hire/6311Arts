@@ -10,8 +10,11 @@ import {
 } from '@angular/core';
 
 /**
- * An artwork image that degrades to a monochrome placeholder tile when the photo is missing or fails to load,
- * so an unphotographed product never leaves a broken-image icon on the page.
+ * An artwork image that degrades to a coloured placeholder tile when the photo is missing or fails to load,
+ * so an unphotographed product never leaves a broken-image icon — or a gray hole — on the page.
+ *
+ * The placeholder hue is derived from the title, so a grid of them reads as a set of paintings rather than
+ * a set of errors, and the same piece gets the same colour on every render, server and browser alike.
  */
 @Component({
   selector: 'app-art-image',
@@ -22,7 +25,7 @@ import {
       <img #img [src]="src()" [alt]="alt()" [attr.loading]="priority() ? 'eager' : 'lazy'"
         [attr.fetchpriority]="priority() ? 'high' : null" decoding="async" (error)="failed.set(true)" />
     } @else {
-      <div [class]="'ph ph--' + hue().tone" [style.--a]="hue().a" [style.--b]="hue().b" role="img" [attr.aria-label]="alt()">
+      <div class="ph" [style.--a]="hue().a" [style.--b]="hue().b" [style.--h]="hue().h" [style.--h2]="hue().h2" role="img" [attr.aria-label]="alt()">
         <span class="ph__mark">{{ initials() }}</span>
       </div>
     }
@@ -33,23 +36,15 @@ import {
     .ph {
       position: absolute; inset: 0; display: grid; place-items: center;
       background:
-        radial-gradient(120% 90% at var(--a) 0%, rgba(255,255,255,.16), transparent 55%),
-        radial-gradient(90% 80% at var(--b) 100%, rgba(0,0,0,.55), transparent 60%),
-        linear-gradient(160deg, #3a4048, #1b1f23);
+        radial-gradient(120% 90% at var(--a) 0%, hsl(var(--h) 85% 72% / .95), transparent 58%),
+        radial-gradient(90% 80% at var(--b) 100%, hsl(var(--h2) 80% 42% / .9), transparent 62%),
+        linear-gradient(160deg, hsl(var(--h) 70% 60%), hsl(var(--h2) 65% 38%));
     }
-    .ph--1 { background-color: #d9d9d9; background-image:
-        radial-gradient(120% 90% at var(--a) 0%, rgba(255,255,255,.7), transparent 55%),
-        radial-gradient(90% 80% at var(--b) 100%, rgba(0,0,0,.18), transparent 60%),
-        linear-gradient(160deg, #e6e6e6, #bdbdbd); }
-    .ph--1 .ph__mark { color: rgba(0,0,0,.14); }
-    .ph--2 { background-image:
-        radial-gradient(120% 90% at var(--a) 0%, rgba(255,255,255,.28), transparent 55%),
-        linear-gradient(160deg, #8c9096, #50555c); }
     .ph::after {
-      content: ''; position: absolute; inset: 0; opacity: .18; mix-blend-mode: overlay;
+      content: ''; position: absolute; inset: 0; opacity: .16; mix-blend-mode: overlay;
       background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.5) 0 1px, transparent 1px 7px);
     }
-    .ph__mark { font-weight: 800; font-size: clamp(28px, 5vw, 56px); letter-spacing: -.02em; color: rgba(255,255,255,.22); text-transform: uppercase; }
+    .ph__mark { font-weight: 800; font-size: clamp(28px, 5vw, 56px); letter-spacing: -.02em; color: rgba(255,255,255,.55); text-transform: uppercase; }
   `,
 })
 export class ArtImage {
@@ -70,11 +65,12 @@ export class ArtImage {
       .join(''),
   );
 
-  /** Stable per-title variation so a grid of placeholders doesn't look copy-pasted. */
+  /** Stable per-title colour so a grid of placeholders doesn't look copy-pasted. */
   protected hue = computed(() => {
     let h = 0;
     for (const ch of this.alt()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    return { a: `${h % 100}%`, b: `${(h >> 8) % 100}%`, tone: (h >> 4) % 3 };
+    const base = h % 360;
+    return { a: `${h % 100}%`, b: `${(h >> 8) % 100}%`, h: `${base}`, h2: `${(base + 40 + ((h >> 4) % 90)) % 360}` };
   });
 
   constructor() {

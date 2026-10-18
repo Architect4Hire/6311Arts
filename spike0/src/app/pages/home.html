@@ -4,7 +4,7 @@
   title="an art center that makes room for"
   [rotate]="['everyone.', 'local artists.', 'first-timers.', 'the neighborhood.']"
   lead="Gallery, shop and studio classes on Clark Street, run by and for North Side artists."
-  [images]="heroImages()"
+  [images]="heroImages"
 >
   <a class="btn btn-border btn-lg" routerLink="/classes">Explore classes</a>
   <a class="btn btn-white btn-lg" routerLink="/exhibitions">Now on view</a>
@@ -47,7 +47,7 @@
 </section>
 
 <!-- Pillars on a photo band -->
-<section class="band band--photo text-center" [style.--band-image]="'url(' + (heroImages()[1] ?? '') + ')'">
+<section class="band band--photo text-center" [style.--band-image]="'url(' + pillarPhoto + ')'">
   <div class="container">
     <div class="cols-4">
       @for (p of pillars; track p.title; let i = $index) {
@@ -105,7 +105,7 @@
 </section>
 
 <!-- Membership action band -->
-<section class="band band--photo band--tall text-center" [style.--band-image]="'url(' + (heroImages()[2] ?? '') + ')'">
+<section class="band band--photo band--tall text-center" [style.--band-image]="'url(' + memberPhoto + ')'">
   <div class="container container--mid" reveal>
     <p class="eyebrow">Memberships from {{ tiers[0].price | money }} a year</p>
     <h2 class="band__title band__title--xl">Keep the doors open. Save on every class.</h2>

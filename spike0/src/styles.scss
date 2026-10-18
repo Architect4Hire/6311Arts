@@ -1,7 +1,11 @@
 /*
  * 6311arts design system, adapted from the CSoon template:
- * monochrome photography under a dark veil, charcoal and pale-gray bands, uppercase letter-spaced headings,
+ * full-colour photography under a light veil, charcoal and pale-gray bands, uppercase letter-spaced headings,
  * square outlined buttons and thin line icons. Rebuilt in modern CSS with no Bootstrap or jQuery.
+ *
+ * The art on the walls is the colour here: photos are never desaturated, and veils over them stay light
+ * enough to read the work through. Legibility on top of a photo comes from `--photo-shade`, not from
+ * draining the photo.
  */
 
 :root {
@@ -12,7 +16,9 @@
   --light: #eee;
   --line: #ddd;
   --white: #fff;
-  --veil: rgba(0, 0, 0, 0.5);
+  --veil: rgba(0, 0, 0, 0.38);
+  // text sitting directly on a photo; paired with --veil it keeps white type legible without a darker veil
+  --photo-shade: 0 1px 24px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
   --accent: #fffeaf; // the template's active-link yellow
   --hot: #ff5a36;
   --font: 'Open Sans', Arial, sans-serif;
@@ -454,7 +460,7 @@ textarea {
   inset: 0;
   background-size: cover;
   background-position: center;
-  filter: grayscale(1) contrast(1.05);
+  filter: saturate(1.12) contrast(1.04);
   opacity: 0;
   transform: scale(1.08);
   transition: opacity 1.6s ease, transform 8s linear;
@@ -466,7 +472,7 @@ textarea {
 
 .hero__veil {
   background:
-    radial-gradient(80% 60% at 50% 40%, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.6)),
+    radial-gradient(85% 65% at 50% 42%, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.5)),
     var(--veil);
   &::after {
     // fine film grain so flat fallbacks still feel photographic
@@ -495,6 +501,7 @@ textarea {
   text-transform: uppercase;
   color: var(--accent);
   margin-bottom: 18px;
+  text-shadow: var(--photo-shade);
 }
 
 .hero__title {
@@ -505,6 +512,7 @@ textarea {
   line-height: 1.05;
   margin-bottom: 22px;
   text-wrap: balance;
+  text-shadow: var(--photo-shade);
 }
 
 .hero--full .hero__title {
@@ -540,7 +548,8 @@ textarea {
   font-weight: 300;
   max-width: 640px;
   margin: 0 auto 30px;
-  color: rgba(255, 255, 255, 0.86);
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: var(--photo-shade);
 }
 
 .hero__ctas {
@@ -628,8 +637,11 @@ textarea {
     position: absolute;
     inset: 0;
     z-index: -1;
-    background: var(--veil);
-    backdrop-filter: grayscale(1);
+    background: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.58)), var(--veil);
+  }
+  .band__title,
+  .band__lead {
+    text-shadow: var(--photo-shade);
   }
 }
 
@@ -990,11 +1002,7 @@ textarea {
 .product-card {
   display: block;
   position: relative;
-  .art-image img {
-    filter: grayscale(1);
-  }
   &:hover .art-image img {
-    filter: none;
     transform: scale(1.04);
   }
   .tag {
@@ -1155,12 +1163,6 @@ textarea {
   grid-template-columns: 5fr 6fr;
   gap: clamp(32px, 6vw, 88px);
   align-items: center;
-  .art-image img {
-    filter: grayscale(1);
-  }
-  &:hover .art-image img {
-    filter: none;
-  }
 }
 
 .spotlight--flip {
@@ -1211,12 +1213,8 @@ textarea {
   position: relative;
   color: var(--white);
   overflow: hidden;
-  .art-image img {
-    filter: grayscale(1);
-  }
   &:hover {
     .art-image img {
-      filter: grayscale(0.2);
       transform: scale(1.05);
     }
     .exhibit-card__sum {
@@ -1572,7 +1570,6 @@ textarea {
   width: 100%;
   height: 420px;
   border: 0;
-  filter: grayscale(1) contrast(1.1);
 }
 
 .prose {

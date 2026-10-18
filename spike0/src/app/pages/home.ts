@@ -6,6 +6,7 @@ import { Seo, eventLd, exhibitionLd } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
 import { MEMBERSHIPS } from '../data/mock-shop';
+import { EVENT_PHOTOS, GALLERY_PHOTOS, HERO_PHOTO, STUDIO_PHOTOS } from '../data/venue-photos';
 import { ClassCard, ProductCard, exhibitionStatus } from '../shared/cards';
 import { Contact } from '../shared/contact';
 import { MoneyPipe, WhenPipe } from '../shared/format';
@@ -28,7 +29,15 @@ export class Home {
   protected products = toSignal(this.api.products({ perPage: 8 }).pipe(map((p) => p.items)), { initialValue: [] });
   protected tiers = MEMBERSHIPS;
 
-  protected heroImages = computed(() => this.exhibitions().map((e) => e.image));
+  /**
+   * The opening slideshow and the two full-bleed bands below it. Rooms and openings rather than show posters:
+   * a portrait poster cropped to a full-height banner shows only its middle.
+   */
+  protected heroImages = [HERO_PHOTO, EVENT_PHOTOS[0], STUDIO_PHOTOS[0], GALLERY_PHOTOS[0], EVENT_PHOTOS[1]];
+
+  /** The two full-bleed bands lower down: the studio behind "what we do", a packed opening behind memberships. */
+  protected pillarPhoto = STUDIO_PHOTOS[1];
+  protected memberPhoto = EVENT_PHOTOS[2];
 
   /** What's on the walls now, or the next show if we're between exhibitions. */
   protected featured = computed(() => {

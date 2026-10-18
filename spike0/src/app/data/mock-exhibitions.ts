@@ -1,6 +1,12 @@
 import { Exhibition } from '../core/models';
+import { GALLERY_PHOTOS } from './venue-photos';
 
-/** Copied from 6311arts.com/gallery on 2026-10-18. Used when the WordPress API can't be reached. */
+/**
+ * Copied from 6311arts.com/gallery on 2026-10-18. Used when the WordPress API can't be reached.
+ *
+ * Images are the show's own full-colour poster or install shot from the WordPress uploads folder. A show with
+ * no artwork online yet borrows a photo of the room it will hang in, rather than falling back to a blank tile.
+ */
 const img = (path: string, size = 'fit=1200%2C1200') =>
   `https://i0.wp.com/6311arts.com/wp-content/uploads/${path}?${size}&ssl=1`;
 
@@ -12,6 +18,7 @@ export const MOCK_EXHIBITIONS: Exhibition[] = [
     end: '2027-01-30',
     summary: 'Year-end work by students from the high schools around us. The next generation of North Side artists, on our walls.',
     artists: [],
+    image: GALLERY_PHOTOS[0],
   },
   {
     slug: 'boats-and-pianos',

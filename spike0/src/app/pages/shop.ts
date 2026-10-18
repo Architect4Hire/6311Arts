@@ -5,6 +5,7 @@ import { map, switchMap } from 'rxjs';
 import { Seo, productLd } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
+import { SHOP_PHOTOS } from '../data/venue-photos';
 import { ArtImage } from '../shared/art-image';
 import { ProductCard } from '../shared/cards';
 import { MoneyPipe } from '../shared/format';
@@ -29,7 +30,7 @@ const CATEGORIES = [
   imports: [Hero, ProductCard, RouterLink, Icon],
   template: `
     <app-hero title="Shop local art" eyebrow="780+ original works"
-      lead="Every piece is made by an artist who lives within six miles of the gallery. Buy online or see it in person on Clark Street." [images]="images()" />
+      lead="Every piece is made by an artist who lives within six miles of the gallery. Buy online or see it in person on Clark Street." [images]="shopPhotos" />
     <section class="band band--white" id="content">
       <div class="container">
         <div class="filters">
@@ -98,7 +99,8 @@ export class Shop {
       }),
     ),
   );
-  protected images = computed(() => (this.result()?.items ?? []).map((p) => p.image));
+  /** Product shots are lit on white and go flat under the hero veil; the shop floor doesn't. */
+  protected shopPhotos = SHOP_PHOTOS;
 
   constructor() {
     const seo = inject(Seo);

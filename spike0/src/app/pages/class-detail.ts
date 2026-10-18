@@ -6,6 +6,7 @@ import { Seo, eventLd } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
 import { MEMBERSHIPS } from '../data/mock-shop';
+import { STUDIO_PHOTOS } from '../data/venue-photos';
 import { ArtImage } from '../shared/art-image';
 import { ClassCard } from '../shared/cards';
 import { MoneyPipe, WhenPipe } from '../shared/format';
@@ -19,7 +20,7 @@ import { NotFound } from './not-found';
   imports: [Hero, ArtImage, ClassCard, Icon, MoneyPipe, WhenPipe, RouterLink, NotFound],
   template: `
     @if (cls(); as c) {
-      <app-hero [title]="c.title" [eyebrow]="c.type + ' · ' + c.level" [images]="[c.image]" />
+      <app-hero [title]="c.title" [eyebrow]="c.type + ' · ' + c.level" [images]="studioPhotos" />
       <section class="band band--white" id="content">
         <div class="container detail">
           <div class="detail__media">
@@ -75,6 +76,8 @@ export class ClassDetail {
   protected api = inject(WpApi);
   protected site = SITE;
   protected tiers = MEMBERSHIPS;
+  /** The flyer is shown whole further down the page, so the banner shows the room the class runs in. */
+  protected studioPhotos = STUDIO_PHOTOS;
   private slug = toSignal(inject(ActivatedRoute).paramMap.pipe(map((p) => p.get('slug')!)), { requireSync: true });
 
   protected all = toSignal(inject(ActivatedRoute).paramMap.pipe(switchMap(() => this.api.classes())));
