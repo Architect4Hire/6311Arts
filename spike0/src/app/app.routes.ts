@@ -1,0 +1,28 @@
+import { Routes } from '@angular/router';
+
+/** Pages load lazily so each route ships only its own code. Old WordPress URLs are redirected in server.ts. */
+export const routes: Routes = [
+  { path: '', loadComponent: () => import('./pages/home').then((m) => m.Home) },
+  { path: 'classes', loadComponent: () => import('./pages/classes').then((m) => m.Classes) },
+  { path: 'classes/:slug', loadComponent: () => import('./pages/class-detail').then((m) => m.ClassDetail) },
+  { path: 'exhibitions', loadComponent: () => import('./pages/exhibitions').then((m) => m.Exhibitions) },
+  { path: 'artists', loadComponent: () => import('./pages/artists').then((m) => m.Artists) },
+  { path: 'artists/:slug', loadComponent: () => import('./pages/artists').then((m) => m.ArtistDetail) },
+  { path: 'shop', loadComponent: () => import('./pages/shop').then((m) => m.Shop) },
+  { path: 'shop/:slug', loadComponent: () => import('./pages/shop').then((m) => m.ProductDetail) },
+  { path: 'memberships', loadComponent: () => import('./pages/info-pages').then((m) => m.Memberships) },
+  { path: 'about', loadComponent: () => import('./pages/info-pages').then((m) => m.About) },
+  { path: 'visit', loadComponent: () => import('./pages/info-pages').then((m) => m.Visit) },
+  { path: 'submit', loadComponent: () => import('./pages/info-pages').then((m) => m.Submit) },
+  {
+    path: 'privacy',
+    loadComponent: () => import('./pages/info-pages').then((m) => m.CmsPage),
+    data: { wpSlug: 'privacy-policy', title: 'Privacy Policy' },
+  },
+  {
+    path: 'terms',
+    loadComponent: () => import('./pages/info-pages').then((m) => m.CmsPage),
+    data: { wpSlug: 'terms-and-conditions', title: 'Terms and Conditions' },
+  },
+  { path: '**', loadComponent: () => import('./pages/not-found').then((m) => m.NotFound) },
+];
