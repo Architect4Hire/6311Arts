@@ -14,7 +14,7 @@ import { Icon } from './icon';
     <a class="skip" href="#content">Skip to content</a>
     <div class="nav__inner">
       <a class="nav__brand" routerLink="/" aria-label="6311arts home">
-        <span class="mark mark--sm" aria-hidden="true"><span>6311</span><span>arts</span></span>
+        <img class="mark mark--sm" src="/logo.webp" alt="" width="44" height="44" decoding="async" />
         <span class="nav__wordmark">6311arts</span>
       </a>
       <button class="nav__toggle" type="button" (click)="open.set(!open())" [attr.aria-expanded]="open()" aria-controls="nav-menu">

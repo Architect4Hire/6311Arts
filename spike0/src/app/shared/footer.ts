@@ -11,7 +11,7 @@ import { Icon } from './icon';
   template: `
     <div class="footer__grid container">
       <div>
-        <span class="mark" aria-hidden="true"><span>6311</span><span>arts</span></span>
+        <img class="mark" src="/logo.webp" alt="" width="112" height="112" decoding="async" />
         <p class="footer__blurb">An art center that makes room for everyone. Gallery, shop and classes on Clark Street since {{ site.founded }}.</p>
       </div>
       <div>

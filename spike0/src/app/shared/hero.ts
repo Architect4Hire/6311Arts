@@ -32,7 +32,7 @@ import { VENUE_PHOTOS } from '../data/venue-photos';
     <div class="hero__veil"></div>
     <div class="hero__body">
       @if (logo()) {
-        <div class="mark hero__logo" aria-hidden="true"><span>6311</span><span>arts</span></div>
+        <img class="mark hero__logo" src="/logo.webp" alt="" width="224" height="224" fetchpriority="high" />
       }
       @if (eyebrow()) {
         <p class="hero__eyebrow">{{ eyebrow() }}</p>

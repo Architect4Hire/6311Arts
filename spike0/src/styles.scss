@@ -135,44 +135,18 @@ textarea {
   }
 }
 
-/* ---------- brand mark (stands in for the template logo) ---------- */
+/* ---------- brand mark (the 6311arts logo) ---------- */
 
 .mark {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid currentColor;
+  display: block;
   width: 112px;
   height: 112px;
-  line-height: 1;
-  span:first-child {
-    font-weight: 800;
-    font-size: 34px;
-    letter-spacing: -0.02em;
-  }
-  span:last-child {
-    font-weight: 300;
-    font-size: 15px;
-    letter-spacing: 0.45em;
-    margin: 6px 0 0 0.45em;
-    text-transform: uppercase;
-  }
+  object-fit: contain;
 }
 
 .mark--sm {
   width: 44px;
   height: 44px;
-  border-width: 1.5px;
-  span:first-child {
-    font-size: 14px;
-  }
-  span:last-child {
-    font-size: 7px;
-    margin-top: 2px;
-    letter-spacing: 0.3em;
-    margin-left: 0.3em;
-  }
 }
 
 /* ---------- buttons, straight from the template ---------- */
@@ -490,7 +464,9 @@ textarea {
 }
 
 .hero__logo {
-  margin-bottom: 34px;
+  width: 224px;
+  height: 224px;
+  margin: 0 auto 34px;
   animation: hero-in 2s 0.2s var(--ease) both;
 }
 
