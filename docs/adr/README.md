@@ -39,6 +39,9 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0018](0018-no-two-factor-authentication.md) | No two-factor authentication | Accepted |
 | [0019](0019-correlation-id-is-the-w3c-trace-id.md) | The correlation id is the W3C trace id | Accepted |
 | [0020](0020-idempotency-scoped-to-a-server-owned-subject.md) | Idempotency keys are scoped to a server-owned subject | Accepted |
+| [0021](0021-api-host-conventions-and-internal-token-verification.md) | API host conventions + internal-token verification | Accepted |
+| [0022](0022-gateway-edge-policy-and-internal-token-transform.md) | Gateway edge policy + internal-token transform | Accepted |
+| [0023](0023-identity-module-and-email-through-the-outbox.md) | Identity module + email through the outbox | Accepted |
 
 ## Template
 

@@ -21,7 +21,7 @@ public sealed class AppHostModelTests
     private static readonly string[] RunModeResources =
     [
         "sql", "appdb", "storage", "blobs", "media", "dataprotection", "cache", "mail", "dbgate",
-        "migrations", "api", "worker",
+        "migrations", "api", "gateway", "worker",
         "sql-password", "redis-password", "internal-token-signing-key", "idempotency-fingerprint-key",
         "seed-admin-email", "seed-admin-password",
     ];
@@ -34,6 +34,41 @@ public sealed class AppHostModelTests
         var names = appHost.Resources.Select(resource => resource.Name).ToHashSet(StringComparer.Ordinal);
 
         Assert.All(RunModeResources, name => Assert.Contains(name, names));
+    }
+
+    [Fact(Timeout = TimeoutMs)]
+    public async Task OnlyTheGatewayIsPubliclyReachable()
+    {
+        // ADR 0001: one origin. Everything the browser sees comes through the gateway, which is what makes the
+        // session cookie, antiforgery, CSP and the Square webhook signature all mean something. A second external
+        // endpoint would quietly undo all of it, so this is asserted on the model rather than trusted to review.
+        await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);
+
+        var external = appHost.Resources
+            .Where(resource => resource.Annotations
+                .OfType<EndpointAnnotation>()
+                .Any(endpoint => endpoint.IsExternal))
+            .Select(resource => resource.Name)
+            .ToList();
+
+        Assert.Equal(["gateway"], external);
+    }
+
+    [Fact(Timeout = TimeoutMs)]
+    public async Task TheGatewayWaitsForTheApiAndTheCache()
+    {
+        // It proxies to the API and will keep session tickets in Redis (1.10), so starting before either is ready
+        // would mean a window of 503s on every request.
+        await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);
+
+        var gateway = Assert.Single(appHost.Resources, resource => resource.Name == "gateway");
+        var waitsFor = gateway.Annotations
+            .OfType<WaitAnnotation>()
+            .Select(annotation => annotation.Resource.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Contains("api", waitsFor);
+        Assert.Contains("cache", waitsFor);
     }
 
     [Fact(Timeout = TimeoutMs)]

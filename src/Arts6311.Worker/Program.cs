@@ -1,9 +1,15 @@
 using Arts6311.Domain.Managers;
+using Arts6311.Domain.Managers.Email;
 using Arts6311.Domain.Managers.Idempotency;
 using Arts6311.Domain.Managers.Outbox;
 using Arts6311.Domain.Managers.Persistence;
+using Arts6311.Domain.Modules.Identity;
+using Arts6311.Domain.Modules.Identity.Data.Entities;
+using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Operations;
 using Arts6311.Worker;
+using Arts6311.Worker.Email;
+using Microsoft.AspNetCore.Identity;
 using OpenTelemetry.Trace;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -23,6 +29,35 @@ builder.AddSqlServerDbContext<ArtsDbContext>(
 builder.Services.AddArtsKernel();
 builder.Services.AddArtsIdempotencyMaintenance();
 builder.Services.AddOperationsModule();
+
+// The key ring for Identity's reset and confirmation tokens. This host mints them; the API validates them, so
+// both must share it or every emailed link fails (ADR 0023).
+builder.AddAzureBlobServiceClient("blobs");
+builder.Services.AddArtsDataProtection(DataProtectionApplicationName.Value);
+
+// The token provider is added by the host, not the module: it lives in the ASP.NET Core framework assembly, which
+// the Domain deliberately does not reference.
+builder.Services.AddIdentityModule(builder.Configuration)
+    .AddTokenProvider<DataProtectorTokenProvider<ArtsUser>>(TokenOptions.DefaultProvider);
+
+// The framework default lifetime is 24 hours, which leaves several reset links live at once and none superseded
+// by a newer request. Configured here because the options type ships in the same framework assembly as the
+// provider (ADR 0023).
+builder.Services.Configure<DataProtectionTokenProviderOptions>(
+    options => options.TokenLifespan = IdentityPolicy.EmailTokenLifetime);
+
+// Email: the one email.send-requested handler, and the only IEmailSender in the system.
+builder.Services.AddArtsEmail(builder.Configuration);
+builder.Services.AddOptions<SmtpOptions>()
+    .Configure<IConfiguration>((options, configuration) =>
+        options.ConnectionString = configuration.GetConnectionString("mail") ?? string.Empty)
+    .Validate(options =>
+    {
+        options.Validate();
+        return true;
+    })
+    .ValidateOnStart();
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 builder.Services.AddHostedService<OutboxDispatcherHostedService>();
 builder.Services.AddHostedService<IdempotencyCleanupHostedService>();

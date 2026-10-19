@@ -26,11 +26,29 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
 ## Shapes
 
 - **Models.** Input is ViewModels and output is ServiceModels. Never return EF entities, Square DTOs or anonymous objects.
-- **Times and money.** ISO 8601 UTC timestamps. Class sessions also return `displayTimeZone`. Money is integer cents with `currency`.
+- **Times and money.** ISO 8601 UTC timestamps, written with an explicit `+00:00` offset (not `Z`); `format: date-time` can't tell the two apart, so the spelling is asserted in tests. Class sessions also return `displayTimeZone`. Money is integer cents with `currency`.
 - **Paging.** Collections that change often use a cursor (`?cursor=`). Small fixed lists may return everything.
-- **Errors.** `ProblemDetails` with a stable `code` (for example `cms.slug_taken`, `checkout.item_sold_out`, `square.unavailable`) and `correlationId`.
+- **Errors.** `ProblemDetails` with a stable `code` (for example `cms.slug_taken`, `checkout.item_sold_out`, `square.unavailable`) and `correlationId`. The status follows the code, mapped in one place (`Arts6311.Api/Conventions/ApiProblemDetails.cs`, ADR 0021):
+
+  | Code | Status |
+  |---|---|
+  | `validation.failed`, `paging.cursor.invalid`, `idempotency.key_required`, `idempotency.key_invalid` | 400 |
+  | `auth.unauthenticated` | 401 |
+  | `access.forbidden` | 403 |
+  | `resource.not_found`, `request.route_not_found` | 404 |
+  | `request.method_not_allowed` | 405 |
+  | `request.payload_too_large` | 413 |
+  | `request.unsupported_media_type` | 415 |
+  | `resource.conflict`, `concurrency.conflict` | 409 |
+  | `idempotency.key_reused` | 422 |
+  | `server.error` (the whole 5xx family) | 500 |
+  | `request.rejected` (the edge's remainder), anything unmapped | 400 |
+
+  `square.unavailable` → 503 arrives with 5.2; a 429 code plus `Retry-After` and a missing-`If-Match` code arrive with the routes that need them. `ErrorCodeMapTests` fails if a code in `ErrorCodes` has no status here.
+
+  A new code with any other status is added to that map deliberately. `code`, `correlationId` and `errors` are `ProblemDetails` extensions, which a generator can't infer, so the `ProblemDetails` component is hand-written to declare them. `correlationId` is the W3C trace id as 32 lower-case hex digits.
 - **Concurrency.** Editable CMS records use a row version (`ETag` / `If-Match`). A stale write gets a 409 with code `concurrency.conflict`.
-- **Idempotency.** Retryable commands require an `Idempotency-Key` header: checkout pay, membership signup, seat adjustment. A replay returns the original result. A different body with the same key gets a 422.
+- **Idempotency.** Retryable commands require an `Idempotency-Key` header: checkout pay, membership signup, seat adjustment. A replay returns the original result and carries `Idempotent-Replayed: true`. A different body with the same key gets a 422 (`idempotency.key_reused`). Several `Idempotency-Key` values on one request count as none.
 - **Long work.** Imports and full reconciliation return `202` with an operation resource.
 
 ## Compatibility

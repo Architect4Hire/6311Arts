@@ -25,8 +25,9 @@ var idempotencyFingerprintKey = builder.AddParameter(
 // (Parameters:seed-admin-email); override it with
 //   dotnet user-secrets set "Parameters:seed-admin-email" "<you@example.org>" --project src/Arts6311.AppHost
 // The password is generated and persisted; read it with `dotnet user-secrets list --project src/Arts6311.AppHost`.
-builder.AddParameter("seed-admin-email");
-builder.AddParameter("seed-admin-password", new GenerateParameterDefault(), secret: true, persist: true);
+var seedAdminEmail = builder.AddParameter("seed-admin-email");
+var seedAdminPassword = builder.AddParameter(
+    "seed-admin-password", new GenerateParameterDefault(), secret: true, persist: true);
 
 // SQL: a SQL Server container in run mode, Azure SQL when published (ADR 0008). The callback runs in run mode
 // only, so DbGate, which receives the sa credential, never reaches a published model.
@@ -44,7 +45,7 @@ var storage = builder.AddAzureStorage("storage")
     .RunAsEmulator(azurite => azurite
         .WithLifetime(ContainerLifetime.Persistent)
         .WithDataVolume("arts6311-storage-data"));
-storage.AddBlobs("blobs");
+var blobs = storage.AddBlobs("blobs");
 storage.AddBlobContainer("media");
 storage.AddBlobContainer("dataprotection");
 
@@ -63,11 +64,13 @@ if (builder.ExecutionContext.IsRunMode)
 
 // Mail: Mailpit catches every email locally (its UI is on the dashboard). Publish mode maps this to Azure
 // Communication Services in prompt 6.1.
-builder.AddMailPit("mail");
+var mail = builder.AddMailPit("mail");
 
 // One-shot: applies EF migrations, runs seeders, exits 0 (or 1 on failure). Dependents WaitForCompletion,
 // so they never start against an old schema.
 var migrations = builder.AddProject<Projects.Arts6311_MigrationService>("migrations")
+    .WithEnvironment("SeedAdmin__Email", seedAdminEmail)
+    .WithEnvironment("SeedAdmin__Password", seedAdminPassword)
     .WithReference(appdb)
     .WaitFor(appdb);
 
@@ -75,7 +78,7 @@ var migrations = builder.AddProject<Projects.Arts6311_MigrationService>("migrati
 // prompts that use them. Its launch profile carries no ports, only ASPNETCORE_ENVIRONMENT (without it the app
 // runs as Production and ServiceDefaults maps no /health), so the endpoint here is dynamic: there are no
 // fixed ports in the repo.
-builder.AddProject<Projects.Arts6311_Api>("api")
+var apiService = builder.AddProject<Projects.Arts6311_Api>("api")
     .WithHttpEndpoint()
     .WithEnvironment(async context =>
     {
@@ -86,7 +89,29 @@ builder.AddProject<Projects.Arts6311_Api>("api")
     .WithEnvironment("Idempotency__FingerprintKey", idempotencyFingerprintKey)
     .WithReference(appdb)
     .WaitFor(appdb)
+
+    // The Data Protection key ring, shared with the Worker: it mints Identity's confirmation and reset tokens,
+    // this host validates them, and separate rings would fail every emailed link (ADR 0023).
+    .WithReference(blobs)
+    .WaitFor(blobs)
     .WaitForCompletion(migrations)
+    .WithHttpHealthCheck("/health");
+
+// The edge (ADR 0001): the ONLY resource with an external endpoint, locally and in Azure. Everything the browser
+// sees comes from this one origin, which is what cookies, antiforgery, CSP and Square webhooks all depend on.
+// WithReference is what service discovery resolves "https+http://api" against; there is no host or port in the
+// gateway's configuration. The site and admin clusters have no resource until 2.2/3.3, so those routes answer 503
+// until then (ADR 0022).
+var gateway = builder.AddProject<Projects.Arts6311_Gateway>("gateway")
+    // The endpoint first, then marked external: WithExternalHttpEndpoints only promotes endpoints that already
+    // exist, so on its own it would leave the gateway with none. No port here either — nothing in the repo is fixed.
+    .WithHttpEndpoint()
+    .WithExternalHttpEndpoints()
+    .WithEnvironment("InternalToken__SigningKeyPem", internalTokenSigningKey)
+    .WithReference(apiService)
+    .WaitFor(apiService)
+    .WithReference(cache)
+    .WaitFor(cache)
     .WithHttpHealthCheck("/health");
 
 // The outbox dispatcher, scheduler and reconciler host (prompts 1.4+). No HTTP endpoint, so it reports a
@@ -94,6 +119,20 @@ builder.AddProject<Projects.Arts6311_Api>("api")
 builder.AddProject<Projects.Arts6311_Worker>("worker")
     .WithReference(appdb)
     .WaitFor(appdb)
+
+    // Every email in the system is an outbox message, so this is the only host that sends one (ADR 0023).
+    .WithReference(mail)
+    .WaitFor(mail)
+
+    // The Data Protection key ring it shares with the API, for the tokens it mints.
+    .WithReference(blobs)
+    .WaitFor(blobs)
+    .WithEnvironment("Email__FromAddress", "no-reply@6311arts.test")
+
+    // Links in email point at the gateway, the only public endpoint (ADR 0001). A reference, not a WaitFor: the
+    // Worker needs the address to build a link, not the gateway to be up before it starts — waiting would invert
+    // the dependency, since the gateway already waits on the API.
+    .WithEnvironment("Email__SiteOrigin", gateway.GetEndpoint("http"))
     .WaitForCompletion(migrations);
 
 builder.Build().Run();

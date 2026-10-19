@@ -5,8 +5,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
     <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="MailKit" />
+  </ItemGroup>
+
+  <!--
+    For DataProtectorTokenProvider, which mints the confirmation and reset tokens and lives in the ASP.NET Core
+    framework assembly. Referenced by this host rather than by the Domain, so HttpContext and MVC stay out of
+    reach of the domain model (ADR 0023). It also supplies Microsoft.Extensions.Hosting, which is why that
+    package reference is gone.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
@@ -37,6 +38,7 @@
     <ProjectReference Include="..\Arts6311.Api\Arts6311.Api.csproj" />
     <ProjectReference Include="..\Arts6311.AppHost\Arts6311.AppHost.csproj" />
     <ProjectReference Include="..\Arts6311.Domain\Arts6311.Domain.csproj" />
+    <ProjectReference Include="..\Arts6311.Gateway\Arts6311.Gateway.csproj" />
     <ProjectReference Include="..\Arts6311.MigrationService\Arts6311.MigrationService.csproj" />
     <ProjectReference Include="..\Arts6311.Square\Arts6311.Square.csproj" />
     <ProjectReference Include="..\Arts6311.Worker\Arts6311.Worker.csproj" />

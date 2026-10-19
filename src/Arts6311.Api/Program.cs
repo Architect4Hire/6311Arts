@@ -1,7 +1,13 @@
+using Arts6311.Api.Authentication;
+using Arts6311.Api.Conventions;
 using Arts6311.Domain.Managers;
 using Arts6311.Domain.Managers.Idempotency;
 using Arts6311.Domain.Managers.Persistence;
+using Arts6311.Domain.Modules.Identity;
+using Arts6311.Domain.Modules.Identity.Data.Entities;
+using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Operations;
+using Microsoft.AspNetCore.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,12 +19,56 @@ builder.Services.AddArtsKernel();
 builder.Services.AddArtsIdempotency(builder.Configuration);
 builder.Services.AddOperationsModule();
 
-// Versioning conventions, ProblemDetails, OpenAPI and secure-by-default authentication arrive in 1.7.
-builder.Services.AddControllers();
+// The same key ring the Worker uses. The Worker mints Identity's confirmation and reset tokens when it sends the
+// email; this host is where the link is validated, so a separate ring would fail every one (ADR 0023).
+builder.AddAzureBlobServiceClient("blobs");
+builder.Services.AddArtsDataProtection(DataProtectionApplicationName.Value);
+
+// The credential store (ADR 0002). AddIdentityCore only: no cookie scheme and no SignInManager, because the
+// gateway owns the browser session and the API takes no cookies at all.
+builder.Services.AddIdentityModule(builder.Configuration)
+    .AddTokenProvider<DataProtectorTokenProvider<ArtsUser>>(TokenOptions.DefaultProvider);
+
+// The framework default lifetime is 24 hours, which leaves several reset links live at once and none superseded
+// by a newer request. Configured here because the options type ships in the same framework assembly as the
+// provider (ADR 0023).
+builder.Services.Configure<DataProtectionTokenProviderOptions>(
+    options => options.TokenLifespan = IdentityPolicy.EmailTokenLifetime);
+
+// Every failure leaves as ProblemDetails with a stable code and the correlation id (api-contract.md).
+builder.Services.AddArtsProblemDetails();
+
+// The gateway's ES256 internal token is the only credential the API accepts: no cookies, no second scheme, and
+// no CORS, because the gateway is the only origin (ADR 0001, ADR 0002).
+builder.Services.AddInternalTokenAuthentication(builder.Configuration);
+builder.Services.AddArtsAuthorization();
+
+builder.Services.AddArtsOpenApi();
+
+// The Development-only gate is applied here, to the controller set, so a scaffolding route does not exist at all
+// outside Development. An environment check inside an action runs after authorization, which would answer 401.
+builder.Services.AddControllers()
+    .AddDevelopmentOnlyControllerGate(builder.Environment.IsDevelopment());
+builder.Services.AddArtsFormatters();
+builder.Services.AddArtsApiBehavior();
 
 var app = builder.Build();
 
+// Before routing: an exception or an empty error status anywhere downstream still comes back as ProblemDetails.
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapDefaultEndpoints();
-app.MapControllers();
+
+// Development only. In Azure the gateway proxies this path, also only in Development (gateway.md "API docs").
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.MapAuthenticatedControllers();
 
 app.Run();

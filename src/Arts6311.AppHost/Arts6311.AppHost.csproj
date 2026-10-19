@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Arts6311.Api\Arts6311.Api.csproj" />
+    <ProjectReference Include="..\Arts6311.Gateway\Arts6311.Gateway.csproj" />
     <ProjectReference Include="..\Arts6311.MigrationService\Arts6311.MigrationService.csproj" />
     <ProjectReference Include="..\Arts6311.Worker\Arts6311.Worker.csproj" />
   </ItemGroup>

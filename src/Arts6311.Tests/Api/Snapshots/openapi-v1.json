@@ -1,0 +1,123 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "6311arts API",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/v1/site/health-info": {
+      "get": {
+        "tags": [
+          "SiteHealthInfo"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthInfoServiceModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected fault. The cause is in the logs under the correlationId, never in the response.",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthInfoServiceModel": {
+        "required": [
+          "status",
+          "serverTimeUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "required": [
+          "status",
+          "code",
+          "correlationId"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable, machine-readable error code (api-contract.md). Branch on this, not on the status."
+          },
+          "correlationId": {
+            "type": "string",
+            "description": "The request\u0027s W3C trace id as 32 lower-case hex digits, for support and log lookup."
+          },
+          "errors": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Present on validation.failed: messages keyed by camelCase field name."
+          }
+        },
+        "description": "RFC 9457 problem details, with the 6311arts error code and correlation id."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "SiteHealthInfo"
+    }
+  ]
+}

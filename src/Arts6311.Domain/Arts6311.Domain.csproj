@@ -1,9 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+
+  <!--
+    The bundled common-password list (ADR 0023). Embedded rather than a content file so no host has to copy it and
+    no deployment can omit it. Regenerate with the script recorded in ADR 0023; the bytes are reproducible.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Modules\Identity\Managers\Resources\CommonPasswords.txt.gz" />
   </ItemGroup>
 
   <ItemGroup>

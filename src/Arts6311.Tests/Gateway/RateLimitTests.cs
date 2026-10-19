@@ -1,0 +1,119 @@
+using System.Net;
+using Arts6311.Gateway.Edge;
+using Arts6311.Tests.Gateway.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Arts6311.Tests.Gateway;
+
+/// <summary>
+/// The named rate-limit policies (<c>gateway.md</c> "Rate limits").
+/// </summary>
+public sealed class RateLimitTests : IAsyncLifetime
+{
+    private StubDestination destination = null!;
+
+    public async ValueTask InitializeAsync() => destination = await StubDestination.StartAsync();
+
+    public async ValueTask DisposeAsync() => await destination.DisposeAsync();
+
+    [Fact]
+    public void EveryPolicyGatewayMdNamesExists()
+    {
+        // Keeps the code and the rule in step. Three of these have no route until 1.10, 2.12 and 5.14; defining
+        // them now means those prompts reference a name instead of inventing a limit.
+        Assert.Equal(
+            ["api", "bff-login", "checkout", "forms", "webhooks"],
+            RateLimitExtensions.Policies.All.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task TheApiRouteRefusesOnceItsWindowIsFull()
+    {
+        using var gateway = new GatewayFactory(destination)
+            .With("Gateway:RateLimits:api:PermitLimit", "3")
+            .With("Gateway:RateLimits:api:Window", "00:05:00")
+            .With("Gateway:RateLimits:api:QueueLimit", "0");
+        using var client = gateway.CreateJsonClient();
+
+        var statuses = new List<HttpStatusCode>();
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var response = await client.GetAsync("/api/v1/site/health-info", TestContext.Current.CancellationToken);
+            statuses.Add(response.StatusCode);
+        }
+
+        Assert.Equal(3, statuses.Count(status => status == HttpStatusCode.OK));
+        Assert.Equal(2, statuses.Count(status => status == HttpStatusCode.TooManyRequests));
+
+        // The point of the limit: the refused requests never reached the API.
+        Assert.Equal(3, destination.Requests);
+    }
+
+    [Fact]
+    public async Task TheWebhookRouteHasItsOwnWindow()
+    {
+        // Separate policies so a flood of webhooks cannot exhaust the browser-facing budget, and vice versa.
+        using var gateway = new GatewayFactory(destination)
+            .With("Gateway:RateLimits:webhooks:PermitLimit", "1")
+            .With("Gateway:RateLimits:webhooks:Window", "00:05:00");
+        using var client = gateway.CreateJsonClient();
+
+        var first = await client.PostAsync("/webhooks/square", content: null, TestContext.Current.CancellationToken);
+        var second = await client.PostAsync("/webhooks/square", content: null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+
+        // The api policy is untouched by the webhook flood.
+        var api = await client.GetAsync("/api/v1/site/health-info", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, api.StatusCode);
+    }
+
+    [Fact]
+    public async Task ARefusalIsAProblemDetailsWithRetryAfter()
+    {
+        using var gateway = new GatewayFactory(destination)
+            .With("Gateway:RateLimits:api:PermitLimit", "1")
+            .With("Gateway:RateLimits:api:Window", "00:05:00");
+        using var client = gateway.CreateJsonClient();
+
+        await client.GetAsync("/api/v1/site/health-info", TestContext.Current.CancellationToken);
+        var refused = await client.GetAsync("/api/v1/site/health-info", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
+        Assert.Equal("application/problem+json", refused.Content.Headers.ContentType?.MediaType);
+        Assert.NotNull(refused.Headers.RetryAfter);
+    }
+
+    [Fact]
+    public void AnUndefinedPolicyIsRefusedAtStartup()
+    {
+        // A route naming a policy that configuration never defines would otherwise fail only on that route, at
+        // request time, long after deployment. Checked against the registration directly, because an incomplete
+        // configuration section cannot be simulated by overriding one key.
+        var options = new GatewayOptions();
+        options.GlobalRateLimit.PermitLimit = 100;
+        options.RateLimits["api"] = new RateLimitPolicyOptions { PermitLimit = 10 };
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => new ServiceCollection().AddArtsRateLimiter(options));
+
+        // Names the first policy it could not find, so the message says what to add.
+        Assert.Contains("bff-login", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AMissingGlobalLimitIsRefusedAtStartup()
+    {
+        var options = new GatewayOptions();
+        foreach (var name in RateLimitExtensions.Policies.All)
+        {
+            options.RateLimits[name] = new RateLimitPolicyOptions { PermitLimit = 10 };
+        }
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => new ServiceCollection().AddArtsRateLimiter(options));
+
+        Assert.Contains("GlobalRateLimit", exception.Message, StringComparison.Ordinal);
+    }
+}

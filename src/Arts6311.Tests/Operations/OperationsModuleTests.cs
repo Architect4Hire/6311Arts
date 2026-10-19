@@ -8,6 +8,7 @@ using Arts6311.Domain.Modules.Operations.Business;
 using Arts6311.Domain.Modules.Operations.Data;
 using Arts6311.Domain.Modules.Operations.Facade;
 using Arts6311.Domain.Modules.Operations.Managers;
+using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Operations.Managers.ServiceModels;
 using Arts6311.Tests.Kernel;
 using Microsoft.EntityFrameworkCore;
@@ -48,7 +49,7 @@ public sealed class OperationsModuleTests : IAsyncLifetime
     public async Task BusinessGivesEveryPingANewServerOwnedId()
     {
         var dataLayer = new FakeDataLayer();
-        var business = new OperationsBusiness(dataLayer);
+        var business = new OperationsBusiness(dataLayer, Clock());
 
         var first = await business.RequestPingAsync(Ct);
         var second = await business.RequestPingAsync(Ct);
@@ -63,7 +64,7 @@ public sealed class OperationsModuleTests : IAsyncLifetime
     public async Task BusinessRecordsAPingOnceHoweverOftenItIsDelivered()
     {
         var dataLayer = new FakeDataLayer();
-        var business = new OperationsBusiness(dataLayer);
+        var business = new OperationsBusiness(dataLayer, Clock());
         var pingId = Guid.NewGuid();
 
         await business.RecordPingHandledAsync(pingId, Guid.NewGuid(), Ct);
@@ -75,7 +76,7 @@ public sealed class OperationsModuleTests : IAsyncLifetime
     [Fact]
     public async Task TheFacadeWrapsTheBusinessResult()
     {
-        var facade = new OperationsFacade(new OperationsBusiness(new FakeDataLayer()));
+        var facade = new OperationsFacade(new OperationsBusiness(new FakeDataLayer(), Clock()));
 
         var result = await facade.RequestPingAsync(Ct);
 
@@ -211,8 +212,14 @@ public sealed class OperationsModuleTests : IAsyncLifetime
         }
     }
 
+    /// <summary>The ping does not read the clock; health-info does, and both go through this business class.</summary>
+    private static SystemClock Clock() => new(new FakeTimeProvider(new DateTimeOffset(2026, 10, 19, 18, 0, 0, TimeSpan.Zero)));
+
     private sealed class ThrowingFacade : IOperationsFacade
     {
+        public Task<OperationResult<HealthInfoServiceModel>> GetHealthInfoAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<OperationResult<PingRequestedServiceModel>> RequestPingAsync(
             CancellationToken cancellationToken) => throw new NotSupportedException();
 

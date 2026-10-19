@@ -1,5 +1,8 @@
+using Arts6311.Api.Authentication;
+using Arts6311.Api.Conventions;
 using Arts6311.Domain.Modules.Operations.Facade;
 using Arts6311.Domain.Modules.Operations.Managers.ServiceModels;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Arts6311.Api.Controllers.Operations;
@@ -8,38 +11,33 @@ namespace Arts6311.Api.Controllers.Operations;
 /// Stages a <c>system.ping-requested</c> message so one trace can be followed API → SQL → Worker → handler.
 /// </summary>
 /// <remarks>
-/// Development-only until it is deleted: there is no authentication before 1.7, so outside Development the route
-/// is a 404. The API has no external endpoint, so in Development only this machine reaches it.
-/// Injecting <see cref="IHostEnvironment"/> is a deliberate exception to "controllers inject facades only"
-/// (backend.md): the gate is edge policy for scaffolding that is deleted in 1.12, not a pattern to copy.
+/// <para>
+/// Development-only and <c>CmsAdmin</c> (api-contract.md: "Development only (404 elsewhere); CmsAdmin from 1.7").
+/// <see cref="DevelopmentOnlyAttribute"/> removes the controller outside Development, so the route genuinely does
+/// not exist there — for an anonymous caller as much as for an admin. Prompt 1.5 did this with an
+/// <c>IHostEnvironment</c> check inside the action, which ran *after* authorization and so answered 401 outside
+/// Development: it both contradicted the contract and confirmed the route's existence to anyone who asked.
+/// </para>
+/// <para>
+/// Kept out of the OpenAPI document with <see cref="ApiExplorerSettingsAttribute"/>: it is scaffolding, and
+/// publishing it as contract would make its deletion in 1.12 read as a breaking path removal.
+/// </para>
 /// </remarks>
 [ApiController]
 [Route("api/v1/cms/ops/ping")]
-[Obsolete("Development scaffolding from prompt 1.5. Delete in 1.12. Until then, 1.7 must add [Authorize(Policy = CmsAdmin)].")]
-public sealed class OpsPingController(IOperationsFacade facade, IHostEnvironment environment) : ControllerBase
+[Authorize(Policy = ApiPolicies.CmsAdmin)]
+[DevelopmentOnly]
+[ApiExplorerSettings(IgnoreApi = true)]
+[Obsolete("Development scaffolding from prompt 1.5. Delete in 1.12.")]
+public sealed class OpsPingController(IOperationsFacade facade) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType<PingRequestedServiceModel>(StatusCodes.Status202Accepted)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> RequestPingAsync(CancellationToken cancellationToken)
-    {
-        if (!environment.IsDevelopment())
-        {
-            return NotFound();
-        }
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> RequestPingAsync(CancellationToken cancellationToken) =>
 
-        // The operation has no expected failure, so a failed result is a bug: a 500, never a 202 with no body.
-        // ProblemDetails with stable codes and the correlation id arrive with the API conventions in 1.7.
-        var result = await facade.RequestPingAsync(cancellationToken);
-        return result.Succeeded
-            ? Accepted(result.Value)
-            : StatusCode(
-                StatusCodes.Status500InternalServerError,
-                new ProblemDetails
-                {
-                    Title = "The ping could not be requested.",
-                    Status = StatusCodes.Status500InternalServerError,
-                });
-    }
+        // The operation has no expected failure, so the mapping never actually produces a problem. It goes through
+        // the shared mapper anyway: a hand-written status here is the thing that drifts from the contract.
+        this.ToAcceptedResult(await facade.RequestPingAsync(cancellationToken));
 }

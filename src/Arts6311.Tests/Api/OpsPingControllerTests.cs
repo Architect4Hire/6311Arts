@@ -1,11 +1,11 @@
 using Arts6311.Api.Controllers.Operations;
+using Arts6311.Domain.Managers.Correlation;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Operations.Facade;
 using Arts6311.Domain.Modules.Operations.Managers.ServiceModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Hosting.Internal;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Arts6311.Tests.Api;
 
@@ -13,16 +13,19 @@ namespace Arts6311.Tests.Api;
 #pragma warning disable CS0618
 
 /// <summary>
-/// The controller seam only. Endpoint tests through <c>WebApplicationFactory</c> with the internal token arrive with
-/// the API conventions in 1.7.
+/// The controller seam only: the result mapping. The route's authentication, policy and Development-only
+/// existence are covered through the real pipeline by <see cref="InternalTokenAuthenticationTests"/>,
+/// <see cref="ApiRouteConventionTests"/> and <see cref="DevelopmentOnlyRouteTests"/>.
 /// </summary>
 public sealed class OpsPingControllerTests
 {
+    private static readonly Guid CorrelationId = Guid.Parse("fedcba9876543210fedcba9876543210");
+
     [Fact]
-    public async Task InDevelopmentItStagesAPingAndReturns202WithItsIds()
+    public async Task ItStagesAPingAndReturns202WithItsIds()
     {
         var facade = new FakeFacade();
-        var controller = new OpsPingController(facade, Environment(Environments.Development));
+        var controller = Controller(facade);
 
         var result = await controller.RequestPingAsync(TestContext.Current.CancellationToken);
 
@@ -34,31 +37,42 @@ public sealed class OpsPingControllerTests
     [Fact]
     public async Task AFailedResultIsAProblemNotAnEmpty202()
     {
+        // An unmapped code is a 400, not a 500: an OperationError is an expected failure the caller can act on
+        // (ApiProblemDetails). The ping has no expected failure, so this only proves the mapping is the shared one.
         var facade = new FakeFacade { Fails = true };
-        var controller = new OpsPingController(facade, Environment(Environments.Development));
+        var controller = Controller(facade);
 
         var result = await controller.RequestPingAsync(TestContext.Current.CancellationToken);
 
         var problem = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(StatusCodes.Status500InternalServerError, problem.StatusCode);
-        Assert.IsType<ProblemDetails>(problem.Value);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        var details = Assert.IsType<ProblemDetails>(problem.Value);
+        Assert.Equal("test.failed", details.Extensions["code"]);
+        Assert.Equal(CorrelationId.ToString("N"), details.Extensions["correlationId"]);
     }
 
-    [Theory]
-    [InlineData("Production")]
-    [InlineData("Staging")]
-    public async Task OutsideDevelopmentTheRouteDoesNotExist(string environmentName)
+    /// <summary>
+    /// A controller with the ambient context it has in production: the shared result mapper reads the correlation
+    /// id from request services, so a bare controller would have nowhere to read it from.
+    /// </summary>
+    private static OpsPingController Controller(IOperationsFacade facade)
     {
-        var facade = new FakeFacade();
-        var controller = new OpsPingController(facade, Environment(environmentName));
+        var services = new ServiceCollection();
+        services.AddScoped<ICorrelationContext>(_ => new FixedCorrelationContext());
 
-        var result = await controller.RequestPingAsync(TestContext.Current.CancellationToken);
-
-        Assert.IsType<NotFoundResult>(result);
-        Assert.Equal(0, facade.Calls);
+        return new OpsPingController(facade)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { RequestServices = services.BuildServiceProvider() },
+            },
+        };
     }
 
-    private static HostingEnvironment Environment(string name) => new() { EnvironmentName = name };
+    private sealed class FixedCorrelationContext : ICorrelationContext
+    {
+        public Guid Current => CorrelationId;
+    }
 
     private sealed class FakeFacade : IOperationsFacade
     {
@@ -67,6 +81,9 @@ public sealed class OpsPingControllerTests
         public int Calls { get; private set; }
 
         public bool Fails { get; init; }
+
+        public Task<OperationResult<HealthInfoServiceModel>> GetHealthInfoAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<OperationResult<PingRequestedServiceModel>> RequestPingAsync(CancellationToken cancellationToken)
         {

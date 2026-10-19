@@ -1,7 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
     <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <!-- The startup project for `dotnet ef migrations add` (CLAUDE.md). Design-time only. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
@@ -12,6 +15,11 @@
   <ItemGroup>
     <ProjectReference Include="..\Arts6311.ServiceDefaults\Arts6311.ServiceDefaults.csproj" />
     <ProjectReference Include="..\Arts6311.Domain\Arts6311.Domain.csproj" />
+  </ItemGroup>
+
+  <!-- WebApplicationFactory<Program> needs the internal Program of a top-level-statements host. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Arts6311.Tests" />
   </ItemGroup>
 
 </Project>

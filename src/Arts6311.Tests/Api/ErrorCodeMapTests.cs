@@ -1,0 +1,122 @@
+using System.Reflection;
+using Arts6311.Api.Conventions;
+using Arts6311.Domain.Managers.Results;
+
+namespace Arts6311.Tests.Api;
+
+/// <summary>
+/// ADR 0021 claims "one code, one status, in one place". These tests are what makes the claim true rather than
+/// aspirational: a code added to <see cref="ErrorCodes"/> without a status would silently answer 400.
+/// </summary>
+public sealed class ErrorCodeMapTests
+{
+    [Fact]
+    public void EveryErrorCodeHasADeclaredStatus()
+    {
+        // The failure this catches is quiet: StatusFor falls back to 400 for an unmapped code, so a new code would
+        // ship with a plausible-looking status that the contract never promised.
+        var unmapped = SharedErrorCodes()
+            .Where(code => ApiProblemDetails.StatusFor(code.Value) == ApiProblemDetails.UnmappedCodeStatus
+                && !ExpectedToBe400.Contains(code.Value))
+            .Select(code => $"{code.Name} ({code.Value})")
+            .ToList();
+
+        Assert.Empty(unmapped);
+    }
+
+    [Theory]
+    [InlineData(401)]
+    [InlineData(403)]
+    [InlineData(404)]
+    [InlineData(405)]
+    [InlineData(409)]
+    [InlineData(413)]
+    [InlineData(415)]
+    [InlineData(500)]
+    public void EachEdgeStatusHasItsOwnCodeThatMapsBack(int status)
+    {
+        // The other direction: a framework status whose code fell through to the generic one, or whose code does
+        // not lead back to the same status.
+        var code = ApiProblemDetails.CodeForStatus(status);
+
+        Assert.NotEqual(ErrorCodes.RequestRejected, code);
+        Assert.Equal(status, ApiProblemDetails.StatusFor(code));
+    }
+
+    [Theory]
+    [InlineData(500)]
+    [InlineData(501)]
+    [InlineData(502)]
+    [InlineData(503)]
+    public void EveryServerFaultSharesOneCode(int status)
+    {
+        // Deliberately one code for the whole 5xx family: the caller can do nothing differently for a 502 than for
+        // a 500, and the actual cause is in the logs under the correlation id. server.error maps to 500.
+        Assert.Equal(ErrorCodes.ServerError, ApiProblemDetails.CodeForStatus(status));
+    }
+
+    [Fact]
+    public void ACodeNeverMeansTwoStatuses()
+    {
+        // request.rejected used to be the code for every edge status outside a handful, so one code meant 405, 415
+        // and 413 at once — exactly what ADR 0021 forbids. Each status now has its own code, and this holds the line.
+        var byCode = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        // 4xx only: the 5xx family shares server.error by design (see EveryServerFaultSharesOneCode).
+        foreach (var status in Enumerable.Range(400, 100))
+        {
+            var code = ApiProblemDetails.CodeForStatus(status);
+            if (code == ErrorCodes.RequestRejected)
+            {
+                // The deliberate remainder: it maps to 400 and is not claimed to describe any other status.
+                continue;
+            }
+
+            if (byCode.TryGetValue(code, out var seen))
+            {
+                Assert.Equal(seen, status);
+            }
+
+            byCode[code] = status;
+        }
+
+        Assert.NotEmpty(byCode);
+    }
+
+    [Fact]
+    public void EveryCodeFollowsTheAreaReasonShape()
+    {
+        // api-contract.md: codes are `area.reason`, lower snake_case, with a dotted sub-area allowed
+        // (`paging.cursor.invalid`). They are part of the contract, so the shape is checked rather than trusted.
+        Assert.All(SharedErrorCodes(), code =>
+            Assert.Matches("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$", code.Value));
+    }
+
+    [Fact]
+    public void TheScanActuallySeesTheCodes()
+    {
+        var codes = SharedErrorCodes().Select(code => code.Value).ToList();
+
+        Assert.Contains(ErrorCodes.ValidationFailed, codes);
+        Assert.Contains(ErrorCodes.IdempotencyKeyReused, codes);
+        Assert.Contains(ErrorCodes.ServerError, codes);
+    }
+
+    /// <summary>Codes whose status genuinely is 400, so the fallback and the declared value coincide.</summary>
+    private static readonly string[] ExpectedToBe400 =
+    [
+        ErrorCodes.ValidationFailed,
+        ErrorCodes.CursorInvalid,
+        ErrorCodes.IdempotencyKeyRequired,
+        ErrorCodes.IdempotencyKeyInvalid,
+        ErrorCodes.RequestRejected,
+    ];
+
+    private static List<(string Name, string Value)> SharedErrorCodes() =>
+    [
+        .. typeof(ErrorCodes)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field is { IsLiteral: true, IsInitOnly: false } && field.FieldType == typeof(string))
+            .Select(field => (field.Name, (string)field.GetRawConstantValue()!)),
+    ];
+}
