@@ -34,10 +34,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Arts6311.Api\Arts6311.Api.csproj" />
     <ProjectReference Include="..\Arts6311.AppHost\Arts6311.AppHost.csproj" />
     <ProjectReference Include="..\Arts6311.Domain\Arts6311.Domain.csproj" />
     <ProjectReference Include="..\Arts6311.MigrationService\Arts6311.MigrationService.csproj" />
     <ProjectReference Include="..\Arts6311.Square\Arts6311.Square.csproj" />
+    <ProjectReference Include="..\Arts6311.Worker\Arts6311.Worker.csproj" />
   </ItemGroup>
 
 </Project>

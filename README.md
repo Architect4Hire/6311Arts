@@ -161,7 +161,7 @@ Claude plans, waits for approval, builds, tests and reports.
 | Phase | What it delivers |
 |---|---|
 | **0 — Repo & toolkit** | Restructured repo, toolkit installed, baseline ADRs |
-| **1 — Local platform** | Aspire, SQL, Redis, Azurite, Mailpit; Domain kernel; **transactional outbox** + Worker; idempotency; API with internal-token auth; YARP gateway; Identity; BFF session; staff 2FA; CI |
+| **1 — Local platform** | Aspire, SQL, Redis, Azurite, Mailpit; Domain kernel; **transactional outbox** + Worker; idempotency; API with internal-token auth; YARP gateway; Identity; BFF session; CI |
 | **2 — CMS core** | `@6311/ui`; admin shell; media (blob + renditions); artists, exhibitions, pages, redirects; publishing, scheduling, previews; classes, shop items, plans (content); forms |
 | **3 — Public site** | Site read API; the site rewired from WordPress to the API with SEO parity; publish-to-page check |
 | **4 — WordPress import** | Snapshot → stage → load media and content → verify; delta refresh; cutover freeze |

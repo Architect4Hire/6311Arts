@@ -4,6 +4,7 @@
 - **Date:** 2026-10-19
 - **Rules affected:** `.claude/rules/auth.md`, `.claude/rules/gateway.md`, `.claude/rules/aspire.md` (signing-key parameter)
 - **Adopts:** creatorpantry **B-02** (BFF authentication) and **B-13** (gateway-to-API trust, no OIDC server), as-is apart from the 6311 differences listed below
+- **Amended by:** [0018](0018-no-two-factor-authentication.md), which removes the TOTP 2FA requirement
 
 ## Context
 
@@ -19,7 +20,7 @@ Staff (Admin, Editor) sign in to the CMS, and members sign in to the public site
   - The API holds only the public key and accepts no other scheme. `/api/v1/internal/**` accepts only `token_use=service`.
 - **No OAuth/OIDC server, no OpenIddict, no refresh tokens.** The gateway revalidates the security stamp periodically.
 
-**6311 differences from B-13:** issuer and audience names; a `role` claim; three roles (`Admin`, `Editor`, `Member`); TOTP 2FA required for Admin and Editor before `/admin`.
+**6311 differences from B-13:** issuer and audience names; a `role` claim; three roles (`Admin`, `Editor`, `Member`); TOTP 2FA required for Admin and Editor before `/admin` (**removed by [ADR 0018](0018-no-two-factor-authentication.md)**: no 2FA for anyone).
 
 ## Options considered
 

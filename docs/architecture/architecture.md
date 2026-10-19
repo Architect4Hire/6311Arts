@@ -329,9 +329,9 @@ sequenceDiagram
 
     B->>G: POST /bff/login (email, password, XSRF)
     G->>A: POST /api/v1/internal/sessions/credentials<br/>(service token, ES256)
-    A->>I: password check · lockout · confirmed · 2FA required?
+    A->>I: password check · lockout · confirmed (staff)
     I-->>A: user summary
-    A-->>G: ok (+ 2FA step if staff)
+    A-->>G: ok (single step; no 2FA, ADR 0018)
     G->>R: store session ticket
     G-->>B: Set-Cookie __Host-6311.session (HttpOnly, Secure, SameSite=Lax)
 
@@ -345,8 +345,8 @@ sequenceDiagram
 
 | Role | Can |
 |---|---|
-| `Admin` | Everything, including deletes, seat adjustments, outbox replay/discard, users, redirects. Needs TOTP 2FA. |
-| `Editor` | CMS content and media. Needs TOTP 2FA. |
+| `Admin` | Everything, including deletes, seat adjustments, outbox replay/discard, users, redirects. Staff password policy; 30 min idle / 8 h session. |
+| `Editor` | CMS content and media. Staff password policy; 30 min idle / 8 h session. |
 | `Member` | Member area: subscription status, card update, cancel |
 | anonymous | Public site reads, cart, quote, pay, forms (rate limited) |
 
@@ -355,6 +355,7 @@ sequenceDiagram
 - No tokens ever reach the browser.
 - `/api/v1/internal/**` returns 404 from browsers.
 - The API accepts only the gateway's internal token.
+- No 2FA for anyone (ADR 0018). Staff accounts rely on the password policy, lockout, login rate limit, short sessions, "log out everywhere" and audited sign-ins.
 
 ---
 
@@ -538,7 +539,7 @@ flowchart TB
 | **Observability** | OpenTelemetry via ServiceDefaults. `CorrelationId` flows browser → gateway → api → outbox row → handler → Square. Alerts: Poisoned > 0, outbox age > 5 min, webhook signature failures, 5xx rate. |
 | **Caching** | HybridCache (in-memory L1, Redis L2) with tags invalidated by `site.revalidate-requested`. SSR `s-maxage` + `stale-while-revalidate` at the edge. |
 | **Resilience** | ServiceDefaults resilience on HTTP clients. Square writes only from outbox handlers (retry with backoff → poison → admin replay). Reconciler as the safety net. |
-| **Security** | Single origin; BFF cookie; antiforgery; ES256 internal token; header stripping; rate limits; CSP scoped to checkout; HTML sanitizer; signature-checked uploads; no public blobs; TOTP for staff; secret-guard hook. |
+| **Security** | Single origin; BFF cookie; antiforgery; ES256 internal token; header stripping; rate limits; CSP scoped to checkout; HTML sanitizer; signature-checked uploads; no public blobs; no 2FA (ADR 0018), so staff password policy, lockout and short staff sessions instead; secret-guard hook. |
 | **Data protection** | No card data stored. Newsletter imported only with consent. Customer passwords never migrated. Snapshots with personal data deleted after cutover. |
 | **Contracts** | `/api/v1`; ProblemDetails with stable codes; `ETag`/`If-Match`; `Idempotency-Key`; OpenAPI snapshot test; Angular models checked against it. |
 | **Testing** | Per-layer tests (mock the layer below); real-DB outbox atomicity tests; Square contract suite against the fake (sandbox opt-in); Aspire end-to-end test; Playwright for UI and redirects. |

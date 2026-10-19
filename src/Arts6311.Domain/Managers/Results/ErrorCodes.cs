@@ -12,4 +12,13 @@ public static class ErrorCodes
     public const string ConcurrencyConflict = "concurrency.conflict";
     public const string Forbidden = "access.forbidden";
     public const string CursorInvalid = "paging.cursor.invalid";
+
+    /// <summary>A command that requires an <c>Idempotency-Key</c> was sent without one.</summary>
+    public const string IdempotencyKeyRequired = "idempotency.key_required";
+
+    /// <summary>The <c>Idempotency-Key</c> is empty, too long, or not printable ASCII.</summary>
+    public const string IdempotencyKeyInvalid = "idempotency.key_invalid";
+
+    /// <summary>The key was already used for a different request (api-contract.md: 422).</summary>
+    public const string IdempotencyKeyReused = "idempotency.key_reused";
 }

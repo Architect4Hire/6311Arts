@@ -16,7 +16,11 @@ paths:
   - `Admin` — everything, including deletes, sync replay and user management
   - `Editor` — CMS content
   - `Member` — the member area on the public site
-- Admin and Editor accounts require a confirmed email and TOTP 2FA before reaching `/admin`.
+- **No 2FA for anyone** (ADR 0018): no TOTP, SMS, email codes or recovery codes, and login is a single step. The password is the only factor, so these controls are mandatory:
+  - Admin and Editor accounts require a confirmed email before reaching `/admin`.
+  - Staff passwords are at least 14 characters and are checked against a bundled common/breached-password list (offline, no network call).
+  - Identity lockout and the `/bff/login` rate limit are never relaxed without a new ADR.
+  - Staff sign-ins, successful and failed, are audited through `IAuditWriter`.
 - The first Admin is seeded by MigrationService from secret AppHost parameters.
 - There's no OAuth/OIDC server, no OpenIddict and no refresh tokens. Adding any of them needs a new ADR.
 
@@ -26,6 +30,7 @@ paths:
   - The cookie is `__Host-6311.session`: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`. It carries only the ticket reference.
 - **Other BFF endpoints:** `/bff/session` (display name and roles, never ids or tokens), `/bff/logout`, `/bff/antiforgery`.
 - **Logout:** deletes the ticket and clears the cookie. "Log out everywhere" rotates the security stamp.
+- **Lifetimes:** sessions carrying `Admin` or `Editor` expire after 30 minutes idle and 8 hours absolute (ADR 0018). Member sessions use the 1.10 defaults. All values are configuration.
 - **Revalidation:** the gateway periodically revalidates the security stamp, so a password reset ends sessions.
 - **CSRF:** every unsafe request needs antiforgery (the `X-XSRF-TOKEN` header). The exceptions are listed explicitly: `/webhooks/square`, which is signature-verified instead.
 - **Token storage:** tokens never appear in localStorage, sessionStorage, IndexedDB, URLs or logs.
@@ -66,6 +71,9 @@ paths:
 ## Tests
 
 - Login and lockout.
+- A short or listed staff password is refused.
+- A staff session ends at its idle and absolute limits.
+- "Log out everywhere" ends every other session.
 - Every role-gated route gives a 403 for the wrong role.
 - An internal route is unreachable from the browser.
 - An expired or wrongly scoped internal token gets a 401.

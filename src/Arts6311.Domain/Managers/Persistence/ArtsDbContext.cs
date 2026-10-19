@@ -1,4 +1,6 @@
 using Arts6311.Domain.Managers.Audit;
+using Arts6311.Domain.Managers.Idempotency;
+using Arts6311.Domain.Managers.Outbox;
 using Microsoft.EntityFrameworkCore;
 
 namespace Arts6311.Domain.Managers.Persistence;
@@ -19,6 +21,10 @@ public sealed class ArtsDbContext(DbContextOptions<ArtsDbContext> options) : DbC
     public const string ConnectionName = "appdb";
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

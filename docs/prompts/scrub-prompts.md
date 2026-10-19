@@ -315,7 +315,8 @@ show the API reachable only through the gateway.
 
 ```
 SCOPE: Modules/Identity in the Domain: ASP.NET Core Identity stores on ArtsDbContext, roles Admin /
-Editor / Member, lockout, confirmed email required for staff. Internal routes (InternalService policy
+Editor / Member, lockout, confirmed email required for staff, staff password policy (≥ 14 characters,
+offline check against a bundled common/breached-password list; ADR 0018). Internal routes (InternalService policy
 only): POST /api/v1/internal/sessions/credentials (password check → user summary), POST
 /internal/sessions/validate (security-stamp check). Email confirmation and password reset tokens are
 sent with an `email.send-requested` outbox message (add-notification) delivered via Mailpit. Seed the
@@ -328,8 +329,8 @@ Migration reviewed before apply.
 
 UTILIZATION: add-endpoint, add-notification; @security-reviewer, @outbox-reviewer.
 
-BEHAVIOR: Plan, wait, implement; tests: credential check, lockout, unconfirmed staff refused, reset
-email in Mailpit exactly once on duplicate delivery. Report.
+BEHAVIOR: Plan, wait, implement; tests: credential check, lockout, unconfirmed staff refused, short or
+listed staff password refused, reset email in Mailpit exactly once on duplicate delivery. Report.
 ```
 
 ## 1.10 — BFF session in the gateway
@@ -340,7 +341,10 @@ token), logout (delete ticket + clear cookie), session (display name + roles onl
 Server-side ticket store in Redis; cookie __Host-6311.session (HttpOnly, Secure, SameSite=Lax);
 sliding expiry; periodic security-stamp revalidation; antiforgery enforced on every unsafe request
 except /webhooks/square. Coarse route authorization: /admin/** and /api/v1/cms/** need a CmsEditor
-session.
+session. Staff sessions (Admin/Editor) expire at 30 min idle / 8 h absolute (config, ADR 0018).
+"Log out everywhere": /bff/logout-everywhere calls an internal service route that rotates the
+security stamp, then deletes this ticket; other sessions end at their next revalidation. Staff
+sign-ins (success and failure) are audited.
 
 CONSTRAINT: auth.md (creatorpantry B-02/B-13); gateway.md.
 
@@ -349,29 +353,20 @@ RESTRICTION: No tokens to the browser, ever. No API cookies.
 UTILIZATION: @security-reviewer.
 
 BEHAVIOR: Plan the flow (sequence diagram), wait, implement; tests: login/logout, copied cookie dead
-after logout, stamp rotation ends session, missing antiforgery 400, CMS route without session 401/302.
+after logout, stamp rotation ends session, log out everywhere ends a second session, staff idle and
+absolute expiry, missing antiforgery 400, CMS route without session 401/302.
 ```
 
-## 1.11 — Staff two-factor
+## 1.11 — ~~Staff two-factor~~ (removed)
 
-```
-SCOPE: TOTP enrollment and verification for Admin/Editor (required before /admin), recovery codes,
-"log out everywhere" (rotate security stamp). BFF login gains a second step when 2FA is required.
-
-CONSTRAINT: auth.md.
-
-RESTRICTION: Members are not forced into 2FA. No SMS.
-
-UTILIZATION: add-endpoint; @security-reviewer.
-
-BEHAVIOR: Plan, wait, implement, test enrollment, bad code lockout, recovery code single use. Report.
-```
+Removed by ADR 0018: no 2FA for anyone. "Log out everywhere" moved to 1.10 and the staff password
+policy to 1.9. The number is kept so later prompt numbers don't change; skip this slot.
 
 ## 1.12 — ✅ Platform checkpoint + CI
 
 ```
 SCOPE: Remove the 1.5 ping route. Add an Aspire.Hosting.Testing end-to-end test: AppHost starts from
-empty volumes, gateway healthy, /api/v1/internal/** 404, staff login + 2FA via BFF, an outbox message
+empty volumes, gateway healthy, /api/v1/internal/** 404, staff login via BFF, an outbox message
 travels to a handler. Add GitHub Actions CI: dotnet build -warnaserror, tests (with containers), npm
 ci/build/test in src/web, the Aspire E2E job.
 
@@ -411,7 +406,7 @@ BEHAVIOR: Plan the token map and primitive APIs, wait, implement, show before/af
 
 ```
 SCOPE: projects/admin (SPA, base href /admin/, zoneless, signals): SessionService over /bff/session,
-login + 2FA screens over /bff, role guards, XSRF interceptor, ProblemDetails toast surface, layout
+login screen over /bff (single step, no 2FA), role guards, XSRF interceptor, ProblemDetails toast surface, layout
 (Dashboard, Classes, Exhibitions, Artists, Shop, Memberships, Pages, Media, Forms, Redirects, Sync),
 unsaved-changes guard. AppHost AddJavaScriptApp("admin"); gateway /admin route.
 

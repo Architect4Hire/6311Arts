@@ -20,7 +20,7 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | # | Title | Status |
 |---|---|---|
 | [0001](0001-single-origin-yarp-gateway-bff.md) | Single-origin YARP gateway as BFF | Accepted |
-| [0002](0002-gateway-session-es256-internal-token.md) | Gateway session + ES256 internal token (no OIDC) | Accepted (creatorpantry B-02/B-13) |
+| [0002](0002-gateway-session-es256-internal-token.md) | Gateway session + ES256 internal token (no OIDC) | Accepted (creatorpantry B-02/B-13); amended by 0018 |
 | [0003](0003-sql-transactional-outbox-no-broker.md) | SQL transactional outbox, no broker | Accepted |
 | [0004](0004-module-first-domain-and-seam.md) | Module-first Domain + mandatory seam | Accepted |
 | [0005](0005-square-field-ownership.md) | Square field ownership | Accepted |
@@ -36,6 +36,9 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0015](0015-claude-code-hooks-bash.md) | Claude Code hooks are bash (Git Bash on Windows) | Accepted |
 | [0016](0016-vitest-for-frontend-unit-tests.md) | Vitest for frontend unit tests | Accepted |
 | [0017](0017-audit-log-database-immutability.md) | Database-level immutability for the audit log | **DECIDE** before production |
+| [0018](0018-no-two-factor-authentication.md) | No two-factor authentication | Accepted |
+| [0019](0019-correlation-id-is-the-w3c-trace-id.md) | The correlation id is the W3C trace id | Accepted |
+| [0020](0020-idempotency-scoped-to-a-server-owned-subject.md) | Idempotency keys are scoped to a server-owned subject | Accepted |
 
 ## Template
 

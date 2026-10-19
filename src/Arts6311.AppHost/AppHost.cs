@@ -16,8 +16,10 @@ var redisPassword = builder.AddParameter("redis-password", new GenerateParameter
 var internalTokenSigningKey = builder.AddParameter(
     "internal-token-signing-key", new EcdsaP256PrivateKeyDefault(), secret: true, persist: true);
 
-// Keys the HMAC of idempotent request fingerprints (prompt 1.6); base64 of 32 bytes.
-builder.AddParameter("idempotency-fingerprint-key", new Base64KeyDefault(), secret: true, persist: true);
+// Keys the HMAC of idempotent request fingerprints (prompt 1.6); base64 of 32 bytes. The API only: the Worker's
+// expired-record sweep needs no key.
+var idempotencyFingerprintKey = builder.AddParameter(
+    "idempotency-fingerprint-key", new Base64KeyDefault(), secret: true, persist: true);
 
 // The first Admin, seeded by MigrationService (prompt 1.9). The email defaults from appsettings.json
 // (Parameters:seed-admin-email); override it with
@@ -81,6 +83,7 @@ builder.AddProject<Projects.Arts6311_Api>("api")
             ?? throw new InvalidOperationException("internal-token-signing-key did not resolve to a value.");
         context.EnvironmentVariables["InternalToken__PublicKeyPem"] = InternalTokenKeys.DerivePublicKeyPem(privateKeyPem);
     })
+    .WithEnvironment("Idempotency__FingerprintKey", idempotencyFingerprintKey)
     .WithReference(appdb)
     .WaitFor(appdb)
     .WaitForCompletion(migrations)

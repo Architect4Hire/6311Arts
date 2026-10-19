@@ -4,8 +4,8 @@ using Aspire.Hosting.Publishing;
 namespace Arts6311.AppHost.Parameters;
 
 /// <summary>
-/// Generates random key material, base64-encoded: the idempotency fingerprint HMAC key, which the API and
-/// Worker require to be base64 of at least 32 bytes. Ported from creatorpantry.
+/// Generates random key material, base64-encoded: the idempotency fingerprint HMAC key, which the API requires
+/// to be base64 of at least 32 bytes. Ported from creatorpantry.
 /// </summary>
 /// <remarks>
 /// Not <see cref="GenerateParameterDefault"/>: that produces a 22-character password drawn from letters,

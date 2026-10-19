@@ -40,15 +40,15 @@ await _repository.SaveChangesAsync(ct);   // one save: row + message commit toge
 ## 3. Write the handler (Worker side, in the module's `Managers/`)
 
 ```csharp
-internal sealed class ShopItemPushRequestedHandler(IServiceScopeFactory scopes, ILogger<...> log)
+// The dispatcher resolves each handler in a DI scope of its own per message (outbox.md), so the facade it
+// injects is already the handler's own: no IServiceScopeFactory needed.
+internal sealed class ShopItemPushRequestedHandler(IShopSyncFacade facade, ILogger<...> log)
     : IOutboxMessageHandler
 {
     public async Task HandleAsync(OutboxMessageEnvelope m, CancellationToken ct)
     {
         var evt = ShopItemPushRequested.TryParse(m.PayloadJson)
-                  ?? throw new InvalidOperationException("Malformed shop-item push payload.");
-        await using var scope = scopes.CreateAsyncScope();
-        var facade = scope.ServiceProvider.GetRequiredService<IShopSyncFacade>();
+                  ?? throw new OutboxPoisonException("Malformed shop-item push payload."); // poisoned now, not retried
         try
         {
             // reload CURRENT state through the facade; idempotency key = m.Id
@@ -75,7 +75,7 @@ Handler rules:
 Register it in the module's `ServiceCollectionExtensions`:
 
 ```csharp
-services.AddKeyedScoped<IOutboxMessageHandler, ShopItemPushRequestedHandler>(ShopItemPushRequested.MessageType);
+services.TryAddKeyedScoped<IOutboxMessageHandler, ShopItemPushRequestedHandler>(ShopItemPushRequested.MessageType);
 ```
 
 ## 4. Tests
@@ -83,7 +83,7 @@ services.AddKeyedScoped<IOutboxMessageHandler, ShopItemPushRequestedHandler>(Sho
 - [ ] **Atomicity (real DB):** forcing the save to fail leaves neither the entity change nor the outbox row
 - [ ] **Staging:** the DataLayer test asserts `Enqueue` is called before `SaveChangesAsync`, exactly once
 - [ ] **Idempotency:** running the handler twice with the same envelope gives one external effect (assert on the Square fake / mail sink)
-- [ ] **Poison:** a malformed payload throws without calling any gateway
+- [ ] **Poison:** a malformed payload throws `OutboxPoisonException` without calling any gateway, and the message is Poisoned on attempt 1
 - [ ] **Stale message:** a message for an item changed since enqueue pushes the *current* state
 - [ ] **Last attempt:** the terminal state is recorded and visible on the Sync screen
 - [ ] **No secrets:** no secret or provider message ends up in `LastError` or the logs

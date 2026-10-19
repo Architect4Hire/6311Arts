@@ -29,7 +29,8 @@ Read `.claude/rules/auth.md` and `.claude/rules/gateway.md`. Check the following
   - Square SDK origins are allowed only on checkout and member-billing routes.
   - No card data or source token in logs, storage, payloads or errors.
 - **Identity.**
-  - Lockout, confirmed email, and TOTP for Admin/Editor.
+  - Lockout, the login rate limit, and confirmed email for Admin/Editor.
+  - No 2FA (ADR 0018), so the compensating controls must be present: staff password policy (≥ 14 characters, bundled breached-password list), staff idle/absolute session limits, "log out everywhere", audited staff sign-ins. Report any 2FA code as a WARNING (it contradicts the ADR).
   - No user enumeration on login or forgot-password.
   - Admin seeding from secret parameters.
 - **Data and uploads.**

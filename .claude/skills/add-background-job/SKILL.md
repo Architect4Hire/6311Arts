@@ -15,6 +15,7 @@ There are two kinds:
    - Or a staff command that returns `202` and an `Operation` record (import, full reconcile on demand).
 2. **Run it safely on more than one replica.** Claim work with a guarded update (the same concurrency-token technique as the outbox). Two replicas must never both do the same unit.
 3. **Do the work through facades** in a fresh DI scope per pass. A job never touches `DbContext`, repositories or gateways directly.
+   - The exception is shared-kernel housekeeping, which no module owns. It goes through the kernel's own port, for example `IIdempotencyMaintenance` (ADR 0020).
 4. **Make each unit small and idempotent.**
    - Publishing a scheduled item is one facade call, and it stages its own outbox messages.
    - A reconcile correction is one save plus an audit row.

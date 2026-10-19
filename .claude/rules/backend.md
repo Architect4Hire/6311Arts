@@ -19,7 +19,8 @@ The seam lives inside a module. `Arts6311.Domain` is organized by bounded contex
 
 ```text
 Modules/<Context>/
-├── Facade/ Business/ Data/{Entities,Configurations}/ Gateways/   # Gateways only where the module calls out
+├── Facade/ Business/ Data/{Entities,Configurations,Repositories}/ Gateways/   # Gateways only where the module calls out;
+│                                                                    # the DataLayer sits directly in Data/
 ├── Managers/            # this module's ViewModels, ServiceModels, domain models, validators, policies, outbox handlers
 └── <Context>ServiceCollectionExtensions.cs
 
@@ -42,6 +43,7 @@ Managers/                # shared kernel: Persistence, Outbox, Idempotency, Cach
 - `Redirects`
 - `Import` (WordPress import staging and runs)
 - `Identity` (internal session and credential operations)
+- `Operations` (outbox replay/discard and other ops tooling; holds the 1.5 ping scaffolding until 1.12)
 
 **Module rules:**
 
@@ -120,6 +122,7 @@ Ask what a reviewer would call it.
 - **External constraints** are checked by gateways and translated into results.
 - **Multi-write operations** use one `SaveChangesAsync` on one `ArtsDbContext`. That's already one transaction.
   - If an explicit transaction is unavoidable, run it through the execution strategy as a callback. The unit may run more than once, so it must be safe to repeat.
+  - The one sanctioned case today is `IIdempotentCommandExecutor` (ADR 0020). It saves the claim, the wrapped operation's single save and the result inside one such transaction. A DataLayer wrapped by it still makes exactly one save.
 - **A side effect that must follow a commit** (a Square push, an email, a rendition, a cache revalidation) is an outbox message. Never call it inline after `SaveChangesAsync`.
 
 ## Testing (per layer, mock the layer below)

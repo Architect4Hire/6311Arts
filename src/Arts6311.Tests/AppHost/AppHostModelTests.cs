@@ -1,4 +1,5 @@
 using Arts6311.AppHost.Parameters;
+using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 
@@ -51,6 +52,56 @@ public sealed class AppHostModelTests
         Assert.True(WaitsFor(appHost, "migrations", "appdb", WaitType.WaitUntilHealthy));
         Assert.True(WaitsFor(appHost, "api", "migrations", WaitType.WaitForCompletion));
         Assert.True(WaitsFor(appHost, "worker", "migrations", WaitType.WaitForCompletion));
+    }
+
+    /// <summary>The API gets the fingerprint key from its parameter; the Worker, whose sweep needs none, gets nothing.</summary>
+    [Fact(Timeout = TimeoutMs)]
+    public async Task TheIdempotencyFingerprintKeyGoesToTheApiOnly()
+    {
+        await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);
+
+        var api = await EnvironmentOfAsync(appHost, "api");
+        var worker = await EnvironmentOfAsync(appHost, "worker");
+
+        var key = Assert.IsType<ParameterResource>(api["Idempotency__FingerprintKey"]);
+        Assert.Equal("idempotency-fingerprint-key", key.Name);
+        Assert.True(key.Secret);
+        Assert.DoesNotContain(worker.Keys, name => name.StartsWith("Idempotency__", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Runs a resource's environment callbacks without resolving any value, so no secret is generated or read: the
+    /// entries are the parameter and expression objects themselves.
+    /// </summary>
+    /// <remarks>
+    /// A callback that awaits a value (the API's internal-token key derivation) would wait forever in a model that
+    /// never starts (see the class remarks), so each callback gets a short deadline and one that blocks is skipped.
+    /// Reference-style callbacks only place objects and finish at once.
+    /// </remarks>
+    private static async Task<Dictionary<string, object>> EnvironmentOfAsync(
+        IDistributedApplicationTestingBuilder appHost, string resourceName)
+    {
+        var resource = appHost.Resources.Single(candidate => candidate.Name == resourceName);
+        var variables = new Dictionary<string, object>();
+
+        foreach (var callback in resource.Annotations.OfType<EnvironmentCallbackAnnotation>())
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(2));
+            var context = new EnvironmentCallbackContext(
+                new DistributedApplicationExecutionContext(DistributedApplicationOperation.Run), variables, deadline.Token);
+
+            try
+            {
+                await callback.Callback(context);
+            }
+            catch (OperationCanceledException) when (!TestContext.Current.CancellationToken.IsCancellationRequested)
+            {
+                // Waits on a parameter value; not what these tests inspect.
+            }
+        }
+
+        return variables;
     }
 
     private static bool WaitsFor(IDistributedApplicationTestingBuilder appHost, string resource, string dependency, WaitType waitType) =>
