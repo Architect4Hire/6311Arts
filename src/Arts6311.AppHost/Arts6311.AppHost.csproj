@@ -1,0 +1,29 @@
+<!-- The Aspire.AppHost.Sdk version is pinned in global.json (msbuild-sdks). -->
+<Project Sdk="Aspire.AppHost.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AspireUseCliBundle>true</AspireUseCliBundle>
+    <UserSecretsId>8214b1d9-86a9-427f-ad7f-07fdfc014d04</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Azure.Sql" />
+    <PackageReference Include="Aspire.Hosting.Azure.Storage" />
+    <PackageReference Include="Aspire.Hosting.Redis" />
+    <PackageReference Include="CommunityToolkit.Aspire.Hosting.MailPit" />
+    <PackageReference Include="CommunityToolkit.Aspire.Hosting.Redis.Extensions" />
+    <PackageReference Include="CommunityToolkit.Aspire.Hosting.SqlServer.Extensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Arts6311.Api\Arts6311.Api.csproj" />
+    <ProjectReference Include="..\Arts6311.MigrationService\Arts6311.MigrationService.csproj" />
+    <ProjectReference Include="..\Arts6311.Worker\Arts6311.Worker.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Arts6311.Tests" />
+  </ItemGroup>
+
+</Project>

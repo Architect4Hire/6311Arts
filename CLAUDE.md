@@ -141,7 +141,7 @@ Webhook: verify signature → SquareWebhookEvent inbox (unique event_id) → sta
 - **Whole system:** `aspire run` (dashboard). Browse only through the gateway endpoint. `Square:Mode=sandbox` plus the dev tunnel gives real Square sandbox webhooks.
 - **Backend:**
   - `dotnet build -warnaserror`
-  - tests: `dotnet test`, unless xunit v3 reports "Zero tests ran". Then use `dotnet run --project src/Arts6311.Tests` (see creatorpantry's note) and record which in this file.
+  - tests: **`dotnet test`** from the repo root (Microsoft.Testing.Platform via `global.json`). Verified 2026-10-19 with SDK 10.0.402 and xunit.v3 4.0.2: all tests discovered and run. The xunit.v3 4.0.1 "Zero tests ran" bug creatorpantry hit doesn't reproduce. If it ever comes back, `dotnet run --project src/Arts6311.Tests` runs the same suite.
 - **Migrations:**
   - `dotnet ef migrations add <Name> --project src/Arts6311.Domain --startup-project src/Arts6311.Api`
   - Restart `aspire run` so MigrationService applies it.

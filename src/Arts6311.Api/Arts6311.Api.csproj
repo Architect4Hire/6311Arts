@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" />
+    <!-- The startup project for `dotnet ef migrations add` (CLAUDE.md). Design-time only. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Arts6311.ServiceDefaults\Arts6311.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Arts6311.Domain\Arts6311.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

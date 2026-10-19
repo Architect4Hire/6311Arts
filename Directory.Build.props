@@ -1,0 +1,25 @@
+<Project>
+
+  <!-- Shared by every .NET project under the repo. Project files carry only what is specific to them. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <!--
+    Banned APIs (src/BannedSymbols.txt): application code reads time through IClock only. The AppHost and the
+    test project are exempt: the first is tooling, the second builds fixtures from fixed instants.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Arts6311.AppHost' and '$(MSBuildProjectName)' != 'Arts6311.Tests'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)src/BannedSymbols.txt" />
+  </ItemGroup>
+
+</Project>

@@ -35,6 +35,7 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0014](0014-static-web-apps-review-copy.md) | Temporary Static Web Apps review copy | Accepted, temporary (remove at 6.2) |
 | [0015](0015-claude-code-hooks-bash.md) | Claude Code hooks are bash (Git Bash on Windows) | Accepted |
 | [0016](0016-vitest-for-frontend-unit-tests.md) | Vitest for frontend unit tests | Accepted |
+| [0017](0017-audit-log-database-immutability.md) | Database-level immutability for the audit log | **DECIDE** before production |
 
 ## Template
 

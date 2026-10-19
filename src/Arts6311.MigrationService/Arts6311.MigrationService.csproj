@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <UserSecretsId>dotnet-Arts6311.MigrationService-cc739916-1363-4665-90a3-5bdb1947b43b</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Arts6311.ServiceDefaults\Arts6311.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Arts6311.Domain\Arts6311.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Arts6311.Tests" />
+  </ItemGroup>
+
+</Project>

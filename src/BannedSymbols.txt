@@ -1,0 +1,32 @@
+P:System.DateTime.Now;Use IClock.UtcNow; server-local time is prohibited
+P:System.DateTime.UtcNow;Use IClock.UtcNow
+P:System.DateTime.Today;Derive dates from IClock.UtcNow with an explicit time zone (America/Chicago)
+P:System.DateTimeOffset.Now;Use IClock.UtcNow; server-local time is prohibited
+P:System.DateTimeOffset.UtcNow;Use IClock.UtcNow
+M:System.DateTime.ToLocalTime;Convert with an explicit time zone, never the server's
+M:System.DateTimeOffset.ToLocalTime;Convert with an explicit time zone, never the server's
+P:System.TimeZoneInfo.Local;Server-local time is prohibited; use an explicit time zone id
+M:System.TimeProvider.GetLocalNow;Use IClock.UtcNow
+P:System.TimeProvider.LocalTimeZone;Server-local time is prohibited; use an explicit time zone id
+P:System.Threading.Tasks.Task`1.Result;Await it; never block on async I/O (backend.md)
+P:System.Threading.Tasks.ValueTask`1.Result;Await it; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.Wait;Await it; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.Wait(System.Int32);Await it; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan);Await it; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.Wait(System.Threading.CancellationToken);Await it; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.Wait(System.Int32,System.Threading.CancellationToken);Await it; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan,System.Threading.CancellationToken);Await it; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[]);Await Task.WhenAll; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAll(System.Collections.Generic.IEnumerable{System.Threading.Tasks.Task});Await Task.WhenAll; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Int32);Await Task.WhenAll; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.TimeSpan);Await Task.WhenAll; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Threading.CancellationToken);Await Task.WhenAll; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Int32,System.Threading.CancellationToken);Await Task.WhenAll; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAll(System.ReadOnlySpan{System.Threading.Tasks.Task});Await Task.WhenAll; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[]);Await Task.WhenAny; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Int32);Await Task.WhenAny; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.TimeSpan);Await Task.WhenAny; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Threading.CancellationToken);Await Task.WhenAny; never block on async I/O (backend.md)
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Int32,System.Threading.CancellationToken);Await Task.WhenAny; never block on async I/O (backend.md)
+M:System.Threading.Thread.Sleep(System.Int32);Await Task.Delay with the CancellationToken (or a PeriodicTimer); never block a thread
+M:System.Threading.Thread.Sleep(System.TimeSpan);Await Task.Delay with the CancellationToken (or a PeriodicTimer); never block a thread

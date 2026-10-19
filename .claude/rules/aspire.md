@@ -21,9 +21,12 @@ site (AddJavaScriptApp, Angular SSR) ─> gateway
 admin (Angular SPA: dev server locally, static bundle host when published) ─> gateway
 gateway (only external endpoint)    devtunnel (opt-in, sandbox webhooks) ─> gateway
 importer (explicit start only)
+dbgate (run mode only: one DbGate container connected to sql + cache; holds their credentials, never published)
 ```
 
-Stable logical names: `sql`, `appdb`, `cache`, `storage`, `blobs`, `mail`, `squarefake`, `migrations`, `api`, `worker`, `site`, `admin`, `gateway`, `importer`.
+Stable logical names: `sql`, `appdb`, `cache`, `storage`, `blobs`, `mail`, `squarefake`, `migrations`, `api`, `worker`, `site`, `admin`, `gateway`, `importer`, `dbgate`.
+
+**Local tools** exist in run mode only: DbGate (via `WithDbGate()` inside `RunAsContainer` for SQL, and under `IsRunMode` for Redis) and Mailpit's own UI. Azurite has no web UI in the model; use Azure Storage Explorer.
 
 ## Dependency order
 
@@ -40,7 +43,10 @@ Stable logical names: `sql`, `appdb`, `cache`, `storage`, `blobs`, `mail`, `squa
   - `sql-password`, `redis-password`
   - `internal-token-signing-key` (an ECDSA P-256 pair; the API receives only the derived public key)
   - `idempotency-fingerprint-key`
-- **Developer-supplied secrets.** Only needed for sandbox mode or seeding: `square-access-token`, `square-webhook-signature-key`, `seed-admin-email`, `seed-admin-password`. The access token and webhook key are created only when `Square:Mode=sandbox`.
+  - `seed-admin-password` (read it with `dotnet user-secrets list --project src/Arts6311.AppHost`)
+- **Seed admin email.** `seed-admin-email` is a plain parameter that defaults from AppHost `appsettings.json` (`Parameters:seed-admin-email`). Override it in user-secrets.
+- **Developer-supplied secrets.** Only needed for sandbox mode: `square-access-token`, `square-webhook-signature-key`. They're created only when `Square:Mode=sandbox`.
+- **Never print a parameter's value** while checking secrets. List names only, for example from `dotnet user-secrets list --json`. PEM values span several lines, so a line-based `cut` leaks them.
 - **`Square:Mode`** (`fake` | `sandbox`) is AppHost configuration, not a dashboard prompt. It decides which resources exist. The default is `fake`, so a clean clone runs offline with zero prompts.
 - **AppHost stays declarative.** No domain logic or HTTP calls.
 - **ServiceDefaults** owns OpenTelemetry, health checks, resilience and service discovery for every .NET project.

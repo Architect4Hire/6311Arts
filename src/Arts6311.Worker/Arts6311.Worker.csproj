@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <UserSecretsId>dotnet-Arts6311.Worker-636a4b84-53b6-4d7f-b4d0-c7c02d872966</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Arts6311.ServiceDefaults\Arts6311.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Arts6311.Domain\Arts6311.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

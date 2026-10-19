@@ -177,7 +177,7 @@ volume) + appdb; storage (RunAsEmulator) + blobs + containers media and dataprot
 persistent, password parameter); mail (Mailpit). Add generated, persisted secret parameters with custom
 ParameterDefaults ported from creatorpantry: sql-password, redis-password, internal-token-signing-key
 (ECDSA P-256; pass only the derived public key to the API), idempotency-fingerprint-key. Add
-seed-admin-email / seed-admin-password parameters. Add Square:Mode config (default fake).
+seed-admin-email / seed-admin-password parameters. Add Square:Mode config (default fake).  Make sure it implement dbgate and any management utilities necessary.
 
 CONSTRAINT: aspire.md; add-aspire-resource skill; verify every API on aspire.dev.
 

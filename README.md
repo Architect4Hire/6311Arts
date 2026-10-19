@@ -104,6 +104,11 @@ aspire run          # placeholder: the AppHost arrives in Phase 1
 
 - **Opening it:** open the **gateway** URL from the Aspire dashboard. Everything (site, `/admin`, `/api`) is served from that one origin. Don't browse the apps on their own ports.
 - **First run:** SQL, Redis, Azurite, Mailpit and the Square fake start as local containers. All secrets are generated and saved to your user-secrets automatically.
+- **Local tools** (run mode only, linked from the dashboard):
+  - **DbGate** (`dbgate`) is a browser client already connected to SQL (`sql`) and Redis (`cache`). A key deleted there is deleted for every running service.
+  - **Mailpit** (`mail`) shows every email the system sends.
+  - **Azurite** has no web UI. Use [Azure Storage Explorer](https://azure.microsoft.com/products/storage/storage-explorer) → *Attach to a local emulator*, with the blob port shown on the dashboard's `storage` resource.
+  - The seeded admin's password is generated: `dotnet user-secrets list --project src/Arts6311.AppHost`.
 - **Real Square (optional):** to test against the Square **sandbox**, set `Square:Mode=sandbox` and follow `docs/runbooks/square-sandbox.md` (written in prompt 5.20).
 
 ### Until Phase 1: build the site on its own

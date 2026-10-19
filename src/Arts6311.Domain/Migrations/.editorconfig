@@ -1,0 +1,3 @@
+# EF Core migrations are generated and never hand-edited (CLAUDE.md), so code-quality analyzers skip them.
+[*.cs]
+generated_code = true

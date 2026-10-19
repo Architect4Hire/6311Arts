@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+    <!-- xunit.v3 on Microsoft.Testing.Platform, as global.json's "test" runner requires. -->
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!--
+    Where src/ is, recorded at build time for the tests that read source and project files (RepoPaths). The
+    output may be redirected outside the repo (-p:BaseOutputPath, CLAUDE.md), and the test runner's working
+    directory is the output folder, so neither can be used to find it.
+  -->
+  <ItemGroup>
+    <AssemblyMetadata Include="Arts6311.SourceRoot" Value="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Testing" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Arts6311.AppHost\Arts6311.AppHost.csproj" />
+    <ProjectReference Include="..\Arts6311.Domain\Arts6311.Domain.csproj" />
+    <ProjectReference Include="..\Arts6311.MigrationService\Arts6311.MigrationService.csproj" />
+    <ProjectReference Include="..\Arts6311.Square\Arts6311.Square.csproj" />
+  </ItemGroup>
+
+</Project>
