@@ -17,7 +17,7 @@ Read `.claude/rules/outbox.md` first. Use this whenever work must happen **after
 ## 1. Name and shape the event
 
 - **Message type:** kebab-case `area.event`, for example `square.catalog-push-requested`.
-- **Event record:** a `sealed record` in the owning module's `Managers/Events/`, or in `Managers/Outbox/Events/` if two modules must both name it. It has:
+- **Event record:** a `sealed record` in the owning module's `Managers/` when one module both writes and handles it, or in `Managers/Outbox/Events/` if two modules must both name it (`outbox.md`). It has:
   - `public const string MessageType`
   - `Serialize()` using web JSON defaults
   - `static TryParse(string)` that returns `null` for malformed or empty-id payloads
@@ -57,8 +57,9 @@ internal sealed class ShopItemPushRequestedHandler(IServiceScopeFactory scopes, 
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // never let a provider message (hosts, keys) reach OutboxMessage.LastError
-            throw new InvalidOperationException($"Shop item push failed ({ex.GetType().Name}).", ex);
+            // never let a provider message (hosts, keys) reach OutboxMessage.LastError or the logs:
+            // name only the exception type, and don't chain `ex` as the InnerException (outbox.md)
+            throw new InvalidOperationException($"Shop item push failed ({ex.GetType().Name}).");
         }
     }
 }
