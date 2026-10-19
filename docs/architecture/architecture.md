@@ -526,7 +526,7 @@ flowchart TB
 
 - about $20/mo for dev
 - about $85–100/mo for prod
-- plus Redis (DECIDE: about $15–20/mo managed, or a few dollars as a container app)
+- plus Redis (DECIDE, ADR 0009: about $12/mo for Azure Managed Redis B0, or roughly $6–20/mo as a container app; Azure Cache for Redis Basic is retiring)
 - plus Square fees per sale
 
 ---
@@ -563,6 +563,9 @@ flowchart TB
 | 0011 | Square archive policy (delete vs mark unavailable) | **DECIDE** (5.5) |
 | 0012 | Square subscription limits (no ACH, $1 minimum) | Record (5.10) |
 | 0013 | Member class discount mechanism | **DECIDE** (5.19) |
+| 0014 | Temporary Static Web Apps review copy of the site (CSR only) | Decided, temporary (remove at 6.2) |
+| 0015 | Claude Code hooks are bash (Git Bash on Windows) | Decided |
+| 0016 | Vitest for frontend unit tests | Decided |
 | — | Newsletter vendor (export only until chosen) | **DECIDE** |
 
 ADRs live in `docs/adr/` and are created by prompt 0.3 and the prompts named above.

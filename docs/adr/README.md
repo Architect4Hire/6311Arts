@@ -15,11 +15,26 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 
 ## Index
 
-The baseline set (0001–0010) is written in prompt 0.3.
+0011–0013 are reserved for the Square prompts that decide them (see `docs/architecture/architecture.md` §13).
 
 | # | Title | Status |
 |---|---|---|
-| — | — | — |
+| [0001](0001-single-origin-yarp-gateway-bff.md) | Single-origin YARP gateway as BFF | Accepted |
+| [0002](0002-gateway-session-es256-internal-token.md) | Gateway session + ES256 internal token (no OIDC) | Accepted (creatorpantry B-02/B-13) |
+| [0003](0003-sql-transactional-outbox-no-broker.md) | SQL transactional outbox, no broker | Accepted |
+| [0004](0004-module-first-domain-and-seam.md) | Module-first Domain + mandatory seam | Accepted |
+| [0005](0005-square-field-ownership.md) | Square field ownership | Accepted |
+| [0006](0006-square-ids-in-squarecataloglink.md) | Square ids in `SquareCatalogLink`, not entities | Accepted |
+| [0007](0007-square-fake-default-sandbox-opt-in.md) | Square fake by default, sandbox opt-in | Accepted |
+| [0008](0008-run-offline-publish-azure-container-apps.md) | Run mode offline / publish to Azure Container Apps | Accepted |
+| [0009](0009-redis-for-session-tickets.md) | Redis for session tickets | Accepted; Azure hosting **DECIDE** (6.1) |
+| [0010](0010-csoon-template-license.md) | CSoon template license | **DECIDE** before launch |
+| 0011 | Square archive policy (delete vs mark unavailable) | Reserved, **DECIDE** in 5.5 |
+| 0012 | Square subscription limits | Reserved, record in 5.10 |
+| 0013 | Member class discount mechanism | Reserved, **DECIDE** in 5.19 |
+| [0014](0014-static-web-apps-review-copy.md) | Temporary Static Web Apps review copy | Accepted, temporary (remove at 6.2) |
+| [0015](0015-claude-code-hooks-bash.md) | Claude Code hooks are bash (Git Bash on Windows) | Accepted |
+| [0016](0016-vitest-for-frontend-unit-tests.md) | Vitest for frontend unit tests | Accepted |
 
 ## Template
 
@@ -29,6 +44,7 @@ The baseline set (0001–0010) is written in prompt 0.3.
 - **Status:** DECIDE | Accepted | Superseded by NNNN
 - **Date:** YYYY-MM-DD
 - **Rules affected:** .claude/rules/<file>.md
+- **Adopts:** creatorpantry B-NN (only when a creatorpantry decision is adopted)
 
 ## Context
 What forces the decision.
