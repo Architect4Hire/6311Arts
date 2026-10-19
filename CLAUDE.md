@@ -146,7 +146,7 @@ Webhook: verify signature → SquareWebhookEvent inbox (unique event_id) → sta
   - `dotnet ef migrations add <Name> --project src/Arts6311.Domain --startup-project src/Arts6311.Api`
   - Restart `aspire run` so MigrationService applies it.
   - While `aspire run` holds the build output, redirect the build output path (`-p:BaseOutputPath=<scratch>/`).
-- **Frontend** (`src/web`): `npm ci`, `npm run build`, `npm test`.
+- **Frontend** (`src/web`): `npm ci`, `npm run build`, `npm test` (Vitest). Until the `test` target exists, `npm test` fails; say so rather than skipping silently (see `.claude/rules/frontend.md`).
 - **Skills and reviewers:** use the matching skill before implementing a seam, and run the relevant read-only reviewers after.
 - **Keep work atomic:** one route, entity, message type, handler, component or resource per prompt.
 

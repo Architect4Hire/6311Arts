@@ -27,6 +27,7 @@ paths:
   - `shared/`: compositions of `@6311/ui`
   - `features/` (admin) or `pages/` (site): lazy routes
 - **Logic.** Never use `any`. Decode unknown data at boundaries.
+- **Workspace config.** Application tsconfigs live at the workspace root as `src/web/tsconfig.<project>.json` (+ `tsconfig.<project>.spec.json`), never inside `projects/<app>/`. `@angular/build` names lazy routes relative to the tsconfig's folder but keys the SSR manifest by workspace-relative paths, so a tsconfig under the project folder silently drops route modulepreload hints (see the comment in `tsconfig.site.json`). Don't move them. `projects/ui` is a library and uses a library tsconfig.
 
 ## Calling the API
 
@@ -59,4 +60,4 @@ paths:
 
 ## Verification
 
-From `src/web/`: `npm ci`, `npm run build` (all projects), `npm test`. Accessibility target is WCAG 2.2 AA: keyboard operation, visible focus, 200% zoom, narrow layouts, reduced motion.
+From `src/web/`: `npm ci`, then `npm run build`. Today `build` builds `site` only. Once `projects/admin` lands, `build` must build every project. Unit tests run on **Vitest** (decided 2026-10-19) through `npm test`. Until the `test` target and Vitest are added, `npm test` fails: run `npm run build` and say tests aren't available yet. Accessibility target is WCAG 2.2 AA: keyboard operation, visible focus, 200% zoom, narrow layouts, reduced motion.

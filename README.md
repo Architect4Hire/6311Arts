@@ -123,7 +123,7 @@ npm run serve:ssr:site         # http://localhost:4000
 | Build (.NET) | `dotnet build -warnaserror` |
 | Tests (.NET) | `dotnet test` (see `CLAUDE.md` if xunit v3 reports zero tests) |
 | Add a migration | `dotnet ef migrations add <Name> --project src/Arts6311.Domain --startup-project src/Arts6311.Api` |
-| Frontend | `cd src/web && npm ci && npm run build && npm test` |
+| Frontend | `cd src/web && npm ci && npm run build && npm test` (Vitest; the `test` target isn't set up yet) |
 | Inspect the Azure publish output | `aspire publish` (deploys run only in CI) |
 
 ---
