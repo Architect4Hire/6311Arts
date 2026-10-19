@@ -95,7 +95,13 @@ Hooks are a backstop, not the architecture.
 
 ## Settings
 
-`settings.json` pre-allows the canonical build, test and migration commands. It **denies** force-push, hard reset, database drop, and every deploy command (`aspire deploy`, `azd up` / `azd deploy`, `az group delete`). Deploys are run by a person, or by CI.
+`settings.json` pre-allows the canonical build, test and migration commands. Rules are evaluated deny → ask → allow, and each Bash rule has a `PowerShell(...)` twin because Bash rules don't cover the PowerShell tool.
+
+- **Denies** force-push, hard reset, database drop, the deploy/teardown commands (`aspire deploy|destroy|do`, `azd up|deploy|provision|down`, `az deployment|containerapp|webapp deploy|group delete`, `swa deploy`), and reading `.env`, `secrets.json` and the user-secrets store.
+- **Asks** before `git push` (a push to `main` deploys the temporary Static Web Apps review copy), `gh pr merge`, `gh workflow run` and `dotnet ef database update`.
+- Rules match command text, so they are a backstop: `git -C . push` or a deploy hidden in a script isn't caught. Deploys are run by a person, or by CI.
+
+Hook commands use `"${CLAUDE_PROJECT_DIR}"` so they resolve from any working directory, and run under Git Bash on Windows. The secret guard sets `"onFailure": "block"` (Claude Code ≥ 2.1.295), so a guard that can't run blocks the write instead of letting it through.
 
 ## Workflow
 
