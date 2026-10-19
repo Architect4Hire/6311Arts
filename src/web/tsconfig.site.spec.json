@@ -3,8 +3,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": ["vitest/globals"]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.spec.ts"]
+  "include": ["projects/site/src/**/*.d.ts", "projects/site/src/**/*.spec.ts"]
 }

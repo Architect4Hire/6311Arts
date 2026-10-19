@@ -3,12 +3,14 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
-    "build:swa": "ng build && node -e \"require('fs').copyFileSync('dist/site6311/browser/index.csr.html','dist/site6311/browser/index.html')\"",
-    "watch": "ng build --watch --configuration development",
+    "start": "npm run start:site",
+    "start:site": "ng serve site",
+    "build": "npm run build:site",
+    "build:site": "ng build site",
+    "build:swa": "ng build site && node -e \"require('fs').copyFileSync('dist/site/browser/index.csr.html','dist/site/browser/index.html')\"",
+    "watch": "ng build site --watch --configuration development",
     "test": "ng test",
-    "serve:ssr:site6311": "node dist/site6311/server/server.mjs"
+    "serve:ssr:site": "node dist/site/server/server.mjs"
   },
   "private": true,
   "packageManager": "npm@11.12.1",

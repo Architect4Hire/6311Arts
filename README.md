@@ -11,7 +11,7 @@ The site is moving off WordPress and its plugins onto:
 
 It runs **entirely on a developer laptop** until it's published to **Azure Container Apps**.
 
-> **Status (2026-10-18):** Architecture, the Claude Code toolkit and the build prompts are in place. The code so far is `spike0/`, an Angular 22 SSR prototype of the public site that still reads WordPress. The .NET platform is built by following the SCRUB prompts, starting at prompt 0.1.
+> **Status (2026-10-19):** The repo now has its target layout (prompt 0.1). The public site lives in `src/web/projects/site`. It was migrated unchanged from the `spike0` prototype and still reads WordPress until Phase 3. There's no .NET code yet. Phase 1 adds it.
 
 ---
 
@@ -41,7 +41,7 @@ flowchart LR
 - **Square owns money and stock.** When a price, stock level, sale or subscription changes in Square, a signed webhook updates the site.
 - **Visitors pay on the page** through Square's Web Payments SDK. Card data never touches our servers.
 
-The full picture, with containers, the request seam, the outbox, Square sync, identity, data model, flows, environments and decisions, is in **[docs/architecture.md](docs/architecture.md)**.
+The full picture, with containers, the request seam, the outbox, Square sync, identity, data model, flows, environments and decisions, is in **[docs/architecture/architecture.md](docs/architecture/architecture.md)**.
 
 ---
 
@@ -50,32 +50,37 @@ The full picture, with containers, the request seam, the outbox, Square sync, id
 **Today:**
 
 ```text
-.claude/                 Claude Code toolkit — rules, skills, reviewer agents, hooks, settings
+.claude/                 Claude Code toolkit: rules, skills, reviewer agents, hooks, settings
+.github/workflows/       CI (Azure Static Web Apps preview of the site, until Phase 6)
 CLAUDE.md                Project memory (SCRUB form), loaded every Claude Code session
 docs/
+  adr/                   Architecture decision records
+  architecture/          High-level architecture (this repo's design reference)
   plans/square/          Square two-way integration plan (effort, Azure, costs)
   prompts/               SCRUB build prompts + WordPress import prompts
-  architecture.md        High-level architecture (this repo's design reference)
-spike0/                  Angular 22 SSR prototype of the public site (WordPress-backed)
+  runbooks/              Operating runbooks
+src/
+  web/                   Angular 22 workspace
+    projects/site/       Public site, SSR (migrated from spike0; still WordPress-backed)
+      legacy/            WordPress plugin, kept as importer reference only
 ```
 
-**Target (after prompt 0.1 and Phase 1):**
+**Target (after Phase 1 and Phase 2):**
 
 ```text
 src/
-  Arts6311.AppHost/          Aspire application model — laptop (run) + Azure (publish)
+  Arts6311.AppHost/          Aspire application model: laptop (run) + Azure (publish)
   Arts6311.ServiceDefaults/  Telemetry, health, resilience, service discovery
   Arts6311.Gateway/          YARP BFF: session, CSRF, internal token, edge policy
   Arts6311.Api/              Controllers only + Square webhook intake
   Arts6311.Domain/           Modules (Artists, Classes, Shop, …) + shared kernel (Outbox, Idempotency, …)
   Arts6311.Square/           The only code that talks to Square (official SDK)
-  Arts6311.SquareFake/       Local Square stand-in — offline by default
+  Arts6311.SquareFake/       Local Square stand-in, offline by default
   Arts6311.Worker/           Outbox dispatcher, scheduled publishing, reconciler
   Arts6311.MigrationService/ Applies migrations and seeds before anything starts
   Arts6311.Importer/         WordPress → snapshot → blob + database
   Arts6311.Tests/
-  web/                       Angular workspace: projects/site (SSR), projects/admin, projects/ui
-docs/adr/ · docs/runbooks/   Decision records and operating runbooks
+  web/                       Angular workspace: projects/site (SSR), projects/admin (CMS), projects/ui (@6311/ui)
 ```
 
 ---
@@ -91,29 +96,30 @@ docs/adr/ · docs/runbooks/   Decision records and operating runbooks
 
 No Azure subscription or Square account is needed to run locally.
 
-### Run the platform (once Phase 1 is built)
+### Run
 
 ```bash
-aspire run
+aspire run          # placeholder: the AppHost arrives in Phase 1
 ```
 
 - **Opening it:** open the **gateway** URL from the Aspire dashboard. Everything (site, `/admin`, `/api`) is served from that one origin. Don't browse the apps on their own ports.
 - **First run:** SQL, Redis, Azurite, Mailpit and the Square fake start as local containers. All secrets are generated and saved to your user-secrets automatically.
-- **Real Square (optional):** to test against the Square **sandbox**, set `Square:Mode=sandbox` and follow `docs/runbooks/square-sandbox.md` (created in prompt 5.20).
+- **Real Square (optional):** to test against the Square **sandbox**, set `Square:Mode=sandbox` and follow `docs/runbooks/square-sandbox.md` (written in prompt 5.20).
 
-### Run the spike (today)
+### Until Phase 1: build the site on its own
 
 ```bash
-cd spike0
-npm install
-npm start                    # http://localhost:4200
-npm run build && npm run serve:ssr:site6311   # SSR build on http://localhost:4000
+cd src/web
+npm ci
+npm run build                  # SSR build → src/web/dist/site
+npm run serve:ssr:site         # http://localhost:4000
 ```
 
 ### Everyday commands
 
 | Task | Command |
 |---|---|
+| Whole system | `aspire run` (Phase 1+) |
 | Build (.NET) | `dotnet build -warnaserror` |
 | Tests (.NET) | `dotnet test` (see `CLAUDE.md` if xunit v3 reports zero tests) |
 | Add a migration | `dotnet ef migrations add <Name> --project src/Arts6311.Domain --startup-project src/Arts6311.Api` |
@@ -152,7 +158,7 @@ Claude plans, waits for approval, builds, tests and reports.
 | **0 — Repo & toolkit** | Restructured repo, toolkit installed, baseline ADRs |
 | **1 — Local platform** | Aspire, SQL, Redis, Azurite, Mailpit; Domain kernel; **transactional outbox** + Worker; idempotency; API with internal-token auth; YARP gateway; Identity; BFF session; staff 2FA; CI |
 | **2 — CMS core** | `@6311/ui`; admin shell; media (blob + renditions); artists, exhibitions, pages, redirects; publishing, scheduling, previews; classes, shop items, plans (content); forms |
-| **3 — Public site** | Site read API; the spike rewired from WordPress to the API with SEO parity; publish-to-page check |
+| **3 — Public site** | Site read API; the site rewired from WordPress to the API with SEO parity; publish-to-page check |
 | **4 — WordPress import** | Snapshot → stage → load media and content → verify; delta refresh; cutover freeze |
 | **5 — Square** | Integration records; gateways; Square fake; outbound push; webhook intake; inbound catalog and inventory; classes and seats; plans; sync admin; reconciler; cart, quote and on-site checkout; member accounts, signup and subscription webhooks; sandbox end-to-end |
 | **6 — Azure** | Container Apps publish model; dev deploy from CI (GitHub OIDC); production hardening and cutover |
@@ -173,12 +179,14 @@ Claude plans, waits for approval, builds, tests and reports.
 
 | Document | Purpose |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | High-level architecture with diagrams |
+| [docs/architecture/architecture.md](docs/architecture/architecture.md) | High-level architecture with diagrams |
 | [docs/plans/square/square-integration-plan.md](docs/plans/square/square-integration-plan.md) | Square integration plan, effort and Azure costs |
 | [docs/prompts/scrub-prompts.md](docs/prompts/scrub-prompts.md) | Build prompts (Phases 0–6) and templates |
 | [docs/prompts/wordpress-import-scrub-prompts.md](docs/prompts/wordpress-import-scrub-prompts.md) | Import prompts (I.1–I.14) |
+| [docs/adr/README.md](docs/adr/README.md) | Decision records: index, statuses (`DECIDE`), template |
+| [docs/runbooks/README.md](docs/runbooks/README.md) | Runbooks: planned list and template |
+| [src/web/projects/site/README.md](src/web/projects/site/README.md) | The public site as migrated from the spike |
 | [CLAUDE.md](CLAUDE.md) · [.claude/README.md](.claude/README.md) | Project memory and toolkit guide |
-| `docs/adr/` · `docs/runbooks/` | Decision records and runbooks (created during the build) |
 
 ---
 

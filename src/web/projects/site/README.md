@@ -1,5 +1,8 @@
 # 6311arts.com — Angular 22 front end
 
+> **Spike notes.** This describes the site as migrated from `spike0`, still reading WordPress. It is rewired to the
+> 6311arts API in Phase 3; see the root [README](../../../../README.md) for the target architecture.
+
 A server-rendered, SEO-first marketing site for 6311arts, styled after the CSoon template (black-and-white photo hero,
 charcoal and pale-gray bands, uppercase letter-spaced type, square outlined buttons, thin line icons) and rebuilt as a
 multipage Angular app with no Bootstrap or jQuery.
@@ -16,11 +19,13 @@ wp-admin; this app reads them over the REST API and sends buyers to the existing
 
 ## Run it
 
+From the workspace root, `src/web/`:
+
 ```bash
-npm install
-npm start                      # dev server on http://localhost:4200
-npm run build                  # production build
-npm run serve:ssr:site6311     # serve the build on http://localhost:4000
+npm ci
+npm run start:site             # dev server on http://localhost:4200 (Aspire launches it once Phase 1 lands)
+npm run build:site             # production build → dist/site
+npm run serve:ssr:site         # serve the build on http://localhost:4000
 ```
 
 Environment variables for the server:
@@ -63,7 +68,7 @@ is asked for data at most every five minutes per page.
 
 ## WordPress side
 
-`wordpress/6311-headless.php` is a small read-only plugin. Install it as a must-use plugin. It:
+`legacy/6311-headless.php` (formerly `wordpress/`) is a small read-only plugin. Install it as a must-use plugin. It:
 
 1. Adds `GET /wp-json/6311/v1/classes`, `/exhibitions` and `/artists`.
 2. Registers an **Exhibition** post type (title, excerpt, featured image, and `start_date`, `end_date`,

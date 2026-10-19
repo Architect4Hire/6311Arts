@@ -22,7 +22,7 @@
   "files": [],
   "references": [
     {
-      "path": "./tsconfig.app.json"
+      "path": "./tsconfig.site.json"
     }
   ]
 }

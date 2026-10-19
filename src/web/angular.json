@@ -2,12 +2,11 @@
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "cli": {
-    "packageManager": "npm",
-    "analytics": "087880d1-513b-45d3-a47c-39d44893180d"
+    "packageManager": "npm"
   },
   "newProjectRoot": "projects",
   "projects": {
-    "site6311": {
+    "site": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -36,30 +35,30 @@
           "skipTests": true
         }
       },
-      "root": "",
-      "sourceRoot": "src",
+      "root": "projects/site",
+      "sourceRoot": "projects/site/src",
       "prefix": "app",
       "architect": {
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "browser": "src/main.ts",
-            "tsConfig": "tsconfig.app.json",
+            "browser": "projects/site/src/main.ts",
+            "tsConfig": "tsconfig.site.json",
             "inlineStyleLanguage": "scss",
             "assets": [
               {
                 "glob": "**/*",
-                "input": "public"
+                "input": "projects/site/public"
               }
             ],
-            "styles": ["src/styles.scss"],
-            "server": "src/main.server.ts",
+            "styles": ["projects/site/src/styles.scss"],
+            "server": "projects/site/src/main.server.ts",
             "outputMode": "server",
             "security": {
               "allowedHosts": ["6311arts.com", "www.6311arts.com", "*.6311arts.com", "localhost"]
             },
             "ssr": {
-              "entry": "src/server.ts"
+              "entry": "projects/site/src/server.ts"
             }
           },
           "configurations": {
@@ -90,10 +89,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "site6311:build:production"
+              "buildTarget": "site:build:production"
             },
             "development": {
-              "buildTarget": "site6311:build:development"
+              "buildTarget": "site:build:development"
             }
           },
           "defaultConfiguration": "development"

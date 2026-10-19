@@ -1,0 +1,13 @@
+/* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
+/* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
+/* Lives at the workspace root on purpose: @angular/build names lazy routes relative to this file's folder and
+   matches them to workspace-relative bundle paths for SSR modulepreload hints. Moving it into projects/site
+   silently drops those hints. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["projects/site/src/**/*.ts"],
+  "exclude": ["projects/site/src/**/*.spec.ts"]
+}
