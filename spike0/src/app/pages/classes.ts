@@ -4,20 +4,24 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ArtClass, ClassType } from '../core/models';
 import { Seo, eventLd } from '../core/seo.service';
 import { SITE } from '../core/site';
+import { IN_PAGE } from '../core/navigation';
 import { WpApi } from '../core/wp-api.service';
 import { STUDIO_PHOTOS } from '../data/venue-photos';
 import { ClassCard } from '../shared/cards';
-import { WhenPipe, chicagoDay, endOfWeek } from '../shared/format';
+import { WhenPipe, addDays, chicagoDay, endOfWeek } from '../shared/format';
 import { Hero } from '../shared/hero';
 import { Icon } from '../shared/icon';
 import { Newsletter } from '../shared/newsletter';
 import { Reveal } from '../shared/reveal';
 
-/** The calendar: every upcoming class grouped by month, filterable by medium and level. Filters live in the URL. */
+/**
+ * The calendar: every upcoming class, filterable by medium and level, shown as cards grouped by month (grid)
+ * or as a month calendar. Filters, view and month live in the URL.
+ */
 @Component({
   selector: 'app-classes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Hero, ClassCard, Newsletter, RouterLink, Icon, Reveal],
+  imports: [Hero, ClassCard, Newsletter, RouterLink, Icon, Reveal, WhenPipe],
   template: `
     <app-hero title="Classes, workshops & events" eyebrow="Taught by local artists"
       lead="Small groups, hands-on, and open to first-timers. Pick a night and make something."
@@ -49,7 +53,17 @@ import { Reveal } from '../shared/reveal';
           </div>
         }
 
-        <h2 class="month month--all" reveal>All events</h2>
+        <div class="all-head" reveal>
+          <h2 class="month month--all">All events</h2>
+          <div class="view-switch" role="group" aria-label="Choose view">
+            <button type="button" class="chip chip--icon" [class.is-on]="view() === 'grid'" (click)="setView('grid')" [attr.aria-pressed]="view() === 'grid'">
+              <app-icon name="grid" [size]="16" [stroke]="2.4" /> Grid
+            </button>
+            <button type="button" class="chip chip--icon" [class.is-on]="view() === 'calendar'" (click)="setView('calendar')" [attr.aria-pressed]="view() === 'calendar'">
+              <app-icon name="calendar" [size]="16" [stroke]="2.4" /> Calendar
+            </button>
+          </div>
+        </div>
         <div class="filters" role="toolbar" aria-label="Filter classes">
           @for (t of types(); track t) {
             <button type="button" class="chip" [class.is-on]="type() === t" (click)="setType(t)" [attr.aria-pressed]="type() === t">{{ t }}</button>
@@ -60,15 +74,67 @@ import { Reveal } from '../shared/reveal';
           }
         </div>
 
-        @for (g of grouped(); track g.month) {
-          <h2 class="month" reveal>{{ g.month }}</h2>
-          <div class="class-list class-list--full">
-            @for (c of g.items; track c.id) {
-              <app-class-card [item]="c" reveal />
+        @if (!filtered().length) {
+          <p class="empty">Nothing on the calendar matches that yet. <button class="linklike" (click)="reset()">Show everything</button> or get notified below when new classes drop.</p>
+        } @else if (view() === 'calendar') {
+          @let cal = calendar();
+          <div class="cal">
+            <div class="cal__head">
+              <button type="button" class="cal__step cal__step--prev" (click)="step(-1)" [disabled]="month() <= thisMonth" aria-label="Previous month">
+                <app-icon name="arrow" [size]="20" [stroke]="2.4" />
+              </button>
+              <h3 class="cal__title" aria-live="polite">{{ cal.label }}</h3>
+              <button type="button" class="cal__step" (click)="step(1)" [disabled]="month() >= lastMonth()" aria-label="Next month">
+                <app-icon name="arrow" [size]="20" [stroke]="2.4" />
+              </button>
+            </div>
+            <ol class="cal__weekdays" aria-hidden="true">
+              @for (w of weekdays; track w) {
+                <li>{{ w }}</li>
+              }
+            </ol>
+            <ol class="cal__grid">
+              @for (d of cal.days; track d.date) {
+                <li class="cal__day" [class.is-out]="!d.inMonth" [class.is-today]="d.today" [class.has-events]="d.items.length">
+                  <span class="cal__label" aria-hidden="true">
+                    <span class="cal__num">{{ d.num }}</span>
+                    <span class="cal__wd">{{ d.date | when: 'dow' }}</span>
+                  </span>
+                  <span class="sr-only">{{ d.date | when }}</span>
+                  @if (d.items.length) {
+                    <span class="cal__events">
+                      @for (s of d.items; track s.c.id) {
+                        <a class="cal__event" [routerLink]="['/classes', s.c.slug]">
+                          <span class="cal__time">
+                            {{ s.c.start | when: 'time' }}
+                            @if (s.c.sessions > 1) { · Week {{ s.n }} of {{ s.c.sessions }} }
+                          </span>
+                          {{ s.c.title }}
+                        </a>
+                      }
+                    </span>
+                  }
+                </li>
+              }
+            </ol>
+            @if (!cal.count) {
+              <p class="cal__none">
+                No classes in {{ cal.label }}.
+                @if (cal.next) {
+                  <button class="linklike" (click)="goMonth(cal.next)">Jump to {{ monthLabel(cal.next) }}</button>
+                }
+              </p>
             }
           </div>
-        } @empty {
-          <p class="empty">Nothing on the calendar matches that yet. <button class="linklike" (click)="reset()">Show everything</button> or get notified below when new classes drop.</p>
+        } @else {
+          @for (g of grouped(); track g.month) {
+            <h2 class="month" reveal>{{ g.month }}</h2>
+            <div class="class-list class-list--full">
+              @for (c of g.items; track c.id) {
+                <app-class-card [item]="c" reveal />
+              }
+            </div>
+          }
         }
       </div>
     </section>
@@ -94,6 +160,7 @@ export class Classes {
   private query = toSignal(this.route.queryParamMap, { requireSync: true });
   protected type = computed(() => this.query().get('type') ?? 'All');
   protected level = computed(() => this.query().get('level') ?? '');
+  protected view = computed(() => (this.query().get('view') === 'calendar' ? 'calendar' : 'grid'));
   protected levels = ['Beginner', 'Intermediate'];
 
   protected types = computed(() => ['All', ...new Set(this.all().map((c) => c.type))] as (ClassType | 'All')[]);
@@ -121,17 +188,73 @@ export class Classes {
     return { today, week };
   });
 
-  protected grouped = computed(() => {
-    const list = this.all().filter(
+  protected filtered = computed(() =>
+    this.all().filter(
       (c) => (this.type() === 'All' || c.type === this.type()) && (!this.level() || c.level === this.level() || c.level === 'All levels'),
-    );
-    const by = new Map<string, typeof list>();
+    ),
+  );
+
+  protected grouped = computed(() => {
+    const by = new Map<string, ArtClass[]>();
     const fmt = new WhenPipe();
-    for (const c of list) {
+    for (const c of this.filtered()) {
       const key = `${fmt.transform(c.start, 'mon')} ${c.start.slice(0, 4)}`.replace(/^(\w+)/, (m) => MONTHS[m] ?? m);
       by.set(key, [...(by.get(key) ?? []), c]);
     }
     return [...by].map(([month, items]) => ({ month, items }));
+  });
+
+  /** Calendar view: a Monday–Sunday month grid with every session of every class on its Chicago date. */
+  protected readonly today = chicagoDay();
+  protected readonly thisMonth = this.today.slice(0, 7);
+  protected weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  protected monthLabel = monthLabel;
+
+  /**
+   * Each session of the filtered classes, in date order. Multi-session classes are weekly courses
+   * ("5 weeks"), so session n falls n weeks after the first, at the same wall-clock time.
+   */
+  private sessions = computed(() =>
+    this.filtered()
+      .flatMap((c) => {
+        const first = chicagoDay(c.start);
+        return Array.from({ length: Math.max(1, c.sessions) }, (_, i) => ({ c, n: i + 1, date: addDays(first, i * 7) }));
+      })
+      .sort((a, b) => a.date.localeCompare(b.date) || a.c.start.slice(11).localeCompare(b.c.start.slice(11))),
+  );
+
+  /** The month in the URL, else the month of the next session that matches the filters, else this month. */
+  protected month = computed(() => {
+    const m = this.query().get('month');
+    if (m && /^\d{4}-(0[1-9]|1[0-2])$/.test(m)) return m;
+    const next = this.sessions().find((s) => s.date >= this.today);
+    return next ? next.date.slice(0, 7) : this.thisMonth;
+  });
+
+  protected lastMonth = computed(() => {
+    const m = this.sessions().at(-1)?.date.slice(0, 7) ?? this.thisMonth;
+    return m > this.thisMonth ? m : this.thisMonth;
+  });
+
+  protected calendar = computed(() => {
+    const month = this.month();
+    const byDay = new Map<string, { c: ArtClass; n: number }[]>();
+    for (const s of this.sessions()) byDay.set(s.date, [...(byDay.get(s.date) ?? []), s]);
+    const [y, m] = month.split('-').map(Number);
+    const first = new Date(Date.UTC(y, m - 1, 1));
+    const cursor = new Date(first);
+    cursor.setUTCDate(1 - ((first.getUTCDay() + 6) % 7));
+    const end = endOfWeek(new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10));
+    const days: { date: string; num: number; inMonth: boolean; today: boolean; items: { c: ArtClass; n: number }[] }[] = [];
+    for (;;) {
+      const date = cursor.toISOString().slice(0, 10);
+      days.push({ date, num: cursor.getUTCDate(), inMonth: date.startsWith(month), today: date === this.today, items: byDay.get(date) ?? [] });
+      if (date === end) break;
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    const count = days.reduce((n, d) => n + (d.inMonth ? d.items.length : 0), 0);
+    const later = this.sessions().find((s) => s.date.slice(0, 7) > month);
+    return { label: monthLabel(month), days, count, next: later?.date.slice(0, 7) ?? null };
   });
 
   constructor() {
@@ -157,9 +280,31 @@ export class Classes {
   reset() {
     this.nav({ type: null, level: null });
   }
-  private nav(queryParams: Record<string, string | null>) {
-    this.router.navigate([], { queryParams, queryParamsHandling: 'merge', replaceUrl: true });
+  setView(v: 'grid' | 'calendar') {
+    this.nav({ view: v === 'grid' ? null : v });
   }
+  step(n: number) {
+    this.goMonth(shiftMonth(this.month(), n));
+  }
+  goMonth(month: string) {
+    this.nav({ month });
+  }
+  private nav(queryParams: Record<string, string | null>) {
+    // Filters and the grid/calendar switch update the list in place: no scroll to top, no page cross-fade.
+    this.router.navigate([], { queryParams, queryParamsHandling: 'merge', replaceUrl: true, scroll: 'manual', info: IN_PAGE });
+  }
+}
+
+/** "2026-11" moved by n months. */
+function shiftMonth(month: string, n: number): string {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7);
+}
+
+/** "2026-11" as "November 2026". */
+function monthLabel(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(Date.UTC(y, m - 1, 1)));
 }
 
 const MONTHS: Record<string, string> = {

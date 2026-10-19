@@ -16,6 +16,8 @@ const PATHS: Record<string, string> = {
   instagram: 'M14 6h20a8 8 0 0 1 8 8v20a8 8 0 0 1-8 8H14a8 8 0 0 1-8-8V14a8 8 0 0 1 8-8zM24 32a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM35 13h0',
   cart: 'M4 8h6l5 22h24l4-16H13M18 40a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM35 40a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   menu: 'M6 13h36M6 24h36M6 35h36',
+  grid: 'M8 8h13v13H8zM27 8h13v13H27zM8 27h13v13H8zM27 27h13v13H27z',
+  calendar: 'M6 10h36v32H6zM6 19h36M15 5v9M33 5v9',
   close: 'M10 10l28 28M38 10L10 38',
   arrow: 'M6 24h34M28 12l12 12-12 12',
   frame: 'M6 8h36v32H6zM12 14h24v20H12zM12 30l8-8 6 6 4-4 6 6',

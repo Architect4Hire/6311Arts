@@ -61,6 +61,13 @@ export function chicagoDay(at: string | number | Date = Date.now()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at));
 }
 
+/** A calendar date (YYYY-MM-DD) moved by n days. */
+export function addDays(day: string, n: number): string {
+  const d = new Date(day + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 /** The Sunday (YYYY-MM-DD) that closes the Monday–Sunday week containing a Chicago date. */
 export function endOfWeek(day: string): string {
   const d = new Date(day + 'T00:00:00Z');

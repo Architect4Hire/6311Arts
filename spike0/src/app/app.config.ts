@@ -1,8 +1,9 @@
 import { provideHttpClient, withFetch } from '@angular/common/http';
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { ApplicationConfig, inject, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideClientHydration, withEventReplay, withIncrementalHydration } from '@angular/platform-browser';
-import { provideRouter, withComponentInputBinding, withInMemoryScrolling, withViewTransitions } from '@angular/router';
+import { Router, provideRouter, withComponentInputBinding, withInMemoryScrolling, withViewTransitions } from '@angular/router';
 import { routes } from './app.routes';
+import { isInPage } from './core/navigation';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -10,7 +11,11 @@ export const appConfig: ApplicationConfig = {
     provideRouter(
       routes,
       withComponentInputBinding(),
-      withViewTransitions(),
+      withViewTransitions({
+        onViewTransitionCreated: ({ transition }) => {
+          if (isInPage(inject(Router).currentNavigation()?.extras.info)) transition.skipTransition();
+        },
+      }),
       withInMemoryScrolling({ scrollPositionRestoration: 'top', anchorScrolling: 'enabled' }),
     ),
     provideHttpClient(withFetch()),
