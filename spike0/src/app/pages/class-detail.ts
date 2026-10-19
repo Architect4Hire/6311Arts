@@ -5,7 +5,7 @@ import { map, switchMap } from 'rxjs';
 import { Seo, eventLd } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
-import { MEMBERSHIPS } from '../data/mock-shop';
+import { MEMBERSHIPS, slugify } from '../data/mock-shop';
 import { STUDIO_PHOTOS } from '../data/venue-photos';
 import { ArtImage } from '../shared/art-image';
 import { ClassCard } from '../shared/cards';
@@ -35,7 +35,8 @@ import { NotFound } from './not-found';
                 <span><strong>{{ c.sessions > 1 ? 'Starts ' : '' }}{{ c.start | when: 'long' }}</strong><br />
                 {{ c.cadence ? c.cadence + ', ' : '' }}{{ c.start | when: 'time' : c.end }}</span></li>
               @if (c.instructor) {
-                <li><app-icon name="people" [size]="22" /><span>With <strong>{{ c.instructor }}</strong></span></li>
+                <li><app-icon name="people" [size]="22" />
+                  <span>With <a class="linkish" [routerLink]="['/instructors', instructorSlug(c.instructor)]"><strong>{{ c.instructor }}</strong></a></span></li>
               }
               <li><app-icon name="pin" [size]="22" /><span>{{ site.name }}, {{ site.address.street }}</span></li>
               @if (c.spotsLeft != null) {
@@ -76,6 +77,8 @@ export class ClassDetail {
   protected api = inject(WpApi);
   protected site = SITE;
   protected tiers = MEMBERSHIPS;
+  /** Instructor profiles are keyed on the slugified name, since classes carry only the name. */
+  protected instructorSlug = slugify;
   /** The flyer is shown whole further down the page, so the banner shows the room the class runs in. */
   protected studioPhotos = STUDIO_PHOTOS;
   private slug = toSignal(inject(ActivatedRoute).paramMap.pipe(map((p) => p.get('slug')!)), { requireSync: true });

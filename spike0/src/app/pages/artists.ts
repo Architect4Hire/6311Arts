@@ -48,7 +48,7 @@ import { Reveal } from '../shared/reveal';
       <div class="container container--mid" reveal>
         <h2 class="band__title">Live on the North Side? Join them.</h2>
         <p class="band__lead">Teach a class, show in the gallery or sell in the shop.</p>
-        <a class="btn btn-white btn-lg" routerLink="/submit">Submit your work</a>
+        <a class="btn btn-white btn-lg" routerLink="/artists/submit">Submit your work</a>
       </div>
     </section>
   `,

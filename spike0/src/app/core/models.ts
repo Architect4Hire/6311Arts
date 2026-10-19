@@ -48,6 +48,21 @@ export interface Exhibition {
   reception?: { start: string; end: string; note?: string };
 }
 
+export interface Instructor {
+  slug: string;
+  name: string;
+  /** What they teach here, e.g. "Printmaking". */
+  medium?: string;
+  bio?: string;
+  image?: string;
+  neighborhood?: string;
+  website?: string;
+  /** Handle without the @. */
+  instagram?: string;
+  /** Set when the instructor also sells in the shop, so the page can link to their work. */
+  artistSlug?: string;
+}
+
 export interface Artist {
   slug: string;
   name: string;

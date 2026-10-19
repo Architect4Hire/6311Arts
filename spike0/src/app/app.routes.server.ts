@@ -9,6 +9,7 @@ export const serverRoutes: ServerRoute[] = [
   { path: 'about', renderMode: RenderMode.Prerender },
   { path: 'visit', renderMode: RenderMode.Prerender },
   { path: 'submit', renderMode: RenderMode.Prerender },
+  { path: 'artists/submit', renderMode: RenderMode.Prerender },
   { path: 'memberships', renderMode: RenderMode.Prerender },
   { path: '**', renderMode: RenderMode.Server },
 ];

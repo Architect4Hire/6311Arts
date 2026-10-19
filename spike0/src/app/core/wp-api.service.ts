@@ -3,8 +3,9 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, of, timeout } from 'rxjs';
 import { MOCK_CLASSES } from '../data/mock-classes';
 import { MOCK_EXHIBITIONS } from '../data/mock-exhibitions';
+import { MOCK_INSTRUCTORS } from '../data/instructors';
 import { MOCK_ARTISTS, MOCK_PRODUCTS, slugify } from '../data/mock-shop';
-import { ArtClass, Artist, CmsPage, Exhibition, Product } from './models';
+import { ArtClass, Artist, CmsPage, Exhibition, Instructor, Product } from './models';
 import { API_CONFIG } from './site';
 
 /** Categories in WooCommerce that describe what a product is rather than who made it. */
@@ -91,6 +92,13 @@ export class WpApi {
 
   classBySlug(slug: string): Observable<ArtClass | undefined> {
     return this.classes().pipe(map((all) => all.find((c) => c.slug === slug)));
+  }
+
+  /** Everyone who teaches here. Classes carry only the instructor's name; this is the profile behind it. */
+  instructors(): Observable<Instructor[]> {
+    return this.get<Instructor[]>('/wp-json/6311/v1/instructors').pipe(
+      map((list) => (list as Instructor[] | null) ?? MOCK_INSTRUCTORS),
+    );
   }
 
   exhibitions(): Observable<Exhibition[]> {

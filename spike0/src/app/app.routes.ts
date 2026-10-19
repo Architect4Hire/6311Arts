@@ -6,7 +6,17 @@ export const routes: Routes = [
   { path: 'classes', loadComponent: () => import('./pages/classes').then((m) => m.Classes) },
   { path: 'classes/:slug', loadComponent: () => import('./pages/class-detail').then((m) => m.ClassDetail) },
   { path: 'exhibitions', loadComponent: () => import('./pages/exhibitions').then((m) => m.Exhibitions) },
+  { path: 'instructors', loadComponent: () => import('./pages/instructors').then((m) => m.Instructors) },
+  {
+    path: 'instructors/:slug',
+    loadComponent: () => import('./pages/instructors').then((m) => m.InstructorDetail),
+  },
   { path: 'artists', loadComponent: () => import('./pages/artists').then((m) => m.Artists) },
+  // Declared before 'artists/:slug' so the form wins over an artist whose slug is "submit".
+  {
+    path: 'artists/submit',
+    loadComponent: () => import('./pages/artist-submission').then((m) => m.ArtistSubmission),
+  },
   { path: 'artists/:slug', loadComponent: () => import('./pages/artists').then((m) => m.ArtistDetail) },
   { path: 'shop', loadComponent: () => import('./pages/shop').then((m) => m.Shop) },
   { path: 'shop/:slug', loadComponent: () => import('./pages/shop').then((m) => m.ProductDetail) },

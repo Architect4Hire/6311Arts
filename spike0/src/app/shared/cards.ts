@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ArtClass, Exhibition, Product } from '../core/models';
+import { slugify } from '../data/mock-shop';
 import { ArtImage } from './art-image';
 import { MoneyPipe, WhenPipe, today } from './format';
 
@@ -24,7 +25,9 @@ import { MoneyPipe, WhenPipe, today } from './format';
       <h3 class="class-card__title"><a [routerLink]="['/classes', c.slug]">{{ c.title }}</a></h3>
       <p class="class-card__when">
         {{ c.cadence ? c.cadence + ' · ' : '' }}{{ c.start | when: 'time' : c.end }}
-        @if (c.instructor) { · with {{ c.instructor }} }
+        @if (c.instructor) {
+          · with <a class="linkish" [routerLink]="['/instructors', slug(c.instructor)]">{{ c.instructor }}</a>
+        }
       </p>
     </div>
     <div class="class-card__cta">
@@ -38,6 +41,8 @@ import { MoneyPipe, WhenPipe, today } from './format';
 })
 export class ClassCard {
   item = input.required<ArtClass>();
+  /** Classes carry an instructor's name, not an id; the profile page is keyed on the slugified name. */
+  protected slug = slugify;
 }
 
 @Component({
