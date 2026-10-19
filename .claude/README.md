@@ -65,7 +65,8 @@ Use one primary skill per seam. Load supporting skills only where the primary on
 | `add-notification` | Transactional email through the outbox |
 | `new-component` | Angular components in `site`, `admin` or `@6311/ui` |
 | `add-aspire-resource`, `aspireify` | AppHost wiring |
-| `aspire`, `aspire-init`, `aspire-orchestration`, `aspire-monitoring`, `aspire-deployment` | Generic Aspire CLI skills, unchanged from creatorpantry |
+| `aspire`, `aspire-init`, `aspire-orchestration`, `aspire-monitoring` | Generic Aspire CLI skills, unchanged from creatorpantry |
+| `aspire-deployment` | Generic Aspire deploy skill, **restricted**: see its 6311arts override (plan + `aspire publish` only) |
 | `playwright-cli` | Browser verification, unchanged from creatorpantry |
 
 ## Review agents (read-only)

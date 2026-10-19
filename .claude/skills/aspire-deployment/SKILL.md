@@ -9,9 +9,14 @@ metadata:
 
 # Aspire Deployment
 
+> **6311arts override (CLAUDE.md wins).** A Claude session never runs `aspire deploy`, `aspire destroy`,
+> `aspire do <step>`, `azd`, `az` provisioning, `swa deploy` or any push that triggers CI deploys. In this repo the
+> skill's output is a deployment plan and `aspire publish` artifacts for review. A person or CI deploys. Where the
+> text below says to deploy, tear down or "continue through deployment", stop at the plan and hand off.
+
 Use this skill when the task is to publish, preview, validate, deploy, or tear down an Aspire application deployment. This skill owns Aspire deployment routing. Do not start with a generic Azure, Docker, Kubernetes, Helm, or Bicep workflow until you have checked whether the workspace is an Aspire app.
 
-Aspire deployment starts from the AppHost model. Treat `aspire deploy`, `aspire publish`, `aspire destroy`, `aspire do`, and the deployment environment resources in the AppHost as the primary path.
+Aspire deployment starts from the AppHost model. Treat `aspire publish` and the deployment environment resources in the AppHost as the primary path. In this repo, publish artifacts and a plan are the output; executing `aspire deploy`, `aspire destroy` or `aspire do` is out of scope (see the override above).
 
 Keep this as one skill with target-specific references. Load only the reference files that match the target you discover or the user requests.
 
@@ -100,7 +105,7 @@ If the user says only "Azure", ask again with just the Azure choices: Azure Cont
 
 Cloud deploys can create billable resources. If the user asked for a plan, preview, validation, or "make this deployable", stop after the deployment plan/artifacts and ask before running the command that provisions resources.
 
-If the user explicitly asked to deploy now, continue through preflight and deployment, but still surface any target choice, subscription/resource group ambiguity, or missing parameter decisions before provisioning.
+If the user explicitly asked to deploy now, run preflight and `aspire publish`, then hand the deploy step to a person or CI (6311arts override). Still surface any target choice, subscription/resource group ambiguity, or missing parameter decisions before provisioning.
 
 ### Keep Azure deployment Aspire-native
 
