@@ -84,11 +84,11 @@ Use one primary skill per seam. Load supporting skills only where the primary on
 
 ## Hooks
 
-- **`secret-guard.sh` (PreToolUse).** Blocks:
-  - private keys
-  - connection-string passwords and account keys
-  - generic `password` / `api_key` / `client_secret` / `signature_key` literals
-  - Square access tokens and application secrets
+- **`secret-guard.sh` (PreToolUse, fails closed).** Best-effort pattern match on Write/Edit/MultiEdit content. It does not see Bash-tool writes. Blocks:
+  - PEM private keys (RSA, EC, OPENSSH, ENCRYPTED, PKCS#8)
+  - connection-string `Password=` / `Pwd=` values and Azure account keys / SAS
+  - quoted `password` / `pwd` / `api_key` / `client_secret` / `signature_key` values, including JSON and C# forms
+  - Square access tokens and application secrets, WooCommerce keys, GitHub tokens, literal bearer tokens
 - **`format.sh` (PostToolUse).** Runs `dotnet format` on C# files and the workspace-pinned prettier on Angular files. It never blocks an edit.
 
 Hooks are a backstop, not the architecture.
