@@ -12,21 +12,22 @@ import { MoneyPipe, WhenPipe, today } from './format';
   host: { class: 'class-card' },
   template: `
     @let c = item();
+    @let on = date() ?? c.start;
     <a class="class-card__date" [routerLink]="['/classes', c.slug]" [attr.aria-label]="c.title">
-      <span class="class-card__mon">{{ c.start | when: 'mon' }}</span>
-      <span class="class-card__day">{{ c.start | when: 'day' }}</span>
-      <span class="class-card__dow">{{ c.start | when: 'dow' }}</span>
+      <span class="class-card__mon">{{ on | when: 'mon' }}</span>
+      <span class="class-card__day">{{ on | when: 'day' }}</span>
+      <span class="class-card__dow">{{ on | when: 'dow' }}</span>
     </a>
     <div class="class-card__body">
       <p class="class-card__meta">
         <span>{{ c.type }}</span><span>{{ c.level }}</span>
-        @if (c.sessions > 1) { <span>{{ c.sessions }} weeks</span> }
+        @if (c.sessions > 1) { <span>{{ week() ? 'Week ' + week() + ' of ' + c.sessions : c.sessions + ' weeks' }}</span> }
       </p>
       <h3 class="class-card__title"><a [routerLink]="['/classes', c.slug]">{{ c.title }}</a></h3>
       <p class="class-card__when">
         {{ c.cadence ? c.cadence + ' · ' : '' }}{{ c.start | when: 'time' : c.end }}
         @if (c.instructor) {
-          · with <a class="linkish" [routerLink]="['/instructors', slug(c.instructor)]">{{ c.instructor }}</a>
+          <span class="class-card__by">with <a class="linkish" [routerLink]="['/instructors', slug(c.instructor)]">{{ c.instructor }}</a></span>
         }
       </p>
     </div>
@@ -41,6 +42,9 @@ import { MoneyPipe, WhenPipe, today } from './format';
 })
 export class ClassCard {
   item = input.required<ArtClass>();
+  /** When the card stands for one session of a weekly course: that session's date (YYYY-MM-DD) and week number. */
+  date = input<string>();
+  week = input<number>();
   /** Classes carry an instructor's name, not an id; the profile page is keyed on the slugified name. */
   protected slug = slugify;
 }

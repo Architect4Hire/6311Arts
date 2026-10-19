@@ -130,8 +130,8 @@ import { Reveal } from '../shared/reveal';
           @for (g of grouped(); track g.month) {
             <h2 class="month" reveal>{{ g.month }}</h2>
             <div class="class-list class-list--full">
-              @for (c of g.items; track c.id) {
-                <app-class-card [item]="c" reveal />
+              @for (s of g.items; track s.c.id + '-' + s.n) {
+                <app-class-card [item]="s.c" [date]="s.date" [week]="s.c.sessions > 1 ? s.n : undefined" reveal />
               }
             </div>
           }
@@ -194,12 +194,13 @@ export class Classes {
     ),
   );
 
+  /** Grid view: one card per upcoming session (each week of a course gets its own card), grouped by month. */
   protected grouped = computed(() => {
-    const by = new Map<string, ArtClass[]>();
-    const fmt = new WhenPipe();
-    for (const c of this.filtered()) {
-      const key = `${fmt.transform(c.start, 'mon')} ${c.start.slice(0, 4)}`.replace(/^(\w+)/, (m) => MONTHS[m] ?? m);
-      by.set(key, [...(by.get(key) ?? []), c]);
+    const by = new Map<string, Session[]>();
+    for (const s of this.sessions()) {
+      if (s.date < this.today) continue;
+      const key = monthLabel(s.date.slice(0, 7));
+      by.set(key, [...(by.get(key) ?? []), s]);
     }
     return [...by].map(([month, items]) => ({ month, items }));
   });
@@ -214,7 +215,7 @@ export class Classes {
    * Each session of the filtered classes, in date order. Multi-session classes are weekly courses
    * ("5 weeks"), so session n falls n weeks after the first, at the same wall-clock time.
    */
-  private sessions = computed(() =>
+  private sessions = computed<Session[]>(() =>
     this.filtered()
       .flatMap((c) => {
         const first = chicagoDay(c.start);
@@ -238,14 +239,14 @@ export class Classes {
 
   protected calendar = computed(() => {
     const month = this.month();
-    const byDay = new Map<string, { c: ArtClass; n: number }[]>();
+    const byDay = new Map<string, Session[]>();
     for (const s of this.sessions()) byDay.set(s.date, [...(byDay.get(s.date) ?? []), s]);
     const [y, m] = month.split('-').map(Number);
     const first = new Date(Date.UTC(y, m - 1, 1));
     const cursor = new Date(first);
     cursor.setUTCDate(1 - ((first.getUTCDay() + 6) % 7));
     const end = endOfWeek(new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10));
-    const days: { date: string; num: number; inMonth: boolean; today: boolean; items: { c: ArtClass; n: number }[] }[] = [];
+    const days: { date: string; num: number; inMonth: boolean; today: boolean; items: Session[] }[] = [];
     for (;;) {
       const date = cursor.toISOString().slice(0, 10);
       days.push({ date, num: cursor.getUTCDate(), inMonth: date.startsWith(month), today: date === this.today, items: byDay.get(date) ?? [] });
@@ -307,7 +308,9 @@ function monthLabel(month: string): string {
   return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(Date.UTC(y, m - 1, 1)));
 }
 
-const MONTHS: Record<string, string> = {
-  Jan: 'January', Feb: 'February', Mar: 'March', Apr: 'April', May: 'May', Jun: 'June',
-  Jul: 'July', Aug: 'August', Sep: 'September', Oct: 'October', Nov: 'November', Dec: 'December',
-};
+/** One meeting of a class: the class, which week it is (1-based), and its Chicago date (YYYY-MM-DD). */
+interface Session {
+  c: ArtClass;
+  n: number;
+  date: string;
+}

@@ -831,6 +831,10 @@ textarea {
   opacity: 0.8;
 }
 
+.class-card__by::before {
+  content: '·\00a0';
+}
+
 .class-card__cta {
   display: grid;
   justify-items: end;
@@ -842,23 +846,63 @@ textarea {
   font-weight: 800;
 }
 
+/* Phones: a compact date tile pinned top-left, tighter labels, instructor on its own line, and a ruled price row. */
 @media (max-width: 720px) {
   .class-card {
-    grid-template-columns: 72px 1fr;
-    gap: 18px;
-    padding: 18px;
+    grid-template-columns: 56px 1fr;
+    gap: 14px 16px;
+    align-items: start;
+    padding: 18px 16px 16px;
+  }
+  .class-card__date {
+    padding: 8px 0;
+  }
+  .class-card__mon,
+  .class-card__dow {
+    font-size: 10px;
+    letter-spacing: 1.5px;
   }
   .class-card__day {
-    font-size: 28px;
+    font-size: 24px;
+    margin: 3px 0;
+  }
+  .class-card__meta {
+    gap: 2px 12px;
+    margin-bottom: 6px;
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  .class-card__title {
+    font-size: 17px;
+    line-height: 1.25;
+    margin-bottom: 6px;
+  }
+  .class-card__when {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .class-card__by {
+    display: block;
+    &::before {
+      content: none;
+    }
   }
   .class-card__cta {
     grid-column: 1 / -1;
-    grid-template-columns: auto 1fr auto;
-    justify-items: start;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 8px 12px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
     .btn {
-      justify-self: end;
+      margin-left: auto;
+      min-width: 104px;
+      text-align: center;
     }
+  }
+  .class-card__price {
+    font-size: 20px;
   }
 }
 
