@@ -1,13 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { ClassType } from '../core/models';
+import { ArtClass, ClassType } from '../core/models';
 import { Seo, eventLd } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
 import { STUDIO_PHOTOS } from '../data/venue-photos';
 import { ClassCard } from '../shared/cards';
-import { WhenPipe } from '../shared/format';
+import { WhenPipe, chicagoDay, endOfWeek } from '../shared/format';
 import { Hero } from '../shared/hero';
 import { Icon } from '../shared/icon';
 import { Newsletter } from '../shared/newsletter';
@@ -25,6 +25,31 @@ import { Reveal } from '../shared/reveal';
 
     <section class="band band--white" id="content">
       <div class="container">
+        @let s = soon();
+        @if (s.today.length || s.week.length) {
+          <div class="soon">
+            <h2 class="month" reveal>Today</h2>
+            @if (s.today.length) {
+              <div class="class-list class-list--full">
+                @for (c of s.today; track c.id) {
+                  <app-class-card [item]="c" reveal />
+                }
+              </div>
+            } @else {
+              <p class="soon__none">Nothing left on the calendar today.</p>
+            }
+            @if (s.week.length) {
+              <h2 class="month" reveal>This week</h2>
+              <div class="class-list class-list--full">
+                @for (c of s.week; track c.id) {
+                  <app-class-card [item]="c" reveal />
+                }
+              </div>
+            }
+          </div>
+        }
+
+        <h2 class="month month--all" reveal>All events</h2>
         <div class="filters" role="toolbar" aria-label="Filter classes">
           @for (t of types(); track t) {
             <button type="button" class="chip" [class.is-on]="type() === t" (click)="setType(t)" [attr.aria-pressed]="type() === t">{{ t }}</button>
@@ -74,6 +99,27 @@ export class Classes {
   protected types = computed(() => ['All', ...new Set(this.all().map((c) => c.type))] as (ClassType | 'All')[]);
   /** Flyers are portrait posters, so the banner shows the studio and the cards carry the flyers. */
   protected studioPhotos = STUDIO_PHOTOS;
+
+  /**
+   * What's on today (not yet over) and later this week (through Sunday), in Chicago time and ignoring the filters.
+   * Uses each class's first session, the same date its card shows.
+   */
+  protected soon = computed(() => {
+    const now = Date.now();
+    const day = chicagoDay(now);
+    const sunday = endOfWeek(day);
+    const today: ArtClass[] = [];
+    const week: ArtClass[] = [];
+    for (const c of this.all()) {
+      const d = chicagoDay(c.start);
+      if (d === day) {
+        if (Date.parse(c.end) > now) today.push(c);
+      } else if (d > day && d <= sunday) {
+        week.push(c);
+      }
+    }
+    return { today, week };
+  });
 
   protected grouped = computed(() => {
     const list = this.all().filter(

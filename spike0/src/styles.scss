@@ -294,12 +294,12 @@ textarea {
   inset: 0 0 auto;
   z-index: 50;
   color: var(--white);
-  transition: background 0.5s ease-in-out, padding 0.5s ease-in-out;
+  background: var(--ink);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: padding 0.5s ease-in-out;
   padding: 18px 0;
   &.nav--solid {
-    background: var(--ink);
     padding: 6px 0;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
   }
 }
 
@@ -870,6 +870,26 @@ textarea {
   margin: 48px 0 16px;
   padding-bottom: 12px;
   border-bottom: 2px solid var(--ink);
+}
+
+.soon {
+  margin-bottom: 56px;
+  > .month:first-child {
+    margin-top: 0;
+  }
+}
+
+.month--all {
+  margin-bottom: 20px;
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+.soon__none {
+  margin: 0 0 48px;
+  font-size: 15px;
+  color: var(--muted);
 }
 
 .filters {

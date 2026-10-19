@@ -4,7 +4,7 @@ import { filter } from 'rxjs';
 import { WpApi } from '../core/wp-api.service';
 import { Icon } from './icon';
 
-/** Fixed navbar from the template: transparent over the hero, solid charcoal once the page scrolls. */
+/** Fixed navbar: always charcoal; compacts once the page scrolls. */
 @Component({
   selector: 'app-header',
   changeDetection: ChangeDetectionStrategy.OnPush,

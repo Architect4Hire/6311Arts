@@ -55,3 +55,15 @@ export class WhenPipe implements PipeTransform {
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/** The Chicago calendar date (YYYY-MM-DD) of an instant, so "today" matches the studio's wall clock wherever the server runs. */
+export function chicagoDay(at: string | number | Date = Date.now()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at));
+}
+
+/** The Sunday (YYYY-MM-DD) that closes the Monday–Sunday week containing a Chicago date. */
+export function endOfWeek(day: string): string {
+  const d = new Date(day + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + ((7 - d.getUTCDay()) % 7));
+  return d.toISOString().slice(0, 10);
+}
