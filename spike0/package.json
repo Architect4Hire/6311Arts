@@ -5,6 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:swa": "ng build && node -e \"require('fs').copyFileSync('dist/site6311/browser/index.csr.html','dist/site6311/browser/index.html')\"",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "serve:ssr:site6311": "node dist/site6311/server/server.mjs"
