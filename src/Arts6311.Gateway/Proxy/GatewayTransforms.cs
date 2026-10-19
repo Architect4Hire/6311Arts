@@ -14,8 +14,13 @@ internal static class GatewayTransforms
     /// Named routes, not the <c>api</c> cluster: <c>/webhooks/square</c> also targets that cluster, and a webhook
     /// is Square calling us with a signature, never a signed-in person. If a browser ever posted there carrying a
     /// session, the gateway would otherwise sign a user token for it.
+    /// <para>
+    /// A route that requires a session must be in this list, or its requests would arrive at the API with no
+    /// credential and be refused there for a reason that points nowhere near the cause.
+    /// <c>GatewayRouteTableTests</c> asserts exactly that, so adding an authorized route cannot miss this list.
+    /// </para>
     /// </remarks>
-    private static readonly string[] TokenBearingRoutes = ["api", "media"];
+    internal static readonly string[] TokenBearingRoutes = ["cms", "api", "media"];
 
     /// <summary>Headers a client must never be able to set on a request the API will trust.</summary>
     /// <remarks>

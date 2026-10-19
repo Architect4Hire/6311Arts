@@ -44,6 +44,21 @@ public sealed class InternalSessionsController(IIdentityFacade facade) : Control
         this.ToActionResult(await facade.CheckCredentialsAsync(request, cancellationToken));
 
     /// <summary>
+    /// Ends every session this person has, by rotating their security stamp. Behind the gateway's
+    /// <c>/bff/logout-everywhere</c>: the ticket that asked is deleted by the gateway, and the others fail their
+    /// next revalidation.
+    /// </summary>
+    [HttpPost("revoke")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RevokeSessionsAsync(
+        [FromBody] SessionRevocationViewModel request, CancellationToken cancellationToken) =>
+        this.ToNoContentResult(await facade.RevokeSessionsAsync(request, cancellationToken));
+
+    /// <summary>
     /// Whether a session ticket is still good. The gateway calls this periodically, which is how a password
     /// reset or "log out everywhere" ends a session that is already signed in (auth.md "Revalidation").
     /// </summary>

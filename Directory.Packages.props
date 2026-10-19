@@ -48,6 +48,13 @@
 
   <ItemGroup Label="Gateway">
     <!--
+      The gateway's session ticket store and its Data Protection key ring, both in Redis (ADR 0009, ADR 0024).
+      Redis is the gateway's one piece of state: a ring under the user profile would make every antiforgery token
+      die with the process and disagree between replicas.
+    -->
+    <PackageVersion Include="Aspire.StackExchange.Redis" Version="$(AspireVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" Version="10.0.13" />
+    <!--
       The signing half of the internal token. Pinned to the version Microsoft.AspNetCore.Authentication.JwtBearer
       resolves in the API, so the side that signs and the side that verifies share one IdentityModel (ADR 0002).
     -->

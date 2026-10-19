@@ -105,6 +105,28 @@ internal sealed class IdentityDataLayer(
         }
     }
 
+    public async Task RevokeSessionsAsync(ArtsUser user, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // UpdateSecurityStampAsync writes through Identity's own store immediately, so this is the same two-save
+        // shape as the credential path and accepted for the same reason: nothing here stages an outbox message
+        // (ADR 0023). The stamp is what matters — an audit row that failed to commit would leave the sessions
+        // revoked, which is the safe direction.
+        await users.UpdateSecurityStampAsync(user);
+
+        audit.Record(new AuditEntry(
+            ActorUserId: user.Id,
+            IdentityAudit.SessionsRevoked,
+            IdentityAudit.UserResourceType,
+            user.Id,
+            correlation.Current,
+            "All sessions revoked: security stamp rotated."));
+
+        await repository.SaveChangesAsync(cancellationToken);
+    }
+
     public Task RecordSignInOutcomeAsync(
         string? userId, string action, string summary, CancellationToken cancellationToken)
     {

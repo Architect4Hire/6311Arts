@@ -11,6 +11,10 @@ internal static class IdentityAudit
     public const string SignInSucceeded = "identity.sign-in-succeeded";
     public const string SignInFailed = "identity.sign-in-failed";
     public const string SignInLockedOut = "identity.sign-in-locked-out";
+
+    /// <summary>"Log out everywhere": the security stamp was rotated, so every live ticket dies.</summary>
+    public const string SessionsRevoked = "identity.sessions-revoked";
+
     public const string PasswordResetRequested = "identity.password-reset-requested";
     public const string EmailConfirmationRequested = "identity.email-confirmation-requested";
     public const string AdminSeeded = "identity.admin-seeded";

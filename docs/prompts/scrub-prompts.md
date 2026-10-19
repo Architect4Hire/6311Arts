@@ -406,17 +406,20 @@ BEHAVIOR: Plan the token map and primitive APIs, wait, implement, show before/af
 
 ```
 SCOPE: projects/admin (SPA, base href /admin/, zoneless, signals): SessionService over /bff/session,
-login screen over /bff (single step, no 2FA), role guards, XSRF interceptor, ProblemDetails toast surface, layout
+role guards, XSRF interceptor (cookie __Host-6311.csrf, header X-XSRF-TOKEN), ProblemDetails toast surface, layout
 (Dashboard, Classes, Exhibitions, Artists, Shop, Memberships, Pages, Media, Forms, Redirects, Sync),
 unsaved-changes guard. AppHost AddJavaScriptApp("admin"); gateway /admin route.
+Plus the staff sign-in page on projects/site at /signin (noindex, single step, no 2FA, posts to /bff/login,
+honours ?returnUrl): /admin/** is gated, so a login screen inside the admin bundle could not load its own
+scripts and would redirect to itself forever (ADR 0024).
 
-CONSTRAINT: frontend.md; design-system.md; auth.md.
+CONSTRAINT: frontend.md; design-system.md; auth.md; ADR 0024.
 
 RESTRICTION: No CRUD screens. No browser storage of session data. No HttpClient in components.
 
 UTILIZATION: new-component; @design-review, @security-reviewer.
 
-BEHAVIOR: Plan, wait, implement, npm test, walk me through login → dashboard through the gateway URL.
+BEHAVIOR: Plan, wait, implement, npm test, walk me through /signin → dashboard through the gateway URL.
 ```
 
 ## 2.3 — Media module

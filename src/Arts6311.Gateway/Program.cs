@@ -2,8 +2,14 @@ using System.Net;
 using Arts6311.Gateway.Authentication;
 using Arts6311.Gateway.Edge;
 using Arts6311.Gateway.Proxy;
+using Arts6311.Gateway.Session;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.StackExchangeRedis;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.ResponseCompression;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +24,13 @@ builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection(Gate
 var internalTokenOptions = new InternalTokenOptions();
 builder.Configuration.GetSection(InternalTokenOptions.SectionName).Bind(internalTokenOptions);
 
+// Same reason: a session with a nonsensical lifetime would be a session that never expires, and the symptom
+// would be nothing at all.
+var sessionOptions = new BrowserSessionOptions();
+builder.Configuration.GetSection(BrowserSessionOptions.SectionName).Bind(sessionOptions);
+sessionOptions.Validate();
+builder.Services.AddSingleton(sessionOptions);
+
 // The clock. The Domain's AddArtsTime would normally register this, but the gateway holds no domain code and so
 // does not reference it; DateTime.UtcNow is banned repo-wide (src/BannedSymbols.txt).
 builder.Services.AddSingleton(TimeProvider.System);
@@ -25,6 +38,61 @@ builder.Services.AddSingleton(TimeProvider.System);
 // Imports the key here, so a bad one is a startup failure. The private half exists only in this process (ADR 0002).
 builder.Services.AddSingleton(internalTokenOptions);
 builder.Services.AddSingleton<IInternalTokenSigner, InternalTokenSigner>();
+
+// Redis: the session ticket store (ADR 0009), and with it the gateway's only piece of state. Aspire's client
+// brings the retry policy, the health check and the telemetry, so Redis being unreachable shows as an unhealthy
+// gateway rather than as sign-ins that hang.
+builder.AddRedisClient("cache");
+builder.Services.AddSingleton<ISessionKeyValueStore, RedisSessionKeyValueStore>();
+builder.Services.AddSingleton<ISessionTicketStore, SessionTicketStore>();
+builder.Services.AddScoped<ISessionManager, SessionManager>();
+
+// The internal routes the BFF calls on its own behalf. The address is a service-discovery name, so no host or
+// port appears here (aspire.md); ServiceDefaults has already added discovery and resilience to every client.
+builder.Services.AddHttpClient<IIdentityApiClient, IdentityApiClient>(
+    client => client.BaseAddress = new Uri("https+http://api"));
+
+// Antiforgery keys have to outlive the process and be the same in every replica, or a token minted by one
+// gateway is refused by the next (ADR 0024). Redis, not the blob ring the API and Worker share: that ring is
+// reached through the Domain's helper, and the gateway holds no domain code (ADR 0022).
+builder.Services.AddDataProtection().SetApplicationName(GatewayDataProtection.ApplicationName);
+
+// The repository is configured through options rather than PersistKeysToStackExchangeRedis, because that method
+// wants a multiplexer or a Func<IDatabase> in hand and ours is in DI, registered by AddRedisClient above.
+builder.Services.AddOptions<KeyManagementOptions>().Configure<IServiceProvider>((options, services) =>
+    options.XmlRepository = new RedisXmlRepository(
+        () => services.GetRequiredService<IConnectionMultiplexer>().GetDatabase(),
+        GatewayDataProtection.KeyRingKey));
+
+// The session is read by one scheme and nothing else: no cookie-authentication middleware, no OIDC handler.
+builder.Services.AddAuthentication(GatewaySessionDefaults.Scheme)
+    .AddScheme<AuthenticationSchemeOptions, GatewaySessionHandler>(GatewaySessionDefaults.Scheme, _ => { });
+
+// No fallback policy: a YARP route that names no policy stays anonymous, which is what the public site and the
+// anonymous API reads are. The gate is declared per route, in the route table (gateway.md).
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(GatewayPolicies.CmsEditor, policy => policy
+        .RequireAuthenticatedUser()
+        .RequireRole(GatewayRoles.Admin, GatewayRoles.Editor))
+    .AddPolicy(GatewayPolicies.Session, policy => policy.RequireAuthenticatedUser());
+
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.Name = AntiforgeryCookie.CookieTokenName;
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.Path = "/";
+    options.Cookie.IsEssential = true;
+
+    // The header, and only the header: validating a form field would mean reading the request body at the edge,
+    // which would break streaming for everything proxied through.
+    options.HeaderName = AntiforgeryCookie.HeaderName;
+
+    // The CSP already carries frame-ancestors 'none' (SecurityHeadersMiddleware). Letting antiforgery add its own
+    // X-Frame-Options as well would mean two headers saying the same thing from two places.
+    options.SuppressXFrameOptionsHeader = true;
+});
 
 // Every failure the edge produces leaves as ProblemDetails with a code and the correlation id (gateway.md). The
 // customiser covers the ones the framework writes for itself — an unhandled exception, or Kestrel refusing an
@@ -121,7 +189,24 @@ app.UseRateLimiter();
 // without reaching a destination.
 app.UseInternalPathBlock();
 
+// Reads the session cookie and the ticket behind it, which is what makes HttpContext.User non-anonymous and so
+// what makes the proxy's internal-token transform fire (ADR 0022).
+app.UseAuthentication();
+
+// After authentication and before authorization, and both halves of that matter. An antiforgery token is bound
+// to the signed-in identity, so validating it before the session is read compares it against an anonymous
+// principal and refuses every token a signed-in person holds. Before authorization, so that a missing token on
+// a protected route is the 400 auth.md's test list calls for rather than a 401 (ADR 0024).
+app.UseArtsAntiforgery();
+
+// This is what applies a YARP route's AuthorizationPolicy, and the policy on the BFF's own endpoints.
+app.UseAuthorization();
+
 app.MapDefaultEndpoints();
+
+// The BFF's own endpoints. Mapped before the proxy for readability only — precedence, not order, is what puts
+// /bff/** ahead of the site catch-all.
+app.MapBff();
 
 app.MapReverseProxy();
 

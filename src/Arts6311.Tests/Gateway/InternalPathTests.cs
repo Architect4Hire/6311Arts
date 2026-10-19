@@ -76,12 +76,13 @@ public sealed class InternalPathTests : IAsyncLifetime
 
     [Theory]
     [InlineData("/api/v1/site/health-info")]
-    [InlineData("/api/v1/cms/internals")]
+    [InlineData("/api/v1/site/internals")]
     [InlineData("/api/internal")]
     public async Task APathThatOnlyLooksInternalIsStillProxied(string path)
     {
         // The block must be precise. `/api/internal` has no version segment, and `internals` is a different
-        // segment; over-matching would take real routes off the air.
+        // segment; over-matching would take real routes off the air. A site path rather than a cms one: the CMS
+        // surface needs an editor session from 1.10, and this test is about the internal-path block alone.
         using var gateway = new GatewayFactory(destination);
         using var client = gateway.CreateJsonClient();
 

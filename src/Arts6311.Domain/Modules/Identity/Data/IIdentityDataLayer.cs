@@ -27,6 +27,12 @@ internal interface IIdentityDataLayer
 
     Task ResetFailedAccessAsync(ArtsUser user, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Rotates the security stamp and audits it, which is what "log out everywhere" is made of: every live
+    /// ticket holds the old stamp and fails its next revalidation (auth.md "Revalidation").
+    /// </summary>
+    Task RevokeSessionsAsync(ArtsUser user, CancellationToken cancellationToken);
+
     /// <summary>Audits the sign-in outcome. One save; no Identity write is involved.</summary>
     Task RecordSignInOutcomeAsync(string? userId, string action, string summary, CancellationToken cancellationToken);
 

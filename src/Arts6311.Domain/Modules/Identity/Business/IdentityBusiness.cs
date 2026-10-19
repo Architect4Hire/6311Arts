@@ -14,6 +14,9 @@ internal interface IIdentityBusiness
     Task<SessionValidationServiceModel> ValidateSessionAsync(
         SessionValidationViewModel request, CancellationToken cancellationToken);
 
+    Task<OperationResult> RevokeSessionsAsync(
+        SessionRevocationViewModel request, CancellationToken cancellationToken);
+
     Task RequestPasswordResetAsync(string email, CancellationToken cancellationToken);
 
     Task RequestEmailConfirmationAsync(string userId, CancellationToken cancellationToken);
@@ -116,6 +119,28 @@ internal sealed class IdentityBusiness(IIdentityDataLayer dataLayer) : IIdentity
 
         return new SessionValidationServiceModel(
             Valid: true, await dataLayer.GetRolesAsync(user, cancellationToken));
+    }
+
+    public async Task<OperationResult> RevokeSessionsAsync(
+        SessionRevocationViewModel request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var user = await dataLayer.FindByIdAsync(request.UserId, cancellationToken);
+
+        // Not found is reported rather than swallowed. The caller is the gateway, holding a live session for this
+        // person, so a missing row means the account was deleted under it — the gateway deletes its ticket either
+        // way, and a silent success here would hide a real inconsistency. There is no enumeration concern: a
+        // browser cannot reach this route (ADR 0022) and cannot choose the user id.
+        if (user is null)
+        {
+            return OperationResult.Failure(OperationError.Of(
+                ErrorCodes.NotFound, "There is no such account."));
+        }
+
+        await dataLayer.RevokeSessionsAsync(user, cancellationToken);
+
+        return OperationResult.Success();
     }
 
     public async Task RequestPasswordResetAsync(string email, CancellationToken cancellationToken)

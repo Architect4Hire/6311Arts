@@ -42,6 +42,7 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0021](0021-api-host-conventions-and-internal-token-verification.md) | API host conventions + internal-token verification | Accepted |
 | [0022](0022-gateway-edge-policy-and-internal-token-transform.md) | Gateway edge policy + internal-token transform | Accepted |
 | [0023](0023-identity-module-and-email-through-the-outbox.md) | Identity module + email through the outbox | Accepted |
+| [0024](0024-bff-session-tickets-and-edge-antiforgery.md) | BFF session tickets + antiforgery at the edge | Accepted |
 
 ## Template
 

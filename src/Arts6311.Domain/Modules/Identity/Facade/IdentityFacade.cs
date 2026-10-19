@@ -14,7 +14,8 @@ namespace Arts6311.Domain.Modules.Identity.Facade;
 internal sealed class IdentityFacade(
     IIdentityBusiness business,
     IValidator<CredentialCheckViewModel> credentialValidator,
-    IValidator<SessionValidationViewModel> sessionValidator) : IIdentityFacade
+    IValidator<SessionValidationViewModel> sessionValidator,
+    IValidator<SessionRevocationViewModel> revocationValidator) : IIdentityFacade
 {
     public async Task<OperationResult<UserSummaryServiceModel>> CheckCredentialsAsync(
         CredentialCheckViewModel request, CancellationToken cancellationToken)
@@ -36,6 +37,17 @@ internal sealed class IdentityFacade(
         }
 
         return OperationResult.Success(await business.ValidateSessionAsync(request, cancellationToken));
+    }
+
+    public async Task<OperationResult> RevokeSessionsAsync(
+        SessionRevocationViewModel request, CancellationToken cancellationToken)
+    {
+        if (await revocationValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure(error);
+        }
+
+        return await business.RevokeSessionsAsync(request, cancellationToken);
     }
 
     public async Task<OperationResult> RequestPasswordResetAsync(string email, CancellationToken cancellationToken)

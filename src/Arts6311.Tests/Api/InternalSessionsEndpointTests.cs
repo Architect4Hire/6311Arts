@@ -20,6 +20,7 @@ public sealed class InternalSessionsEndpointTests
 {
     private const string Credentials = "/api/v1/internal/sessions/credentials";
     private const string Validate = "/api/v1/internal/sessions/validate";
+    private const string Revoke = "/api/v1/internal/sessions/revoke";
 
     [Fact]
     public async Task AServiceTokenReachesTheCredentialRoute()
@@ -113,6 +114,43 @@ public sealed class InternalSessionsEndpointTests
     }
 
     [Fact]
+    public async Task AServiceTokenReachesTheRevokeRoute()
+    {
+        var facade = new FakeIdentityFacade();
+        using var api = Factory(facade);
+        using var client = api.CreateJsonClient();
+
+        using var request = Request(HttpMethod.Post, Revoke, api.Tokens.ServiceToken());
+        request.Content = JsonContent.Create(new SessionRevocationViewModel("user-1"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(1, facade.RevokeCalls);
+        Assert.Equal("user-1", facade.RevokedUserId);
+    }
+
+    [Theory]
+    [InlineData("Admin")]
+    [InlineData("Member")]
+    public async Task AUserTokenCannotRevokeSessions(string role)
+    {
+        // "Log out everywhere" is the gateway asking on a person's behalf, and the gateway is the only caller.
+        // A user token here would let a signed-in person end anyone's sessions by choosing a user id.
+        var facade = new FakeIdentityFacade();
+        using var api = Factory(facade);
+        using var client = api.CreateJsonClient();
+
+        using var request = Request(HttpMethod.Post, Revoke, api.Tokens.UserToken(role));
+        request.Content = JsonContent.Create(new SessionRevocationViewModel("someone-else"));
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(0, facade.RevokeCalls);
+    }
+
+    [Fact]
     public async Task TheRoutesAreNotInThePublicContract()
     {
         // They are internal, and the gateway 404s them from a browser. Publishing them in the OpenAPI document
@@ -156,6 +194,21 @@ public sealed class InternalSessionsEndpointTests
             SessionValidationViewModel request, CancellationToken cancellationToken) =>
             Task.FromResult(Domain.Managers.Results.OperationResult.Success(
                 new SessionValidationServiceModel(Valid: true, ["Editor"])));
+
+        public int RevokeCalls { get; private set; }
+
+        public string? RevokedUserId { get; private set; }
+
+        public Task<Domain.Managers.Results.OperationResult> RevokeSessionsAsync(
+            SessionRevocationViewModel request, CancellationToken cancellationToken)
+        {
+            RevokeCalls++;
+            RevokedUserId = request.UserId;
+
+            return Task.FromResult(Error is { } error
+                ? Domain.Managers.Results.OperationResult.Failure(error)
+                : Domain.Managers.Results.OperationResult.Success());
+        }
 
         public Task<Domain.Managers.Results.OperationResult> RequestPasswordResetAsync(
             string email, CancellationToken cancellationToken) => throw new NotSupportedException();

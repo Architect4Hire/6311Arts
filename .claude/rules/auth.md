@@ -29,13 +29,18 @@ paths:
 
 - **Sign-in:** the gateway's `/bff/login` calls the API's internal credential check. On success it creates a server-side session ticket in Redis.
   - The cookie is `__Host-6311.session`: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`. It carries only the ticket reference.
-- **Other BFF endpoints:** `/bff/session` (display name and roles, never ids or tokens), `/bff/logout`, `/bff/antiforgery`.
+- **Other BFF endpoints:** `/bff/session` (display name and roles, never ids or tokens), `/bff/logout`,
+  `/bff/logout-everywhere`, `/bff/antiforgery`.
+- **The ticket.** Redis holds it, keyed by the **SHA-256 of the cookie's value**, so the store never holds a
+  usable cookie. The `sid` claim is a separate non-secret id, not the cookie. The idle window is the key's time
+  to live, capped at the absolute deadline on the ticket (ADR 0024).
 - **The internal routes the BFF calls** (`InternalService` token only, 404 from a browser):
 
   | Route | In | Out |
   |---|---|---|
   | `POST /api/v1/internal/sessions/credentials` | `{ email, password }` | `{ userId, displayName, roles, securityStamp }`, or `auth.credentials_invalid` / `auth.locked_out` / `auth.email_unconfirmed` |
   | `POST /api/v1/internal/sessions/validate` | `{ userId, securityStamp }` | `{ valid, roles }` |
+  | `POST /api/v1/internal/sessions/revoke` | `{ userId }` | `204`, or `resource.not_found`. Rotates the security stamp: "log out everywhere" |
 
   Emailed confirmation and reset links carry the token in the URL **fragment**, not the query string, so it never
   reaches a server log or a trace — `/bff` pages must read `location.hash` and POST it. Tokens last one hour. A
@@ -43,10 +48,17 @@ paths:
   rate limit and a **per-user cooldown that behaves identically for known and unknown addresses**.
 
   **Those three failure codes are for the gateway and must not reach a browser.** The gateway needs them to word its message and to audit; a browser given them can enumerate accounts. `/bff/login` collapses them into one response (ADR 0023). The API itself never distinguishes an unknown address from a wrong password, and spends a password hash either way so the two cannot be told apart by timing.
-- **Logout:** deletes the ticket and clears the cookie. "Log out everywhere" rotates the security stamp.
-- **Lifetimes:** sessions carrying `Admin` or `Editor` expire after 30 minutes idle and 8 hours absolute (ADR 0018). Member sessions use the 1.10 defaults. All values are configuration.
-- **Revalidation:** the gateway periodically revalidates the security stamp, so a password reset ends sessions.
+- **Logout:** deletes the ticket and clears the cookie, so a copied cookie dies with it. `/bff/logout-everywhere`
+  calls the internal revoke route first, then ends this session; the others end at their next revalidation —
+  **up to `RevalidationInterval` later**, which ADR 0024 records as accepted.
+- **Lifetimes:** sessions carrying `Admin` or `Editor` expire after 30 minutes idle and 8 hours absolute (ADR 0018). Members get 7 days idle and 30 days absolute. A session holding both a staff role and `Member` gets the staff limits. All values are configuration (`Gateway:Session`).
+- **Role changes move the absolute deadline forward, never back.** A member promoted to staff comes under the
+  staff limits at the next revalidation.
+- **Revalidation:** the gateway revalidates the security stamp every `RevalidationInterval` (5 minutes), so a password reset, a role change or a revocation reaches a live session. An **unreachable API refuses the request but keeps the ticket** — failing closed without signing everybody out over a restart.
+- **The sign-in page is `/signin`, on the public site, and must never be behind the session gate.** A login page under `/admin/**` redirects to itself forever and cannot load its own scripts (ADR 0024). The gateway refuses a `LoginPath` under a gated prefix at startup.
 - **CSRF:** every unsafe request needs antiforgery (the `X-XSRF-TOKEN` header). The exceptions are listed explicitly: `/webhooks/square`, which is signature-verified instead.
+  - Two cookies: `__Host-6311.xsrf` (the secret, `HttpOnly`) and `__Host-6311.csrf` (what script reads). **The token is never written into a response body** — the gateway compresses, and that would be a BREACH oracle.
+  - **The token is bound to the signed-in identity.** Validation runs after authentication and before authorization, and `/bff/login`, `/bff/logout` and `/bff/logout-everywhere` re-issue the pair. Either omission refuses every write a signed-in person makes.
 - **Token storage:** tokens never appear in localStorage, sessionStorage, IndexedDB, URLs or logs.
 
 ## Gateway → API trust
@@ -86,8 +98,10 @@ paths:
 
 - Login and lockout. (Lockout *expiry* is not covered: `UserManager` compares `LockoutEnd` against the system clock, not `IClock`, so a fake clock cannot move it.)
 - A short or listed staff password is refused.
-- A staff session ends at its idle and absolute limits.
+- A staff session ends at its idle and absolute limits, and a member session uses the longer defaults.
 - "Log out everywhere" ends every other session.
+- A rotated stamp ends a live session at the next revalidation, and an unreachable API does not.
+- The three credential failure codes reach the browser as one answer.
 - Every role-gated route gives a 403 for the wrong role.
 - An internal route is unreachable from the browser.
 - An expired or wrongly scoped internal token gets a 401.

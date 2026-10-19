@@ -1,4 +1,6 @@
 using Arts6311.Gateway.Edge;
+using Arts6311.Gateway.Proxy;
+using Arts6311.Gateway.Session;
 using Arts6311.Tests.Gateway.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Yarp.ReverseProxy.Configuration;
@@ -16,6 +18,7 @@ public sealed class GatewayRouteTableTests : IDisposable
     [Theory]
     [InlineData("webhooks-square", "api", "/webhooks/square")]
     [InlineData("media", "api", "/media/{**rest}")]
+    [InlineData("cms", "api", "/api/v1/cms/{**rest}")]
     [InlineData("api", "api", "/api/{**rest}")]
     [InlineData("admin", "admin", "/admin/{**rest}")]
     [InlineData("site", "site", "/{**rest}")]
@@ -32,7 +35,7 @@ public sealed class GatewayRouteTableTests : IDisposable
     {
         // An extra route is as much a problem as a missing one: it is public surface nobody reviewed.
         Assert.Equal(
-            ["admin", "api", "media", "site", "webhooks-square"],
+            ["admin", "api", "cms", "media", "site", "webhooks-square"],
             Config().Routes.Select(route => route.RouteId).Order(StringComparer.Ordinal));
     }
 
@@ -46,6 +49,43 @@ public sealed class GatewayRouteTableTests : IDisposable
         Assert.Equal(["POST"], route.Match.Methods);
         Assert.Equal(256 * 1024, route.MaxRequestBodySize);
         Assert.Equal(RateLimitExtensions.Policies.Webhooks, route.RateLimiterPolicy);
+    }
+
+    [Theory]
+    [InlineData("admin")]
+    [InlineData("cms")]
+    public void TheCmsSurfaceNeedsAnEditorSession(string routeId)
+    {
+        // gateway.md: "/admin/** and /api/v1/cms/** need a CmsEditor session". Declared on the route, so the
+        // gate is in the reviewed table rather than in a path list somewhere in code.
+        Assert.Equal(GatewayPolicies.CmsEditor, Route(routeId).AuthorizationPolicy);
+    }
+
+    [Fact]
+    public void TheCmsRouteIsMoreSpecificThanTheApiRoute()
+    {
+        // Precedence is ASP.NET's most-specific-wins, so /api/v1/cms/** matches this route and not the open
+        // /api/** one. If that ever stopped being true, the CMS surface would quietly become anonymous.
+        var cms = Route("cms").Match.Path!;
+        var api = Route("api").Match.Path!;
+
+        Assert.StartsWith(api.Replace("{**rest}", string.Empty, StringComparison.Ordinal), cms, StringComparison.Ordinal);
+        Assert.True(cms.Length > api.Length);
+    }
+
+    [Fact]
+    public void EveryAuthorizedRouteToTheApiCarriesTheInternalToken()
+    {
+        // A route that requires a session but is not token-bearing would reach the API as an anonymous request,
+        // and the 401 would come back pointing nowhere near the cause. Only the API routes: the admin route
+        // needs a session to serve the CMS bundle, and a bundle host has no use for a credential (ADR 0022).
+        var authorized = Config().Routes
+            .Where(route => route.ClusterId == "api")
+            .Where(route => route.AuthorizationPolicy is { Length: > 0 } and not "anonymous")
+            .Select(route => route.RouteId);
+
+        Assert.All(authorized, routeId => Assert.Contains(
+            routeId, GatewayTransforms.TokenBearingRoutes, StringComparer.Ordinal));
     }
 
     [Fact]

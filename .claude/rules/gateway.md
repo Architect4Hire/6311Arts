@@ -12,13 +12,19 @@ paths:
 |---|---|---|
 | `/bff/**` | gateway itself | Session endpoints (`auth.md`) |
 | `/api/v1/internal/**` | — | 404 from browsers, always |
+| `/api/v1/cms/**` | `https+http://api` | Requires a `CmsEditor` session; internal token attached |
 | `/api/**` | `https+http://api` | Internal token attached; client credentials stripped |
 | `/webhooks/square` | `https+http://api` | POST only, 256 KB limit, no session, rate limited |
 | `/media/**` | `https+http://api` | Long-cache image delivery |
 | `/admin/**` | `https+http://admin` | CMS SPA bundle; requires a `CmsEditor` session |
+| `/signin` | `https+http://site` | Part of the site catch-all. Where a gated navigation is redirected, so it must stay anonymous |
 | `/**` | `https+http://site` | Angular SSR site |
 
 Destinations resolve through Aspire service discovery. Nothing in the gateway names a host or port.
+
+The session gate is the route's own `AuthorizationPolicy`, in that same configuration — not a path list in code.
+**A route that requires a session must also be token-bearing** (`GatewayTransforms.TokenBearingRoutes`), or its
+requests reach the API with no credential; a test asserts it.
 
 ## Edge policy
 
@@ -43,6 +49,9 @@ Destinations resolve through Aspire service discovery. Nothing in the gateway na
   - Forwarded headers are honoured only when `Gateway:TrustedProxies` names the sender; with it empty the middleware that reads them is not in the pipeline at all, and client-supplied `X-Forwarded-*` and `Forwarded` are stripped inbound (ADR 0022).
   - A correlation id is created or propagated and returned in `ProblemDetails`.
   - `AllowedHosts` is `*` in run mode and **must be set for the deployed origin in 6.1**: the client `Host` becomes `X-Forwarded-Host`, which the SSR site may build absolute URLs from.
+- **Session and CSRF.** The server-side ticket, the `__Host-` cookies and the antiforgery pair are `auth.md`'s,
+  and ADR 0024 records the shapes. The middleware order they depend on: authentication, then antiforgery, then
+  authorization.
 - **Caching.** Never cache personalized responses. SSR cache headers come from the site; the gateway adds compression only.
 - **API docs.** OpenAPI and Scalar are proxied in Development only.
 
@@ -58,4 +67,7 @@ No business logic, data access, Square calls or content decisions. The gateway a
 - A 429 per rate-limit policy.
 - CSP differs between checkout and other pages.
 - Security headers are present.
-- `/admin` without a session redirects to login.
+- `/admin` without a session redirects to `/signin`; `/api/v1/cms/**` without a session is a 401, and neither
+  reaches the API.
+- A `CmsEditor` session reaches the CMS surface carrying a user token; a `Member` session gets a 403.
+- An unsafe request without antiforgery is a 400, and `/webhooks/square` is exempt.

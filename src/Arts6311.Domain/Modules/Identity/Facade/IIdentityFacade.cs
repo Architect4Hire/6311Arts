@@ -21,6 +21,13 @@ public interface IIdentityFacade
         SessionValidationViewModel request, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Ends every session this person has, by rotating their security stamp. The caller's own ticket is deleted
+    /// by the gateway; the others fail their next revalidation (auth.md "Log out everywhere").
+    /// </summary>
+    Task<OperationResult> RevokeSessionsAsync(
+        SessionRevocationViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Stages a password-reset email. Succeeds whether or not the address is registered, so it cannot be used to
     /// test for an account. No route calls this yet: 1.10's <c>/bff/forgot-password</c> is its caller.
     /// </summary>

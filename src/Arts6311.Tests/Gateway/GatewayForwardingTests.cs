@@ -144,8 +144,8 @@ public sealed class GatewayForwardingTests : IAsyncLifetime
             .Select(route => route.RouteId)
             .Order(StringComparer.Ordinal);
 
-        // media and webhooks also target the api cluster; what matters is that site and admin do not.
-        Assert.Equal(["api", "media", "webhooks-square"], tokenBearingClusters);
+        // cms, media and webhooks also target the api cluster; what matters is that site and admin do not.
+        Assert.Equal(["api", "cms", "media", "webhooks-square"], tokenBearingClusters);
     }
 
     [Theory]
