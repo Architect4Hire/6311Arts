@@ -32,7 +32,7 @@ public sealed class ArtistsLayerTests
         repository.Rows.Add(artist);
         var before = artist.RowVersion;
 
-        var outcome = await dataLayer.UpdateAsync(artist, "editor-2", "Updated: bio.", Ct);
+        var outcome = await dataLayer.UpdateAsync(artist, "editor-2", "Updated: bio.", pathChange: null, Ct);
 
         Assert.Equal(ArtistWriteOutcome.Saved, outcome);
         Assert.Equal(["audit:artist.updated", "save"], log.Calls);
@@ -40,6 +40,18 @@ public sealed class ArtistsLayerTests
         Assert.Equal(Now, artist.UpdatedAt);
         Assert.NotEqual(before, artist.RowVersion);
         Assert.Equal("editor-2", audit.Entries.Single().ActorUserId);
+    }
+
+    [Fact]
+    public async Task APublishedSlugChangeIsStagedBeforeTheOneSaveWithTheRenamesTime()
+    {
+        var (dataLayer, repository, _, log) = DataLayer();
+        var artist = new FakeArtistsDataLayer().Add(PublishStatus.Published, publishedAt: Now.AddDays(-1));
+        repository.Rows.Add(artist);
+
+        await dataLayer.UpdateAsync(artist, "editor-1", "Updated: slug.", new PublishedPathChange("/artists/jane-doe", "/artists/jane-q-doe"), Ct);
+
+        Assert.Equal(["outbox:redirects.slug-changed", "audit:artist.updated", "save"], log.Calls);
     }
 
     [Fact]
@@ -74,7 +86,7 @@ public sealed class ArtistsLayerTests
         var (dataLayer, repository, _, log) = DataLayer();
         repository.SaveFailure = new DbUpdateConcurrencyException("stale");
 
-        var outcome = await dataLayer.UpdateAsync(new FakeArtistsDataLayer().Add(), "editor-1", "Updated.", Ct);
+        var outcome = await dataLayer.UpdateAsync(new FakeArtistsDataLayer().Add(), "editor-1", "Updated.", pathChange: null, Ct);
 
         Assert.Equal(ArtistWriteOutcome.Conflict, outcome);
         Assert.Equal("discard", log.Calls[^1]);
@@ -122,6 +134,20 @@ public sealed class ArtistsLayerTests
 
         Assert.Equal(ErrorCodes.ConcurrencyConflict, update.Error!.Code);
         Assert.Equal(ErrorCodes.ConcurrencyConflict, unpublish.Error!.Code);
+    }
+
+    [Fact]
+    public async Task BusinessOwesARedirectOnlyForASlugThatWasEverPublic()
+    {
+        var (business, dataLayer) = Business();
+        var draft = dataLayer.Add();
+        var once = dataLayer.Add(PublishStatus.Draft, publishedAt: Now.AddDays(-2));
+
+        await business.UpdateAsync(draft.Id, new ArtistUpdateViewModel(Slug: "jane-q"), EntityTag.Format(draft.RowVersion), null, "e", Ct);
+        Assert.Null(dataLayer.LastPathChange);
+
+        await business.UpdateAsync(once.Id, new ArtistUpdateViewModel(Slug: "jane-q"), EntityTag.Format(once.RowVersion), null, "e", Ct);
+        Assert.Equal(new PublishedPathChange("/artists/jane-doe", "/artists/jane-q"), dataLayer.LastPathChange);
     }
 
     [Fact]
@@ -357,12 +383,38 @@ public sealed class ArtistsLayerTests
         Assert.Equal(new ArtistPortraitCheck(bare, Exists: true, HasAltText: false), business.UpdatePortrait);
     }
 
+    [Fact]
+    public async Task AnEmptyLookupAsksTheDatabaseNothingAndARepeatedIdIsAskedOnce()
+    {
+        var (business, dataLayer) = Business();
+        var jane = dataLayer.Add();
+
+        var none = await business.GetSummariesAsync([], Ct);
+        var once = await business.GetSummariesAsync([jane.Id, jane.Id], Ct);
+
+        Assert.Empty(none);
+        Assert.Single(once);
+        Assert.Equal([jane.Id], Assert.Single(dataLayer.SummaryLookups));
+    }
+
+    [Fact]
+    public async Task ALookupLargerThanThePolicyIsACallersBug()
+    {
+        var (facade, business, _) = Facade();
+        var ids = Enumerable.Range(0, ArtistPolicy.LookupMaxCount + 1).Select(_ => Guid.NewGuid()).ToList();
+        var slugs = ids.Select(id => id.ToString("N")).ToList();
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => facade.GetSummariesAsync(ids, Ct));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => facade.FindBySlugsAsync(slugs, Ct));
+        Assert.Empty(business.Calls);
+    }
+
     private static (ArtistsDataLayer, FakeArtistsRepository, RecordingAuditWriter, CallLog) DataLayer()
     {
         var log = new CallLog();
         var repository = new FakeArtistsRepository(log);
         var audit = new RecordingAuditWriter(log);
-        return (new ArtistsDataLayer(repository, audit, new FixedCorrelation(), new FixedClock(Now)), repository, audit, log);
+        return (new ArtistsDataLayer(repository, audit, new RecordingOutboxWriter(log), new FixedCorrelation(), new FixedClock(Now)), repository, audit, log);
     }
 
     private static (ArtistsBusiness, FakeArtistsDataLayer) Business()

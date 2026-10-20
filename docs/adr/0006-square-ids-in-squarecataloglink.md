@@ -1,6 +1,6 @@
 # 0006 — Square ids in `SquareCatalogLink`, not entities
 
-- **Status:** Accepted
+- **Status:** Accepted; the created-in-Square rule is superseded by [0032](0032-website-items-managed-from-the-cms.md)
 - **Date:** 2026-10-19
 - **Rules affected:** `.claude/rules/square.md`, `.claude/rules/external.md`, `.claude/rules/backend.md` (module boundaries)
 
@@ -28,5 +28,5 @@ Content entities (shop items, classes, plans) need a pairing with Square catalog
 ## Consequences
 
 - Echo suppression and no-op skipping compare against `SquareCatalogLink.version` and the content hash.
-- Objects created in Square with no CMS id become Draft records flagged "created in Square". Objects deleted in Square set the CMS record to Archived + NeedsReview.
+- ~~Objects created in Square with no CMS id become Draft records flagged "created in Square".~~ Superseded by 0032: they are POS-only and ignored. Linked objects deleted in Square set the CMS record to Archived + NeedsReview.
 - The custom-attribute mechanism must be confirmed against Square's catalog docs, and cited, when the gateways are built (Phase 5).

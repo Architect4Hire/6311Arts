@@ -234,7 +234,7 @@ const COMMAND_LABELS: Readonly<
 
             <ui-field
               label="Web address"
-              [required]="!slugLocked()"
+              [required]="true"
               [hint]="slugHint()"
               [error]="errors().slug ?? null"
             >
@@ -244,7 +244,6 @@ const COMMAND_LABELS: Readonly<
                 autocomplete="off"
                 spellcheck="false"
                 [attr.maxlength]="limits.slugMaxLength"
-                [readonly]="slugLocked()"
                 [ngModel]="draft().slug"
                 (ngModelChange)="setSlug($event)"
               />
@@ -610,11 +609,18 @@ export class ArtistEditor implements HasUnsavedChanges {
     return this.artist() ? 'Save' : 'Create artist';
   });
 
-  protected readonly slugHint = computed(() =>
-    this.slugLocked()
-      ? `6311arts.com/artists/${this.draft().slug} — fixed now the artist has been published, so links to it keep working.`
-      : `6311arts.com/artists/${this.draft().slug || '…'} — lower-case letters, digits and hyphens.`,
-  );
+  /**
+   * Once published, the address is someone's bookmark: changing it is allowed, and the old address is redirected to the
+   * new one when it is saved (ADR 0035). The hint says so, and names the address that will redirect.
+   */
+  protected readonly slugHint = computed(() => {
+    const saved = this.artist();
+    const slug = this.draft().slug;
+    if (!this.slugLocked() || !saved) return `6311arts.com/artists/${this.draft().slug || '…'} — lower-case letters, digits and hyphens.`;
+    return slug === saved.slug
+      ? `6311arts.com/artists/${slug} — published, so changing it sends visitors from this address to the new one.`
+      : `6311arts.com/artists/${slug || '…'} — on saving, visitors to /artists/${saved.slug} are sent here.`;
+  });
 
   /** Edits not yet saved: the unsaved-changes guard asks before they are lost. */
   readonly dirty = computed(() => {
@@ -700,7 +706,6 @@ export class ArtistEditor implements HasUnsavedChanges {
   }
 
   protected setSlug(slug: string): void {
-    if (this.slugLocked()) return;
     this.patch({ slug, slugEdited: true });
   }
 
@@ -754,7 +759,7 @@ export class ArtistEditor implements HasUnsavedChanges {
     if (this.busy() || !this.dirty()) return;
 
     const draft = this.draft();
-    const local = localErrors(draft, this.slugLocked());
+    const local = localErrors(draft);
     if (Object.keys(local).length > 0) {
       this.showErrors(local, null);
       return;
@@ -1010,10 +1015,10 @@ function changesOf(artist: Artist, draft: Draft): ArtistUpdate {
 }
 
 /** What the form can tell before asking: the API checks the same and has the last word. */
-function localErrors(draft: Draft, slugLocked: boolean): FieldErrors {
+function localErrors(draft: Draft): FieldErrors {
   const errors: FieldErrors = {};
   if (draft.name.trim() === '') errors.name = 'Enter the artist’s name.';
-  if (!slugLocked && !isSlug(draft.slug)) {
+  if (!isSlug(draft.slug)) {
     errors.slug = draft.slug
       ? 'Use lower-case letters, digits and single hyphens (for example jane-doe).'
       : 'Enter a web address, for example jane-doe.';

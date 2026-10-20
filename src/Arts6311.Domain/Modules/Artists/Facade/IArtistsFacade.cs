@@ -16,13 +16,28 @@ public interface IArtistsFacade
 
     Task<OperationResult<ArtistServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// For another module (Exhibitions' credits): the artists among <paramref name="ids"/> that exist, whatever their
+    /// status, in no particular order. An id with no artist is simply absent. At most
+    /// <see cref="Managers.ArtistPolicy.LookupMaxCount"/> ids.
+    /// </summary>
+    Task<IReadOnlyList<ArtistSummaryServiceModel>> GetSummariesAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// As <see cref="GetSummariesAsync"/>, by slug: for the development seed today, and the importer and the site's
+    /// artist pages later. At most <see cref="Managers.ArtistPolicy.LookupMaxCount"/> slugs.
+    /// </summary>
+    Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(
+        IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
+
     /// <summary>A new Draft. Refusals: <c>validation.failed</c> (including a portrait not in the library), <c>cms.slug_taken</c>.</summary>
     Task<OperationResult<ArtistServiceModel>> CreateAsync(
         ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken);
 
     /// <summary>
     /// A staff edit. Refusals: <c>validation.failed</c>, <c>resource.not_found</c>, <c>concurrency.*</c>,
-    /// <c>cms.slug_taken</c>, <c>cms.slug_locked</c>.
+    /// <c>cms.slug_taken</c>. A published slug may change: the old address is redirected (ADR 0035).
     /// </summary>
     Task<OperationResult<ArtistServiceModel>> UpdateAsync(
         Guid id, ArtistUpdateViewModel update, string? ifMatch, string actorUserId, CancellationToken cancellationToken);

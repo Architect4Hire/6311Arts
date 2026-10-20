@@ -25,7 +25,7 @@ description: Add an Angular 22 component to the 6311arts site (SSR), admin (CMS)
    - Data fetched during SSR goes through the transfer cache.
    - SEO set through `SeoService`.
    - Content is never hidden from crawlers.
-7. **Admin.** Square-owned values are read-only with "Managed in Square" and the sync chip. Unsaved edits warn on navigation. A 409 shows a conflict view.
+7. **Admin.** Square-held values (price, quantity, seats) are never edited in place. They show the current figure with a **Change** command and its pending state, plus the sync chip (ADR 0032). Unsaved edits warn on navigation. A 409 shows a conflict view.
 8. **Test** behaviour and accessibility with Vitest. Run `npm run build` and `npm test` from `src/web/`. If the `test` target doesn't exist yet, say so instead of claiming tests pass (`frontend.md`, Verification). Then run `@design-review`.
 
 ## Checklist before done

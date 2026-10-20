@@ -6,7 +6,7 @@ namespace Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
 /// <summary>One artist in full, as the CMS edits it.</summary>
 /// <param name="PortraitMediaId">The portrait's media asset. The admin reads its thumbnail and alt text from Media.</param>
 /// <param name="PublishedAt">When it was first published; kept through an unpublish.</param>
-/// <param name="SlugLocked">Whether the slug can no longer change, because the artist has been published.</param>
+/// <param name="SlugLocked">Whether the artist has ever been published, so that changing its slug redirects the old address to the new one (ADR 0035). The name predates 2.7, when such a slug could not change at all.</param>
 /// <param name="LegacyWordPressId">The WordPress term it was imported from, for provenance.</param>
 /// <param name="UpdatedBy">The user id behind the last write.</param>
 /// <param name="ETag">The row version, to send back as <c>If-Match</c>.</param>

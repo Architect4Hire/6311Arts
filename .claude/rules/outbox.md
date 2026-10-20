@@ -44,16 +44,20 @@ There's no message broker. The outbox table in `ArtsDbContext` *is* the queue, a
   - `TryParse()` that returns `null` for anything malformed. The handler throws `OutboxPoisonException` for `null`, and the dispatcher poisons the message on that attempt instead of retrying it.
 
   Never put content, prices, tokens, card data or email bodies in a payload.
+
+  **The one documented exception:** `redirects.slug-changed` carries the two public paths, plus the rename's time (ADR 0035). A rename's old address is an immutable fact that no reload could recover, and a path is a public URL, not content or anyone's data. Any other exception needs its own ADR.
 - **`CorrelationId`** carries the request's correlation id, so one trace runs from CMS save → message → Square call.
 - **Message types are kebab-case `area.event`:**
   - `square.catalog-push-requested`
   - `square.catalog-delete-requested`
-  - `square.inventory-adjust-requested`
+  - `square.price-change-requested` (payload `{requestId}`; the amounts live on the `SquareChangeRequest` row, ADR 0032)
+  - `square.inventory-change-requested` (payload `{requestId}`: set quantity or capacity adjustment)
   - `square.webhook-received`
   - `media.rendition-requested`
   - `media.purge-requested` (a deleted asset's blobs, ADR 0030)
   - `email.send-requested`
   - `site.revalidate-requested`
+  - `redirects.slug-changed` (`{contentType, contentId, fromPath, toPath, occurredAt}`; written by content modules, handled by Redirects, ADR 0035)
   - `members.status-changed`
 
 ## Dispatching

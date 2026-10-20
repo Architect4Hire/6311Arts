@@ -28,8 +28,8 @@ public static class ArtistsServiceCollectionExtensions
     /// <summary>
     /// The development roster seed, for MigrationService in Development only: production artists come from the
     /// WordPress import (4.x), which would otherwise meet these slugs. Registers only the layers the seeder goes
-    /// through (Business, which decides what is seeded, and below), so MigrationService need not compose the facade
-    /// and Media, which the facade asks about portraits.
+    /// through (Business, which decides what is seeded, and below); the facade, which the exhibition seed reads
+    /// credits through, is the host's own <c>AddArtistsModule</c> (ADR 0033).
     /// </summary>
     public static IServiceCollection AddArtistsDevelopmentSeeder(this IServiceCollection services)
     {

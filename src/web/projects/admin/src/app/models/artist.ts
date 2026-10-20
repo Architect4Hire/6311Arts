@@ -3,7 +3,13 @@
  * snapshot): string ids, ISO timestamps, enum names as strings.
  */
 
-import { IconName, StatusTone } from '@6311/ui';
+import {
+  CONTENT_CODES,
+  ContentCommand,
+  PUBLISH_STATUSES,
+  PublishStatus,
+  SLUG_MAX_LENGTH,
+} from './content';
 import {
   ApiProblem,
   decodeApiProblem,
@@ -15,41 +21,26 @@ import {
   oneOf,
 } from './decode';
 
-/** `PublishStatus`: the content lifecycle every CMS type shares (content.md). */
-export const PUBLISH_STATUSES = ['Draft', 'Scheduled', 'Published', 'Archived'] as const;
-export type PublishStatus = (typeof PUBLISH_STATUSES)[number];
-
-/** How each status reads in a chip: a word, a glyph and a tone, never colour alone (design-system.md). */
-export const STATUS_CHIPS: Readonly<
-  Record<
-    PublishStatus,
-    { readonly label: string; readonly icon: IconName; readonly tone: StatusTone }
-  >
-> = {
-  Draft: { label: 'Draft', icon: 'info', tone: 'neutral' },
-  Scheduled: { label: 'Scheduled', icon: 'clock', tone: 'pending' },
-  Published: { label: 'Published', icon: 'check', tone: 'positive' },
-  Archived: { label: 'Archived', icon: 'close', tone: 'neutral' },
-};
+// The lifecycle, its chips and the slug rules are shared by every content type (`content.ts`).
+export {
+  PUBLISH_STATUSES,
+  type PublishStatus,
+  STATUS_CHIPS,
+  isSlug,
+  slugFromName,
+} from './content';
 
 /** The limits the API enforces (`ArtistPolicy`, `Slugs`), so the form can stop early and say why. */
 export const ARTIST_LIMITS = {
   nameMaxLength: 200,
-  slugMaxLength: 120,
+  slugMaxLength: SLUG_MAX_LENGTH,
   mediumMaxLength: 100,
   bioMaxLength: 5000,
   searchMaxLength: 100,
 } as const;
 
-/** The problem codes the artist screens act on (`ContentErrorCodes`, `ErrorCodes`). */
-export const ARTIST_CODES = {
-  slugTaken: 'cms.slug_taken',
-  slugLocked: 'cms.slug_locked',
-  transitionInvalid: 'cms.status_transition_invalid',
-  concurrencyConflict: 'concurrency.conflict',
-  notFound: 'resource.not_found',
-  validationFailed: 'validation.failed',
-} as const;
+/** The problem codes the artist screens act on: the ones every content type shares. */
+export const ARTIST_CODES = CONTENT_CODES;
 
 export interface Artist {
   readonly id: string;
@@ -118,7 +109,7 @@ export interface ArtistListQuery {
 }
 
 /** The status commands, as their route segments. */
-export type ArtistCommand = 'publish' | 'unpublish' | 'archive';
+export type ArtistCommand = ContentCommand;
 
 const isStatus = oneOf(PUBLISH_STATUSES);
 
@@ -220,28 +211,3 @@ export function decodeArtistPage(body: unknown): ArtistPage | null {
 export type ArtistProblem = ApiProblem;
 
 export const decodeArtistProblem = decodeApiProblem;
-
-/**
- * The slug the API makes from a name when none is sent (`Slugs.FromName`): accents dropped, every other run of
- * non-alphanumerics one hyphen, none at either end. Shown as the form's suggestion; the API has the last word.
- */
-export function slugFromName(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Mn}/gu, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug.length <= ARTIST_LIMITS.slugMaxLength
-    ? slug
-    : slug.slice(0, ARTIST_LIMITS.slugMaxLength).replace(/-+$/, '');
-}
-
-/** The shape the API accepts as a slug (`Slugs.IsValid`). */
-export function isSlug(value: string): boolean {
-  return (
-    value.length > 0 &&
-    value.length <= ARTIST_LIMITS.slugMaxLength &&
-    /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
-  );
-}

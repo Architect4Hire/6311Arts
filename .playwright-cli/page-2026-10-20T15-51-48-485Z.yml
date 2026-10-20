@@ -1,0 +1,152 @@
+- generic [ref=f5e3]:
+  - link "Skip to content" [ref=f5e4] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f5e5]:
+    - link "6311arts CMS" [ref=f5e6] [cursor=pointer]:
+      - /url: /admin/
+      - generic [ref=f5e7]: 6311arts
+      - generic [ref=f5e8]: CMS
+    - generic [ref=f5e9]:
+      - generic [ref=f5e10]:
+        - generic [ref=f5e11]: Signed in as
+        - text: 6311arts Admin Admin
+      - button "Sign out" [ref=f5e12] [cursor=pointer]
+      - button "Sign out everywhere" [ref=f5e13] [cursor=pointer]
+  - generic [ref=f5e14]:
+    - navigation "CMS sections" [ref=f5e15]:
+      - list [ref=f5e16]:
+        - listitem [ref=f5e17]:
+          - link "Dashboard" [ref=f5e18] [cursor=pointer]:
+            - /url: /admin/
+        - listitem [ref=f5e22]:
+          - link "Classes" [ref=f5e23] [cursor=pointer]:
+            - /url: /admin/classes
+        - listitem [ref=f5e27]:
+          - link "Exhibitions" [ref=f5e28] [cursor=pointer]:
+            - /url: /admin/exhibitions
+        - listitem [ref=f5e32]:
+          - link "Artists" [ref=f5e33] [cursor=pointer]:
+            - /url: /admin/artists
+        - listitem [ref=f5e37]:
+          - link "Shop" [ref=f5e38] [cursor=pointer]:
+            - /url: /admin/shop
+        - listitem [ref=f5e42]:
+          - link "Memberships" [ref=f5e43] [cursor=pointer]:
+            - /url: /admin/memberships
+        - listitem [ref=f5e47]:
+          - link "Pages" [ref=f5e48] [cursor=pointer]:
+            - /url: /admin/pages
+        - listitem [ref=f5e52]:
+          - link "Media" [ref=f5e53] [cursor=pointer]:
+            - /url: /admin/media
+        - listitem [ref=f5e57]:
+          - link "Forms" [ref=f5e58] [cursor=pointer]:
+            - /url: /admin/forms
+        - listitem [ref=f5e62]:
+          - link "Redirects" [ref=f5e63] [cursor=pointer]:
+            - /url: /admin/redirects
+        - listitem [ref=f5e67]:
+          - link "Sync" [ref=f5e68] [cursor=pointer]:
+            - /url: /admin/sync
+    - main [ref=f5e72]:
+      - generic [ref=f5e73]:
+        - paragraph [ref=f5e74]:
+          - link "← All exhibitions" [ref=f5e75] [cursor=pointer]:
+            - /url: /admin/exhibitions
+        - paragraph [ref=f5e76]
+        - generic [ref=f5e77]:
+          - heading "Portrait Mode" [level=1] [ref=f5e78]
+          - generic [ref=f5e79]: Published
+        - generic [ref=f5e84]:
+          - generic [ref=f5e85]:
+            - group "Exhibition details" [ref=f5e86]:
+              - generic [ref=f5e88]:
+                - generic [ref=f5e89]: Title required
+                - textbox "Title required" [ref=f5e90]: Portrait Mode
+              - generic [ref=f5e91]:
+                - generic [ref=f5e92]: Web address
+                - textbox "Web address" [ref=f5e93]: portrait-mode
+                - generic [ref=f5e94]: 6311arts.com/exhibitions/portrait-mode — fixed now the exhibition has been published, so links to it keep working.
+              - generic [ref=f5e95]:
+                - generic [ref=f5e96]:
+                  - generic [ref=f5e97]: First day required
+                  - textbox "First day required" [ref=f5e98]: 2026-08-29
+                - generic [ref=f5e99]:
+                  - generic [ref=f5e100]: Last day required
+                  - textbox "Last day required" [ref=f5e101]: 2026-10-17
+              - generic [ref=f5e102]:
+                - generic [ref=f5e103]: Summary
+                - textbox "Summary" [ref=f5e104]: A group show about capturing people across mediums and styles, with Brian Eaton’s “Trying to Keep It All Together” in the East and West galleries.
+                - generic [ref=f5e105]: One or two sentences for the exhibition’s card and search results. Needed to publish.
+              - generic [ref=f5e106]:
+                - generic [ref=f5e107]: About the show
+                - textbox "About the show" [ref=f5e108]
+                - generic [ref=f5e109]: Plain text. Leave a blank line between paragraphs.
+              - group "Opening reception" [ref=f5e110]:
+                - generic [ref=f5e112] [cursor=pointer]:
+                  - checkbox "This show has an opening reception Times are at the gallery, in Chicago time." [ref=f5e113]
+                  - generic [ref=f5e114]:
+                    - generic [ref=f5e115]: This show has an opening reception
+                    - generic [ref=f5e116]: Times are at the gallery, in Chicago time.
+            - button "Save" [disabled] [ref=f5e118]
+          - complementary [ref=f5e119]:
+            - region [ref=f5e120]:
+              - heading "Hero image" [level=2] [ref=f5e121]
+              - paragraph [ref=f5e122]: No hero image yet.
+              - button "Choose hero image" [ref=f5e124] [cursor=pointer]
+            - region [ref=f5e126]:
+              - heading "Artists" [level=2] [ref=f5e127]
+              - paragraph [ref=f5e128]
+              - list "Credited artists, in order" [ref=f5e129]:
+                - listitem [ref=f5e130]:
+                  - generic [ref=f5e131]: Harry Sudman
+                  - generic [ref=f5e132]:
+                    - button "Move Harry Sudman up" [disabled] [ref=f5e133]: Up
+                    - button "Move Harry Sudman down" [ref=f5e134] [cursor=pointer]: Down
+                    - button "Remove Harry Sudman" [ref=f5e135] [cursor=pointer]: Remove
+                - listitem [ref=f5e136]:
+                  - generic [ref=f5e137]: Jeffrey Brooks
+                  - generic [ref=f5e138]:
+                    - button "Move Jeffrey Brooks up" [ref=f5e139] [cursor=pointer]: Up
+                    - button "Move Jeffrey Brooks down" [ref=f5e140] [cursor=pointer]: Down
+                    - button "Remove Jeffrey Brooks" [ref=f5e141] [cursor=pointer]: Remove
+                - listitem [ref=f5e142]:
+                  - generic [ref=f5e143]: Eddwin Meyers
+                  - generic [ref=f5e144]:
+                    - button "Move Eddwin Meyers up" [ref=f5e145] [cursor=pointer]: Up
+                    - button "Move Eddwin Meyers down" [ref=f5e146] [cursor=pointer]: Down
+                    - button "Remove Eddwin Meyers" [ref=f5e147] [cursor=pointer]: Remove
+                - listitem [ref=f5e148]:
+                  - generic [ref=f5e149]: Alejandra Guerrero
+                  - generic [ref=f5e150]:
+                    - button "Move Alejandra Guerrero up" [ref=f5e151] [cursor=pointer]: Up
+                    - button "Move Alejandra Guerrero down" [ref=f5e152] [cursor=pointer]: Down
+                    - button "Remove Alejandra Guerrero" [ref=f5e153] [cursor=pointer]: Remove
+                - listitem [ref=f5e154]:
+                  - generic [ref=f5e155]: Hector Hernandez
+                  - generic [ref=f5e156]:
+                    - button "Move Hector Hernandez up" [ref=f5e157] [cursor=pointer]: Up
+                    - button "Move Hector Hernandez down" [ref=f5e158] [cursor=pointer]: Down
+                    - button "Remove Hector Hernandez" [ref=f5e159] [cursor=pointer]: Remove
+                - listitem [ref=f5e160]:
+                  - generic [ref=f5e161]: Adrian Zavala
+                  - generic [ref=f5e162]:
+                    - button "Move Adrian Zavala up" [ref=f5e163] [cursor=pointer]: Up
+                    - button "Move Adrian Zavala down" [ref=f5e164] [cursor=pointer]: Down
+                    - button "Remove Adrian Zavala" [ref=f5e165] [cursor=pointer]: Remove
+                - listitem [ref=f5e166]:
+                  - generic [ref=f5e167]: Brian Eaton
+                  - generic [ref=f5e168]:
+                    - button "Move Brian Eaton up" [ref=f5e169] [cursor=pointer]: Up
+                    - button "Move Brian Eaton down" [disabled] [ref=f5e170]: Down
+                    - button "Remove Brian Eaton" [ref=f5e171] [cursor=pointer]: Remove
+              - generic [ref=f5e172]:
+                - generic [ref=f5e173]: Add an artist
+                - searchbox "Add an artist" [ref=f5e174]
+                - generic [ref=f5e175]: Search the roster by name. Archived artists can’t be credited.
+            - region [ref=f5e176]:
+              - heading "Publishing" [level=2] [ref=f5e177]
+              - paragraph [ref=f5e178]: "Published: on the public site once the site reads from the CMS."
+              - generic [ref=f5e179]:
+                - button "Unpublish" [ref=f5e180] [cursor=pointer]
+                - button "Archive" [ref=f5e181] [cursor=pointer]

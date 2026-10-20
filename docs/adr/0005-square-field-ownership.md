@@ -1,6 +1,6 @@
 # 0005 — Square field ownership
 
-- **Status:** Accepted
+- **Status:** Accepted; superseded by [0032](0032-website-items-managed-from-the-cms.md) for the price and stock of artwork and classes (membership plans unchanged)
 - **Date:** 2026-10-19
 - **Rules affected:** `.claude/rules/square.md`, `.claude/rules/content.md`, `.claude/rules/frontend.md` (admin read-only values), `.claude/rules/outbox.md`
 

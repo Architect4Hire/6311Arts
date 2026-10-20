@@ -1,0 +1,79 @@
+- generic [ref=f2e3]:
+  - link "Skip to content" [ref=f2e4] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f2e5]:
+    - link "6311arts CMS" [ref=f2e6] [cursor=pointer]:
+      - /url: /admin/
+      - generic [ref=f2e7]: 6311arts
+      - generic [ref=f2e8]: CMS
+    - generic [ref=f2e9]:
+      - generic [ref=f2e10]:
+        - generic [ref=f2e11]: Signed in as
+        - text: 6311arts Admin Admin
+      - button "Sign out" [ref=f2e12] [cursor=pointer]
+      - button "Sign out everywhere" [ref=f2e13] [cursor=pointer]
+  - generic [ref=f2e14]:
+    - navigation "CMS sections" [ref=f2e15]:
+      - list [ref=f2e16]:
+        - listitem [ref=f2e17]:
+          - link "Dashboard" [ref=f2e18] [cursor=pointer]:
+            - /url: /admin/
+        - listitem [ref=f2e22]:
+          - link "Classes" [ref=f2e23] [cursor=pointer]:
+            - /url: /admin/classes
+        - listitem [ref=f2e27]:
+          - link "Exhibitions" [ref=f2e28] [cursor=pointer]:
+            - /url: /admin/exhibitions
+        - listitem [ref=f2e32]:
+          - link "Artists" [ref=f2e33] [cursor=pointer]:
+            - /url: /admin/artists
+        - listitem [ref=f2e37]:
+          - link "Shop" [ref=f2e38] [cursor=pointer]:
+            - /url: /admin/shop
+        - listitem [ref=f2e42]:
+          - link "Memberships" [ref=f2e43] [cursor=pointer]:
+            - /url: /admin/memberships
+        - listitem [ref=f2e47]:
+          - link "Pages" [ref=f2e48] [cursor=pointer]:
+            - /url: /admin/pages
+        - listitem [ref=f2e52]:
+          - link "Media" [ref=f2e53] [cursor=pointer]:
+            - /url: /admin/media
+        - listitem [ref=f2e57]:
+          - link "Forms" [ref=f2e58] [cursor=pointer]:
+            - /url: /admin/forms
+        - listitem [ref=f2e62]:
+          - link "Redirects" [ref=f2e63] [cursor=pointer]:
+            - /url: /admin/redirects
+        - listitem [ref=f2e67]:
+          - link "Sync" [ref=f2e68] [cursor=pointer]:
+            - /url: /admin/sync
+    - main [ref=f2e72]:
+      - generic [ref=f2e73]:
+        - paragraph [ref=f2e74]:
+          - link "← All redirects" [ref=f2e75] [cursor=pointer]:
+            - /url: /admin/redirects
+        - paragraph [ref=f2e76]: "Redirects go straight to their destination: no loops, and no chains of more than one hop."
+        - heading "New redirect" [level=1] [ref=f2e78]
+        - alert [ref=f2e79]:
+          - generic [ref=f2e83]:
+            - generic [ref=f2e84]: "Error:"
+            - text: "Redirects go straight to their destination: no loops, and no chains of more than one hop."
+        - generic [ref=f2e85]:
+          - group "Redirect" [ref=f2e86]:
+            - generic [ref=f2e88]:
+              - generic [ref=f2e89]: Old address required
+              - textbox "Old address required" [ref=f2e90]: /classes
+              - generic [ref=f2e91]: The address on this site that people may still have, starting with / — for example /gallery.
+            - generic [ref=f2e92]:
+              - generic [ref=f2e93]: Leads to required
+              - textbox "Leads to required" [active] [invalid] [ref=f2e94]: /events
+              - generic [ref=f2e95]: A page on this site (/exhibitions), or a full https:// address elsewhere.
+              - generic [ref=f2e96]: "This would make a loop: /events already redirects back to /classes."
+            - generic [ref=f2e100]:
+              - generic [ref=f2e101]: Type
+              - combobox "Type" [ref=f2e102]:
+                - option "Permanent (301)" [selected]
+                - option "Temporary (302)"
+              - generic [ref=f2e103]: Permanent tells search engines the page has moved for good. Temporary keeps the old address.
+          - button "Create redirect" [ref=f2e105] [cursor=pointer]

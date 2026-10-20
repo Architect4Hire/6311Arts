@@ -246,7 +246,8 @@ stateDiagram-v2
 | Message type | Raised by | Handled by |
 |---|---|---|
 | `square.catalog-push-requested` / `-delete-requested` | Publish / update / archive of a synced type | SquareSync: push current content to Square |
-| `square.inventory-adjust-requested` | Audited seat adjustment | SquareSync |
+| `square.price-change-requested` | Change-price command (artwork, class session) | SquareSync: compare-and-set the variation price |
+| `square.inventory-change-requested` | Set-quantity command; session capacity change | SquareSync: physical count or seat adjustment |
 | `square.webhook-received` | Webhook intake (after inbox insert) | SquareSync / Members: fetch current state from Square |
 | `media.rendition-requested` | Upload / import | Media: 400 / 800 / 1600 WebP + JPEG |
 | `email.send-requested` | Forms, Identity, checkout, renewals | Notifications via `IEmailSender` |
@@ -264,21 +265,27 @@ stateDiagram-v2
 
 ### Field ownership
 
-| CMS-owned → pushed | Square-owned → pulled (read-only in admin) |
-|---|---|
-| Name, description, artist, categories, images, publish/archive | Price *after creation* |
-| Class details, session dates and times | Stock, seats remaining, sold out |
-| Membership plan copy and perks | Plan price and cadence after creation |
-| | Orders, payments, refunds, customers, cards, subscriptions, member status |
+The website catalog is **artwork** (`ShopItem`) and **classes**, created in the CMS. Merch is sold only
+through Square POS and never enters the CMS or the site. Square objects without a CMS id are ignored
+(ADR 0032).
 
-A **starting** price and stock (or capacity) are sent exactly once, when the item is created in Square.
+| CMS-owned → pushed | Square holds the record → pulled into projections | CMS requests a change (command → outbox) |
+|---|---|---|
+| Name, description, artist, categories, images, publish/archive, **SKU** | Price | Change price (compare-and-set on the expected price) |
+| Class details, session dates and times, **session capacity** | Stock, seats remaining, sold out | Set artwork quantity (`PHYSICAL_COUNT` dated to the request); capacity change → seat adjustment |
+| Membership plan copy and perks | Plan price and cadence after creation (ADR 0005) | — |
+| | Orders, payments, refunds, taxes, customers, cards, subscriptions, member status | — |
+
+A **starting** price and stock (or capacity) go out with the create. After that, staff change price and
+quantity in the CMS, and each change is a `SquareChangeRequest` plus an outbox message. The projection
+columns change only when the inbound pull reads Square's new value.
 
 ### Mapping
 
 | CMS | Square |
 |---|---|
-| `ShopItem` | `ITEM` + one `ITEM_VARIATION` (inventory tracked; one-of-a-kind = 1) |
-| `ClassOffering` / `ClassSession` | `ITEM` / one `ITEM_VARIATION` per session (inventory = seats) |
+| `ShopItem` (artwork) | `ITEM` + one `ITEM_VARIATION` (SKU; inventory tracked at the configured location; one-of-a-kind = 1) |
+| `ClassOffering` / `ClassSession` | `ITEM` / one `ITEM_VARIATION` per session (SKU; inventory = seats) |
 | `MembershipPlan` | `SUBSCRIPTION_PLAN` + `SUBSCRIPTION_PLAN_VARIATION` |
 | Images | `IMAGE`, uploaded by the push handler |
 | Link between them | `SquareCatalogLink` (Square ids, version, content hash, status). The CMS id is stored as a Square custom attribute. |
@@ -308,7 +315,7 @@ flowchart LR
 
 - Webhook payloads are never trusted.
 - Our own pushes echoing back are ignored.
-- Objects created in Square become CMS drafts flagged for review.
+- Objects created in Square with no CMS id (merch) are POS-only and ignored.
 - Objects deleted in Square are archived and flagged, never hard-deleted.
 - In run mode, everything runs against `Arts6311.SquareFake` by default. Sandbox is opt-in, and production is unreachable.
 

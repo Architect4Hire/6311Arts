@@ -75,6 +75,13 @@ var migrations = builder.AddProject<Projects.Arts6311_MigrationService>("migrati
     .WithReference(appdb)
     .WaitFor(appdb);
 
+// Run mode only: the Development seed credits exhibitions through the Artists facade, which composes Media on
+// "blobs" (ADR 0033). A published MigrationService seeds no content, so it is given no storage access.
+if (builder.ExecutionContext.IsRunMode)
+{
+    migrations.WithReference(blobs).WaitFor(blobs);
+}
+
 // The API receives only the derived public key. Its cache, blobs and gateway references arrive with the
 // prompts that use them. Its launch profile carries no ports, only ASPNETCORE_ENVIRONMENT (without it the app
 // runs as Production and ServiceDefaults maps no /health), so the endpoint here is dynamic: there are no

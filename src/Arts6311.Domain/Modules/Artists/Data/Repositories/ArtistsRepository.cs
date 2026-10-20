@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
@@ -9,6 +10,17 @@ namespace Arts6311.Domain.Modules.Artists.Data.Repositories;
 internal sealed class ArtistsRepository(ArtsDbContext context) : IArtistsRepository
 {
     private const char LikeEscape = '\\';
+
+    /// <summary>One list row, translated by EF into the query's column list.</summary>
+    private static readonly Expression<Func<Artist, ArtistSummaryServiceModel>> ToSummary = artist => new ArtistSummaryServiceModel(
+        artist.Id,
+        artist.Name,
+        artist.Slug,
+        artist.Medium,
+        artist.Active,
+        artist.Status,
+        artist.PortraitMediaId,
+        artist.UpdatedAt);
 
     private DbSet<Artist> Artists => context.Set<Artist>();
 
@@ -56,17 +68,15 @@ internal sealed class ArtistsRepository(ArtsDbContext context) : IArtistsReposit
             .OrderBy(artist => artist.Name)
             .ThenBy(artist => artist.Id)
             .Take(take)
-            .Select(artist => new ArtistSummaryServiceModel(
-                artist.Id,
-                artist.Name,
-                artist.Slug,
-                artist.Medium,
-                artist.Active,
-                artist.Status,
-                artist.PortraitMediaId,
-                artist.UpdatedAt))
+            .Select(ToSummary)
             .ToListAsync(cancellationToken);
     }
+
+    public Task<List<ArtistSummaryServiceModel>> ListByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+        Artists.AsNoTracking().Where(artist => ids.Contains(artist.Id)).Select(ToSummary).ToListAsync(cancellationToken);
+
+    public Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
+        Artists.AsNoTracking().Where(artist => slugs.Contains(artist.Slug)).Select(ToSummary).ToListAsync(cancellationToken);
 
     public void DiscardChanges() => context.ChangeTracker.Clear();
 

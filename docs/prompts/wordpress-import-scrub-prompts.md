@@ -167,8 +167,10 @@ SCOPE: Add the import mapping for <TYPE> using add-import-mapping, and `importer
        | classes        (FooEvents products → ClassOffering + ClassSession rows from date/time meta;
                           attributes instructor/type/level/sessions/cadence/capacity; starting price
                           and starting capacity only)
-       | shop-items     (non-class, non-membership products; artist category; gallery via media
-                          map; starting price; starting stock; one-of-a-kind when stock = 1)
+       | shop-items     (artwork: non-class, non-membership, non-merch products; artist category;
+                          gallery via media map; SKU; starting price; starting quantity; one-of-a-kind
+                          when stock = 1. Merch (identified in the mapping table) → Skipped
+                          (merch: POS-only), ADR 0032)
        | membership-plans (products in the memberships category; perks from description; starting
                           price)
        | pages          (privacy, terms and any copy pages I name)
@@ -211,7 +213,7 @@ nothing. Show the report.
 
 ```
 SCOPE: `importer match-square`: read the Square catalog (ISquareCatalogGateway, read-only) and propose
-links for imported shop items, classes/sessions and membership plans — by SKU, then exact name, then
+links for imported artwork, classes/sessions and membership plans — by SKU, then exact name, then
 normalized name + price. Write proposals to a review table; admin screen to approve/reject in bulk;
 approval creates SquareCatalogLink rows (status Linked, Square version recorded) so the first publish
 UPDATES the existing Square object. Report unmatched on both sides.
@@ -220,6 +222,8 @@ CONSTRAINT: square.md; import.md (Square matching); add-endpoint for the approva
 audited).
 
 RESTRICTION: Read-only against Square. No catalog writes. No automatic linking without approval.
+Square items left unmatched are reported as POS-only (merch), not as gaps. A linked item's projections
+are pulled from Square; its starting fields are ignored (ADR 0032).
 Fake or sandbox only in run mode.
 
 UTILIZATION: @integration-reviewer.

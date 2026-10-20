@@ -29,7 +29,8 @@
 
 The new Angular site and mini CMS stay in two-way sync with Square:
 
-- **Site → Square:** when staff publish artwork, shop items, classes or membership plans in the CMS, they show up in Square.
+- **Site → Square:** when staff publish artwork, classes or membership plans in the CMS, they show up in Square, with the SKU, price and quantity set in the CMS. Staff don't open Square to manage what the website sells.
+- **Merch stays in Square POS.** It isn't on the website or in the CMS.
 - **Square → site:** when prices, stock, seats, orders or subscriptions change in Square, the website updates on its own.
 
 Visitors pay through a card form on the site (Square Web Payments SDK). Card numbers never touch our servers.
@@ -47,7 +48,7 @@ Visitors pay through a card form on the site (Square Web Payments SDK). Card num
 
 **In scope**
 
-- Shop items and artwork (catalog items, images, prices, stock)
+- Artwork (catalog items, SKUs, images, prices, stock)
 - Classes and workshops (sessions and seat counts)
 - Memberships (Square subscription plans and member status)
 - On-site checkout (card, Apple Pay, Google Pay)
@@ -66,14 +67,19 @@ Visitors pay through a card form on the site (Square Web Payments SDK). Card num
 
 Square's own guidance warns that two-way catalog sync is risky, because edits on both sides can clash, duplicate or overwrite each other. This design avoids that by deciding up front which side owns each field, so the two systems never fight over the same one.
 
-| Owned by the **CMS** (pushed to Square) | Owned by **Square** (pulled into the site) |
-|---|---|
-| Titles, descriptions, artist, images, categories | Price |
-| Publish / unpublish | Stock and seat counts, sold-out status |
-| Class details and session dates | Orders, payments, refunds |
-| Membership plan descriptions | Subscription status, billing, failed charges |
+| Owned by the **CMS** (pushed to Square) | Kept by **Square**, changed from the CMS | Owned by **Square** (pulled into the site) |
+|---|---|---|
+| Titles, descriptions, artist, images, categories, SKU | Artwork and class price | Orders, payments, refunds, taxes |
+| Publish / unpublish | Artwork quantity, class seat capacity | Seats remaining, sold-out status |
+| Class details and session dates | | Subscription status, billing, failed charges |
+| Membership plan descriptions | | Membership plan price after creation |
 
-**Rule:** staff change prices and stock in **Square**. They change content in the **CMS**. If someone edits a description in Square, the next CMS publish overwrites it.
+**Rule:** for website items, staff do everything in the **CMS**: content, SKU, price and quantity. Square
+keeps the official price and count, because front-desk sales change them too. A price change in the CMS
+says which price it's replacing, so it never silently overwrites a change made in Square. A quantity
+update counts from the moment staff saved it, so a sale a second later still comes off. If someone edits a
+description in Square, the next CMS publish overwrites it. Merch and tax setup stay in Square
+(see ADR 0032).
 
 ---
 
@@ -144,15 +150,17 @@ sequenceDiagram
 
 ## What each area syncs
 
-### Shop & artwork
+### Artwork
 
-- Each piece is a Square **catalog item** with stock tracking.
+- Each piece is a Square **catalog item** with stock tracking and the SKU from the CMS.
+- Staff set the price and quantity in the CMS. Square applies its own taxes.
 - One-of-a-kind art has a stock of **1** and shows **sold out** as soon as it sells, whether online or at the front desk.
 
 ### Classes & workshops
 
 - Each class is an **item**, and each session is a **variation** of it.
 - A session's **seat count is its stock**. Square decrements it with every sale, and the site shows seats remaining.
+- Staff set each session's SKU, price and capacity in the CMS. Raising capacity adds seats in Square; lowering it can't go below the seats already sold.
 - Class rosters come from Square orders.
 
 ### Memberships

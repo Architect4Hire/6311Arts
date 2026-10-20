@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Concurrency;
+using Arts6311.Domain.Managers.Outbox.Events;
 using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
@@ -201,30 +202,47 @@ public sealed class ArtistsModuleTests
     }
 
     [Fact]
-    public async Task ASlugMovesFreelyUntilFirstPublishAndNeverAfterEvenWhenUnpublished()
+    public async Task ASlugChangeOnceEverPublishedStagesARedirectInTheSameSave()
     {
+        // ADR 0035 (2.7): a published slug may move; its old address is redirected, staged with the rename.
         await using var host = await ArtistsTestHost.CreateAsync(Ct);
         var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
 
         var moved = await Ok(host.WithFacadeAsync(facade => facade.UpdateAsync(
             artist.Id, new ArtistUpdateViewModel(Slug: "jane-q-doe"), artist.ETag, Editor, Ct)));
-        Assert.Equal("jane-q-doe", moved.Slug);
+        Assert.Empty(await StagedSlugChangesAsync(host));
 
         var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(artist.Id, moved.ETag, Editor, Ct)));
-        var whilePublished = await host.WithFacadeAsync(facade => facade.UpdateAsync(
-            artist.Id, new ArtistUpdateViewModel(Slug: "jane-doe"), published.ETag, Editor, Ct));
-        Assert.Equal(ContentErrorCodes.SlugLocked, whilePublished.Error!.Code);
-
         var unpublished = await Ok(host.WithFacadeAsync(facade => facade.UnpublishAsync(artist.Id, published.ETag, Editor, Ct)));
-        var afterUnpublish = await host.WithFacadeAsync(facade => facade.UpdateAsync(
-            artist.Id, new ArtistUpdateViewModel(Slug: "jane-doe"), unpublished.ETag, Editor, Ct));
-        Assert.Equal(ContentErrorCodes.SlugLocked, afterUnpublish.Error!.Code);
-        Assert.True(unpublished.SlugLocked);
+        var renamed = await Ok(host.WithFacadeAsync(facade => facade.UpdateAsync(
+            artist.Id, new ArtistUpdateViewModel(Slug: "jane-doe"), unpublished.ETag, Editor, Ct)));
 
-        // Sending the slug it already has is not a change, so it is not refused.
-        var same = await host.WithFacadeAsync(facade => facade.UpdateAsync(
-            artist.Id, new ArtistUpdateViewModel(Slug: "jane-q-doe", Medium: "Ink"), unpublished.ETag, Editor, Ct));
-        Assert.True(same.Succeeded);
+        Assert.Equal("jane-doe", renamed.Slug);
+        var change = Assert.Single(await StagedSlugChangesAsync(host));
+        Assert.Equal(("artist", artist.Id, "/artists/jane-q-doe", "/artists/jane-doe"), (change.ContentType, change.ContentId, change.FromPath, change.ToPath));
+        Assert.Equal(renamed.UpdatedAt, change.OccurredAt);
+
+        // Sending the slug it already has is not a change, so nothing more is staged.
+        await Ok(host.WithFacadeAsync(facade => facade.UpdateAsync(
+            artist.Id, new ArtistUpdateViewModel(Slug: "jane-doe", Medium: "Ink"), renamed.ETag, Editor, Ct)));
+        Assert.Single(await StagedSlugChangesAsync(host));
+    }
+
+    [Fact]
+    public async Task AFailedRenameLeavesNeitherTheNewSlugNorItsRedirectMessage()
+    {
+        // outbox.md: the write and its message commit together or not at all (real database).
+        var failAudit = new FailInsertInto("AuditLogs") { Armed = false };
+        await using var host = await ArtistsTestHost.CreateAsync(Ct, failAudit);
+        var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(artist.Id, artist.ETag, Editor, Ct)));
+
+        failAudit.Armed = true;
+        await Assert.ThrowsAnyAsync<Exception>(() => host.WithFacadeAsync(facade => facade.UpdateAsync(
+            artist.Id, new ArtistUpdateViewModel(Slug: "jane-q"), published.ETag, Editor, Ct)));
+
+        Assert.Equal("jane-doe", (await host.StoredAsync(artist.Id))!.Slug);
+        Assert.Empty(await StagedSlugChangesAsync(host));
     }
 
     [Fact]
@@ -382,6 +400,31 @@ public sealed class ArtistsModuleTests
         Assert.Equal(ArtistDevelopmentSeeder.SeedActor, all.First(artist => artist.Slug == "piloto").UpdatedBy);
         Assert.Single(await host.AuditActionsAsync(), action => action == "artist.seeded");
     }
+
+    [Fact]
+    public async Task AnotherModuleLooksArtistsUpByIdOrSlugWhateverTheirStatus()
+    {
+        // Exhibitions' credits (ADR 0033): every artist that exists comes back, archived ones included, and an id or
+        // slug with no artist is simply absent.
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var jane = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+        var john = await CreateAsync(host, new ArtistCreateViewModel("John Doe"));
+        await Ok(host.WithFacadeAsync(facade => facade.ArchiveAsync(john.Id, john.ETag, ArtistsTestHost.AdminId, Ct)));
+
+        var byId = await host.WithFacadeAsync(facade => facade.GetSummariesAsync([jane.Id, john.Id, Guid.NewGuid(), jane.Id], Ct));
+        var bySlug = await host.WithFacadeAsync(facade => facade.FindBySlugsAsync(["john-doe", "nobody"], Ct));
+        var none = await host.WithFacadeAsync(facade => facade.GetSummariesAsync([], Ct));
+
+        Assert.Equal(["Jane Doe", "John Doe"], byId.Select(artist => artist.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(PublishStatus.Archived, byId.Single(artist => artist.Id == john.Id).Status);
+        Assert.Equal(john.Id, Assert.Single(bySlug).Id);
+        Assert.Empty(none);
+    }
+
+    private static async Task<List<RedirectSlugChanged>> StagedSlugChangesAsync(ArtistsTestHost host) =>
+        [.. (await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
+                .Where(message => message.Type == RedirectSlugChanged.MessageType).Select(message => message.PayloadJson).ToListAsync(Ct)))
+            .Select(payload => RedirectSlugChanged.TryParse(payload)!)];
 
     private static async Task<ArtistServiceModel> CreateAsync(ArtistsTestHost host, ArtistCreateViewModel create) =>
         await Ok(host.WithFacadeAsync(facade => facade.CreateAsync(create, Editor, Ct)));

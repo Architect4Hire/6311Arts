@@ -1,0 +1,53 @@
+using Arts6311.Domain.Managers.Publishing;
+using Arts6311.Domain.Modules.Exhibitions.Data.Entities;
+using Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels;
+
+namespace Arts6311.Domain.Modules.Exhibitions.Data;
+
+/// <summary>Where a page of exhibitions resumes: after this row in (StartDate, Id) descending order.</summary>
+internal sealed record ExhibitionListPosition(DateOnly StartDate, Guid Id);
+
+internal enum ExhibitionWriteOutcome
+{
+    Saved = 0,
+
+    /// <summary>Someone else saved first: the row version moved under this write.</summary>
+    Conflict = 10,
+
+    /// <summary>Another exhibition took the slug between Business's check and the save.</summary>
+    SlugTaken = 20,
+}
+
+internal interface IExhibitionsDataLayer
+{
+    /// <summary>One exhibition with its credits, tracked.</summary>
+    Task<Exhibition?> FindAsync(Guid id, CancellationToken cancellationToken);
+
+    Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
+
+    Task<List<ExhibitionSummaryServiceModel>> ListAsync(
+        ExhibitionListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
+
+    /// <summary>Adds the exhibition Business built, credits included, with its bookkeeping and audit entry, in one save.</summary>
+    Task<ExhibitionWriteOutcome> CreateAsync(Exhibition exhibition, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Saves a staff edit already applied to <paramref name="exhibition"/>, with its audit entry, in one save — and, when
+    /// <paramref name="pathChange"/> is set, <c>redirects.slug-changed</c> staged before it (ADR 0035).
+    /// </summary>
+    Task<ExhibitionWriteOutcome> UpdateAsync(
+        Exhibition exhibition, string actorUserId, string summary, PublishedPathChange? pathChange, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Saves a status change Business already applied, with its audit entry, in one save. From 2.8 this is also where
+    /// <c>site.revalidate-requested</c> is staged (ADR 0031, 0033).
+    /// </summary>
+    Task<ExhibitionWriteOutcome> TransitionAsync(
+        Exhibition exhibition, PublishCommand command, PublishStatus from, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>Every slug in use, for the development seed.</summary>
+    Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);
+
+    /// <summary>Adds the seed exhibitions Business chose, with one audit entry, in one save. Returns how many.</summary>
+    Task<int> AddSeedAsync(IReadOnlyList<Exhibition> exhibitions, string actor, CancellationToken cancellationToken);
+}

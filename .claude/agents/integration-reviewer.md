@@ -15,8 +15,10 @@ Read `.claude/rules/square.md` and `.claude/rules/external.md`. For each provide
   - DTOs are mapped at the boundary.
   - Money mapping lives in one place.
 - **Field ownership.**
-  - No path writes price, stock or seats, sold-out, or subscription status from the CMS after creation.
-  - The starting price and stock are sent once.
+  - No CMS path writes a Square-owned projection (price, stock or seats, sold-out, subscription status). Only the inbound pull does.
+  - The starting price and stock are sent once, on create. Afterwards price and stock change only through a `SquareChangeRequest` + outbox command (ADR 0032): compare-and-set on price, `PHYSICAL_COUNT` dated to the request, capacity as an adjustment that can't go negative.
+  - The content push and content hash never include price or stock. The SKU is pushed. No tax ids are sent.
+  - Merch has no CMS type; objects with no CMS id are ignored inbound and by the reconciler.
 - **Identifiers.**
   - Square ids only on `SquareCatalogLink` and other `SquareSync` records.
   - The CMS id is written as a Square custom attribute.
@@ -31,7 +33,7 @@ Read `.claude/rules/square.md` and `.claude/rules/external.md`. For each provide
   - Unique `event_id`.
   - Current state fetched, never trusted from the payload.
   - Echo suppression.
-  - Created-in-Square and deleted-in-Square rules.
+  - No-CMS-id objects skipped; deleted-in-Square rule.
 - **Payments.**
   - Amounts are never taken from the client.
   - The source token is used once and never logged or stored.

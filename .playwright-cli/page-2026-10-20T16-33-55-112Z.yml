@@ -1,0 +1,116 @@
+- generic [ref=f2e3]:
+  - link "Skip to content" [ref=f2e4] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f2e5]:
+    - link "6311arts CMS" [ref=f2e6] [cursor=pointer]:
+      - /url: /admin/
+      - generic [ref=f2e7]: 6311arts
+      - generic [ref=f2e8]: CMS
+    - generic [ref=f2e9]:
+      - generic [ref=f2e10]:
+        - generic [ref=f2e11]: Signed in as
+        - text: 6311arts Admin Admin
+      - button "Sign out" [ref=f2e12] [cursor=pointer]
+      - button "Sign out everywhere" [ref=f2e13] [cursor=pointer]
+  - generic [ref=f2e14]:
+    - navigation "CMS sections" [ref=f2e15]:
+      - list [ref=f2e16]:
+        - listitem [ref=f2e17]:
+          - link "Dashboard" [ref=f2e18] [cursor=pointer]:
+            - /url: /admin/
+        - listitem [ref=f2e22]:
+          - link "Classes" [ref=f2e23] [cursor=pointer]:
+            - /url: /admin/classes
+        - listitem [ref=f2e27]:
+          - link "Exhibitions" [ref=f2e28] [cursor=pointer]:
+            - /url: /admin/exhibitions
+        - listitem [ref=f2e32]:
+          - link "Artists" [ref=f2e33] [cursor=pointer]:
+            - /url: /admin/artists
+        - listitem [ref=f2e37]:
+          - link "Shop" [ref=f2e38] [cursor=pointer]:
+            - /url: /admin/shop
+        - listitem [ref=f2e42]:
+          - link "Memberships" [ref=f2e43] [cursor=pointer]:
+            - /url: /admin/memberships
+        - listitem [ref=f2e47]:
+          - link "Pages" [ref=f2e48] [cursor=pointer]:
+            - /url: /admin/pages
+        - listitem [ref=f2e52]:
+          - link "Media" [ref=f2e53] [cursor=pointer]:
+            - /url: /admin/media
+        - listitem [ref=f2e57]:
+          - link "Forms" [ref=f2e58] [cursor=pointer]:
+            - /url: /admin/forms
+        - listitem [ref=f2e62]:
+          - link "Redirects" [ref=f2e63] [cursor=pointer]:
+            - /url: /admin/redirects
+        - listitem [ref=f2e67]:
+          - link "Sync" [ref=f2e68] [cursor=pointer]:
+            - /url: /admin/sync
+    - main [ref=f2e72]:
+      - generic [ref=f2e73]:
+        - paragraph [ref=f2e74]:
+          - link "← All pages" [ref=f2e75] [cursor=pointer]:
+            - /url: /admin/pages
+        - paragraph [ref=f2e76]: Saved.
+        - generic [ref=f2e77]:
+          - heading "Privacy Policy" [level=1] [ref=f2e78]
+          - generic [ref=f2e79]: Draft
+        - generic [ref=f2e84]:
+          - generic [ref=f2e85]:
+            - group "Page details" [ref=f2e86]:
+              - generic [ref=f2e88]:
+                - generic [ref=f2e89]: Title required
+                - textbox "Title required" [ref=f2e90]: Privacy Policy
+              - generic [ref=f2e91]:
+                - generic [ref=f2e92]: Web address required
+                - textbox "Web address required" [ref=f2e93]: privacy
+                - generic [ref=f2e94]: 6311arts.com/privacy — lower-case letters, digits and hyphens.
+            - generic [ref=f2e96]:
+              - generic [ref=f2e97]: Text
+              - toolbar "Text formatting" [ref=f2e98]:
+                - generic [ref=f2e99]:
+                  - button "Text" [pressed] [ref=f2e100] [cursor=pointer]
+                  - button "Heading" [ref=f2e101] [cursor=pointer]
+                  - button "Subheading" [ref=f2e102] [cursor=pointer]
+                  - button "Small heading" [ref=f2e103] [cursor=pointer]
+                - generic [ref=f2e104]:
+                  - button "Bold" [pressed] [ref=f2e105] [cursor=pointer]
+                  - button "Italic" [ref=f2e106] [cursor=pointer]
+                - generic [ref=f2e107]:
+                  - button "Bullets" [ref=f2e108] [cursor=pointer]
+                  - button "Numbers" [ref=f2e109] [cursor=pointer]
+                  - button "Quote" [ref=f2e110] [cursor=pointer]
+                - generic [ref=f2e111]:
+                  - button "Link" [pressed] [ref=f2e112] [cursor=pointer]
+                  - button "Picture" [ref=f2e113] [cursor=pointer]
+                - generic [ref=f2e114]:
+                  - button "Undo" [ref=f2e115] [cursor=pointer]
+                  - button "Redo" [disabled] [ref=f2e116]
+              - textbox "Text" [active] [ref=f2e118]:
+                - heading "Placeholder" [level=2] [ref=f2e119]
+                - paragraph [ref=f2e120]: This privacy policy has not been written yet. Replace this text with 6311arts’ privacy policy, then publish the page.
+                - paragraph [ref=f2e121]:
+                  - text: "Questions in the meantime:"
+                  - link "info@6311arts.com" [ref=f2e122]:
+                    - /url: mailto:info@6311arts.com
+                  - text: .
+                - paragraph [ref=f2e133]:
+                  - strong [ref=f2e136]: We never sell your details.
+                - paragraph [ref=f2e137]:
+                  - link [ref=f2e151]:
+                    - /url: /visit
+                    - strong [ref=f2e152]: Visit us
+              - generic [ref=f2e123]: Headings, lists, links and pictures from the media library. Needed to publish.
+            - generic [ref=f2e124]:
+              - button "Save" [ref=f2e125] [cursor=pointer]
+              - button "Discard changes" [ref=f2e153] [cursor=pointer]
+          - complementary [ref=f2e126]:
+            - region [ref=f2e127]:
+              - heading "Publishing" [level=2] [ref=f2e128]
+              - paragraph [ref=f2e129]: "A draft: only staff can see it. Publishing needs some text."
+              - paragraph [ref=f2e154]: "Save your changes first: these act on the saved version."
+              - generic [ref=f2e130]:
+                - button "Publish" [disabled] [ref=f2e131]
+                - button "Archive" [disabled] [ref=f2e132]

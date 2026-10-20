@@ -14,6 +14,14 @@ internal interface IArtistsBusiness
 
     Task<OperationResult<ArtistServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The artists among <paramref name="ids"/> that exist. Empty in, empty out, without a query.</summary>
+    Task<IReadOnlyList<ArtistSummaryServiceModel>> GetSummariesAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
+    /// <summary>The artists among <paramref name="slugs"/> that exist. Empty in, empty out, without a query.</summary>
+    Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(
+        IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
+
     Task<OperationResult<ArtistServiceModel>> CreateAsync(
         ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken);
 

@@ -71,10 +71,11 @@ describe('Shell', () => {
     ]);
   });
 
-  it('hides Sync from an Editor', async () => {
+  it('hides Sync and Redirects from an Editor', async () => {
     const { element } = await render(['Editor']);
 
     expect(navLabels(element)).not.toContain('Sync');
+    expect(navLabels(element)).not.toContain('Redirects');
     expect(navLabels(element)).toContain('Classes');
   });
 

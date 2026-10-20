@@ -35,6 +35,18 @@ internal sealed class FixedCorrelation : ICorrelationContext
     public Guid Current { get; } = Guid.Parse("0123456789abcdef0123456789abcdef");
 }
 
+/// <summary>An outbox that records what was staged, in the shared call order (outbox.md: staged before the save).</summary>
+internal sealed class RecordingOutboxWriter(CallLog log) : Arts6311.Domain.Managers.Outbox.IOutboxWriter
+{
+    public List<(string Type, string Payload)> Staged { get; } = [];
+
+    public void Enqueue(string messageType, string payloadJson, Guid correlationId)
+    {
+        log.Add($"outbox:{messageType}");
+        Staged.Add((messageType, payloadJson));
+    }
+}
+
 internal sealed class RecordingAuditWriter(CallLog log) : IAuditWriter
 {
     public List<AuditEntry> Entries { get; } = [];
@@ -79,6 +91,15 @@ internal sealed class FakeArtistsRepository(CallLog log) : IArtistsRepository
         ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         Task.FromResult(new List<ArtistSummaryServiceModel>());
 
+    public Task<List<ArtistSummaryServiceModel>> ListByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.Where(row => ids.Contains(row.Id)).Select(Summary).ToList());
+
+    public Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.Where(row => slugs.Contains(row.Slug)).Select(Summary).ToList());
+
+    internal static ArtistSummaryServiceModel Summary(Artist row) =>
+        new(row.Id, row.Name, row.Slug, row.Medium, row.Active, row.Status, row.PortraitMediaId, row.UpdatedAt);
+
     public void DiscardChanges() => log.Add("discard");
 
     public Task SaveChangesAsync(CancellationToken cancellationToken)
@@ -117,6 +138,17 @@ internal sealed class FakeArtistsDataLayer : IArtistsDataLayer
         ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         Task.FromResult(new List<ArtistSummaryServiceModel>());
 
+    public List<IReadOnlyCollection<Guid>> SummaryLookups { get; } = [];
+
+    public Task<List<ArtistSummaryServiceModel>> GetSummariesAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        SummaryLookups.Add(ids);
+        return Task.FromResult(Rows.Values.Where(row => ids.Contains(row.Id)).Select(FakeArtistsRepository.Summary).ToList());
+    }
+
+    public Task<List<ArtistSummaryServiceModel>> FindBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.Values.Where(row => slugs.Contains(row.Slug)).Select(FakeArtistsRepository.Summary).ToList());
+
     public Task<ArtistWriteOutcome> CreateAsync(Artist artist, string actorUserId, CancellationToken cancellationToken)
     {
         Writes.Add("create");
@@ -129,9 +161,13 @@ internal sealed class FakeArtistsDataLayer : IArtistsDataLayer
         return Task.FromResult(Outcome);
     }
 
-    public Task<ArtistWriteOutcome> UpdateAsync(Artist artist, string actorUserId, string summary, CancellationToken cancellationToken)
+    public PublishedPathChange? LastPathChange { get; private set; }
+
+    public Task<ArtistWriteOutcome> UpdateAsync(
+        Artist artist, string actorUserId, string summary, PublishedPathChange? pathChange, CancellationToken cancellationToken)
     {
         Writes.Add($"update:{summary}");
+        LastPathChange = pathChange;
         return Task.FromResult(Outcome);
     }
 
@@ -198,6 +234,18 @@ internal sealed class RecordingArtistsBusiness : IArtistsBusiness
         return Task.FromResult(id == Current.Id
             ? OperationResult.Success(Current)
             : OperationResult.Failure<ArtistServiceModel>(OperationError.Of(ErrorCodes.NotFound, "No.")));
+    }
+
+    public Task<IReadOnlyList<ArtistSummaryServiceModel>> GetSummariesAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        Calls.Add("summaries");
+        return Task.FromResult<IReadOnlyList<ArtistSummaryServiceModel>>([]);
+    }
+
+    public Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken)
+    {
+        Calls.Add("by-slugs");
+        return Task.FromResult<IReadOnlyList<ArtistSummaryServiceModel>>([]);
     }
 
     public Task<OperationResult<ArtistServiceModel>> CreateAsync(ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken)

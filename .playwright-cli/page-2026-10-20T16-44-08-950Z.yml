@@ -1,0 +1,116 @@
+- generic [ref=f7e2]:
+  - generic [ref=f7e3]:
+    - link "Skip to content" [ref=f7e4] [cursor=pointer]:
+      - /url: "#main"
+    - banner [ref=f7e5]:
+      - link "6311arts CMS" [ref=f7e6] [cursor=pointer]:
+        - /url: /admin/
+        - generic [ref=f7e7]: 6311arts
+        - generic [ref=f7e8]: CMS
+      - generic [ref=f7e9]:
+        - generic [ref=f7e10]:
+          - generic [ref=f7e11]: Signed in as
+          - text: 6311arts Admin Admin
+        - button "Sign out" [ref=f7e12] [cursor=pointer]
+        - button "Sign out everywhere" [ref=f7e13] [cursor=pointer]
+    - generic [ref=f7e14]:
+      - navigation "CMS sections" [ref=f7e15]:
+        - list [ref=f7e16]:
+          - listitem [ref=f7e17]:
+            - link "Dashboard" [ref=f7e18] [cursor=pointer]:
+              - /url: /admin/
+          - listitem [ref=f7e22]:
+            - link "Classes" [ref=f7e23] [cursor=pointer]:
+              - /url: /admin/classes
+          - listitem [ref=f7e27]:
+            - link "Exhibitions" [ref=f7e28] [cursor=pointer]:
+              - /url: /admin/exhibitions
+          - listitem [ref=f7e32]:
+            - link "Artists" [ref=f7e33] [cursor=pointer]:
+              - /url: /admin/artists
+          - listitem [ref=f7e37]:
+            - link "Shop" [ref=f7e38] [cursor=pointer]:
+              - /url: /admin/shop
+          - listitem [ref=f7e42]:
+            - link "Memberships" [ref=f7e43] [cursor=pointer]:
+              - /url: /admin/memberships
+          - listitem [ref=f7e47]:
+            - link "Pages" [ref=f7e48] [cursor=pointer]:
+              - /url: /admin/pages
+          - listitem [ref=f7e52]:
+            - link "Media" [ref=f7e53] [cursor=pointer]:
+              - /url: /admin/media
+          - listitem [ref=f7e57]:
+            - link "Forms" [ref=f7e58] [cursor=pointer]:
+              - /url: /admin/forms
+          - listitem [ref=f7e62]:
+            - link "Redirects" [ref=f7e63] [cursor=pointer]:
+              - /url: /admin/redirects
+          - listitem [ref=f7e67]:
+            - link "Sync" [ref=f7e68] [cursor=pointer]:
+              - /url: /admin/sync
+      - main [ref=f7e72]:
+        - generic [ref=f7e73]:
+          - paragraph [ref=f7e74]:
+            - link "← All pages" [ref=f7e75] [cursor=pointer]:
+              - /url: /admin/pages
+          - paragraph [ref=f7e76]
+          - generic [ref=f7e77]:
+            - heading "Privacy Policy" [level=1] [ref=f7e78]
+            - generic [ref=f7e79]: Published
+          - generic [ref=f7e84]:
+            - generic [ref=f7e85]:
+              - group "Page details" [ref=f7e86]:
+                - generic [ref=f7e88]:
+                  - generic [ref=f7e89]: Title required
+                  - textbox "Title required" [ref=f7e90]: Privacy Policy
+                - generic [ref=f7e91]:
+                  - generic [ref=f7e92]: Web address
+                  - textbox "Web address" [ref=f7e93]: privacy
+                  - generic [ref=f7e94]: 6311arts.com/privacy — fixed now the page has been published, so links to it keep working.
+              - generic [ref=f7e96]:
+                - generic [ref=f7e97]: Text
+                - toolbar "Text formatting" [ref=f7e98]:
+                  - generic [ref=f7e99]:
+                    - button "Text" [ref=f7e100] [cursor=pointer]
+                    - button "Heading" [pressed] [ref=f7e101] [cursor=pointer]
+                    - button "Subheading" [ref=f7e102] [cursor=pointer]
+                    - button "Small heading" [ref=f7e103] [cursor=pointer]
+                  - generic [ref=f7e104]:
+                    - button "Bold" [ref=f7e105] [cursor=pointer]
+                    - button "Italic" [ref=f7e106] [cursor=pointer]
+                  - generic [ref=f7e107]:
+                    - button "Bullets" [ref=f7e108] [cursor=pointer]
+                    - button "Numbers" [ref=f7e109] [cursor=pointer]
+                    - button "Quote" [ref=f7e110] [cursor=pointer]
+                  - generic [ref=f7e111]:
+                    - button "Link" [ref=f7e112] [cursor=pointer]
+                    - button "Picture" [ref=f7e113] [cursor=pointer]
+                  - generic [ref=f7e114]:
+                    - button "Undo" [disabled] [ref=f7e115]
+                    - button "Redo" [disabled] [ref=f7e116]
+                - textbox "Text" [ref=f7e118]:
+                  - heading "Our policy" [level=2] [ref=f7e119]
+                  - paragraph [ref=f7e120]:
+                    - text: We
+                    - strong [ref=f7e121]: never
+                    - text: sell data. x
+                    - link "Visit" [ref=f7e122]:
+                      - /url: /visit
+                - generic [ref=f7e123]: Headings, lists, links and pictures from the media library. Needed to publish.
+              - button "Save" [disabled] [ref=f7e125]
+            - complementary [ref=f7e126]:
+              - region [ref=f7e127]:
+                - heading "Publishing" [level=2] [ref=f7e128]
+                - paragraph [ref=f7e129]: "Published: on the public site once the site reads from the CMS."
+                - generic [ref=f7e130]:
+                  - button "Unpublish" [ref=f7e131] [cursor=pointer]
+                  - button "Archive" [ref=f7e132] [cursor=pointer]
+  - dialog [ref=f7e133]:
+    - generic [ref=f7e134]:
+      - heading "Unpublish this page?" [level=2] [ref=f7e135]
+      - button "Close" [ref=f7e136] [cursor=pointer]
+    - paragraph [ref=f7e141]: It goes back to being a draft and leaves the public site. Its web address stays the same, so publishing again restores it.
+    - generic [ref=f7e143]:
+      - button "Keep published" [active] [ref=f7e144] [cursor=pointer]
+      - button "Unpublish" [ref=f7e145] [cursor=pointer]

@@ -1,0 +1,106 @@
+- generic [ref=f3e2]:
+  - generic [ref=f3e3]:
+    - link "Skip to content" [ref=f3e4] [cursor=pointer]:
+      - /url: "#content"
+    - generic [ref=f3e5]:
+      - link "6311arts home" [ref=f3e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f3e7]: 6311arts
+      - navigation "Main" [ref=f3e8]:
+        - list [ref=f3e9]:
+          - listitem [ref=f3e10]:
+            - link "Home" [ref=f3e11] [cursor=pointer]:
+              - /url: /
+          - listitem [ref=f3e12]:
+            - link "Classes" [ref=f3e13] [cursor=pointer]:
+              - /url: /classes
+          - listitem [ref=f3e14]:
+            - link "Exhibitions" [ref=f3e15] [cursor=pointer]:
+              - /url: /exhibitions
+          - listitem [ref=f3e16]:
+            - link "Artists" [ref=f3e17] [cursor=pointer]:
+              - /url: /artists
+          - listitem [ref=f3e18]:
+            - link "Shop" [ref=f3e19] [cursor=pointer]:
+              - /url: /shop
+          - listitem [ref=f3e20]:
+            - link "About" [ref=f3e21] [cursor=pointer]:
+              - /url: /about
+          - listitem [ref=f3e22]:
+            - link "Visit" [ref=f3e23] [cursor=pointer]:
+              - /url: /visit
+          - listitem [ref=f3e24]:
+            - link "Cart" [ref=f3e25] [cursor=pointer]:
+              - /url: https://6311arts.com/cart/
+          - listitem [ref=f3e29]:
+            - link "Join" [ref=f3e30] [cursor=pointer]:
+              - /url: /memberships
+  - main [ref=f3e31]:
+    - generic [ref=f3e35]:
+      - heading "Staff sign-in" [level=1] [ref=f3e36]
+      - paragraph [ref=f3e37]: For 6311arts staff and volunteers who edit the site.
+      - group "Your staff account" [ref=f3e40]:
+        - generic [ref=f3e42]:
+          - generic [ref=f3e43]: Email required
+          - textbox "Email required" [disabled] [ref=f3e44]
+        - generic [ref=f3e45]:
+          - generic [ref=f3e46]: Password required
+          - textbox "Password required" [disabled] [ref=f3e47]
+        - paragraph [ref=f3e48]:
+          - button "Sign in" [disabled] [ref=f3e49]
+      - paragraph [ref=f3e50]:
+        - link "Forgot your password?" [ref=f3e51] [cursor=pointer]:
+          - /url: /account/forgot-password
+  - generic [ref=f3e52]:
+    - generic [ref=f3e53]:
+      - paragraph [ref=f3e55]: An art center that makes room for everyone. Gallery, shop and classes on Clark Street since 2025.
+      - generic [ref=f3e56]:
+        - heading "Visit" [level=3] [ref=f3e57]
+        - paragraph [ref=f3e58]: 6311 N. Clark St.Chicago, IL 60660
+        - paragraph [ref=f3e59]:
+          - link "872-370-4500" [ref=f3e60] [cursor=pointer]:
+            - /url: tel:8723704500
+          - link "info@6311arts.com" [ref=f3e61] [cursor=pointer]:
+            - /url: mailto:info@6311arts.com
+      - generic [ref=f3e62]:
+        - heading "Hours" [level=3] [ref=f3e63]
+        - generic [ref=f3e64]:
+          - term [ref=f3e65]: Mon – Tue
+          - definition [ref=f3e66]: By appointment
+          - term [ref=f3e67]: Wednesday
+          - definition [ref=f3e68]: 11 am – 5 pm
+          - term [ref=f3e69]: Thu – Sat
+          - definition [ref=f3e70]: 11 am – 6 pm
+          - term [ref=f3e71]: Sunday
+          - definition [ref=f3e72]: 11 am – 5 pm
+      - generic [ref=f3e73]:
+        - heading "Explore" [level=3] [ref=f3e74]
+        - list [ref=f3e75]:
+          - listitem [ref=f3e76]:
+            - link "Classes & workshops" [ref=f3e77] [cursor=pointer]:
+              - /url: /classes
+          - listitem [ref=f3e78]:
+            - link "Exhibitions" [ref=f3e79] [cursor=pointer]:
+              - /url: /exhibitions
+          - listitem [ref=f3e80]:
+            - link "Shop local art" [ref=f3e81] [cursor=pointer]:
+              - /url: /shop
+          - listitem [ref=f3e82]:
+            - link "Memberships" [ref=f3e83] [cursor=pointer]:
+              - /url: /memberships
+          - listitem [ref=f3e84]:
+            - link "Submit your work" [ref=f3e85] [cursor=pointer]:
+              - /url: /submit
+    - generic [ref=f3e86]:
+      - generic [ref=f3e91]:
+        - text: © 2026 6311arts ·
+        - link "Privacy" [ref=f3e92] [cursor=pointer]:
+          - /url: /privacy
+        - text: ·
+        - link "Terms" [ref=f3e93] [cursor=pointer]:
+          - /url: /terms
+      - generic [ref=f3e94]:
+        - link "Instagram" [ref=f3e95] [cursor=pointer]:
+          - /url: https://www.instagram.com/6311arts
+        - link "Email" [ref=f3e99] [cursor=pointer]:
+          - /url: mailto:info@6311arts.com

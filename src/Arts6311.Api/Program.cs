@@ -4,10 +4,13 @@ using Arts6311.Domain.Managers;
 using Arts6311.Domain.Managers.Idempotency;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Modules.Artists;
+using Arts6311.Domain.Modules.Exhibitions;
 using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Media;
+using Arts6311.Domain.Modules.Pages;
+using Arts6311.Domain.Modules.Redirects;
 using Arts6311.Domain.Modules.Operations;
 using Microsoft.AspNetCore.Identity;
 
@@ -35,6 +38,15 @@ builder.Services.AddMediaModule();
 
 // The artist roster (content.md). Its facade asks Media about portraits, so it comes after AddMediaModule.
 builder.Services.AddArtistsModule();
+
+// Exhibitions (content.md). Its facade asks Media about heroes and Artists about credits, so it comes after both.
+builder.Services.AddExhibitionsModule();
+
+// Pages (content.md): sanitized HTML bodies. Its facade asks Media about the pictures a body shows.
+builder.Services.AddPagesModule();
+
+// Redirects (content.md): the CMS's list and the site's. Its slug-change handler is the Worker's (ADR 0035).
+builder.Services.AddRedirectsModule();
 
 // The credential store (ADR 0002). AddIdentityCore only: no cookie scheme and no SignInManager, because the
 // gateway owns the browser session and the API takes no cookies at all.

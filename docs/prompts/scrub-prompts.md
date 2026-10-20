@@ -568,28 +568,34 @@ idempotent, expired preview 404. Report.
 ## 2.9 — Classes (content only)
 
 ```
-SCOPE: Modules/Classes: ClassOffering + ClassSession (start, end, display zone, starting capacity) via
-add-content-entity; read-only projection columns SeatsRemaining, SoldOut, PriceCents (populated later
-by SquareSync); a starting price field used once at first sync. CMS slice + admin screens (sessions
-editor, read-only "Managed in Square" placeholders).
+SCOPE: Modules/Classes: ClassOffering (starting price) + ClassSession (start, end, display zone, SKU,
+capacity) via add-content-entity. SKU is CMS-owned and unique across the CMS (unique index shared with
+ShopItem SKUs; suggested on create as `CLS-<offering seq>-<n>`, editable). Read-only projection columns
+SeatsRemaining, SoldOut, PriceCents (populated later by SquareSync). CMS slice + admin screens (sessions
+editor with SKU and capacity; before first sync the starting price is a plain field; after it, a
+placeholder for the 5.4a/5.9 Change actions).
 
-CONSTRAINT: content.md; square.md (ownership).
+CONSTRAINT: content.md; square.md (ownership, ADR 0032).
 
-RESTRICTION: No Square calls. Write models MUST NOT contain the projection fields — add a test that
-proves it.
+RESTRICTION: No Square calls. No tax fields. Write models MUST NOT contain the projection fields — add a
+test that proves it. Duplicate SKU → 409 with a problem code.
 
 UTILIZATION: add-content-entity, add-endpoint, new-component; @architecture-reviewer.
 
 BEHAVIOR: as 2.4.
 ```
 
-## 2.10 — Shop items (content only)
+## 2.10 — Shop items: artwork (content only)
 
 ```
-SCOPE: Modules/Shop: ShopItem (artist via Artists facade, categories, gallery, one-of-a-kind, starting
-price) + projections (PriceCents, StockOnHand, SoldOut). CMS slice + admin.
+SCOPE: Modules/Shop: ShopItem = artwork only (artist via Artists facade, categories, gallery, SKU,
+one-of-a-kind, starting price, starting quantity — forced to 1 when one-of-a-kind) + projections
+(PriceCents, StockOnHand, SoldOut). SKU suggested as `ART-<seq>`, editable, unique (shared index with
+class sessions). CMS slice + admin.
 
-CONSTRAINT/RESTRICTION/UTILIZATION/BEHAVIOR: as 2.9.
+CONSTRAINT/UTILIZATION/BEHAVIOR: as 2.9.
+
+RESTRICTION: as 2.9. No merch type, category or flag — merch is POS-only (ADR 0032).
 ```
 
 ## 2.11 — Membership plans (content only)
@@ -735,14 +741,19 @@ BEHAVIOR: Run --apply locally, re-run to prove idempotency, spot-check 10 pages 
 
 # Phase 5 — Square two-way integration
 
-Field ownership is fixed (`square.md`). Every prompt passes against `Arts6311.SquareFake` before sandbox.
+Field ownership is fixed (`square.md`, ADR 0032): the CMS creates artwork and classes, owns their SKU,
+and changes their price and quantity only through commands; Square holds the record; merch and any
+object without a CMS id are POS-only and ignored. Every prompt passes against `Arts6311.SquareFake`
+before sandbox.
 
 ## 5.1 — SquareSync integration records
 
 ```
 SCOPE: Modules/SquareSync: SquareCatalogLink (entityType, entityId, squareObjectId, variationIds,
-squareVersion, contentHash, syncStatus Synced/Pending/NeedsAttention/CreatedInSquare/NeedsReview,
-lastErrorCode, lastPushedAt, lastPulledAt), SquareSyncCursor, SquareWebhookEvent (unique EventId,
+squareVersion, contentHash, syncStatus Synced/Pending/NeedsAttention/NeedsReview, lastErrorCode,
+lastPushedAt, lastPulledAt), SquareChangeRequest (kind Price/Quantity/Capacity, entityType, entityId,
+variation, requestedValue, expectedValue, occurredAt, status Pending/Applied/Rejected/NeedsAttention,
+reason code, outboxMessageId, requestedBy), SquareSyncCursor, SquareWebhookEvent (unique EventId,
 Type, ObjectIds, ReceivedAt, ProcessedAt). Facade for link lookup and projection updates (the ONLY
 writer of Square-owned projection columns on content entities, via each module's facade).
 
@@ -761,7 +772,8 @@ BEHAVIOR: Plan, wait, implement, migration review, tests. Report.
 SCOPE: Domain interfaces ISquareCatalogGateway, ISquareInventoryGateway, ISquareOrdersGateway,
 ISquarePaymentsGateway, ISquareCustomersGateway, ISquareSubscriptionsGateway, ISquareWebhookVerifier
 with Domain-owned request/result records; Arts6311.Square implements them with the official SDK
-(base URL from config), one money mapper, every write requires an idempotency key parameter. A shared
+(base URL and `Square:LocationId` from config), one money mapper, inventory supports PHYSICAL_COUNT
+(with occurred_at) and ADJUSTMENT at the configured location, variations carry `sku`, no tax ids, every write requires an idempotency key parameter. A shared
 contract test suite (abstract base) runs against any implementation.
 
 CONSTRAINT: square.md; external.md. Verify SDK package, client construction, base-URL override,
@@ -779,8 +791,9 @@ BEHAVIOR: Plan the interface list, wait, implement. Report.
 
 ```
 SCOPE: Arts6311.SquareFake: minimal API implementing the HTTP endpoints the SDK calls for the 5.2
-subset (in-memory, realistic ids/versions, idempotency-key replay, version conflicts, injectable faults:
-timeout-after-send, 429), plus POST /_fake/webhooks/{type} that sends a correctly signed webhook to a
+subset (in-memory, realistic ids/versions, idempotency-key replay, version conflicts, one location,
+inventory computed as latest PHYSICAL_COUNT + later adjustments by occurred_at, a way to seed POS-only
+items with no CMS id, injectable faults: timeout-after-send, 429), plus POST /_fake/webhooks/{type} that sends a correctly signed webhook to a
 configured URL, and a stub Web Payments tokenizer script. AppHost: in fake mode api/worker reference
 squarefake; in sandbox mode they get Square's sandbox base URL + secret parameters. Run the 5.2
 contract suite against the fake (always) and sandbox (env-flag opt-in).
@@ -795,21 +808,70 @@ BEHAVIOR: Plan the endpoint list, wait, implement, run the suite on the fake (an
 flag). Report.
 ```
 
-## 5.4 — Outbound push: shop items
+## 5.4 — Outbound push: artwork (shop items)
 
 ```
 SCOPE: ShopItem publish/update stages `square.catalog-push-requested {ShopItem, id}`; handler per
-add-square-sync §3 (reload, hash skip, create with starting price + inventory once, version-aware
-merge, images first, idempotency key = message id, link update, NeedsAttention on last attempt).
+add-square-sync §3 (reload, hash skip, create with starting price + starting quantity at the configured
+location, SKU on the variation, version-aware merge that keeps Square's current price, images first,
+idempotency key = message id, link update, NeedsAttention on last attempt). Once linked, the starting
+fields are frozen (409 on edit).
 
 CONSTRAINT: add-square-sync; add-outbox-message; square.md ownership table (in the plan).
 
-RESTRICTION: Never send price or stock after creation. Never block the CMS save on Square.
+RESTRICTION: The content push never sends price or stock after creation (5.4a/5.4b do that). No tax
+ids. Never block the CMS save on Square.
 
 UTILIZATION: add-square-sync, add-outbox-message; @integration-reviewer, @outbox-reviewer.
 
-BEHAVIOR: Ownership table first, wait, implement; tests: create, content update, image change, no-op
-skip, version conflict, timeout-after-send reconciliation, duplicate delivery. Demo against the fake.
+BEHAVIOR: Ownership table first, wait, implement; tests: create (price, quantity, SKU in Square),
+content update, SKU change, image change, no-op skip, version conflict, timeout-after-send
+reconciliation, duplicate delivery. Demo against the fake.
+```
+
+## 5.4a — Change price command (artwork + class sessions)
+
+```
+SCOPE: POST /api/v1/cms/shop/{id}/price-changes and
+POST /api/v1/cms/classes/{id}/sessions/{sid}/price-changes {newPriceCents, expectedPriceCents}
+(CmsEditor, Idempotency-Key, audited): only for linked items; writes a SquareChangeRequest (Price,
+Pending) and stages `square.price-change-requested {requestId}` in one save. Handler: retrieve the
+variation; current price ≠ expected → Rejected (reason price_changed_in_square); else full-object
+upsert with the last version (re-read once on conflict); timeout → read back. The inbound pull (5.7)
+marks it Applied when Square shows the value. Admin: price shows Square's figure + Change dialog +
+request state; for a class, "apply to all upcoming sessions" sends one request per session.
+
+CONSTRAINT: ADR 0032; square.md; add-endpoint; add-outbox-message; add-square-sync §5. Verify catalog
+upsert/version behaviour on developer.squareup.com and cite it.
+
+RESTRICTION: Never write PriceCents from this path. Never overwrite a price that differs from expected.
+Validate the amount (positive, Square's minimum).
+
+UTILIZATION: add-endpoint, add-outbox-message, new-component; @integration-reviewer, @outbox-reviewer,
+@security-reviewer.
+
+BEHAVIOR: Plan, wait, implement; tests: applied, stale expected → Rejected, replayed Idempotency-Key,
+duplicate delivery, timeout-after-send, unlinked item → 409, wrong role → 403. Demo on the fake.
+```
+
+## 5.4b — Set quantity command (artwork)
+
+```
+SCOPE: POST /api/v1/cms/shop/{id}/quantity {quantity} (CmsEditor, Idempotency-Key, audited): only for
+linked, non-one-of-a-kind items; SquareChangeRequest (Quantity, occurredAt = now) + stage
+`square.inventory-change-requested {requestId}` in one save. Handler: BatchChangeInventory
+PHYSICAL_COUNT at `Square:LocationId` with occurred_at = request.occurredAt, idempotency key = message
+id. Admin: quantity shows Square's figure + Set dialog + request state.
+
+CONSTRAINT: ADR 0032; square.md; add-endpoint; add-outbox-message. Verify the PHYSICAL_COUNT /
+occurred_at semantics on developer.squareup.com (inventory-api/how-it-works) and cite it.
+
+RESTRICTION: Never write StockOnHand from this path. No quantity command for one-of-a-kind (409).
+
+UTILIZATION: as 5.4a.
+
+BEHAVIOR: Plan, wait, implement; tests: set count applied, a fake sale dated after the request still
+subtracts, replay, duplicate delivery, one-of-a-kind refused. Demo on the fake.
 ```
 
 ## 5.5 — Outbound archive
@@ -848,8 +910,9 @@ duplicate. Report.
 ```
 SCOPE: `square.webhook-received` dispatcher + catalog.version.updated branch: SearchCatalogObjects
 since the cursor (ITEM, ITEM_VARIATION, IMAGE, CATEGORY), apply Square-owned projections through the
-SquareSync facade, echo suppression (version/hash), created-in-Square → Draft + CreatedInSquare,
-deleted-in-Square → Archived + NeedsReview, stage `site.revalidate-requested`, advance cursor after
+SquareSync facade, echo suppression (version/hash), objects without a CMS id skipped (POS-only),
+linked object deleted in Square → Archived + NeedsReview, Pending price requests whose value now shows
+→ Applied, stage `site.revalidate-requested`, advance cursor after
 commit, mark inbox processed.
 
 CONSTRAINT: add-webhook-handler §3; add-square-sync §4.
@@ -858,15 +921,16 @@ RESTRICTION: Never overwrite CMS-owned fields. Never trust payload state.
 
 UTILIZATION: add-webhook-handler; @integration-reviewer, @outbox-reviewer.
 
-BEHAVIOR: Plan, wait, implement; tests: price change reaches the site, echo ignored, out-of-order,
-redelivery after crash, created/deleted in Square. Demo.
+BEHAVIOR: Plan, wait, implement; tests: CMS price change (5.4a) reaches the site, echo ignored,
+out-of-order, redelivery after crash, POS-only item ignored, deleted in Square. Demo.
 ```
 
 ## 5.8 — Inbound inventory handler
 
 ```
-SCOPE: inventory.count.updated branch: batch-retrieve counts for named variations, update StockOnHand
-/ SeatsRemaining / SoldOut, stage revalidation.
+SCOPE: inventory.count.updated branch: batch-retrieve counts for named variations of linked items
+only, update StockOnHand / SeatsRemaining / SoldOut, mark matching Pending quantity/capacity requests
+Applied, stage revalidation.
 
 CONSTRAINT/RESTRICTION/UTILIZATION: as 5.7.
 
@@ -876,17 +940,22 @@ BEHAVIOR: tests: stock → 0 shows "Sold out" on the site; stale event can't res
 ## 5.9 — Classes sync + seat adjustment
 
 ```
-SCOPE: add-square-sync for ClassOffering (ITEM) / ClassSession (ITEM_VARIATION, inventory = starting
-capacity once). Explicit POST /api/v1/cms/classes/{id}/sessions/{sid}/seat-adjustments (CmsAdmin,
-Idempotency-Key, reason required, audited) stages `square.inventory-adjust-requested`.
+SCOPE: add-square-sync for ClassOffering (ITEM) / ClassSession (ITEM_VARIATION with SKU, starting price,
+inventory = capacity at create). After linking, editing a session's capacity in the class editor (the
+normal session save: CmsEditor, row version, audited) writes a SquareChangeRequest (Capacity) and
+stages `square.inventory-change-requested` as an ADJUSTMENT of newCapacity − oldCapacity in the same
+save. A reduction larger than SeatsRemaining → 409; the handler re-reads the count and sets
+NeedsAttention rather than go negative. Sessions added later are created as new variations by the push.
 
-CONSTRAINT: add-square-sync; add-endpoint; add-outbox-message.
+CONSTRAINT: ADR 0032; add-square-sync; add-endpoint; add-outbox-message. Verify the ADJUSTMENT
+from/to states for adding and removing seats on developer.squareup.com and cite them.
 
-RESTRICTION: Never recompute seats locally from orders.
+RESTRICTION: Never recompute seats locally from orders. Never write SeatsRemaining from this path.
 
 UTILIZATION: as 5.4.
 
-BEHAVIOR: tests: create with 3 sessions, sell out in the fake, adjust seats (replay-safe). Demo.
+BEHAVIOR: tests: create with 3 sessions (SKUs, price, seats in the fake), sell out in the fake, raise
+capacity (seats reappear), lower below seats remaining refused, duplicate delivery replay-safe. Demo.
 ```
 
 ## 5.10 — Membership plans sync
@@ -907,10 +976,11 @@ BEHAVIOR: Plan, wait, implement, tests on the fake, demo the site memberships pa
 ## 5.11 — Admin sync experience + operations screen
 
 ```
-SCOPE: Admin: sync chip + last error code + Retry (stages a new push) on synced edit screens; read-only
-Square values. Sync screen (CmsAdmin): outbox counts by status/type, Poisoned list with Replay
+SCOPE: Admin: sync chip + last error code + Retry (stages a new push) on synced edit screens; Square
+values with their Change actions and the latest change request's state (Pending/Applied/Rejected +
+reason). Sync screen (CmsAdmin): outbox counts by status/type, Poisoned list with Replay
 (reset to Pending, attempts kept, audited) and Discard (audited, reason required), webhook inbox recent
-events, catalog cursor, NeedsAttention / NeedsReview / CreatedInSquare queues.
+events, catalog cursor, NeedsAttention / NeedsReview queues, Pending/NeedsAttention change requests.
 
 CONSTRAINT: outbox.md (documented recovery path); add-endpoint; new-component.
 
@@ -926,7 +996,8 @@ BEHAVIOR: Plan, wait, implement, demo a poisoned message replayed after fixing t
 ```
 SCOPE: Worker job (add-background-job): every 15 min compare links changed since last pass; nightly
 full compare. Fix drift on Square-owned projections; re-stage pushes for CMS changes never acked;
-audit each correction; Operation record for on-demand full runs (202).
+resolve stale Pending change requests by reading Square (Applied or NeedsAttention); skip objects with
+no CMS id; audit each correction; Operation record for on-demand full runs (202).
 
 CONSTRAINT: square.md (Reconciliation); add-background-job.
 
@@ -1056,8 +1127,11 @@ BEHAVIOR: ADR first, wait, implement, tests.
 ```
 SCOPE: Sandbox mode with an Aspire dev tunnel exposing the gateway's /webhooks/square; runbook
 docs/runbooks/square-sandbox.md (sandbox app, webhook subscription URL = tunnel URL, user-secrets).
-Run the full flow: publish item → appears in Square → change price in Square dashboard → site
-updates → buy with a sandbox card → stock drops → membership signup → subscription webhook.
+Run the full flow: create artwork with SKU, price and quantity in the CMS → publish → appears in Square
+with that SKU/price/stock → change price and set quantity in the CMS → Square and site update → class
+with sessions: raise capacity in the CMS → seats in Square → buy with a sandbox card → stock drops →
+POS-only item created in the Square dashboard is ignored → membership signup → subscription webhook.
+The admin never opens the Square dashboard for website items.
 
 CONSTRAINT: aspire.md (verify dev tunnel integration); square.md.
 

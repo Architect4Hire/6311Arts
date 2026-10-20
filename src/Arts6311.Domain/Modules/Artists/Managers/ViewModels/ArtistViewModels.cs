@@ -17,7 +17,7 @@ public sealed record ArtistCreateViewModel(
 /// A staff edit. A field left out (or <c>null</c>) is unchanged; an empty string clears <c>medium</c> or <c>bio</c>.
 /// Status is not here: it changes only through the publish, unpublish and archive commands (content.md).
 /// </summary>
-/// <param name="Slug">Refused with <c>cms.slug_locked</c> once the artist has been published.</param>
+/// <param name="Slug">Once the artist has been published, changing it redirects the old address to the new one (ADR 0035).</param>
 /// <param name="RemovePortrait"><c>true</c> takes the portrait off; not allowed together with <paramref name="PortraitMediaId"/>.</param>
 public sealed record ArtistUpdateViewModel(
     string? Name = null,

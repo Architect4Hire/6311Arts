@@ -13,19 +13,29 @@ paths:
 
 Square is the system of record for money. The CMS is the system of record for content. The two stay in step through the outbox (`outbox.md`) and a reconciler. Square's own docs warn that two-way catalog sync is risky, so the guardrails below are not optional.
 
-## Field ownership (fixed)
+## Website catalog (ADR 0032)
 
-| CMS-owned → pushed to Square | Square-owned → pulled into the CMS (read-only in admin) |
-|---|---|
-| Name, description, artist, categories, images, publish/archive state | Price after creation |
-| Class details, session dates/times | Stock, seats remaining, sold-out |
-| Membership plan name/description/perks | Plan pricing and billing cadence after creation |
-| | Orders, payments, refunds, customers, cards, subscriptions, member status |
+- **Artwork (`ShopItem`) and classes (`ClassOffering` / `ClassSession`)** are created in the CMS and pushed to Square. Staff never manage them in Square.
+- **Merch is POS-only.** It has no CMS type, no site page and no import mapping.
+- **Square objects with no CMS id custom attribute are POS-only.** Inbound handlers and the reconciler ignore them (no drafts, no audit noise).
+- **Taxes are Square's.** Never send tax ids or tax settings.
 
-The CMS sets a **starting price** and **initial stock or capacity** exactly once, when an item is first created in Square. After that:
+## Field ownership
 
-- Price changes happen in Square.
-- Capacity changes go through an explicit, audited "adjust seats" command that sends an inventory adjustment.
+| CMS-owned → pushed on every content push | Square holds the record → pulled into projections | CMS *requests* a change (command → outbox) |
+|---|---|---|
+| Name, description, artist, categories, images, publish/archive state | Price | Artwork and class session price: **change price** (compare-and-set) |
+| **SKU** (per `ShopItem`, per `ClassSession`; unique in the CMS) | Stock, seats remaining, sold-out | Artwork quantity: **set quantity** (`PHYSICAL_COUNT` dated to the request) |
+| Class details, session dates/times, **session capacity** | Orders, payments, refunds, taxes, customers, cards, subscriptions, member status | Capacity change → seat `ADJUSTMENT` by the difference |
+| Membership plan name/description/perks | Plan pricing and billing cadence after creation | — (ADR 0005 still applies to plans) |
+
+- **Before the first sync,** the starting price, quantity and capacity are draft fields, and the first push creates the Square objects with them. After the item is linked, they're frozen.
+- **Square-owned projection columns** (`PriceCents`, `StockOnHand`, `SeatsRemaining`, `SoldOut`, plan price/cadence) are written only by the inbound pull through the `SquareSync` facade. A command never writes them, and the content push and the content hash never include price or stock.
+- **Every command** is a `SquareChangeRequest` row (`Pending` / `Applied` / `Rejected` / `NeedsAttention`) plus one outbox message in the same save. It requires `CmsEditor`, an `Idempotency-Key`, and an audit row.
+- **Change price** carries `expectedPriceCents`. If Square's current price differs, the request is `Rejected`. Never overwrite a price someone else set.
+- **Set quantity** is a `PHYSICAL_COUNT` with `occurred_at` = submission time, so later sales still subtract ([How Inventory API works](https://developer.squareup.com/docs/inventory-api/how-it-works)). One-of-a-kind artwork is created at 1 and has no set-quantity command.
+- **A capacity reduction** larger than `SeatsRemaining` is refused. The handler re-reads the count and sets `NeedsAttention` rather than drive seats negative. Never recompute seats from orders.
+- **Inventory is per location.** The location id is per-environment configuration (`Square:LocationId`), never hardcoded.
 
 ## Boundaries
 
@@ -47,7 +57,7 @@ The CMS sets a **starting price** and **initial stock or capacity** exactly once
 
 - **Every write carries an idempotency key** equal to the outbox message `Id`. A retry with the same key is safe; a new key is a new operation.
 - **Batch.** Use `BatchUpsertCatalogObjects` and batch inventory changes. Never list the whole catalog on a schedule.
-- **Skip no-op pushes** whose content hash matches `SquareCatalogLink`.
+- **Skip no-op pushes** whose content hash matches `SquareCatalogLink`. The hash covers CMS-owned fields (SKU included), never price or stock.
 - **Send the last known version.** On a version conflict, re-read, re-merge the CMS-owned fields onto Square's current object and retry inside the same handler attempt.
 - **An ambiguous outcome** (timeout after send) is reconciled by reading the object back before any second create.
 - **Archive policy** is recorded in an ADR (delete vs. mark unavailable). Never hard-delete CMS content because of a Square delete.
@@ -59,10 +69,10 @@ The CMS sets a **starting price** and **initial stock or capacity** exactly once
   - catalog changes since the cursor via `SearchCatalogObjects`
   - batch-retrieve inventory counts
   - retrieve the subscription
-- **Update only Square-owned fields.** Advance the cursor only after the batch commits.
+- **Update only Square-owned projections,** and resolve any matching `Pending` `SquareChangeRequest`. Advance the cursor only after the batch commits.
 - **Echo suppression.** A change whose version or hash equals our last push is ours. Record it and do nothing.
-- **Objects created in Square** with no CMS id become **Draft** CMS records flagged "created in Square" for staff review.
-- **Objects deleted in Square** set the CMS record **Archived + NeedsReview**.
+- **Objects with no CMS id** (merch and anything else made in Square) are POS-only. Skip them.
+- **Linked objects deleted in Square** set the CMS record **Archived + NeedsReview**.
 
 ## Payments and members
 
@@ -76,10 +86,11 @@ The CMS sets a **starting price** and **initial stock or capacity** exactly once
 - **Every 15 minutes:** compare recently changed links.
 - **Nightly:** full compare.
 - **What it does:**
-  - fixes drift on Square-owned fields
+  - fixes drift on Square-owned projections
   - re-stages pushes that never landed
+  - resolves stale `Pending` change requests by reading Square (Applied if Square shows the requested value, otherwise `NeedsAttention`)
   - writes an audit row per correction
-- **What it never does:** delete CMS content, or write CMS-owned fields to Square without an outbox message.
+- **What it never does:** delete CMS content, touch objects with no CMS id, or write anything to Square without an outbox message.
 
 ## Testing
 
@@ -96,3 +107,7 @@ The CMS sets a **starting price** and **initial stock or capacity** exactly once
   - bad signature
   - echo of our own push
   - drift corrected by the reconciler
+  - price change applied, and rejected on a stale `expectedPriceCents`
+  - set quantity racing a sale (the sale still counts)
+  - capacity reduction below seats remaining refused
+  - object created in Square without a CMS id ignored

@@ -1,0 +1,157 @@
+using Arts6311.Domain.Managers.Audit;
+using Arts6311.Domain.Managers.Correlation;
+using Arts6311.Domain.Managers.Outbox;
+using Arts6311.Domain.Managers.Outbox.Events;
+using Arts6311.Domain.Managers.Publishing;
+using Arts6311.Domain.Managers.Time;
+using Arts6311.Domain.Modules.Exhibitions.Data.Entities;
+using Arts6311.Domain.Modules.Exhibitions.Data.Repositories;
+using Arts6311.Domain.Modules.Exhibitions.Managers;
+using Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels;
+using Microsoft.EntityFrameworkCore;
+
+namespace Arts6311.Domain.Modules.Exhibitions.Data;
+
+/// <summary>
+/// The Exhibitions module's DataLayer: every write is one <c>SaveChangesAsync</c> — the exhibition, its credits and
+/// its audit row together. It stamps the bookkeeping (who, when, a new row version) and decides nothing itself.
+/// </summary>
+/// <remarks>
+/// A slug change on a published record stages <c>redirects.slug-changed</c> in its save (ADR 0035). Status
+/// changes stage nothing yet: nothing reads or caches exhibitions outside the CMS until Phase 3. 2.8 adds <c>site.revalidate-requested</c> to <see cref="TransitionAsync"/>
+/// (content.md's dated exception, ADR 0031, 0033).
+/// </remarks>
+internal sealed class ExhibitionsDataLayer(
+    IExhibitionsRepository repository,
+    IAuditWriter audit,
+    IOutboxWriter outbox,
+    ICorrelationContext correlation,
+    IClock clock) : IExhibitionsDataLayer
+{
+    public Task<Exhibition?> FindAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.FindAsync(id, cancellationToken);
+
+    public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
+        repository.SlugExistsAsync(slug, exceptId, cancellationToken);
+
+    public Task<List<ExhibitionSummaryServiceModel>> ListAsync(
+        ExhibitionListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        repository.ListAsync(after, take, status, search, cancellationToken);
+
+    public async Task<ExhibitionWriteOutcome> CreateAsync(
+        Exhibition exhibition, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exhibition);
+
+        var now = clock.UtcNow;
+        exhibition.CreatedAt = now;
+        Stamp(exhibition, actorUserId, now);
+        repository.Add(exhibition);
+
+        audit.Record(new AuditEntry(
+            actorUserId, ExhibitionAudit.Created, ExhibitionAudit.ResourceType, exhibition.Id.ToString(), correlation.Current,
+            $"Created as {exhibition.Status}.", AfterReference: $"slug:{exhibition.Slug}"));
+
+        return await SaveAsync(exhibition, cancellationToken);
+    }
+
+    public async Task<ExhibitionWriteOutcome> UpdateAsync(
+        Exhibition exhibition, string actorUserId, string summary, PublishedPathChange? pathChange, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exhibition);
+
+        Stamp(exhibition, actorUserId, clock.UtcNow);
+
+        // Staged before the one save, so the rename and its redirect commit together or not at all (outbox.md).
+        if (pathChange is not null)
+        {
+            outbox.Enqueue(
+                RedirectSlugChanged.MessageType,
+                new RedirectSlugChanged("exhibition", exhibition.Id, pathChange.FromPath, pathChange.ToPath, exhibition.UpdatedAt).Serialize(),
+                correlation.Current);
+        }
+
+        audit.Record(new AuditEntry(
+            actorUserId, ExhibitionAudit.Updated, ExhibitionAudit.ResourceType, exhibition.Id.ToString(), correlation.Current,
+            summary));
+
+        return await SaveAsync(exhibition, cancellationToken);
+    }
+
+    public async Task<ExhibitionWriteOutcome> TransitionAsync(
+        Exhibition exhibition, PublishCommand command, PublishStatus from, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exhibition);
+
+        Stamp(exhibition, actorUserId, clock.UtcNow);
+        audit.Record(new AuditEntry(
+            actorUserId, ExhibitionAudit.For(command), ExhibitionAudit.ResourceType, exhibition.Id.ToString(),
+            correlation.Current, $"{from} → {exhibition.Status}.",
+            BeforeReference: $"status:{from}", AfterReference: $"status:{exhibition.Status}"));
+
+        return await SaveAsync(exhibition, cancellationToken);
+    }
+
+    public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
+        repository.GetSlugsAsync(cancellationToken);
+
+    public async Task<int> AddSeedAsync(IReadOnlyList<Exhibition> exhibitions, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exhibitions);
+
+        var now = clock.UtcNow;
+        foreach (var exhibition in exhibitions)
+        {
+            exhibition.CreatedAt = now;
+            Stamp(exhibition, actor, now);
+            repository.Add(exhibition);
+        }
+
+        var added = exhibitions.Count;
+
+        // A system action: no user to name, so no actor (AuditLog.ActorUserId).
+        audit.Record(new AuditEntry(
+            null, ExhibitionAudit.Seeded, ExhibitionAudit.ResourceType, "development-seed", correlation.Current,
+            $"Seeded {added} development exhibitions."));
+
+        await repository.SaveChangesAsync(cancellationToken);
+        return added;
+    }
+
+    /// <summary>
+    /// Who and when, and a new row version so every other open form's If-Match goes stale — a change to the credits
+    /// alone included. EF still compares against the version the row was read with.
+    /// </summary>
+    private static void Stamp(Exhibition exhibition, string actorUserId, DateTimeOffset now)
+    {
+        exhibition.UpdatedAt = now;
+        exhibition.UpdatedBy = actorUserId;
+        exhibition.RowVersion = Guid.NewGuid();
+    }
+
+    private async Task<ExhibitionWriteOutcome> SaveAsync(Exhibition exhibition, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await repository.SaveChangesAsync(cancellationToken);
+            return ExhibitionWriteOutcome.Saved;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            repository.DiscardChanges();
+            return ExhibitionWriteOutcome.Conflict;
+        }
+        catch (DbUpdateException)
+        {
+            // Most likely the unique slug index: another exhibition took it after Business checked. Asked again rather
+            // than assumed, so a genuine fault is not reported as a taken slug.
+            repository.DiscardChanges();
+            if (await repository.SlugExistsAsync(exhibition.Slug, exhibition.Id, cancellationToken))
+            {
+                return ExhibitionWriteOutcome.SlugTaken;
+            }
+
+            throw;
+        }
+    }
+}

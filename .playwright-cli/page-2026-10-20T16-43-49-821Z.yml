@@ -1,0 +1,66 @@
+- generic [ref=f6e3]:
+  - link "Skip to content" [ref=f6e4] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f6e5]:
+    - link "6311arts CMS" [ref=f6e6] [cursor=pointer]:
+      - /url: /admin/
+      - generic [ref=f6e7]: 6311arts
+      - generic [ref=f6e8]: CMS
+    - generic [ref=f6e9]:
+      - generic [ref=f6e10]:
+        - generic [ref=f6e11]: Signed in as
+        - text: 6311arts Admin Admin
+      - button "Sign out" [ref=f6e12] [cursor=pointer]
+      - button "Sign out everywhere" [ref=f6e13] [cursor=pointer]
+  - generic [ref=f6e14]:
+    - navigation "CMS sections" [ref=f6e15]:
+      - list [ref=f6e16]:
+        - listitem [ref=f6e17]:
+          - link "Dashboard" [ref=f6e18] [cursor=pointer]:
+            - /url: /admin/
+        - listitem [ref=f6e22]:
+          - link "Classes" [ref=f6e23] [cursor=pointer]:
+            - /url: /admin/classes
+        - listitem [ref=f6e27]:
+          - link "Exhibitions" [ref=f6e28] [cursor=pointer]:
+            - /url: /admin/exhibitions
+        - listitem [ref=f6e32]:
+          - link "Artists" [ref=f6e33] [cursor=pointer]:
+            - /url: /admin/artists
+        - listitem [ref=f6e37]:
+          - link "Shop" [ref=f6e38] [cursor=pointer]:
+            - /url: /admin/shop
+        - listitem [ref=f6e42]:
+          - link "Memberships" [ref=f6e43] [cursor=pointer]:
+            - /url: /admin/memberships
+        - listitem [ref=f6e47]:
+          - link "Pages" [ref=f6e48] [cursor=pointer]:
+            - /url: /admin/pages
+        - listitem [ref=f6e52]:
+          - link "Media" [ref=f6e53] [cursor=pointer]:
+            - /url: /admin/media
+        - listitem [ref=f6e57]:
+          - link "Forms" [ref=f6e58] [cursor=pointer]:
+            - /url: /admin/forms
+        - listitem [ref=f6e62]:
+          - link "Redirects" [ref=f6e63] [cursor=pointer]:
+            - /url: /admin/redirects
+        - listitem [ref=f6e67]:
+          - link "Sync" [ref=f6e68] [cursor=pointer]:
+            - /url: /admin/sync
+    - main [ref=f6e72]:
+      - generic [ref=f6e73]:
+        - heading "Welcome, 6311arts Admin" [level=1] [ref=f6e74]
+        - paragraph [ref=f6e75]: This is where you edit what the public site shows.
+        - generic [ref=f6e76]:
+          - heading "Attention list not connected yet" [level=2] [ref=f6e80]
+          - paragraph [ref=f6e82]: Drafts waiting to publish, sync problems and new form submissions will be listed here once those screens exist.
+          - generic [ref=f6e84]:
+            - link "Classes" [ref=f6e85] [cursor=pointer]:
+              - /url: /admin/classes
+            - link "Exhibitions" [ref=f6e86] [cursor=pointer]:
+              - /url: /admin/exhibitions
+            - link "Artists" [ref=f6e87] [cursor=pointer]:
+              - /url: /admin/artists
+            - link "Shop" [ref=f6e88] [cursor=pointer]:
+              - /url: /admin/shop

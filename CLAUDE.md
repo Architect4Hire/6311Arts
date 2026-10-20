@@ -35,6 +35,7 @@ Visitors browse the SSR site, pay on-site (Web Payments SDK), join as members (S
 - plugins, custom fields or a page builder (the CMS is closed by design)
 - a custom payment processor, refunds UI, or order/customer reporting in the CMS (Square owns money)
 - Square Appointments/Bookings
+- merch in the CMS or on the site (it's sold only through Square POS), and tax configuration (Square's)
 - i18n
 - native mobile apps
 - a public third-party API
@@ -102,9 +103,10 @@ Webhook: verify signature → SquareWebhookEvent inbox (unique event_id) → sta
 
 ### Field ownership (Square)
 
-- **The CMS owns content:** names, descriptions, artist, images, categories, publish state, session dates, plan copy.
-- **Square owns money and stock:** price after creation, stock/seats/sold-out, orders, payments, subscriptions, member status.
-- **The CMS sends a starting price and stock exactly once,** at creation.
+- **The website catalog is artwork (`ShopItem`) and classes,** created in the CMS and pushed to Square. Merch is sold only through Square POS and never enters the CMS or the site. Square objects without a CMS id are ignored (ADR 0032).
+- **The CMS owns content:** names, descriptions, artist, images, categories, publish state, session dates, session capacity, **SKU**, plan copy.
+- **Square owns the record of money and stock:** price, stock/seats/sold-out, orders, payments, taxes, subscriptions, member status. Only the inbound pull writes those projections.
+- **Staff change artwork and class price and quantity only in the CMS:** starting values on create, then audited *commands* (`SquareChangeRequest` → outbox) with compare-and-set on price and dated physical counts for stock (ADR 0032). Membership plan price and cadence are still sent once at creation (ADR 0005).
 
 ## Restrictions
 
@@ -114,7 +116,7 @@ Webhook: verify signature → SquareWebhookEvent inbox (unique event_id) → sta
   - The Web Payments SDK tokenizes in the browser.
   - The source token is used once.
   - Amounts are never accepted from the client.
-- **Never write a Square-owned field from a CMS path.** Never put a Square id on a core entity; use `SquareCatalogLink`.
+- **Never write a Square-owned projection from a CMS path.** Price and stock changes are requests (`SquareChangeRequest` + outbox), never projection writes or part of the content push. Never put a Square id on a core entity; use `SquareCatalogLink`.
 - **Never call Square except through `ISquare*Gateway`, and never without an idempotency key** (the outbox message id).
 - **Session secrets stay out of the browser.**
   - No tokens in browser storage, URLs or logs.

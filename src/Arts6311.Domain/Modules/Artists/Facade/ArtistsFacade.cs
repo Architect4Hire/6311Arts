@@ -51,6 +51,23 @@ internal sealed class ArtistsFacade(
     public Task<OperationResult<ArtistServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken) =>
         business.GetAsync(id, cancellationToken);
 
+    public Task<IReadOnlyList<ArtistSummaryServiceModel>> GetSummariesAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        // Another module's request, not a person's: one that is too large is a bug in the caller, not a refusal.
+        ArgumentNullException.ThrowIfNull(ids);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(ids.Count, ArtistPolicy.LookupMaxCount, nameof(ids));
+        return business.GetSummariesAsync(ids, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(
+        IReadOnlyCollection<string> slugs, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(slugs);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(slugs.Count, ArtistPolicy.LookupMaxCount, nameof(slugs));
+        return business.FindBySlugsAsync(slugs, cancellationToken);
+    }
+
     public async Task<OperationResult<ArtistServiceModel>> CreateAsync(
         ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken)
     {

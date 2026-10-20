@@ -1,0 +1,129 @@
+- generic [ref=f6e3]:
+  - link "Skip to content" [ref=f6e4] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f6e5]:
+    - link "6311arts CMS" [ref=f6e6] [cursor=pointer]:
+      - /url: /admin/
+      - generic [ref=f6e7]: 6311arts
+      - generic [ref=f6e8]: CMS
+    - generic [ref=f6e9]:
+      - generic [ref=f6e10]:
+        - generic [ref=f6e11]: Signed in as
+        - text: 6311arts Admin Admin
+      - button "Sign out" [ref=f6e12] [cursor=pointer]
+      - button "Sign out everywhere" [ref=f6e13] [cursor=pointer]
+  - generic [ref=f6e14]:
+    - navigation "CMS sections" [ref=f6e15]:
+      - list [ref=f6e16]:
+        - listitem [ref=f6e17]:
+          - link "Dashboard" [ref=f6e18] [cursor=pointer]:
+            - /url: /admin/
+        - listitem [ref=f6e22]:
+          - link "Classes" [ref=f6e23] [cursor=pointer]:
+            - /url: /admin/classes
+        - listitem [ref=f6e27]:
+          - link "Exhibitions" [ref=f6e28] [cursor=pointer]:
+            - /url: /admin/exhibitions
+        - listitem [ref=f6e32]:
+          - link "Artists" [ref=f6e33] [cursor=pointer]:
+            - /url: /admin/artists
+        - listitem [ref=f6e37]:
+          - link "Shop" [ref=f6e38] [cursor=pointer]:
+            - /url: /admin/shop
+        - listitem [ref=f6e42]:
+          - link "Memberships" [ref=f6e43] [cursor=pointer]:
+            - /url: /admin/memberships
+        - listitem [ref=f6e47]:
+          - link "Pages" [ref=f6e48] [cursor=pointer]:
+            - /url: /admin/pages
+        - listitem [ref=f6e52]:
+          - link "Media" [ref=f6e53] [cursor=pointer]:
+            - /url: /admin/media
+        - listitem [ref=f6e57]:
+          - link "Forms" [ref=f6e58] [cursor=pointer]:
+            - /url: /admin/forms
+        - listitem [ref=f6e62]:
+          - link "Redirects" [ref=f6e63] [cursor=pointer]:
+            - /url: /admin/redirects
+        - listitem [ref=f6e67]:
+          - link "Sync" [ref=f6e68] [cursor=pointer]:
+            - /url: /admin/sync
+    - main [ref=f6e72]:
+      - generic [ref=f6e73]:
+        - paragraph [ref=f6e74]:
+          - link "← All exhibitions" [ref=f6e75] [cursor=pointer]:
+            - /url: /admin/exhibitions
+        - paragraph [ref=f6e76]
+        - heading "New exhibition" [level=1] [ref=f6e78]
+        - generic [ref=f6e79]:
+          - generic [ref=f6e80]:
+            - group "Exhibition details" [ref=f6e81]:
+              - generic [ref=f6e83]:
+                - generic [ref=f6e84]: Title required
+                - textbox "Title required" [ref=f6e85]: "Demo: Spring Ceramics"
+              - generic [ref=f6e86]:
+                - generic [ref=f6e87]: Web address required
+                - textbox "Web address required" [ref=f6e88]: demo-spring-ceramics
+                - generic [ref=f6e89]: 6311arts.com/exhibitions/demo-spring-ceramics — lower-case letters, digits and hyphens.
+              - generic [ref=f6e90]:
+                - generic [ref=f6e91]:
+                  - generic [ref=f6e92]: First day required
+                  - textbox "First day required" [ref=f6e93]: 2027-03-06
+                - generic [ref=f6e94]:
+                  - generic [ref=f6e95]: Last day required
+                  - textbox "Last day required" [ref=f6e96]: 2027-04-17
+              - generic [ref=f6e97]:
+                - generic [ref=f6e98]: Summary
+                - textbox "Summary" [ref=f6e99]
+                - generic [ref=f6e100]: One or two sentences for the exhibition’s card and search results. Needed to publish.
+              - generic [ref=f6e101]:
+                - generic [ref=f6e102]: About the show
+                - textbox "About the show" [ref=f6e103]
+                - generic [ref=f6e104]: Plain text. Leave a blank line between paragraphs.
+              - group "Opening reception" [ref=f6e105]:
+                - generic [ref=f6e107] [cursor=pointer]:
+                  - checkbox "This show has an opening reception Times are at the gallery, in Chicago time." [checked] [ref=f6e108]
+                  - generic [ref=f6e109]:
+                    - generic [ref=f6e110]: This show has an opening reception
+                    - generic [ref=f6e111]: Times are at the gallery, in Chicago time.
+                - generic [ref=f6e112]:
+                  - generic [ref=f6e113]: Day required
+                  - textbox "Day required" [ref=f6e114]: 2027-03-06
+                - generic [ref=f6e115]:
+                  - generic [ref=f6e116]:
+                    - generic [ref=f6e117]: Starts required
+                    - textbox "Starts required" [ref=f6e118]: 18:00
+                  - generic [ref=f6e119]:
+                    - generic [ref=f6e120]: Ends required
+                    - textbox "Ends required" [ref=f6e121]: 21:00
+                - generic [ref=f6e122]:
+                  - generic [ref=f6e123]: Note
+                  - textbox "Note" [ref=f6e124]: Free and open to all
+                  - generic [ref=f6e125]: A line under the time, such as “Free and open to all”.
+            - button "Create exhibition" [ref=f6e127] [cursor=pointer]
+          - complementary [ref=f6e128]:
+            - region [ref=f6e129]:
+              - heading "Hero image" [level=2] [ref=f6e130]
+              - paragraph [ref=f6e131]: No hero image yet.
+              - button "Choose hero image" [ref=f6e133] [cursor=pointer]
+            - region [ref=f6e135]:
+              - heading "Artists" [level=2] [ref=f6e136]
+              - paragraph [ref=f6e137]: Carrie Haase moved to 1st of 2.
+              - list "Credited artists, in order" [ref=f6e138]:
+                - listitem [ref=f6e150]:
+                  - generic [ref=f6e151]: Carrie Haase
+                  - generic [ref=f6e152]:
+                    - button "Move Carrie Haase up" [disabled] [ref=f6e153]: Up
+                    - button "Move Carrie Haase down" [active] [ref=f6e154] [cursor=pointer]: Down
+                    - button "Remove Carrie Haase" [ref=f6e155] [cursor=pointer]: Remove
+                - listitem [ref=f6e139]:
+                  - generic [ref=f6e140]: Susan Volk
+                  - generic [ref=f6e141]:
+                    - button "Move Susan Volk up" [ref=f6e142] [cursor=pointer]: Up
+                    - button "Move Susan Volk down" [disabled] [ref=f6e143]: Down
+                    - button "Remove Susan Volk" [ref=f6e144] [cursor=pointer]: Remove
+              - generic [ref=f6e145]:
+                - generic [ref=f6e146]: Add an artist
+                - searchbox "Add an artist" [ref=f6e147]: carrie
+                - generic [ref=f6e148]: Search the roster by name. Archived artists can’t be credited.
+              - paragraph [ref=f6e156]: No artist on the roster to add matches “carrie”.

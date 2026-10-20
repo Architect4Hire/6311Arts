@@ -16,7 +16,7 @@ Read `.claude/rules/design-system.md` and `.claude/rules/frontend.md`, the `@631
 - **Angular conventions:** standalone, `OnPush`, signals, strict templates; no `HttpClient` in components.
 - **States:** loading, empty, error, success and disabled.
 - **SSR safety (site):** no browser globals during SSR; `SeoService` and JSON-LD set; content never hidden from crawlers.
-- **Admin:** Square-owned values read-only with "Managed in Square" and a status chip that isn't color alone; conflict view; unsaved-edit guard.
+- **Admin:** Square-held values (price, quantity, seats) never edited in place: current figure + Change command with a Pending/Applied/Rejected state, and a status chip that isn't color alone; conflict view; unsaved-edit guard.
 - **Accessibility:** semantic HTML, accessible names, adjacent field errors, visible focus, keyboard operation, 40px targets, 200% zoom, narrow layouts, reduced motion.
 
 Report `BLOCKER`, `WARNING` or `SUGGESTION` with file and line, and the smallest correction. Do not edit files.

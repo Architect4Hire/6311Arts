@@ -3,6 +3,7 @@ using Arts6311.Api.Conventions;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Media.Managers;
+using Arts6311.Domain.Modules.Redirects.Managers;
 
 namespace Arts6311.Tests.Api;
 
@@ -139,6 +140,24 @@ public sealed class ErrorCodeMapTests
         Assert.Equal(
             [ContentErrorCodes.SlugLocked, ContentErrorCodes.SlugTaken, ContentErrorCodes.StatusTransitionInvalid],
             codes);
+        Assert.All(codes, code =>
+        {
+            Assert.Equal(409, ApiProblemDetails.StatusFor(code));
+            Assert.Matches("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$", code);
+        });
+    }
+
+    [Fact]
+    public void EveryRedirectCodeIsAConflict()
+    {
+        // ADR 0035: a taken old address, a loop or a chain is a state the admin resolves.
+        var codes = typeof(RedirectErrorCodes)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal([RedirectErrorCodes.FromTaken, RedirectErrorCodes.LoopOrChain], codes);
         Assert.All(codes, code =>
         {
             Assert.Equal(409, ApiProblemDetails.StatusFor(code));

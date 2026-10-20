@@ -163,6 +163,9 @@ public sealed class AppHostModelTests
         await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);
 
         Assert.True(WaitsFor(appHost, "migrations", "appdb", WaitType.WaitUntilHealthy));
+
+        // The Development content seed composes Media, which needs the blob client (ADR 0033).
+        Assert.True(WaitsFor(appHost, "migrations", "blobs", WaitType.WaitUntilHealthy));
         Assert.True(WaitsFor(appHost, "api", "migrations", WaitType.WaitForCompletion));
         Assert.True(WaitsFor(appHost, "worker", "migrations", WaitType.WaitForCompletion));
     }

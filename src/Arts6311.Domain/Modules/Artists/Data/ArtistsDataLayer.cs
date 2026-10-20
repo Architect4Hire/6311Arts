@@ -1,5 +1,7 @@
 using Arts6311.Domain.Managers.Audit;
 using Arts6311.Domain.Managers.Correlation;
+using Arts6311.Domain.Managers.Outbox;
+using Arts6311.Domain.Managers.Outbox.Events;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
@@ -15,13 +17,14 @@ namespace Arts6311.Domain.Modules.Artists.Data;
 /// It stamps the bookkeeping (who, when, a new row version) and decides nothing about artists itself.
 /// </summary>
 /// <remarks>
-/// No write here stages an outbox message yet: nothing reads or caches artists outside the CMS until Phase 3, so a
-/// commit has no effect to hand on. 2.8 adds <c>site.revalidate-requested</c> to <see cref="TransitionAsync"/>
+/// A slug change on a published record stages <c>redirects.slug-changed</c> in its save (ADR 0035). Status
+/// changes stage nothing yet: nothing reads or caches artists outside the CMS until Phase 3. 2.8 adds <c>site.revalidate-requested</c> to <see cref="TransitionAsync"/>
 /// (ADR 0031).
 /// </remarks>
 internal sealed class ArtistsDataLayer(
     IArtistsRepository repository,
     IAuditWriter audit,
+    IOutboxWriter outbox,
     ICorrelationContext correlation,
     IClock clock) : IArtistsDataLayer
 {
@@ -34,6 +37,14 @@ internal sealed class ArtistsDataLayer(
     public Task<List<ArtistSummaryServiceModel>> ListAsync(
         ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         repository.ListAsync(after, take, status, search, cancellationToken);
+
+    public Task<List<ArtistSummaryServiceModel>> GetSummariesAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+        repository.ListByIdsAsync(ids, cancellationToken);
+
+    public Task<List<ArtistSummaryServiceModel>> FindBySlugsAsync(
+        IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
+        repository.ListBySlugsAsync(slugs, cancellationToken);
 
     public async Task<ArtistWriteOutcome> CreateAsync(Artist artist, string actorUserId, CancellationToken cancellationToken)
     {
@@ -52,11 +63,21 @@ internal sealed class ArtistsDataLayer(
     }
 
     public async Task<ArtistWriteOutcome> UpdateAsync(
-        Artist artist, string actorUserId, string summary, CancellationToken cancellationToken)
+        Artist artist, string actorUserId, string summary, PublishedPathChange? pathChange, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(artist);
 
         Stamp(artist, actorUserId, clock.UtcNow);
+
+        // Staged before the one save, so the rename and its redirect commit together or not at all (outbox.md).
+        if (pathChange is not null)
+        {
+            outbox.Enqueue(
+                RedirectSlugChanged.MessageType,
+                new RedirectSlugChanged("artist", artist.Id, pathChange.FromPath, pathChange.ToPath, artist.UpdatedAt).Serialize(),
+                correlation.Current);
+        }
+
         audit.Record(new AuditEntry(
             actorUserId, ArtistAudit.Updated, ArtistAudit.ResourceType, artist.Id.ToString(), correlation.Current, summary));
 

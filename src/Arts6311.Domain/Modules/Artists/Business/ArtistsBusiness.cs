@@ -61,6 +61,22 @@ internal sealed class ArtistsBusiness(IArtistsDataLayer dataLayer, IClock clock)
         return artist is null ? NotFound() : OperationResult.Success(ToServiceModel(artist));
     }
 
+    public async Task<IReadOnlyList<ArtistSummaryServiceModel>> GetSummariesAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        return ids.Count == 0 ? [] : await dataLayer.GetSummariesAsync([.. ids.Distinct()], cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(
+        IReadOnlyCollection<string> slugs, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(slugs);
+        return slugs.Count == 0
+            ? []
+            : await dataLayer.FindBySlugsAsync([.. slugs.Distinct(StringComparer.Ordinal)], cancellationToken);
+    }
+
     public async Task<OperationResult<ArtistServiceModel>> CreateAsync(
         ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken)
     {
@@ -123,21 +139,19 @@ internal sealed class ArtistsBusiness(IArtistsDataLayer dataLayer, IClock clock)
             changes.Add("name");
         }
 
+        PublishedPathChange? pathChange = null;
         if (update.Slug is not null && !string.Equals(update.Slug, artist.Slug, StringComparison.Ordinal))
         {
-            // Until Redirects (2.7) can send the old address to the new one, a published slug does not move.
-            if (artist.PublishedAt is not null)
-            {
-                return OperationResult.Failure<ArtistServiceModel>(SlugLocked());
-            }
-
             if (await dataLayer.SlugExistsAsync(update.Slug, artist.Id, cancellationToken))
             {
                 return OperationResult.Failure<ArtistServiceModel>(SlugTaken(update.Slug));
             }
 
+            // A slug that has ever been public is someone's bookmark: the old address is redirected to the new one,
+            // staged with this save (content.md, ADR 0035).
+            pathChange = PublishedPathChange.For(ArtistPolicy.SitePathPrefix, artist.Slug, update.Slug, artist.PublishedAt);
             artist.Slug = update.Slug;
-            changes.Add("slug");
+            changes.Add(pathChange is null ? "slug" : $"slug (redirecting {pathChange.FromPath})");
         }
 
         if (update.Medium is not null && Clean(update.Medium) is var medium && !string.Equals(medium, artist.Medium, StringComparison.Ordinal))
@@ -182,7 +196,7 @@ internal sealed class ArtistsBusiness(IArtistsDataLayer dataLayer, IClock clock)
             return OperationResult.Success(ToServiceModel(artist));
         }
 
-        return await dataLayer.UpdateAsync(artist, actorUserId, $"Updated: {string.Join(", ", changes)}.", cancellationToken) switch
+        return await dataLayer.UpdateAsync(artist, actorUserId, $"Updated: {string.Join(", ", changes)}.", pathChange, cancellationToken) switch
         {
             ArtistWriteOutcome.Saved => OperationResult.Success(ToServiceModel(artist)),
             ArtistWriteOutcome.SlugTaken => OperationResult.Failure<ArtistServiceModel>(SlugTaken(artist.Slug)),
@@ -337,11 +351,4 @@ internal sealed class ArtistsBusiness(IArtistsDataLayer dataLayer, IClock clock)
         "Another artist already has this web address.",
         new Dictionary<string, string[]>(StringComparer.Ordinal) { ["slug"] = [$"“{slug}” is taken. Choose another."] });
 
-    private static OperationError SlugLocked() => new(
-        ContentErrorCodes.SlugLocked,
-        "This artist has been published, so its web address can't change.",
-        new Dictionary<string, string[]>(StringComparer.Ordinal)
-        {
-            ["slug"] = ["Published addresses stay fixed until redirects can carry visitors to a new one."],
-        });
 }

@@ -1,6 +1,7 @@
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Media.Managers;
+using Arts6311.Domain.Modules.Redirects.Managers;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Arts6311.Api.Conventions;
@@ -52,6 +53,10 @@ internal static class ApiProblemDetails
         [ContentErrorCodes.SlugTaken] = StatusCodes.Status409Conflict,
         [ContentErrorCodes.SlugLocked] = StatusCodes.Status409Conflict,
         [ContentErrorCodes.StatusTransitionInvalid] = StatusCodes.Status409Conflict,
+
+        // Redirects (ADR 0035): a clash with another redirect is a state the admin resolves.
+        [RedirectErrorCodes.FromTaken] = StatusCodes.Status409Conflict,
+        [RedirectErrorCodes.LoopOrChain] = StatusCodes.Status409Conflict,
 
         // api-contract.md: the same key with a different body is refused, not retried (ADR 0020).
         [ErrorCodes.IdempotencyKeyReused] = StatusCodes.Status422UnprocessableEntity,

@@ -99,6 +99,12 @@
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.153.1" />
     <!-- The `media` container, from the Domain. The version Aspire.Azure.Storage.Blobs $(AspireVersion) brings to the hosts. -->
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.29.2" />
+    <!-- The shared HTML sanitizer (Managers/Html, ADR 0034). MIT; brings AngleSharp and AngleSharp.Css (MIT). -->
+    <PackageVersion Include="HtmlSanitizer" Version="9.2.1039" />
+    <!-- Pinned rather than left to HtmlSanitizer's minimums: the Domain compiles against both, and the XSS payload
+         suite (HtmlSanitizerTests) is the gate for moving any of the three. -->
+    <PackageVersion Include="AngleSharp" Version="1.7.2" />
+    <PackageVersion Include="AngleSharp.Css" Version="1.0.2" />
   </ItemGroup>
 
   <ItemGroup Label="Analyzers">

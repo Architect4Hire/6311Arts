@@ -61,7 +61,7 @@ paths:
 
 - **Every data surface** has loading, empty, error and success states.
 - **Unsaved edits** survive recoverable errors and warn on navigation.
-- **Square-owned values** (price, stock or seats, sold-out) show as read-only, with "Managed in Square" and the sync status chip.
+- **Square-held values** (price, stock or seats, sold-out) are never edited in place. Before the first sync, the starting price and quantity are plain fields. After it, each value shows Square's current figure with a **Change** action that sends a command and shows its Pending / Applied / Rejected state, plus the sync status chip (ADR 0032). Membership plan price stays read-only.
 - **A 409 conflict** shows both versions and keeps the editor's changes.
 - **The shell** (2.2, ADR 0027): `SessionService` (signal, memory only), `sessionGuard` on the shell, `roleGuard(...)` per section (Sync is Admin-only), `unsavedChangesGuard` + `warnBeforeUnload` on editors, and the problem interceptor's toasts. A screen that shows a failure in place sets `SUPPRESS_PROBLEM_TOAST`. A new section is an entry in `features/layout/sections.ts`; its prompt swaps the placeholder `loadComponent`. A record's editor (`artists/new`, `artists/:id`) is an entry in `DETAIL_ROUTES` in `app.routes.ts`, which gives it the section's roles and the unsaved-changes guard.
 - **HTTP backend.** The CMS uses Angular's default XHR backend, not `withFetch()`, because fetch can't report upload progress (ADR 0030). The site keeps `withFetch()`.

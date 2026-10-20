@@ -14,8 +14,8 @@ export interface CmsSection {
 
 /**
  * The CMS's areas, in nav order. Each later prompt replaces a section's placeholder with its own screens; the
- * entry here stays. Sync is Admin-only because it is where poisoned outbox messages are replayed or discarded
- * (auth.md, "Sensitive operations").
+ * entry here stays. Sync is Admin-only because it is where poisoned outbox messages are replayed or discarded, and
+ * Redirects because every redirect change is a sensitive operation (auth.md, "Sensitive operations").
  */
 export const CMS_SECTIONS: readonly CmsSection[] = [
   {
@@ -86,7 +86,8 @@ export const CMS_SECTIONS: readonly CmsSection[] = [
     path: 'redirects',
     label: 'Redirects',
     icon: 'arrow',
-    roles: STAFF_ROLES,
+    // Every redirect change is a sensitive operation (auth.md), Admin-only at the API too (ADR 0035).
+    roles: [ROLES.admin],
     summary: 'Old addresses and where they now lead.',
   },
   {

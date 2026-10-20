@@ -314,8 +314,12 @@ describe('ArtistEditor', () => {
     });
     await settle(fixture);
 
-    expect(input(root, 'slug').hasAttribute('readonly')).toBe(true);
-    expect(text(root)).toContain('fixed now the artist has been published');
+    // ADR 0035: a published address may change; the old one is redirected, and the hint says which.
+    expect(input(root, 'slug').hasAttribute('readonly')).toBe(false);
+    expect(text(root)).toContain('published, so changing it sends visitors');
+    type(root, 'slug', 'carrie-haase-jewelry');
+    await settle(fixture);
+    expect(text(root)).toContain('visitors to /artists/carrie-haase are sent here');
   });
 
   it('publishes the saved version, and waits while there are unsaved edits', async () => {

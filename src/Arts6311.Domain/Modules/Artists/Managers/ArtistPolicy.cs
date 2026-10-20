@@ -12,6 +12,15 @@ public static class ArtistPolicy
     /// <summary>The longest search text the list accepts.</summary>
     public const int SearchMaxLength = 100;
 
+    /// <summary>The most artists another module may look up in one call (<c>IArtistsFacade.GetSummariesAsync</c>).</summary>
+    public const int LookupMaxCount = 200;
+
+    /// <summary>
+    /// Where a published artist lives on the site: its address is this plus its slug. A slug change after publish
+    /// redirects the old address to the new one (ADR 0035).
+    /// </summary>
+    public const string SitePathPrefix = "/artists/";
+
     /// <summary>Identity's user id column length, so <c>UpdatedBy</c> can hold any user id.</summary>
     internal const int UserIdMaxLength = 450;
 }

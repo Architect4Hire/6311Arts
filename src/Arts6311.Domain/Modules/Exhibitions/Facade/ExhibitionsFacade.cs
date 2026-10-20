@@ -1,0 +1,219 @@
+using Arts6311.Domain.Managers.Concurrency;
+using Arts6311.Domain.Managers.Paging;
+using Arts6311.Domain.Managers.Publishing;
+using Arts6311.Domain.Managers.Results;
+using Arts6311.Domain.Managers.Validation;
+using Arts6311.Domain.Modules.Artists.Facade;
+using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Exhibitions.Business;
+using Arts6311.Domain.Modules.Exhibitions.Managers;
+using Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Exhibitions.Managers.ViewModels;
+using Arts6311.Domain.Modules.Media.Facade;
+using FluentValidation;
+
+namespace Arts6311.Domain.Modules.Exhibitions.Facade;
+
+/// <summary>
+/// Validates shape, asks Media about the hero and Artists about the credits, then calls Business, and finishes each
+/// answer with the credited artists as Artists describes them. Nothing is cached: these are CMS reads; the site's
+/// cached reads arrive in Phase 3.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <strong>Other modules are asked here, never in Business</strong> — cross-module traffic is facade to facade
+/// (backend.md). Media vouches for the hero, as it does for an artist's portrait (ADR 0031). Artists vouches for the
+/// credits: on create and edit every id must be an artist on the roster and not archived, which does not depend on
+/// the exhibition, so the facade refuses it outright. Publish does not ask again (ADR 0033).
+/// </para>
+/// <para>
+/// <strong>Publish calls Business twice</strong>: once to learn which hero the exhibition has, then to publish with
+/// Media's answer about it. The publish is checked against the editor's <c>If-Match</c>, so a hero changed in
+/// between moves the row version and the publish is refused as a conflict (ADR 0031).
+/// </para>
+/// </remarks>
+internal sealed class ExhibitionsFacade(
+    IExhibitionsBusiness business,
+    IMediaFacade media,
+    IArtistsFacade artists,
+    IValidator<ExhibitionCreateViewModel> createValidator,
+    IValidator<ExhibitionUpdateViewModel> updateValidator,
+    IValidator<ExhibitionListViewModel> listValidator) : IExhibitionsFacade
+{
+    private const string What = "this exhibition";
+
+    public async Task<OperationResult<CursorPage<ExhibitionSummaryServiceModel>>> ListAsync(
+        ExhibitionListViewModel request, CancellationToken cancellationToken)
+    {
+        if (await listValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<CursorPage<ExhibitionSummaryServiceModel>>(error);
+        }
+
+        // The list carries a count of credits, not names, so it asks Artists nothing.
+        return await business.ListAsync(request, cancellationToken);
+    }
+
+    public async Task<OperationResult<ExhibitionServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        await CompleteAsync(await business.GetAsync(id, cancellationToken), cancellationToken);
+
+    public async Task<OperationResult<ExhibitionServiceModel>> CreateAsync(
+        ExhibitionCreateViewModel create, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (await createValidator.ValidateOrErrorAsync(create, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(error);
+        }
+
+        // A new exhibition is a Draft, so its hero need only exist; alt text can follow before publishing.
+        if (create.HeroMediaId is { } heroId && !(await AskMediaAsync(heroId, cancellationToken)).Exists)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(HeroMissing());
+        }
+
+        if (await CheckArtistsAsync(create.ArtistIds, cancellationToken) is { } artistError)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(artistError);
+        }
+
+        return await CompleteAsync(await business.CreateAsync(create, actorUserId, cancellationToken), cancellationToken);
+    }
+
+    public async Task<OperationResult<ExhibitionServiceModel>> UpdateAsync(
+        Guid id, ExhibitionUpdateViewModel update, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(preconditionError);
+        }
+
+        if (await updateValidator.ValidateOrErrorAsync(update, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(error);
+        }
+
+        // Business decides whether the answer matters: a published exhibition's new hero needs alt text too.
+        ExhibitionHeroCheck? hero = null;
+        if (update.HeroMediaId is { } heroId)
+        {
+            hero = await AskMediaAsync(heroId, cancellationToken);
+            if (!hero.Exists)
+            {
+                return OperationResult.Failure<ExhibitionServiceModel>(HeroMissing());
+            }
+        }
+
+        if (await CheckArtistsAsync(update.ArtistIds, cancellationToken) is { } artistError)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(artistError);
+        }
+
+        return await CompleteAsync(
+            await business.UpdateAsync(id, update, ifMatch, hero, actorUserId, cancellationToken), cancellationToken);
+    }
+
+    public async Task<OperationResult<ExhibitionServiceModel>> PublishAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        // A request that can never succeed is refused before Media is asked anything.
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(preconditionError);
+        }
+
+        var current = await business.GetAsync(id, cancellationToken);
+        if (!current.Succeeded)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(current.Error!);
+        }
+
+        var hero = current.Value!.HeroMediaId is { } heroId
+            ? await AskMediaAsync(heroId, cancellationToken)
+            : ExhibitionHeroCheck.None;
+
+        return await CompleteAsync(
+            await business.TransitionAsync(id, PublishCommand.Publish, ifMatch, hero, actorUserId, cancellationToken),
+            cancellationToken);
+    }
+
+    public Task<OperationResult<ExhibitionServiceModel>> UnpublishAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+        TransitionAsync(id, PublishCommand.Unpublish, ifMatch, actorUserId, cancellationToken);
+
+    public Task<OperationResult<ExhibitionServiceModel>> ArchiveAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+        TransitionAsync(id, PublishCommand.Archive, ifMatch, actorUserId, cancellationToken);
+
+    /// <summary>A command that asks no other module. Without If-Match it is a 428 before anything is read.</summary>
+    private async Task<OperationResult<ExhibitionServiceModel>> TransitionAsync(
+        Guid id, PublishCommand command, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(preconditionError);
+        }
+
+        return await CompleteAsync(
+            await business.TransitionAsync(id, command, ifMatch, hero: null, actorUserId, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>Business's answer, finished with each credited artist as the Artists module describes them now.</summary>
+    private async Task<OperationResult<ExhibitionServiceModel>> CompleteAsync(
+        OperationResult<ExhibitionDetail> result, CancellationToken cancellationToken)
+    {
+        if (!result.Succeeded)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(result.Error!);
+        }
+
+        var detail = result.Value!;
+        IReadOnlyList<ArtistSummaryServiceModel> credits = detail.ArtistIds.Count == 0
+            ? []
+            : await artists.GetSummariesAsync(detail.ArtistIds, cancellationToken);
+
+        return OperationResult.Success(detail.ToServiceModel(credits.ToDictionary(
+            artist => artist.Id,
+            artist => new ExhibitionArtistServiceModel(artist.Id, artist.Name, artist.Slug, artist.Status))));
+    }
+
+    /// <summary>
+    /// Every credited id must be an artist on the roster, and not archived: archive is how an artist is retired, and a
+    /// retired artist gains no new credits. Draft artists may be credited; the site decides what it shows (Phase 3).
+    /// </summary>
+    private async Task<OperationError?> CheckArtistsAsync(IReadOnlyList<Guid>? artistIds, CancellationToken cancellationToken)
+    {
+        if (artistIds is null || artistIds.Count == 0)
+        {
+            return null;
+        }
+
+        var found = (await artists.GetSummariesAsync(artistIds, cancellationToken)).ToDictionary(artist => artist.Id);
+
+        if (artistIds.Any(id => !found.ContainsKey(id)))
+        {
+            return OperationError.Validation(
+                "An artist in the list is not on the roster.",
+                [("artistIds", "One of these artists is no longer on the roster. Reload the list and choose again.")]);
+        }
+
+        var archived = artistIds.Select(id => found[id]).Where(artist => artist.Status == PublishStatus.Archived).ToList();
+        return archived.Count == 0
+            ? null
+            : OperationError.Validation(
+                "An archived artist can't be credited.",
+                archived.Select(artist => ("artistIds", $"{artist.Name} is archived, so can't be credited. Remove them from the list.")));
+    }
+
+    /// <summary>What Media says about one image: whether it is an original in the library, and whether it has alt text.</summary>
+    private async Task<ExhibitionHeroCheck> AskMediaAsync(Guid heroId, CancellationToken cancellationToken)
+    {
+        var answer = await media.CheckAttachableAsync([heroId], cancellationToken);
+        return new ExhibitionHeroCheck(
+            heroId, Exists: !answer.Missing.Contains(heroId), HasAltText: !answer.MissingAltText.Contains(heroId));
+    }
+
+    private static OperationError HeroMissing() => OperationError.Validation(
+        "The hero image is not in the media library.",
+        [("heroMediaId", "Choose an image from the media library.")]);
+}

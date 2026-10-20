@@ -40,7 +40,7 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
   | `request.method_not_allowed` | 405 |
   | `request.payload_too_large` | 413 |
   | `request.unsupported_media_type` | 415 |
-  | `resource.conflict`, `concurrency.conflict`, `media.duplicate`, `media.in_use`, `cms.slug_taken`, `cms.slug_locked`, `cms.status_transition_invalid` | 409 |
+  | `resource.conflict`, `concurrency.conflict`, `media.duplicate`, `media.in_use`, `cms.slug_taken`, `cms.slug_locked` (no longer returned since 2.7), `cms.status_transition_invalid`, `redirects.from_taken`, `redirects.loop_or_chain` | 409 |
   | `concurrency.precondition_required` (no `If-Match`; a malformed one is `validation.failed`) | 428 |
   | `media.too_large` | 413 |
   | `media.type_unsupported`, `media.extension_mismatch` | 415 |

@@ -27,11 +27,19 @@ internal interface IArtistsDataLayer
     Task<List<ArtistSummaryServiceModel>> ListAsync(
         ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
 
+    Task<List<ArtistSummaryServiceModel>> GetSummariesAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
+    Task<List<ArtistSummaryServiceModel>> FindBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
+
     /// <summary>Adds the artist Business built, with its bookkeeping and audit entry, in one save.</summary>
     Task<ArtistWriteOutcome> CreateAsync(Artist artist, string actorUserId, CancellationToken cancellationToken);
 
-    /// <summary>Saves a staff edit already applied to <paramref name="artist"/>, with its audit entry, in one save.</summary>
-    Task<ArtistWriteOutcome> UpdateAsync(Artist artist, string actorUserId, string summary, CancellationToken cancellationToken);
+    /// <summary>
+    /// Saves a staff edit already applied to <paramref name="artist"/>, with its audit entry, in one save — and, when
+    /// <paramref name="pathChange"/> is set, <c>redirects.slug-changed</c> staged before it (ADR 0035).
+    /// </summary>
+    Task<ArtistWriteOutcome> UpdateAsync(
+        Artist artist, string actorUserId, string summary, PublishedPathChange? pathChange, CancellationToken cancellationToken);
 
     /// <summary>
     /// Saves a status change Business already applied, with its audit entry, in one save. From 2.8 this is also where

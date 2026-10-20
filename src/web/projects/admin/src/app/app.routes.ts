@@ -7,14 +7,32 @@ import { CMS_SECTIONS } from './features/layout/sections';
 const artistEditor = () =>
   import('./features/artists/artist-editor').then((m) => m.ArtistEditor);
 
+const exhibitionEditor = () =>
+  import('./features/exhibitions/exhibition-editor').then((m) => m.ExhibitionEditor);
+
+const pageEditor = () => import('./features/pages/page-editor').then((m) => m.PageEditor);
+
+const redirectEditor = () =>
+  import('./features/redirects/redirect-editor').then((m) => m.RedirectEditor);
+
 const placeholder = () =>
   import('./features/section-placeholder/section-placeholder').then((m) => m.SectionPlaceholder);
 
 /** The sections whose screens exist; the rest show the placeholder until their prompt builds them. */
 const SCREENS: Readonly<Record<string, Pick<Route, 'loadComponent' | 'canDeactivate'>>> = {
   '': { loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard) },
+  exhibitions: {
+    loadComponent: () =>
+      import('./features/exhibitions/exhibition-list').then((m) => m.ExhibitionList),
+  },
   artists: {
     loadComponent: () => import('./features/artists/artist-list').then((m) => m.ArtistList),
+  },
+  pages: {
+    loadComponent: () => import('./features/pages/page-list').then((m) => m.PageList),
+  },
+  redirects: {
+    loadComponent: () => import('./features/redirects/redirect-list').then((m) => m.RedirectList),
   },
   media: {
     loadComponent: () => import('./features/media/media-library').then((m) => m.MediaLibrary),
@@ -29,6 +47,22 @@ const SCREENS: Readonly<Record<string, Pick<Route, 'loadComponent' | 'canDeactiv
 const DETAIL_ROUTES: Routes = [
   { path: 'artists/new', title: 'New artist', section: 'artists', loadComponent: artistEditor },
   { path: 'artists/:id', title: 'Artist', section: 'artists', loadComponent: artistEditor },
+  {
+    path: 'exhibitions/new',
+    title: 'New exhibition',
+    section: 'exhibitions',
+    loadComponent: exhibitionEditor,
+  },
+  {
+    path: 'exhibitions/:id',
+    title: 'Exhibition',
+    section: 'exhibitions',
+    loadComponent: exhibitionEditor,
+  },
+  { path: 'pages/new', title: 'New page', section: 'pages', loadComponent: pageEditor },
+  { path: 'pages/:id', title: 'Page', section: 'pages', loadComponent: pageEditor },
+  { path: 'redirects/new', title: 'New redirect', section: 'redirects', loadComponent: redirectEditor },
+  { path: 'redirects/:id', title: 'Redirect', section: 'redirects', loadComponent: redirectEditor },
 ].map(({ section, ...route }) => {
   const owner = CMS_SECTIONS.find((candidate) => candidate.path === section)!;
   return {

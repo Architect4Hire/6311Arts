@@ -7,6 +7,7 @@ using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Media;
+using Arts6311.Domain.Modules.Redirects;
 using Arts6311.Domain.Modules.Operations;
 using Arts6311.Worker;
 using Arts6311.Worker.Email;
@@ -38,6 +39,9 @@ builder.Services.AddArtsDataProtection(DataProtectionApplicationName.Value);
 
 // The media.rendition-requested and media.purge-requested handlers, and the image library they use (ADR 0030).
 builder.Services.AddMediaModule();
+
+// The redirects.slug-changed handler: a published record's old address leads to its new one (ADR 0035).
+builder.Services.AddRedirectsModule();
 
 // The token provider is added by the host, not the module: it lives in the ASP.NET Core framework assembly, which
 // the Domain deliberately does not reference.

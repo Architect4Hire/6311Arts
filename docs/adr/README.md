@@ -23,8 +23,8 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0002](0002-gateway-session-es256-internal-token.md) | Gateway session + ES256 internal token (no OIDC) | Accepted (creatorpantry B-02/B-13); amended by 0018 |
 | [0003](0003-sql-transactional-outbox-no-broker.md) | SQL transactional outbox, no broker | Accepted |
 | [0004](0004-module-first-domain-and-seam.md) | Module-first Domain + mandatory seam | Accepted |
-| [0005](0005-square-field-ownership.md) | Square field ownership | Accepted |
-| [0006](0006-square-ids-in-squarecataloglink.md) | Square ids in `SquareCatalogLink`, not entities | Accepted |
+| [0005](0005-square-field-ownership.md) | Square field ownership | Accepted; price and stock of artwork and classes superseded by 0032 |
+| [0006](0006-square-ids-in-squarecataloglink.md) | Square ids in `SquareCatalogLink`, not entities | Accepted; created-in-Square rule superseded by 0032 |
 | [0007](0007-square-fake-default-sandbox-opt-in.md) | Square fake by default, sandbox opt-in | Accepted |
 | [0008](0008-run-offline-publish-azure-container-apps.md) | Run mode offline / publish to Azure Container Apps | Accepted |
 | [0009](0009-redis-for-session-tickets.md) | Redis for session tickets | Accepted; Azure hosting **DECIDE** (6.1) |
@@ -50,6 +50,10 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0029](0029-emailed-link-pages-and-confirmation-resend.md) | Emailed-link pages on the site; asking for a new confirmation link | Accepted |
 | [0030](0030-media-library-compressed-masters-and-renditions.md) | Media library: SkiaSharp, compressed masters, metadata allow-list, content-addressed renditions | Accepted; publishing an image is DECIDE (owned by 2.8, see 0031) |
 | [0031](0031-artists-and-the-shared-content-lifecycle.md) | Artists + the shared content lifecycle: status commands, slug lock, row-version tags, deferred effects | Accepted |
+| [0032](0032-website-items-managed-from-the-cms.md) | Website items managed from the CMS (SKU, price and quantity commands); merch stays in Square POS | Accepted |
+| [0033](0033-exhibitions-and-cross-module-artist-credits.md) | Exhibitions: artist credits facade to facade, calendar dates and UTC reception times, the content seed in MigrationService | Accepted |
+| [0034](0034-html-sanitizer-and-pages.md) | The shared HTML sanitizer (HtmlSanitizer 9.2, allow-list, library-only images) and Pages; Tiptap 3 in the admin; placeholder pages everywhere | Accepted |
+| [0035](0035-redirects-and-slug-changes.md) | Redirects: one hop, slug changes through the outbox (paths in the payload), a 5-minute site cache until 2.8, a SlugChange source | Accepted |
 
 ## Template
 

@@ -1,0 +1,366 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { vi } from 'vitest';
+import { ConfirmService } from '../../core/confirm/confirm.service';
+import { SessionService } from '../../core/session/session.service';
+import { ARTIST, toArtistSummary } from '../../models/artist.fixtures';
+import { Exhibition } from '../../models/exhibition';
+import { EXHIBITION, toExhibitionSummary } from '../../models/exhibition.fixtures';
+import { ExhibitionEditor } from './exhibition-editor';
+import { ExhibitionList } from './exhibition-list';
+
+const BASE = '/api/v1/cms/exhibitions';
+const ONE = `${BASE}/${EXHIBITION.id}`;
+const ARTISTS = '/api/v1/cms/artists';
+
+async function configure(roles: string[] = ['Editor']) {
+  TestBed.configureTestingModule({
+    providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+  });
+  const http = TestBed.inject(HttpTestingController);
+  const session = TestBed.inject(SessionService);
+  const loaded = session.ensureLoaded();
+  http.expectOne('/bff/session').flush({ displayName: 'Ada', roles });
+  await loaded;
+  return { http, confirm: TestBed.inject(ConfirmService), router: TestBed.inject(Router) };
+}
+
+/** Lets awaited HTTP promises settle, then renders. */
+async function settle(fixture: { whenStable(): Promise<unknown>; detectChanges(): void }) {
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  await fixture.whenStable();
+  fixture.detectChanges();
+}
+
+const text = (element: Element | null) => element?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+
+function button(root: HTMLElement, label: string): HTMLButtonElement | undefined {
+  return [...root.querySelectorAll('button')].find(
+    (candidate) => text(candidate) === label || candidate.getAttribute('aria-label') === label,
+  );
+}
+
+function input(root: HTMLElement, name: string): HTMLInputElement | HTMLTextAreaElement {
+  return root.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLTextAreaElement;
+}
+
+function type(root: HTMLElement, name: string, value: string) {
+  const control = input(root, name);
+  control.value = value;
+  control.dispatchEvent(new Event('input'));
+}
+
+async function openEditor(exhibition: Exhibition | null, roles: string[] = ['Editor']) {
+  const context = await configure(roles);
+  const fixture = TestBed.createComponent(ExhibitionEditor);
+  if (exhibition) fixture.componentRef.setInput('id', exhibition.id);
+  fixture.detectChanges();
+  if (exhibition) {
+    context.http.expectOne(`${BASE}/${exhibition.id}`).flush(exhibition);
+    await settle(fixture);
+  }
+  return { ...context, fixture, root: fixture.nativeElement as HTMLElement };
+}
+
+describe('ExhibitionList', () => {
+  it('lists shows newest first with their run, status and number of artists', async () => {
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(ExhibitionList);
+    fixture.detectChanges();
+
+    expect(text(fixture.nativeElement.querySelector('[role="status"]'))).toBe(
+      'Loading exhibitions…',
+    );
+    http
+      .expectOne((r) => r.url === BASE)
+      .flush({
+        items: [
+          toExhibitionSummary(EXHIBITION),
+          { ...toExhibitionSummary(EXHIBITION), id: 'b', title: 'Queue', status: 'Published' },
+        ],
+        nextCursor: null,
+      });
+    await settle(fixture);
+
+    const rows = [...(fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr')];
+    expect(rows.map((row) => text(row.querySelector('th a')))).toEqual(['Boats & Pianos', 'Queue']);
+    expect(text(rows[0])).toContain('Oct 24 – Dec 5, 2026');
+    expect(text(rows[0])).toContain('Draft');
+    expect(text(rows[1])).toContain('Published');
+    expect(rows[0].querySelector('a')?.getAttribute('href')).toBe(`/exhibitions/${EXHIBITION.id}`);
+  });
+
+  it('asks again with the status chosen, and says when nothing matches', async () => {
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(ExhibitionList);
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === BASE).flush({ items: [], nextCursor: null });
+    await settle(fixture);
+    expect(text(fixture.nativeElement)).toContain('No exhibitions yet');
+
+    button(fixture.nativeElement, 'Archived')!.click();
+    fixture.detectChanges();
+    const filtered = http.expectOne((r) => r.url === BASE);
+    expect(filtered.request.params.get('status')).toBe('Archived');
+    filtered.flush({ items: [], nextCursor: null });
+    await settle(fixture);
+
+    expect(text(fixture.nativeElement)).toContain('No exhibition is archived.');
+  });
+});
+
+describe('ExhibitionEditor', () => {
+  it('creates a show with its dates, a reception typed in gallery time, and the address from its title', async () => {
+    const { http, fixture, root, router } = await openEditor(null);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    type(root, 'title', 'Boats & Pianos');
+    type(root, 'startDate', '2026-10-24');
+    type(root, 'endDate', '2026-12-05');
+    await settle(fixture);
+    expect(input(root, 'slug').value).toBe('boats-pianos');
+
+    (input(root, 'hasReception') as HTMLInputElement).click();
+    await settle(fixture);
+    expect(input(root, 'receptionDate').value).toBe('2026-10-24');
+    type(root, 'receptionStarts', '18:00');
+    type(root, 'receptionEnds', '21:00');
+    type(root, 'receptionNote', ' Free and open to all ');
+    await settle(fixture);
+
+    button(root, 'Create exhibition')!.click();
+    const create = http.expectOne(BASE);
+    expect(create.request.body).toEqual({
+      title: 'Boats & Pianos',
+      startDate: '2026-10-24',
+      endDate: '2026-12-05',
+      slug: 'boats-pianos',
+      // 6 pm in Chicago in late October is 11 pm UTC (daylight time).
+      reception: {
+        startsAt: '2026-10-24T23:00:00+00:00',
+        endsAt: '2026-10-25T02:00:00+00:00',
+        note: 'Free and open to all',
+      },
+    });
+    create.flush({ ...EXHIBITION, artists: [] }, { status: 201, statusText: 'Created' });
+    await settle(fixture);
+
+    expect(navigate).toHaveBeenCalledWith(['/exhibitions', EXHIBITION.id], {
+      replaceUrl: true,
+      state: { exhibitionCreated: true },
+    });
+  });
+
+  it('refuses a show that ends before it starts, and a reception that ends before it begins, before asking the API', async () => {
+    const { http, fixture, root } = await openEditor(null);
+
+    type(root, 'title', 'Backwards');
+    type(root, 'startDate', '2026-10-24');
+    type(root, 'endDate', '2026-10-01');
+    (input(root, 'hasReception') as HTMLInputElement).click();
+    await settle(fixture);
+    type(root, 'receptionStarts', '21:00');
+    type(root, 'receptionEnds', '18:00');
+    await settle(fixture);
+    button(root, 'Create exhibition')!.click();
+    await settle(fixture);
+
+    http.expectNone(BASE);
+    expect(input(root, 'endDate').getAttribute('aria-invalid')).toBe('true');
+    expect(input(root, 'receptionEnds').getAttribute('aria-invalid')).toBe('true');
+    expect(text(root)).toContain('The show can’t end before it starts.');
+  });
+
+  it('shows a saved reception on the gallery clock and sends only what changed', async () => {
+    const { http, fixture, root } = await openEditor(EXHIBITION);
+
+    expect(input(root, 'receptionStarts').value).toBe('18:00');
+    expect(input(root, 'receptionEnds').value).toBe('21:00');
+    expect(fixture.componentInstance.hasUnsavedChanges()).toBe(false);
+
+    type(root, 'receptionEnds', '22:00');
+    await settle(fixture);
+    button(root, 'Save')!.click();
+    const patch = http.expectOne(ONE);
+    expect(patch.request.headers.get('If-Match')).toBe(EXHIBITION.etag);
+    expect(patch.request.body).toEqual({
+      reception: {
+        startsAt: '2026-10-24T23:00:00+00:00',
+        endsAt: '2026-10-25T03:00:00+00:00',
+        note: 'Free and open to all',
+      },
+    });
+  });
+
+  it('removes a reception with removeReception', async () => {
+    const { http, fixture, root } = await openEditor(EXHIBITION);
+
+    (input(root, 'hasReception') as HTMLInputElement).click();
+    await settle(fixture);
+    expect(input(root, 'receptionDate')).toBeNull();
+    button(root, 'Save')!.click();
+
+    expect(http.expectOne(ONE).request.body).toEqual({ removeReception: true });
+  });
+
+  it('reorders, removes and adds credits, offering only artists who can be credited', async () => {
+    const { http, fixture, root } = await openEditor(EXHIBITION);
+
+    button(root, 'Move Piloto up')!.click();
+    await settle(fixture);
+    expect([...root.querySelectorAll('.credit__name')].map((name) => text(name))).toEqual([
+      'Piloto',
+      'Brian Eaton',
+    ]);
+    // Focus stays with the artist that moved; at the top its "up" is disabled, so "down" has it.
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Move Piloto down');
+
+    button(root, 'Remove Brian Eaton')!.click();
+    await settle(fixture);
+
+    // Fake timers only across the search's pause: whenStable waits on real ones.
+    vi.useFakeTimers();
+    try {
+      type(root, 'artistSearch', 'ha');
+      vi.advanceTimersByTime(300);
+    } finally {
+      vi.useRealTimers();
+    }
+    const search = http.expectOne((r) => r.url === ARTISTS);
+    expect(search.request.params.get('search')).toBe('ha');
+    search.flush({
+      items: [
+        toArtistSummary(ARTIST),
+        { ...toArtistSummary(ARTIST), id: 'gone', name: 'Gone Artist', status: 'Archived' },
+        { ...toArtistSummary(ARTIST), id: 'artist-2', name: 'Piloto', status: 'Published' },
+      ],
+      nextCursor: null,
+    });
+    await settle(fixture);
+
+    // Archived and already-credited artists are not offered.
+    expect(button(root, 'Add Gone Artist')).toBeUndefined();
+    expect(button(root, 'Add Piloto')).toBeUndefined();
+    button(root, 'Add Carrie Haase')!.click();
+    await settle(fixture);
+    expect(text(root.querySelector('cms-artist-credits ol'))).toContain('Carrie Haase Draft');
+
+    button(root, 'Save')!.click();
+    expect(http.expectOne(ONE).request.body).toEqual({ artistIds: ['artist-2', ARTIST.id] });
+  });
+
+  it('shows an archived-artist refusal on the credits', async () => {
+    const { http, fixture, root } = await openEditor(EXHIBITION);
+
+    button(root, 'Move Piloto up')!.click();
+    await settle(fixture);
+    button(root, 'Save')!.click();
+    http.expectOne(ONE).flush(
+      {
+        code: 'validation.failed',
+        detail: 'An archived artist can’t be credited.',
+        errors: {
+          artistIds: ['Piloto is archived, so can’t be credited. Remove them from the list.'],
+        },
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await settle(fixture);
+
+    expect(text(root.querySelector('cms-artist-credits .error'))).toBe(
+      'Piloto is archived, so can’t be credited. Remove them from the list.',
+    );
+    expect(fixture.componentInstance.hasUnsavedChanges()).toBe(true);
+  });
+
+  it('on a 409 shows both versions and can keep the editor’s changes', async () => {
+    const { http, fixture, root } = await openEditor(EXHIBITION);
+    const theirs: Exhibition = { ...EXHIBITION, title: 'Boats and Pianos', etag: '"theirs"' };
+
+    type(root, 'summary', 'Reclaimed wood, boats and pianos.');
+    await settle(fixture);
+    button(root, 'Save')!.click();
+    http
+      .expectOne(ONE)
+      .flush({ code: 'concurrency.conflict' }, { status: 409, statusText: 'Conflict' });
+    await settle(fixture);
+    http.expectOne(ONE).flush(theirs);
+    await settle(fixture);
+
+    const comparison = root.querySelector('.compare')!;
+    expect(text(comparison)).toContain('Boats and Pianos');
+    expect(text(comparison)).toContain('Reclaimed wood, boats and pianos.');
+    expect(text(comparison)).toContain('Brian Eaton, Piloto');
+    expect(input(root, 'summary').value).toBe('Reclaimed wood, boats and pianos.');
+
+    button(root, 'Keep my changes')!.click();
+    const retry = http.expectOne(ONE);
+    expect(retry.request.headers.get('If-Match')).toBe('"theirs"');
+    expect(retry.request.body).toEqual({
+      title: 'Boats & Pianos',
+      summary: 'Reclaimed wood, boats and pianos.',
+    });
+  });
+
+  it('says what publishing still needs beside each field', async () => {
+    const { http, fixture, root } = await openEditor({ ...EXHIBITION, summary: null });
+
+    button(root, 'Publish')!.click();
+    http.expectOne(`${ONE}/publish`).flush(
+      {
+        code: 'validation.failed',
+        detail: 'This exhibition isn’t ready to publish yet.',
+        errors: { summary: ['Write a summary first: the site’s card and search results show it.'] },
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await settle(fixture);
+
+    expect(text(root)).toContain('This exhibition isn’t ready to publish yet.');
+    expect(input(root, 'summary').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('locks the web address once published, and offers archive to Admins only', async () => {
+    const published: Exhibition = {
+      ...EXHIBITION,
+      status: 'Published',
+      slugLocked: true,
+      publishedAt: EXHIBITION.createdAt,
+    };
+    const editor = await openEditor(published);
+    // ADR 0035: a published address may change; the old one is redirected, and the hint says which.
+    expect(input(editor.root, 'slug').hasAttribute('readonly')).toBe(false);
+    expect(text(editor.root)).toContain('published, so changing it sends visitors');
+    type(editor.root, 'slug', 'boats-and-pianos');
+    await settle(editor.fixture);
+    expect(text(editor.root)).toContain('visitors to /exhibitions/boats-pianos are sent here');
+    expect(button(editor.root, 'Archive')).toBeUndefined();
+    TestBed.resetTestingModule();
+
+    const { http, fixture, root, confirm } = await openEditor(published, ['Admin']);
+    const ask = vi.spyOn(confirm, 'confirm').mockResolvedValue(true);
+    button(root, 'Archive')!.click();
+    await settle(fixture);
+
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({ heading: 'Archive this exhibition?' }),
+    );
+    http.expectOne(`${ONE}/archive`).flush({ ...published, status: 'Archived', etag: '"v2"' });
+    await settle(fixture);
+    expect(text(root.querySelector('header'))).toContain('Archived');
+  });
+
+  it('says plainly when the exhibition does not exist', async () => {
+    const { http, fixture, root } = await openEditor(null);
+    fixture.componentRef.setInput('id', 'missing');
+    fixture.detectChanges();
+    http
+      .expectOne(`${BASE}/missing`)
+      .flush({ code: 'resource.not_found' }, { status: 404, statusText: 'Not Found' });
+    await settle(fixture);
+
+    expect(text(root)).toContain('There’s no such exhibition');
+  });
+});

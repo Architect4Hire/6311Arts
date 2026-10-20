@@ -1,0 +1,94 @@
+- generic [ref=f4e3]:
+  - link "Skip to content" [ref=f4e4] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f4e5]:
+    - link "6311arts CMS" [ref=f4e6] [cursor=pointer]:
+      - /url: /admin/
+      - generic [ref=f4e7]: 6311arts
+      - generic [ref=f4e8]: CMS
+    - generic [ref=f4e9]:
+      - generic [ref=f4e10]:
+        - generic [ref=f4e11]: Signed in as
+        - text: 6311arts Admin Admin
+      - button "Sign out" [ref=f4e12] [cursor=pointer]
+      - button "Sign out everywhere" [ref=f4e13] [cursor=pointer]
+  - generic [ref=f4e14]:
+    - navigation "CMS sections" [ref=f4e15]:
+      - list [ref=f4e16]:
+        - listitem [ref=f4e17]:
+          - link "Dashboard" [ref=f4e18] [cursor=pointer]:
+            - /url: /admin/
+        - listitem [ref=f4e22]:
+          - link "Classes" [ref=f4e23] [cursor=pointer]:
+            - /url: /admin/classes
+        - listitem [ref=f4e27]:
+          - link "Exhibitions" [ref=f4e28] [cursor=pointer]:
+            - /url: /admin/exhibitions
+        - listitem [ref=f4e32]:
+          - link "Artists" [ref=f4e33] [cursor=pointer]:
+            - /url: /admin/artists
+        - listitem [ref=f4e37]:
+          - link "Shop" [ref=f4e38] [cursor=pointer]:
+            - /url: /admin/shop
+        - listitem [ref=f4e42]:
+          - link "Memberships" [ref=f4e43] [cursor=pointer]:
+            - /url: /admin/memberships
+        - listitem [ref=f4e47]:
+          - link "Pages" [ref=f4e48] [cursor=pointer]:
+            - /url: /admin/pages
+        - listitem [ref=f4e52]:
+          - link "Media" [ref=f4e53] [cursor=pointer]:
+            - /url: /admin/media
+        - listitem [ref=f4e57]:
+          - link "Forms" [ref=f4e58] [cursor=pointer]:
+            - /url: /admin/forms
+        - listitem [ref=f4e62]:
+          - link "Redirects" [ref=f4e63] [cursor=pointer]:
+            - /url: /admin/redirects
+        - listitem [ref=f4e67]:
+          - link "Sync" [ref=f4e68] [cursor=pointer]:
+            - /url: /admin/sync
+    - main [ref=f4e72]:
+      - generic [ref=f4e73]:
+        - paragraph [ref=f4e74]:
+          - link "← All artists" [ref=f4e75] [cursor=pointer]:
+            - /url: /admin/artists
+        - paragraph [ref=f4e76]
+        - generic [ref=f4e77]:
+          - heading "Piloto" [level=1] [ref=f4e78]
+          - generic [ref=f4e79]: Published
+        - generic [ref=f4e84]:
+          - generic [ref=f4e85]:
+            - group "Artist details" [ref=f4e86]:
+              - generic [ref=f4e88]:
+                - generic [ref=f4e89]: Name required
+                - textbox "Name required" [ref=f4e90]: Piloto
+              - generic [ref=f4e91]:
+                - generic [ref=f4e92]: Web address required
+                - textbox "Web address required" [ref=f4e93]: piloto
+                - generic [ref=f4e94]: 6311arts.com/artists/piloto — published, so changing it sends visitors from this address to the new one.
+              - generic [ref=f4e95]:
+                - generic [ref=f4e96]: Medium
+                - textbox "Medium" [ref=f4e97]: Sculpture
+                - generic [ref=f4e98]: What they make, as the site shows it under their name — “Ceramics”, “Illustration & prints”.
+              - generic [ref=f4e99]:
+                - generic [ref=f4e100]: Bio
+                - textbox "Bio" [ref=f4e101]
+                - generic [ref=f4e102]: Plain text. Leave a blank line between paragraphs.
+              - generic [ref=f4e103] [cursor=pointer]:
+                - checkbox "Shows at 6311arts now Turn off for artists who no longer show here. This doesn’t unpublish them." [checked] [ref=f4e104]
+                - generic [ref=f4e105]:
+                  - generic [ref=f4e106]: Shows at 6311arts now
+                  - generic [ref=f4e107]: Turn off for artists who no longer show here. This doesn’t unpublish them.
+            - button "Save" [disabled] [ref=f4e109]
+          - complementary [ref=f4e110]:
+            - region [ref=f4e111]:
+              - heading "Portrait" [level=2] [ref=f4e112]
+              - paragraph [ref=f4e113]: No portrait yet.
+              - button "Choose portrait" [ref=f4e115] [cursor=pointer]
+            - region [ref=f4e116]:
+              - heading "Publishing" [level=2] [ref=f4e117]
+              - paragraph [ref=f4e118]: "Published: on the public site once the site reads from the CMS."
+              - generic [ref=f4e119]:
+                - button "Unpublish" [ref=f4e120] [cursor=pointer]
+                - button "Archive" [ref=f4e121] [cursor=pointer]

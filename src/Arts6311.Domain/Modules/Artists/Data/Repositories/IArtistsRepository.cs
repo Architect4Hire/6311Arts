@@ -21,6 +21,12 @@ internal interface IArtistsRepository
     Task<List<ArtistSummaryServiceModel>> ListAsync(
         ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
 
+    /// <summary>The artists with these ids, projected to list rows, in no particular order.</summary>
+    Task<List<ArtistSummaryServiceModel>> ListByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
+    /// <summary>The artists with these slugs, projected to list rows, in no particular order.</summary>
+    Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
+
     /// <summary>Throws away every unsaved change, after a save that failed, so the next save starts clean.</summary>
     void DiscardChanges();
 
