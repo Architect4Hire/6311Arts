@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Arts6311.Tests.Browser;
 using Arts6311.Tests.Gateway.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.IdentityModel.JsonWebTokens;

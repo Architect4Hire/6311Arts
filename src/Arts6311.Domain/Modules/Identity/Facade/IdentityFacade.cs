@@ -15,7 +15,10 @@ internal sealed class IdentityFacade(
     IIdentityBusiness business,
     IValidator<CredentialCheckViewModel> credentialValidator,
     IValidator<SessionValidationViewModel> sessionValidator,
-    IValidator<SessionRevocationViewModel> revocationValidator) : IIdentityFacade
+    IValidator<SessionRevocationViewModel> revocationValidator,
+    IValidator<PasswordResetRequestViewModel> resetRequestValidator,
+    IValidator<PasswordResetCompletionViewModel> resetValidator,
+    IValidator<EmailConfirmationCompletionViewModel> confirmationValidator) : IIdentityFacade
 {
     public async Task<OperationResult<UserSummaryServiceModel>> CheckCredentialsAsync(
         CredentialCheckViewModel request, CancellationToken cancellationToken)
@@ -50,12 +53,40 @@ internal sealed class IdentityFacade(
         return await business.RevokeSessionsAsync(request, cancellationToken);
     }
 
-    public async Task<OperationResult> RequestPasswordResetAsync(string email, CancellationToken cancellationToken)
+    public async Task<OperationResult> RequestPasswordResetAsync(
+        PasswordResetRequestViewModel request, CancellationToken cancellationToken)
     {
-        await business.RequestPasswordResetAsync(email, cancellationToken);
+        if (await resetRequestValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure(error);
+        }
+
+        await business.RequestPasswordResetAsync(request.Email, cancellationToken);
 
         // Always success: the caller learns nothing about whether the address is registered.
         return OperationResult.Success();
+    }
+
+    public async Task<OperationResult> ResetPasswordAsync(
+        PasswordResetCompletionViewModel request, CancellationToken cancellationToken)
+    {
+        if (await resetValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure(error);
+        }
+
+        return await business.ResetPasswordAsync(request, cancellationToken);
+    }
+
+    public async Task<OperationResult> ConfirmEmailAsync(
+        EmailConfirmationCompletionViewModel request, CancellationToken cancellationToken)
+    {
+        if (await confirmationValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure(error);
+        }
+
+        return await business.ConfirmEmailAsync(request, cancellationToken);
     }
 
     public async Task<OperationResult> RequestEmailConfirmationAsync(

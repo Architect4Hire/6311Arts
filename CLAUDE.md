@@ -142,11 +142,13 @@ Webhook: verify signature → SquareWebhookEvent inbox (unique event_id) → sta
 - **Backend:**
   - `dotnet build -warnaserror`
   - tests: **`dotnet test`** from the repo root (Microsoft.Testing.Platform via `global.json`). Verified 2026-10-19 with SDK 10.0.402 and xunit.v3 4.0.2: all tests discovered and run. The xunit.v3 4.0.1 "Zero tests ran" bug creatorpantry hit doesn't reproduce. If it ever comes back, `dotnet run --project src/Arts6311.Tests` runs the same suite.
+  - The suite includes the Aspire end-to-end test (`Category=E2E`, ADR 0026), which needs Docker. CI splits it: `dotnet test --filter-not-trait "Category=E2E"`, then `dotnet test --filter-trait "Category=E2E"`.
 - **Migrations:**
   - `dotnet ef migrations add <Name> --project src/Arts6311.Domain --startup-project src/Arts6311.Api`
   - Restart `aspire run` so MigrationService applies it.
   - While `aspire run` holds the build output, redirect the build output path (`-p:BaseOutputPath=<scratch>/`).
-- **Frontend** (`src/web`): `npm ci`, `npm run build`, `npm test` (Vitest). Until the `test` target exists, `npm test` fails; say so rather than skipping silently (see `.claude/rules/frontend.md`).
+- **Frontend** (`src/web`): `npm ci`, `npm run build`, `npm test` (Vitest; runs `ui`, `site` and `admin`). `aspire run` starts both apps' dev servers and installs packages itself (`--no-save`); browse them only through the gateway, and refresh to see changes (no live reload, ADR 0027).
+- **Staff sign-in** is `/signin` on the site; the seeded admin is `Parameters:seed-admin-email` (default `admin@6311arts.localhost`) with the generated `seed-admin-password` from AppHost user-secrets.
 - **Skills and reviewers:** use the matching skill before implementing a seam, and run the relevant read-only reviewers after.
 - **Keep work atomic:** one route, entity, message type, handler, component or resource per prompt.
 

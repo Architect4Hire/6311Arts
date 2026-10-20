@@ -1,0 +1,149 @@
+# Build and test on every push and pull request (prompt 1.12). Deploys are not here: they run from their own
+# workflows or by a person (CLAUDE.md "Never deploy from a Claude session").
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+# Actions are pinned to full commit SHAs (the release tag beside each); Dependabot proposes the bumps.
+permissions:
+  contents: read
+
+# A newer push to a pull request supersedes the run in progress. A push to main or dev always runs to the end, so
+# every commit on a long-lived branch has a result.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  backend:
+    name: Backend build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # The SDK pin (and the Aspire.AppHost.Sdk pin beside it) come from global.json, so CI and laptops agree.
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: |
+            Directory.Packages.props
+            **/*.csproj
+
+      - run: dotnet restore
+
+      - run: dotnet build -warnaserror --no-restore
+
+      # Everything except the AppHost end-to-end test, which has its own job. Microsoft.Testing.Platform runner
+      # (global.json), so the xunit.v3 trait filter is passed straight through.
+      - name: Tests
+        run: dotnet test --no-build --filter-not-trait "Category=E2E"
+
+  frontend:
+    name: Frontend build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/web
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run build
+
+      # frontend.md: unit tests run on Vitest through `npm test`, and until the `test` target exists `npm test`
+      # fails. Say so instead of failing or skipping silently; the day a project gains a test target, this runs it
+      # with no change here.
+      - name: Tests
+        run: |
+          if node -e "const a = require('./angular.json'); process.exit(Object.values(a.projects).some(p => p.architect && p.architect.test) ? 0 : 1)"; then
+            npm test
+          else
+            echo "::warning title=Frontend tests not available yet::No project in angular.json has a test target, so npm test was not run (frontend.md)."
+          fi
+
+  e2e:
+    name: Aspire end-to-end
+    runs-on: ubuntu-latest
+    needs: backend
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: |
+            Directory.Packages.props
+            **/*.csproj
+
+      # AspireUseCliBundle: the AppHost takes DCP and the dashboard from the Aspire CLI (ASPIRE010). Pinned to the
+      # AspireVersion in Directory.Packages.props so the CLI and the hosting packages move together.
+      - name: Install the Aspire CLI
+        run: |
+          version="$(grep -oP '(?<=<AspireVersion>)[^<]+' Directory.Packages.props)"
+          dotnet tool install --global Aspire.Cli --version "$version"
+          aspire --version
+
+      # The gateway's run-mode endpoint is HTTPS on the ASP.NET Core developer certificate (its cookies are Secure).
+      # Kestrel loads it from the user store `dev-certs https` creates; Aspire's health check has to trust it, so the
+      # public half goes into the system CA bundle, which .NET on Linux reads. The exported private key is deleted.
+      - name: Trust the ASP.NET Core developer certificate
+        run: |
+          dotnet dev-certs https
+          dotnet dev-certs https --export-path "$RUNNER_TEMP/aspnet-dev.crt" --format Pem --no-password
+          sudo cp "$RUNNER_TEMP/aspnet-dev.crt" /usr/local/share/ca-certificates/aspnet-dev.crt
+          rm -f "$RUNNER_TEMP/aspnet-dev.crt" "$RUNNER_TEMP/aspnet-dev.key"
+          sudo update-ca-certificates
+
+      # The AppHost starts the site and the CMS as Angular dev servers (prompt 2.2), and their installers run
+      # `npm install` in src/web first, so the job needs the same Node as the frontend job. The cache only speeds up
+      # that install; it changes nothing it does.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+
+      # The same bar as the backend job, so nothing the E2E job compiles gets a pass the backend job would not give.
+      - run: dotnet build -warnaserror
+
+      # The runner has Docker; the AppHost starts SQL Server, Azurite, Redis and Mailpit containers from empty
+      # volumes, and the test supplies every generated secret itself.
+      - name: End-to-end tests
+        run: dotnet test --no-build --filter-trait "Category=E2E" --results-directory TestResults --report-xunit-trx
+
+      - name: Upload results
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-results
+          path: |
+            TestResults/
+            src/Arts6311.Tests/bin/**/TestResults/
+          retention-days: 7

@@ -96,11 +96,12 @@ public sealed class OpenApiContractTests
     [Fact]
     public async Task TheDocumentDoesNotPublishDevelopmentScaffolding()
     {
-        // The ping route is Development-only and is deleted in 1.12. Publishing it as contract would make that
-        // deletion read as a breaking path removal.
-        var paths = JsonNode.Parse(await FetchDocument())!["paths"]!.AsObject();
+        // Routes marked IgnoreApi stay out of the contract: the test host's probes (Development-only scaffolding
+        // since the 1.5 ping route was deleted in 1.12) are mapped in this host, so their absence here is the proof.
+        var paths = JsonNode.Parse(await FetchDocument())!["paths"]!.AsObject().Select(path => path.Key).ToList();
 
-        Assert.DoesNotContain("/api/v1/cms/ops/ping", paths.Select(path => path.Key));
+        Assert.DoesNotContain("/" + CmsAdminProbeController.Route, paths);
+        Assert.DoesNotContain("/" + DevelopmentOnlyProbeController.Route, paths);
     }
 
     [Fact]

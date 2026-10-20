@@ -13,5 +13,12 @@ internal interface IIdentityRepository
 
     Task<ArtsUser?> FindByIdAsync(string userId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Throws away this context's unsaved changes to a user and reads the row again. For a write Identity's store
+    /// refused, which leaves the entity modified in the tracker: the next save — our audit row's — would otherwise
+    /// try to write it again and fail the same way.
+    /// </summary>
+    Task ReloadAsync(ArtsUser user, CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

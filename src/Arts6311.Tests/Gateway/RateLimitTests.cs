@@ -19,10 +19,10 @@ public sealed class RateLimitTests : IAsyncLifetime
     [Fact]
     public void EveryPolicyGatewayMdNamesExists()
     {
-        // Keeps the code and the rule in step. Three of these have no route until 1.10, 2.12 and 5.14; defining
+        // Keeps the code and the rule in step. Some of these have no route until 2.12 and 5.14; defining
         // them now means those prompts reference a name instead of inventing a limit.
         Assert.Equal(
-            ["api", "bff-login", "checkout", "forms", "webhooks"],
+            ["api", "bff-account", "bff-login", "checkout", "forms", "webhooks"],
             RateLimitExtensions.Policies.All.Order(StringComparer.Ordinal));
     }
 

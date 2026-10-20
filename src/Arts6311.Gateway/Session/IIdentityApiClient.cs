@@ -19,6 +19,32 @@ internal interface IIdentityApiClient
 
     /// <summary>Rotates the security stamp, ending every session this person has.</summary>
     Task<bool> RevokeSessionsAsync(string userId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Asks the API to email a reset link if the address is registered. Called from the background dispatcher,
+    /// never from the request: the browser has its answer before this starts (ADR 0028).
+    /// </summary>
+    Task RequestPasswordResetAsync(string email, CancellationToken cancellationToken);
+
+    /// <summary>Sets a new password with an emailed link's user id and token.</summary>
+    Task<AccountLinkResult> CompletePasswordResetAsync(
+        string userId, string token, string newPassword, CancellationToken cancellationToken);
+
+    /// <summary>Confirms an address with an emailed link's user id and token.</summary>
+    Task<AccountLinkResult> ConfirmEmailAsync(string userId, string token, CancellationToken cancellationToken);
+}
+
+/// <summary>What became of an emailed link: used, or refused with the API's code.</summary>
+/// <param name="FailureCode">
+/// <c>auth.token_invalid</c>, <c>auth.password_rejected</c> or <c>validation.failed</c>. Safe to pass on, unlike the
+/// credential codes: every unusable link shares the first, and the second needs a valid token (ADR 0028).
+/// </param>
+/// <param name="PasswordErrors">The policy's reasons, for <c>auth.password_rejected</c> only.</param>
+internal sealed record AccountLinkResult(string? FailureCode, IReadOnlyList<string> PasswordErrors)
+{
+    public static readonly AccountLinkResult Success = new(null, []);
+
+    public bool Succeeded => FailureCode is null;
 }
 
 /// <summary>

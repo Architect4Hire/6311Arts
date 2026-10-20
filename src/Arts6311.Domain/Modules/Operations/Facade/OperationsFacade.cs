@@ -13,14 +13,4 @@ internal sealed class OperationsFacade(IOperationsBusiness business) : IOperatio
     /// </summary>
     public Task<OperationResult<HealthInfoServiceModel>> GetHealthInfoAsync(CancellationToken cancellationToken) =>
         Task.FromResult(OperationResult.Success(business.GetHealthInfo()));
-
-    public async Task<OperationResult<PingRequestedServiceModel>> RequestPingAsync(CancellationToken cancellationToken) =>
-        OperationResult.Success(await business.RequestPingAsync(cancellationToken));
-
-    public async Task<OperationResult> RecordPingHandledAsync(
-        Guid pingId, Guid outboxMessageId, CancellationToken cancellationToken)
-    {
-        await business.RecordPingHandledAsync(pingId, outboxMessageId, cancellationToken);
-        return OperationResult.Success();
-    }
 }

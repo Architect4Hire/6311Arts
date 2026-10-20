@@ -17,5 +17,15 @@ internal static class IdentityAudit
 
     public const string PasswordResetRequested = "identity.password-reset-requested";
     public const string EmailConfirmationRequested = "identity.email-confirmation-requested";
+
+    /// <summary>A new password was set with an emailed link; the security stamp moved, so every session ends.</summary>
+    public const string PasswordResetCompleted = "identity.password-reset-completed";
+
+    /// <summary>A reset link was refused for an account that exists. Written only then: an unknown id has no row to point at.</summary>
+    public const string PasswordResetRefused = "identity.password-reset-refused";
+
+    public const string EmailConfirmed = "identity.email-confirmed";
+
+    public const string EmailConfirmationRefused = "identity.email-confirmation-refused";
     public const string AdminSeeded = "identity.admin-seeded";
 }

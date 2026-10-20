@@ -43,7 +43,7 @@ Managers/                # shared kernel: Persistence, Outbox, Idempotency, Cach
 - `Redirects`
 - `Import` (WordPress import staging and runs)
 - `Identity` (internal session and credential operations)
-- `Operations` (outbox replay/discard and other ops tooling; holds the 1.5 ping scaffolding until 1.12)
+- `Operations` (outbox replay/discard and other ops tooling; today only the public health-info echo)
 
 **Module rules:**
 

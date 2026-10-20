@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, switchMap } from 'rxjs';
+import { UiIcon } from '@6311/ui';
 import { Seo } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
@@ -10,7 +11,6 @@ import { STUDIO_PHOTOS } from '../data/venue-photos';
 import { ArtImage } from '../shared/art-image';
 import { ClassCard, ProductCard } from '../shared/cards';
 import { Hero } from '../shared/hero';
-import { Icon } from '../shared/icon';
 import { Reveal } from '../shared/reveal';
 
 /**
@@ -23,7 +23,7 @@ import { Reveal } from '../shared/reveal';
 @Component({
   selector: 'app-instructor-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Hero, ArtImage, ClassCard, ProductCard, Icon, Reveal, RouterLink],
+  imports: [Hero, ArtImage, ClassCard, ProductCard, UiIcon, Reveal, RouterLink],
   template: `
     <app-hero [title]="name()" [eyebrow]="person()?.medium ?? 'Instructor at 6311arts'" [images]="studioPhotos" />
 
@@ -49,25 +49,25 @@ import { Reveal } from '../shared/reveal';
           }
           <ul class="facts">
             @if (person()?.medium) {
-              <li><app-icon name="brush" [size]="22" /><span>Teaches <strong>{{ person()!.medium }}</strong></span></li>
+              <li><ui-icon name="brush" [size]="22" /><span>Teaches <strong>{{ person()!.medium }}</strong></span></li>
             }
-            <li><app-icon name="clock" [size]="22" />
+            <li><ui-icon name="clock" [size]="22" />
               <span>@if (classes().length) {
                 <strong>{{ classes().length }}</strong> {{ classes().length === 1 ? 'class' : 'classes' }} on the calendar
               } @else { Nothing scheduled right now }</span></li>
             @if (person()?.neighborhood) {
-              <li><app-icon name="pin" [size]="22" /><span>Based in {{ person()!.neighborhood }}</span></li>
+              <li><ui-icon name="pin" [size]="22" /><span>Based in {{ person()!.neighborhood }}</span></li>
             }
             @if (artist(); as a) {
-              <li><app-icon name="cart" [size]="22" />
+              <li><ui-icon name="cart" [size]="22" />
                 <span>Also sells in the shop — <a class="linkish" [routerLink]="['/artists', a.slug]">see their work</a></span></li>
             }
             @if (person()?.website) {
-              <li><app-icon name="arrow" [size]="22" />
+              <li><ui-icon name="arrow" [size]="22" />
                 <span><a class="linkish" [href]="person()!.website" target="_blank" rel="noopener">{{ person()!.website }}</a></span></li>
             }
             @if (person()?.instagram) {
-              <li><app-icon name="instagram" [size]="22" />
+              <li><ui-icon name="instagram" [size]="22" />
                 <span><a class="linkish" [href]="'https://instagram.com/' + person()!.instagram" target="_blank" rel="noopener">&#64;{{ person()!.instagram }}</a></span></li>
             }
           </ul>

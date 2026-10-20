@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { map } from 'rxjs';
+import { type IconName, UiIcon } from '@6311/ui';
 import { Seo, eventLd, exhibitionLd } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
@@ -11,14 +12,13 @@ import { ClassCard, ProductCard, exhibitionStatus } from '../shared/cards';
 import { Contact } from '../shared/contact';
 import { MoneyPipe, WhenPipe } from '../shared/format';
 import { Hero } from '../shared/hero';
-import { Icon } from '../shared/icon';
 import { Newsletter } from '../shared/newsletter';
 import { Reveal } from '../shared/reveal';
 
 @Component({
   selector: 'app-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, Hero, Icon, Reveal, ClassCard, ProductCard, Newsletter, Contact, WhenPipe, MoneyPipe],
+  imports: [RouterLink, Hero, UiIcon, Reveal, ClassCard, ProductCard, Newsletter, Contact, WhenPipe, MoneyPipe],
   templateUrl: './home.html',
 })
 export class Home {
@@ -53,14 +53,14 @@ export class Home {
 
   protected upcoming = computed(() => this.classes().slice(0, 4));
 
-  protected pillars = [
+  protected pillars: { icon: IconName; title: string; text: string }[] = [
     { icon: 'brush', title: 'Artist-focused', text: 'Every resident artist lives within six miles of our door. We put local work on the walls, in the shop and at the front of the classroom.' },
     { icon: 'people', title: 'Committed to community', text: 'Our programs and partnerships come from what Rogers Edge asks for, from high-school shows to free art therapy.' },
     { icon: 'infinity', title: 'Moved by meaning', text: 'Exhibitions, teachers and classes are chosen with intention. Every show has a reason to be here, now.' },
     { icon: 'heart', title: 'Room for everyone', text: 'First-timers, working artists and neighbors who just want to look. No gatekeeping, no velvet rope.' },
   ];
 
-  protected programs = [
+  protected programs: { icon: IconName; title: string; text: string }[] = [
     { icon: 'brush', title: 'Community workshops', text: 'Screen printing, scratchboard, ofrendas and more, in small hands-on groups.' },
     { icon: 'chat', title: 'Talks & lectures', text: 'Artists and historians on the ideas behind the work, from activism to process.' },
     { icon: 'briefcase', title: 'Free career sessions', text: 'Pricing, portfolios and grant writing for working artists, at no cost.' },

@@ -1,0 +1,33 @@
+/*
+ * 6311arts CMS styles: the few page-level rules the screens share, on @6311/ui's tokens at compact density.
+ * Tokens, base elements, .btn, .field and .skip come from projects/ui/styles/global.scss (loaded first).
+ * Feature styles use tokens and never literal colours.
+ */
+
+body {
+  background: var(--light);
+}
+
+.cms-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--track-button);
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.cms-lead {
+  margin: 0 0 var(--space-6);
+  max-width: 70ch;
+  color: var(--text-soft);
+}
+
+/* A page with no shell around it (the "unavailable" page). */
+.cms-standalone {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--space-7) var(--pad);
+}

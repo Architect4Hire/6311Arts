@@ -34,6 +34,7 @@ Stable logical names: `sql`, `appdb`, `cache`, `storage`, `blobs`, `mail`, `squa
 - `api` waits for `appdb`, `cache` and `blobs`.
 - `worker` waits for `appdb`, `blobs` and `mail`.
 - `gateway` waits for `api`, `site`, `admin` and `cache`.
+- `site` and `admin` share `src/web`: each waits for its Aspire installer, and `admin-installer` waits for `site-installer` so two installs never run in one `node_modules`. Installs pass `--no-save` and never rewrite `package-lock.json` (ADR 0027).
 - Use `WaitFor` and health checks. No sleeps.
 
 ## Configuration
@@ -71,3 +72,7 @@ Run `aspire run` from a clean data volume and check the dashboard:
 - migrations completed
 - one trace from gateway → api → SQL
 - the site and admin load only through the gateway URL
+
+The gateway's run-mode endpoint is **HTTPS** on the ASP.NET Core developer certificate: its cookies are `Secure` and `__Host-`, and antiforgery refuses plain HTTP (ADR 0026). Publish mode keeps a plain-HTTP target port behind the ACA ingress.
+
+The automated form of this checklist is the end-to-end test (`Arts6311.Tests/EndToEnd`, `Category=E2E`, ADR 0026). It starts the model from empty volumes with its own secrets, and CI runs it as its own job. A resource added to the model either passes through `EphemeralAppModel` or gets a deliberate exception there.

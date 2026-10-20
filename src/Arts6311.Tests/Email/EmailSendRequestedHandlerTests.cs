@@ -3,6 +3,7 @@ using Arts6311.Domain.Managers.Outbox;
 using Arts6311.Domain.Managers.Outbox.Events;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Modules.Identity.Facade;
+using Arts6311.Domain.Modules.Identity.Managers.ViewModels;
 using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Tests.Identity.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -133,6 +134,28 @@ public sealed class EmailSendRequestedHandlerTests
         await Assert.ThrowsAsync<OutboxPoisonException>(() => HandleAsync(host, message));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("[]")]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("""{"kind":"identity.password-reset","subjectId":""}""")]
+    [InlineData("""{"kind":"identity.password-reset","subjectId":"   "}""")]
+    [InlineData("""{"kind":"","subjectId":"user-1"}""")]
+    public async Task EveryMalformedShapeIsPoisonedWithoutSending(string payloadJson)
+    {
+        // The matrix the 1.5 ping's payload tests had, for the message type that replaced it on the outbox's
+        // end-to-end path: anything TryParse cannot make sense of is poisoned on its first attempt.
+        await using var host = await IdentityTestHost.CreateAsync(Ct);
+        var message = new OutboxMessageEnvelope(
+            Guid.NewGuid(), EmailSendRequested.MessageType, payloadJson, Guid.NewGuid(), Attempt: 1);
+
+        await Assert.ThrowsAsync<OutboxPoisonException>(() => HandleAsync(host, message));
+
+        Assert.Empty(host.Email.Sent);
+    }
+
     [Fact]
     public async Task ASendFailureNamesNoHostOrCredential()
     {
@@ -202,7 +225,7 @@ public sealed class EmailSendRequestedHandlerTests
         var user = await host.CreateUserAsync("m@6311arts.test", Correct, emailConfirmed: true, IdentityRoles.Member);
 
         using var scope = host.CreateScope();
-        await IdentityTestHost.Resolve<IIdentityFacade>(scope).RequestPasswordResetAsync("m@6311arts.test", Ct);
+        await IdentityTestHost.Resolve<IIdentityFacade>(scope).RequestPasswordResetAsync(new PasswordResetRequestViewModel("m@6311arts.test"), Ct);
 
         var staged = await IdentityTestHost.Resolve<ArtsDbContext>(scope).OutboxMessages
             .SingleAsync(row => row.Type == EmailSendRequested.MessageType, Ct);

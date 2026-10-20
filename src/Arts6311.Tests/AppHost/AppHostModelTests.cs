@@ -1,6 +1,7 @@
 using Arts6311.AppHost.Parameters;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.JavaScript;
 using Aspire.Hosting.Testing;
 
 namespace Arts6311.Tests.AppHost;
@@ -21,7 +22,7 @@ public sealed class AppHostModelTests
     private static readonly string[] RunModeResources =
     [
         "sql", "appdb", "storage", "blobs", "media", "dataprotection", "cache", "mail", "dbgate",
-        "migrations", "api", "gateway", "worker",
+        "migrations", "api", "gateway", "worker", "site", "admin",
         "sql-password", "redis-password", "internal-token-signing-key", "idempotency-fingerprint-key",
         "seed-admin-email", "seed-admin-password",
     ];
@@ -55,6 +56,20 @@ public sealed class AppHostModelTests
     }
 
     [Fact(Timeout = TimeoutMs)]
+    public async Task TheGatewayIsReachedOverHttpsOnly()
+    {
+        // Its cookies are Secure and __Host- prefixed, and antiforgery with SecurePolicy=Always refuses plain http
+        // with a 500. Over an http endpoint the whole BFF was unusable, which only the 1.12 end-to-end test caught.
+        await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);
+
+        var gateway = Assert.Single(appHost.Resources, resource => resource.Name == "gateway");
+        var external = gateway.Annotations.OfType<EndpointAnnotation>().Where(endpoint => endpoint.IsExternal).ToList();
+
+        Assert.NotEmpty(external);
+        Assert.All(external, endpoint => Assert.Equal("https", endpoint.UriScheme));
+    }
+
+    [Fact(Timeout = TimeoutMs)]
     public async Task TheGatewayWaitsForTheApiAndTheCache()
     {
         // It proxies to the API and will keep session tickets in Redis (1.10), so starting before either is ready
@@ -72,11 +87,74 @@ public sealed class AppHostModelTests
     }
 
     [Fact(Timeout = TimeoutMs)]
+    public async Task TheGatewayWaitsForBothAngularApps()
+    {
+        // Its catch-all routes to the site and /admin/** to the CMS. Healthy before either is up would mean a window
+        // of 502s on every page, including /signin (aspire.md "Dependency order").
+        await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(WaitsFor(appHost, "gateway", "site", WaitType.WaitUntilHealthy));
+        Assert.True(WaitsFor(appHost, "gateway", "admin", WaitType.WaitUntilHealthy));
+    }
+
+    [Fact(Timeout = TimeoutMs)]
+    public async Task TheAngularAppsInstallTheirSharedWorkspaceOneAtATime()
+    {
+        // Both run from src/web and its one node_modules, and each gets an installer from AddJavaScriptApp. Two
+        // installs in one folder at once corrupt it, so the admin's waits for the site's to finish (ADR 0027).
+        await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);
+
+        var apps = appHost.Resources.Where(resource => resource.Name is "site" or "admin").OfType<ExecutableResource>().ToList();
+
+        Assert.Equal(2, apps.Count);
+        var workspace = Assert.Single(apps.Select(app => Path.GetFullPath(app.WorkingDirectory)).Distinct(StringComparer.OrdinalIgnoreCase));
+        Assert.EndsWith(Path.Combine("src", "web"), workspace, StringComparison.OrdinalIgnoreCase);
+
+        Assert.True(WaitsFor(appHost, "site", "site-installer", WaitType.WaitForCompletion));
+        Assert.True(WaitsFor(appHost, "admin", "admin-installer", WaitType.WaitForCompletion));
+        Assert.True(WaitsFor(appHost, "admin-installer", "site-installer", WaitType.WaitForCompletion));
+
+        // One installer each, and neither may rewrite the lockfile. AddJavaScriptApp adds a default install command
+        // and WithNpm adds another; the last of an annotation kind is the one Aspire applies.
+        var installers = appHost.Resources.OfType<JavaScriptInstallerResource>().ToList();
+        Assert.Equal(["admin-installer", "site-installer"], installers.Select(installer => installer.Name).Order(StringComparer.Ordinal));
+        Assert.All(apps, app => Assert.Contains(
+            "--no-save", app.Annotations.OfType<JavaScriptInstallCommandAnnotation>().Last().Args));
+    }
+
+    [Fact(Timeout = TimeoutMs)]
     public async Task OneDbGateServesBothSqlAndRedis()
     {
         await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(appHost.Resources, resource => resource.Name == "dbgate");
+    }
+
+    [Fact(Timeout = TimeoutMs)]
+    public async Task TheEndToEndModelStartsFromEmptyVolumesAndLeavesNothingBehind()
+    {
+        // What makes the 1.12 end-to-end test's "from empty volumes" true, checked here where no container runtime
+        // is needed. Asserted before and after, so the test cannot pass because there was nothing to strip.
+        await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);
+        var containers = appHost.Resources.OfType<ContainerResource>().ToList();
+
+        Assert.Contains(containers, container => container.Annotations.OfType<ContainerLifetimeAnnotation>().Any());
+        Assert.Contains(containers, container => container.Annotations
+            .OfType<ContainerMountAnnotation>().Any(mount => mount.Type == ContainerMountType.Volume));
+
+        // EphemeralAppModel strips volumes only. A bind mount could carry state too, so its arrival fails here and
+        // forces a decision about it rather than slipping past the end-to-end test.
+        Assert.DoesNotContain(containers, container => container.Annotations
+            .OfType<ContainerMountAnnotation>().Any(mount => mount.Type == ContainerMountType.BindMount));
+
+        Arts6311.Tests.EndToEnd.EphemeralAppModel.Apply(appHost);
+
+        Assert.DoesNotContain(appHost.Resources, resource => resource.Name == "dbgate");
+        Assert.All(appHost.Resources.OfType<ContainerResource>(), container =>
+        {
+            Assert.Empty(container.Annotations.OfType<ContainerLifetimeAnnotation>());
+            Assert.Empty(container.Annotations.OfType<ContainerMountAnnotation>());
+        });
     }
 
     [Fact(Timeout = TimeoutMs)]

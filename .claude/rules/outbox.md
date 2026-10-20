@@ -17,6 +17,8 @@ The outbox is the **only** way work leaves a committed transaction. It covers:
 
 There's no message broker. The outbox table in `ArtsDbContext` *is* the queue, and `Arts6311.Worker` drains it. The pattern is the creatorpantry shared kernel (`Managers/Outbox/`), adopted as-is.
 
+**The one sanctioned non-outbox queue** is the gateway's in-memory hand-off behind `/bff/forgot-password` (ADR 0028). It is not an exception to the rule above: it carries a request to *start* a transaction, not the effect of one, and exists only so the browser is answered before anything that knows whether the address is registered runs. The effects it leads to — the audit row and the email — are still staged in the API's DataLayer and delivered through the outbox. It is not a precedent: a side effect after a commit is an outbox message, whichever process is asking.
+
 ## Shape (shared kernel, `Managers/Outbox/`)
 
 | Type | Role |

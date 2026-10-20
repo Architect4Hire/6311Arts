@@ -58,6 +58,25 @@ public sealed class SecurityHeaderTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheDefaultCspAllowsGoogleFontsForStylesAndFontsOnly()
+    {
+        // Open Sans comes from Google Fonts, as on spike0 (design-system.md; ADR 0027). The stylesheet host and the
+        // font host are allowed in exactly the two directives that load them; scripts stay same-origin only.
+        using var gateway = new GatewayFactory(destination);
+        using var client = gateway.CreateJsonClient();
+
+        var response = await client.GetAsync("/api/v1/site/health-info", TestContext.Current.CancellationToken);
+        var directives = Header(response, "Content-Security-Policy")
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToDictionary(directive => directive.Split(' ')[0], directive => directive.Split(' ')[1..]);
+
+        Assert.Equal(["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], directives["style-src"]);
+        Assert.Equal(["'self'", "https://fonts.gstatic.com"], directives["font-src"]);
+        Assert.Equal(["'self'"], directives["script-src"]);
+        Assert.Equal(["'self'"], directives["connect-src"]);
+    }
+
+    [Fact]
     public async Task TheCspDiffersBetweenCheckoutAndOtherPages()
     {
         // gateway.md requires the Square Web Payments SDK origins on checkout and member billing *only*. The real

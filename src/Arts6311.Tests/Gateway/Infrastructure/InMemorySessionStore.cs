@@ -17,63 +17,110 @@ internal sealed class InMemorySessionStore(FakeTimeProvider time) : ISessionKeyV
     private readonly Dictionary<string, (string Value, DateTimeOffset ExpiresAt)> entries =
         new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Every member takes it: the password-reset dispatcher reaches the store from its background loop while
+    /// requests reach it from theirs, and a <see cref="Dictionary{TKey, TValue}"/> is not safe for that.
+    /// </summary>
+    private readonly Lock gate = new();
+
     /// <summary>Every key currently held, expiry applied. The assertion for "the ticket is really gone".</summary>
     public IReadOnlyCollection<string> Keys
     {
         get
         {
-            Sweep();
-            return [.. entries.Keys];
+            lock (gate)
+            {
+                Sweep();
+                return [.. entries.Keys];
+            }
         }
     }
 
     public Task<string?> GetAsync(string key, CancellationToken cancellationToken)
     {
-        Sweep();
-        return Task.FromResult(entries.TryGetValue(key, out var entry) ? entry.Value : null);
+        lock (gate)
+        {
+            Sweep();
+            return Task.FromResult(entries.TryGetValue(key, out var entry) ? entry.Value : null);
+        }
     }
 
     public Task SetAsync(string key, string value, TimeSpan timeToLive, CancellationToken cancellationToken)
     {
-        entries[key] = (value, time.GetUtcNow() + timeToLive);
-        return Task.CompletedTask;
+        lock (gate)
+        {
+            entries[key] = (value, time.GetUtcNow() + timeToLive);
+            return Task.CompletedTask;
+        }
     }
 
     public Task<bool> ReplaceAsync(
         string key, string value, TimeSpan timeToLive, CancellationToken cancellationToken)
     {
-        Sweep();
-
-        if (!entries.ContainsKey(key))
+        lock (gate)
         {
-            return Task.FromResult(false);
-        }
+            Sweep();
 
-        entries[key] = (value, time.GetUtcNow() + timeToLive);
-        return Task.FromResult(true);
+            if (!entries.ContainsKey(key))
+            {
+                return Task.FromResult(false);
+            }
+
+            entries[key] = (value, time.GetUtcNow() + timeToLive);
+            return Task.FromResult(true);
+        }
     }
 
     public Task<bool> ExpireAsync(string key, TimeSpan timeToLive, CancellationToken cancellationToken)
     {
-        Sweep();
-
-        if (!entries.TryGetValue(key, out var entry))
+        lock (gate)
         {
-            return Task.FromResult(false);
-        }
+            Sweep();
 
-        entries[key] = (entry.Value, time.GetUtcNow() + timeToLive);
-        return Task.FromResult(true);
+            if (!entries.TryGetValue(key, out var entry))
+            {
+                return Task.FromResult(false);
+            }
+
+            entries[key] = (entry.Value, time.GetUtcNow() + timeToLive);
+            return Task.FromResult(true);
+        }
     }
 
     public Task RemoveAsync(string key, CancellationToken cancellationToken)
     {
-        entries.Remove(key);
-        return Task.CompletedTask;
+        lock (gate)
+        {
+            entries.Remove(key);
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task<bool> AddIfAbsentAsync(
+        string key, string value, TimeSpan timeToLive, CancellationToken cancellationToken)
+    {
+        lock (gate)
+        {
+            Sweep();
+
+            if (entries.ContainsKey(key))
+            {
+                return Task.FromResult(false);
+            }
+
+            entries[key] = (value, time.GetUtcNow() + timeToLive);
+            return Task.FromResult(true);
+        }
     }
 
     /// <summary>Deletes a key behind the gateway's back, standing in for a concurrent logout.</summary>
-    public void Forget(string key) => entries.Remove(key);
+    public void Forget(string key)
+    {
+        lock (gate)
+        {
+            entries.Remove(key);
+        }
+    }
 
     /// <summary>What Redis does for itself: a key past its time to live is simply not there.</summary>
     private void Sweep()

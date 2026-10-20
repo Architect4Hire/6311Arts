@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { UiIcon } from '@6311/ui';
 import { Seo } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { Hero } from '../shared/hero';
-import { Icon } from '../shared/icon';
 import { Reveal } from '../shared/reveal';
 import { STUDIO_PHOTOS } from '../data/venue-photos';
 
@@ -40,7 +40,7 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
 @Component({
   selector: 'app-artist-submission',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, Hero, Icon, Reveal, RouterLink],
+  imports: [FormsModule, Hero, UiIcon, Reveal, RouterLink],
   template: `
     <app-hero title="Tell us about your work" eyebrow="Artist submission · about five minutes"
       lead="One form for all three doors: the shop, the galleries and the classroom. Have a few images and a short bio handy."
@@ -50,7 +50,7 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
       <div class="container container--mid">
         @if (sent()) {
           <div class="sform__done" reveal>
-            <app-icon name="star" [size]="48" [stroke]="1" />
+            <ui-icon name="star" [size]="48" [stroke]="1" />
             <h2 class="band__title">Thanks, {{ name() || 'friend' }}.</h2>
             <p class="band__lead band__lead--left">
               Nothing was actually sent — this page is a stub while we settle on the questions. Here is everything it
@@ -64,7 +64,7 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
           </div>
         } @else {
           <p class="band__note" style="margin-bottom: 28px">
-            <app-icon name="spark" [size]="18" />
+            <ui-icon name="spark" [size]="18" />
             Draft form — submissions are not received yet. For now, email {{ site.email }}.
           </p>
 
@@ -163,7 +163,7 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
 
               @if (has('sell')) {
                 <div class="sform__panel">
-                  <h3 class="sform__panel-title"><app-icon name="cart" [size]="20" /> Selling in the shop</h3>
+                  <h3 class="sform__panel-title"><ui-icon name="cart" [size]="20" /> Selling in the shop</h3>
                   <div class="sform__grid">
                     <label class="field">
                       <span class="field__label">Pieces ready to go</span>
@@ -184,7 +184,7 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
 
               @if (has('exhibit')) {
                 <div class="sform__panel">
-                  <h3 class="sform__panel-title"><app-icon name="frame" [size]="20" /> Showing in the gallery</h3>
+                  <h3 class="sform__panel-title"><ui-icon name="frame" [size]="20" /> Showing in the gallery</h3>
                   <div class="sform__grid">
                     <label class="field">
                       <span class="field__label">Proposed show title</span>
@@ -220,7 +220,7 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
 
               @if (has('teach')) {
                 <div class="sform__panel">
-                  <h3 class="sform__panel-title"><app-icon name="brush" [size]="20" /> Teaching a class</h3>
+                  <h3 class="sform__panel-title"><ui-icon name="brush" [size]="20" /> Teaching a class</h3>
                   <div class="sform__grid">
                     <label class="field">
                       <span class="field__label">Class title</span>
@@ -263,7 +263,7 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
               </label>
               @if (files().length) {
                 <ul class="sform__files">
-                  @for (f of files(); track f) { <li><app-icon name="frame" [size]="16" /> {{ f }}</li> }
+                  @for (f of files(); track f) { <li><ui-icon name="frame" [size]="16" /> {{ f }}</li> }
                 </ul>
               }
               <label class="field field--wide">

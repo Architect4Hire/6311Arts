@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { UiIcon } from '@6311/ui';
 import { ArtClass, ClassType } from '../core/models';
 import { Seo, eventLd } from '../core/seo.service';
 import { SITE } from '../core/site';
@@ -10,7 +11,6 @@ import { STUDIO_PHOTOS } from '../data/venue-photos';
 import { ClassCard } from '../shared/cards';
 import { WhenPipe, addDays, chicagoDay, endOfWeek } from '../shared/format';
 import { Hero } from '../shared/hero';
-import { Icon } from '../shared/icon';
 import { Newsletter } from '../shared/newsletter';
 import { Reveal } from '../shared/reveal';
 
@@ -21,7 +21,7 @@ import { Reveal } from '../shared/reveal';
 @Component({
   selector: 'app-classes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Hero, ClassCard, Newsletter, RouterLink, Icon, Reveal, WhenPipe],
+  imports: [Hero, ClassCard, Newsletter, RouterLink, UiIcon, Reveal, WhenPipe],
   template: `
     <app-hero title="Classes, workshops & events" eyebrow="Taught by local artists"
       lead="Small groups, hands-on, and open to first-timers. Pick a night and make something."
@@ -57,10 +57,10 @@ import { Reveal } from '../shared/reveal';
           <h2 class="month month--all">All events</h2>
           <div class="view-switch" role="group" aria-label="Choose view">
             <button type="button" class="chip chip--icon" [class.is-on]="view() === 'grid'" (click)="setView('grid')" [attr.aria-pressed]="view() === 'grid'">
-              <app-icon name="grid" [size]="16" [stroke]="2.4" /> Grid
+              <ui-icon name="grid" [size]="16" [stroke]="2.4" /> Grid
             </button>
             <button type="button" class="chip chip--icon" [class.is-on]="view() === 'calendar'" (click)="setView('calendar')" [attr.aria-pressed]="view() === 'calendar'">
-              <app-icon name="calendar" [size]="16" [stroke]="2.4" /> Calendar
+              <ui-icon name="calendar" [size]="16" [stroke]="2.4" /> Calendar
             </button>
           </div>
         </div>
@@ -81,11 +81,11 @@ import { Reveal } from '../shared/reveal';
           <div class="cal">
             <div class="cal__head">
               <button type="button" class="cal__step cal__step--prev" (click)="step(-1)" [disabled]="month() <= thisMonth" aria-label="Previous month">
-                <app-icon name="arrow" [size]="20" [stroke]="2.4" />
+                <ui-icon name="arrow" [size]="20" [stroke]="2.4" />
               </button>
               <h3 class="cal__title" aria-live="polite">{{ cal.label }}</h3>
               <button type="button" class="cal__step" (click)="step(1)" [disabled]="month() >= lastMonth()" aria-label="Next month">
-                <app-icon name="arrow" [size]="20" [stroke]="2.4" />
+                <ui-icon name="arrow" [size]="20" [stroke]="2.4" />
               </button>
             </div>
             <ol class="cal__weekdays" aria-hidden="true">
@@ -141,7 +141,7 @@ import { Reveal } from '../shared/reveal';
 
     <section class="band band--light text-center">
       <div class="container container--mid" reveal>
-        <app-icon name="briefcase" [size]="64" [stroke]="1" />
+        <ui-icon name="briefcase" [size]="64" [stroke]="1" />
         <h2 class="band__title">Free for working artists</h2>
         <p class="band__lead">Professional development sessions on pricing, portfolios and grants, plus free art therapy, are always free. Want to teach here? We’re always looking for North Side artists to lead classes.</p>
         <a class="btn btn-dark btn-lg" routerLink="/submit">Pitch a class</a>

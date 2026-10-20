@@ -1,5 +1,6 @@
 using Arts6311.AppHost;
 using Arts6311.AppHost.Parameters;
+using Aspire.Hosting.JavaScript;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -97,22 +98,66 @@ var apiService = builder.AddProject<Projects.Arts6311_Api>("api")
     .WaitForCompletion(migrations)
     .WithHttpHealthCheck("/health");
 
+// The two Angular apps, from the one workspace in src/web (frontend.md). Run mode starts each app's dev server
+// through `npm run start:<app>`, which hands Aspire's PORT to `ng serve` (scripts/ng-serve.mjs); nobody runs
+// ng serve by hand. Neither endpoint is external: the browser reaches both only through the gateway (ADR 0001).
+//
+// AddJavaScriptApp gives each app an installer (`npm install` in its directory) that the app waits for, so a clean
+// clone needs no manual npm step. Both apps share src/web's one node_modules, and two installs in one folder at once
+// corrupt it, so the admin's installer waits for the site's to finish; the second finds everything in place.
+//
+// The site arrives ahead of 3.2 because the staff sign-in page is a site route (ADR 0024, 0027); 3.2 still owns its
+// API wiring. Publish-mode shapes (a Node server for the site, a static bundle for the admin) are 6.1's.
+const string webWorkspace = "../web";
+
+// `--no-save`: an install at startup must never rewrite package-lock.json, which changes only by a person's hand.
+string[] installArgs = ["--no-save", "--no-audit", "--no-fund"];
+
+var site = builder.AddJavaScriptApp("site", webWorkspace, "start:site")
+    .WithNpm(installArgs: installArgs)
+    .WithHttpEndpoint(env: "PORT")
+
+    // Served by server.ts without rendering a page, so it says "the SSR server is up" and nothing more.
+    .WithHttpHealthCheck("/robots.txt");
+
+var admin = builder.AddJavaScriptApp("admin", webWorkspace, "start:admin")
+    .WithNpm(installArgs: installArgs)
+    .WithHttpEndpoint(env: "PORT")
+
+    // The SPA's base href (angular.json). The dev server serves the app under it and nothing at "/".
+    .WithHttpHealthCheck("/admin/");
+
+builder.CreateResourceBuilder<ExecutableResource>(InstallerOf(admin).Name)
+    .WaitForCompletion(builder.CreateResourceBuilder<ExecutableResource>(InstallerOf(site).Name));
+
 // The edge (ADR 0001): the ONLY resource with an external endpoint, locally and in Azure. Everything the browser
 // sees comes from this one origin, which is what cookies, antiforgery, CSP and Square webhooks all depend on.
-// WithReference is what service discovery resolves "https+http://api" against; there is no host or port in the
-// gateway's configuration. The site and admin clusters have no resource until 2.2/3.3, so those routes answer 503
-// until then (ADR 0022).
-var gateway = builder.AddProject<Projects.Arts6311_Gateway>("gateway")
-    // The endpoint first, then marked external: WithExternalHttpEndpoints only promotes endpoints that already
-    // exist, so on its own it would leave the gateway with none. No port here either — nothing in the repo is fixed.
-    .WithHttpEndpoint()
+// WithReference is what service discovery resolves "https+http://api", "https+http://site" and
+// "https+http://admin" against; there is no host or port in the gateway's configuration.
+//
+// Run mode serves HTTPS on the ASP.NET Core developer certificate: the session and antiforgery cookies are Secure and
+// __Host- prefixed, and antiforgery with SecurePolicy=Always refuses a plain-http request outright, so over http every
+// /bff call and every unsafe request was a 500 (found by the 1.12 end-to-end test). Publish mode keeps a plain HTTP
+// target port, because Azure Container Apps terminates TLS at its ingress and the container has no certificate; making
+// the gateway see those requests as HTTPS (trusted forwarded headers) is prompt 6.1's.
+var gatewayScheme = builder.ExecutionContext.IsRunMode ? "https" : "http";
+var gateway = builder.AddProject<Projects.Arts6311_Gateway>("gateway");
+
+// The endpoint first, then marked external: WithExternalHttpEndpoints only promotes endpoints that already exist, so
+// on its own it would leave the gateway with none. No port here either — nothing in the repo is fixed.
+gateway = builder.ExecutionContext.IsRunMode ? gateway.WithHttpsEndpoint() : gateway.WithHttpEndpoint();
+gateway
     .WithExternalHttpEndpoints()
     .WithEnvironment("InternalToken__SigningKeyPem", internalTokenSigningKey)
     .WithReference(apiService)
     .WaitFor(apiService)
     .WithReference(cache)
     .WaitFor(cache)
-    .WithHttpHealthCheck("/health");
+    .WithReference(site)
+    .WaitFor(site)
+    .WithReference(admin)
+    .WaitFor(admin)
+    .WithHttpHealthCheck("/health", endpointName: gatewayScheme);
 
 // The outbox dispatcher, scheduler and reconciler host (prompts 1.4+). No HTTP endpoint, so it reports a
 // state, not a health status.
@@ -132,7 +177,11 @@ builder.AddProject<Projects.Arts6311_Worker>("worker")
     // Links in email point at the gateway, the only public endpoint (ADR 0001). A reference, not a WaitFor: the
     // Worker needs the address to build a link, not the gateway to be up before it starts — waiting would invert
     // the dependency, since the gateway already waits on the API.
-    .WithEnvironment("Email__SiteOrigin", gateway.GetEndpoint("http"))
+    .WithEnvironment("Email__SiteOrigin", gateway.GetEndpoint(gatewayScheme))
     .WaitForCompletion(migrations);
 
 builder.Build().Run();
+
+// The installer resource AddJavaScriptApp created for an app, found through the annotation it links them with.
+static ExecutableResource InstallerOf(IResourceBuilder<JavaScriptAppResource> app) =>
+    app.Resource.Annotations.OfType<JavaScriptPackageInstallerAnnotation>().Single().Resource;

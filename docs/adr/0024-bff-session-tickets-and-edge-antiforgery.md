@@ -162,7 +162,8 @@ The gateway now mirrors the role names and the two response shapes it reads, for
 ## Consequences
 
 - **`/signin` does not exist yet**, so an unauthenticated navigation to `/admin` redirects to a 502 until 2.2
-  ships the page. That is the same "not built yet" state ADR 0022 recorded for `/` and `/admin`.
+  ships the page. That is the same "not built yet" state ADR 0022 recorded for `/` and `/admin`. *(Shipped in 2.2:
+  [0027](0027-admin-shell-and-staff-sign-in-page.md).)*
 - **The gateway now has three Redis dependencies**: tickets, the Data Protection ring, and the health check that
   comes with `AddRedisClient`. Redis being unreachable makes the gateway unhealthy, which is what ADR 0009 says
   it should do.
@@ -180,4 +181,6 @@ The gateway now mirrors the role names and the two response shapes it reads, for
 - **Still owed, and not in this prompt's scope:** `/bff/forgot-password`, and the confirm and reset pages the
   emailed links point at (ADR 0023 lists them against 1.10). They need Identity operations that do not exist yet
   — there is no `ResetPasswordAsync` or `ConfirmEmailAsync` on the facade — and browser pages that cannot exist
-  before 2.2. They move to the prompt that adds the sign-in page.
+  before 2.2. They move to the prompt that adds the sign-in page. *(2.2 kept to the sign-in page itself; they are
+  prompts 2.2a and 2.2b — [0027](0027-admin-shell-and-staff-sign-in-page.md); 2.2a's routes are
+  [0028](0028-password-reset-and-email-confirmation-routes.md).)*

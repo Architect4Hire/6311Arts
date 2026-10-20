@@ -34,6 +34,9 @@ paths:
 - **Browser calls** use relative `/api/v1/...` and `/bff/...` URLs, with credentials and the XSRF header (interceptor). There are no absolute origins anywhere in client code.
 - **SSR calls** use the gateway origin injected by Aspire into the Node server environment. That's server-side config, never bundled.
 - **Session** state comes from `/bff/session`. No tokens or user data in browser storage.
+- **XSRF** is Angular's own interceptor via `withXsrfConfiguration({ cookieName: '__Host-6311.csrf', headerName: 'X-XSRF-TOKEN' })`. It runs before every `withInterceptors` function, so an interceptor that retries a write sets the header itself (ADR 0027).
+- **Leaving an app** (site → CMS, CMS → `/signin`) is a full navigation through an injectable (`BrowserNavigation`, `BrowserLocation`), never `window.location` in a component, so tests can see it.
+- **`?returnUrl`** is untrusted: read it only through the site's `safeReturnUrl` (ADR 0027).
 
 ## Site (SSR) — keep what the spike got right
 
@@ -57,7 +60,9 @@ paths:
 - **Unsaved edits** survive recoverable errors and warn on navigation.
 - **Square-owned values** (price, stock or seats, sold-out) show as read-only, with "Managed in Square" and the sync status chip.
 - **A 409 conflict** shows both versions and keeps the editor's changes.
+- **The shell** (2.2, ADR 0027): `SessionService` (signal, memory only), `sessionGuard` on the shell, `roleGuard(...)` per section (Sync is Admin-only), `unsavedChangesGuard` + `warnBeforeUnload` on editors, and the problem interceptor's toasts. A screen that shows a failure in place sets `SUPPRESS_PROBLEM_TOAST`. A new section is an entry in `features/layout/sections.ts`; its prompt swaps the placeholder `loadComponent`.
+- **Dev servers** run without live reload: the gateway does not carry Vite's websocket. Refresh to see a change (ADR 0027).
 
 ## Verification
 
-From `src/web/`: `npm ci`, then `npm run build`. Today `build` builds `site` only. Once `projects/admin` lands, `build` must build every project. Unit tests run on **Vitest** (decided 2026-10-19) through `npm test`. Until the `test` target and Vitest are added, `npm test` fails: run `npm run build` and say tests aren't available yet. Accessibility target is WCAG 2.2 AA: keyboard operation, visible focus, 200% zoom, narrow layouts, reduced motion.
+From `src/web/`: `npm ci`, then `npm run build`, which builds every project: `ui` (the ng-packagr strict check), `site`, then `admin`. Unit tests run on **Vitest** (decided 2026-10-19, ADR 0016) through `npm test`, which runs the `ui`, `site` and `admin` `test` targets in turn (ADR 0027). Specs sit beside the code they test (`*.spec.ts`). Accessibility target is WCAG 2.2 AA: keyboard operation, visible focus, 200% zoom, narrow layouts, reduced motion.

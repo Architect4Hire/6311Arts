@@ -5,7 +5,7 @@ namespace Arts6311.Tests.Api.Infrastructure;
 
 /// <summary>
 /// The API as it runs on a laptop. Pinned to <c>Development</c>, because that is where <c>MapOpenApi</c>, the
-/// health endpoints and the 1.5 ping scaffolding exist.
+/// health endpoints and Development-only routes exist.
 /// </summary>
 internal sealed class ApiFactory : ApiFactoryBase
 {

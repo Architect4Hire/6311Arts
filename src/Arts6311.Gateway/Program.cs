@@ -31,6 +31,11 @@ builder.Configuration.GetSection(BrowserSessionOptions.SectionName).Bind(session
 sessionOptions.Validate();
 builder.Services.AddSingleton(sessionOptions);
 
+var passwordResetOptions = new PasswordResetOptions();
+builder.Configuration.GetSection(PasswordResetOptions.SectionName).Bind(passwordResetOptions);
+passwordResetOptions.Validate();
+builder.Services.AddSingleton(passwordResetOptions);
+
 // The clock. The Domain's AddArtsTime would normally register this, but the gateway holds no domain code and so
 // does not reference it; DateTime.UtcNow is banned repo-wide (src/BannedSymbols.txt).
 builder.Services.AddSingleton(TimeProvider.System);
@@ -51,6 +56,12 @@ builder.Services.AddScoped<ISessionManager, SessionManager>();
 // port appears here (aspire.md); ServiceDefaults has already added discovery and resilience to every client.
 builder.Services.AddHttpClient<IIdentityApiClient, IdentityApiClient>(
     client => client.BaseAddress = new Uri("https+http://api"));
+
+// /bff/forgot-password answers before the API is called, so its timing cannot say whether an address is registered
+// (ADR 0028): the endpoint applies the cooldown and queues, and the dispatcher makes the call afterwards.
+builder.Services.AddSingleton<PasswordResetQueue>();
+builder.Services.AddSingleton<IPasswordResetRequests, PasswordResetRequests>();
+builder.Services.AddHostedService<PasswordResetDispatcher>();
 
 // Antiforgery keys have to outlive the process and be the same in every replica, or a token minted by one
 // gateway is refused by the next (ADR 0024). Redis, not the blob ring the API and Worker share: that ring is

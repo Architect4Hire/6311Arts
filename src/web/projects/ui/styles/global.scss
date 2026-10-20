@@ -1,0 +1,255 @@
+/*
+ * @6311/ui global styles: imported once per app, before the app's own stylesheet.
+ * Base elements plus the two primitives whose classes the site also writes by hand (.btn, .field).
+ * Marketing compositions (nav, hero, bands, cards) stay in the site.
+ */
+
+@use 'tokens';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+  background: var(--white);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    color var(--dur),
+    opacity var(--dur);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 0.6em;
+  line-height: var(--lh-heading);
+}
+
+p {
+  margin: 0 0 1.2em;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: var(--border) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.skip {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 100;
+  background: var(--white);
+  color: var(--ink);
+  padding: 10px 14px;
+  font-weight: var(--fw-bold);
+  &:focus {
+    top: 12px;
+  }
+}
+
+/* ---------- button (uiButton), straight from the template ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--fs-button);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-button);
+  text-transform: uppercase;
+  padding: var(--button-pad);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--dur) ease-in-out;
+  white-space: nowrap;
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  // busy stays focusable (aria-disabled, not disabled) but reads as unavailable
+  &[aria-busy='true'] {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
+
+.btn-lg {
+  padding: var(--button-pad-lg);
+  font-size: var(--fs-small);
+}
+
+.btn-sm {
+  padding: var(--button-pad-sm);
+  font-size: var(--fs-label);
+}
+
+.btn-border {
+  border-color: var(--white);
+  color: var(--white);
+  background: transparent;
+  &:hover {
+    background: var(--light);
+    border-color: var(--light);
+    color: var(--black);
+  }
+}
+
+.btn-border-dark {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: transparent;
+  &:hover {
+    background: var(--ink);
+    color: var(--white);
+  }
+}
+
+.btn-white {
+  border-color: var(--white);
+  background: var(--white);
+  color: var(--black);
+  &:hover {
+    background: transparent;
+    color: var(--white);
+  }
+}
+
+.btn-dark {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--white);
+  &:hover {
+    background: var(--black);
+    border-color: var(--black);
+  }
+}
+
+/* ---------- field (ui-field + uiControl) ---------- */
+
+.field {
+  display: grid;
+  gap: var(--field-gap);
+  min-width: 0;
+}
+
+.field--wide {
+  margin-top: 18px;
+}
+
+.field__label {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink);
+  i,
+  .field__req {
+    font-style: normal;
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--track-button);
+    color: var(--hot-ink);
+    margin-left: 6px;
+  }
+}
+
+.field__hint {
+  font-size: var(--fs-small);
+  color: var(--muted);
+  line-height: var(--lh-hint);
+}
+
+.field__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+  color: var(--danger);
+  line-height: var(--lh-hint);
+}
+
+// Applied by the uiControl directive only, so hand-written site fields keep their own rules.
+.field__control {
+  width: 100%;
+  border: var(--border) solid var(--line);
+  background: var(--white);
+  padding: var(--control-pad);
+  border-radius: var(--radius);
+  transition: border-color var(--dur-fast);
+  &:focus {
+    border-color: var(--ink);
+  }
+  // an invalid field keeps its danger border while focused; the ring below is what shows focus
+  &[aria-invalid='true'] {
+    border-color: var(--danger);
+  }
+  &:focus-visible {
+    outline: var(--border) solid var(--focus);
+    outline-offset: 0;
+  }
+  &:disabled {
+    background: var(--light);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+}
+
+textarea.field__control {
+  resize: vertical;
+}
+
+/* ---------- motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -121,7 +121,7 @@ internal static partial class ModuleBoundaryScanner
     }
 
     // Drops block comments, line comments and XML docs, so a namespace mentioned in prose is not a reference.
-    private static string CodeOnly(string text) =>
+    internal static string CodeOnly(string text) =>
         string.Join('\n', BlockComment().Replace(text, string.Empty).Split('\n')
             .Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal)));
 

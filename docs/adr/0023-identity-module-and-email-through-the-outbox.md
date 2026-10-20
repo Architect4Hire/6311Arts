@@ -91,7 +91,8 @@ Found by review, fixed or deliberately deferred:
   `SqlException` naming the server could reach `LastError`. Both are wrapped now. The send failure is also logged
   with its exception *type* and attempt number, which the original code did not do at all — the SMTP bug below
   cost five silent attempts partly because of that.
-- **Deferred to 1.10: a password-reset request is observable by timing.** An unknown address returns after the
+- **Deferred to 1.10 (decided in [0028](0028-password-reset-and-email-confirmation-routes.md)): a password-reset
+  request is observable by timing.** An unknown address returns after the
   lookup; a known one performs an audit insert, an outbox insert and a save first. Equalising it means staging
   work for addresses we do not hold, which trades an oracle for unauthenticated growth in two tables. 1.10 owns
   the route and its rate limit, and must decide there. It also owes a **per-user cooldown**: nothing at this
@@ -113,7 +114,7 @@ Found by review, fixed or deliberately deferred:
 - **Known: `auth.*` codes map to 400.** None is in `ApiProblemDetails`' status map, so `credentials_invalid`,
   `locked_out` and `email_unconfirmed` all return 400 with the code in the body. **The gateway must branch on
   `code`, not on status.**
-- **Known: `StaffPasswordRule` has one caller.** The seeder. 1.10's reset flow and any later user-management
+- **Known: `StaffPasswordRule` has one caller** (two since [0028](0028-password-reset-and-email-confirmation-routes.md)'s reset). The seeder. 1.10's reset flow and any later user-management
   route must call it for Admin and Editor targets, because Identity's own floor is 8 — a staff password reset
   could otherwise set eight characters.
 

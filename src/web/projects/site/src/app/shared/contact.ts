@@ -1,14 +1,14 @@
 import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { UiIcon } from '@6311/ui';
 import { SITE } from '../core/site';
-import { Icon } from './icon';
 
 /** The template's contact section: visit details on the left, a "Say hello" form on the right. */
 @Component({
   selector: 'app-contact',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, Icon],
+  imports: [FormsModule, UiIcon],
   host: { class: 'band band--white contact' },
   template: `
     <div class="container contact__grid">
@@ -18,9 +18,9 @@ import { Icon } from './icon';
           We’re in a former funeral home in {{ site.address.neighborhood }}. Walk in during gallery hours,
           or call ahead on Monday and Tuesday and we’ll open up for you.
         </p>
-        <p class="contact__big"><app-icon name="phone" [size]="26" /> <a [href]="'tel:' + site.phone.replaceAll('-', '')">{{ site.phone }}</a></p>
-        <p class="contact__line"><app-icon name="mail" [size]="20" /> <a [href]="'mailto:' + site.email">{{ site.email }}</a></p>
-        <p class="contact__line"><app-icon name="pin" [size]="20" />
+        <p class="contact__big"><ui-icon name="phone" [size]="26" /> <a [href]="'tel:' + site.phone.replaceAll('-', '')">{{ site.phone }}</a></p>
+        <p class="contact__line"><ui-icon name="mail" [size]="20" /> <a [href]="'mailto:' + site.email">{{ site.email }}</a></p>
+        <p class="contact__line"><ui-icon name="pin" [size]="20" />
           <a [href]="site.mapUrl" target="_blank" rel="noopener">{{ site.address.street }}, {{ site.address.city }}, {{ site.address.region }} {{ site.address.postal }}</a>
         </p>
         <dl class="hours">

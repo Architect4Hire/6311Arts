@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, switchMap } from 'rxjs';
+import { UiIcon } from '@6311/ui';
 import { Seo, eventLd } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
@@ -11,13 +12,12 @@ import { ArtImage } from '../shared/art-image';
 import { ClassCard } from '../shared/cards';
 import { MoneyPipe, WhenPipe } from '../shared/format';
 import { Hero } from '../shared/hero';
-import { Icon } from '../shared/icon';
 import { NotFound } from './not-found';
 
 @Component({
   selector: 'app-class-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Hero, ArtImage, ClassCard, Icon, MoneyPipe, WhenPipe, RouterLink, NotFound],
+  imports: [Hero, ArtImage, ClassCard, UiIcon, MoneyPipe, WhenPipe, RouterLink, NotFound],
   template: `
     @if (cls(); as c) {
       <app-hero [title]="c.title" [eyebrow]="c.type + ' · ' + c.level" [images]="studioPhotos" />
@@ -31,16 +31,16 @@ import { NotFound } from './not-found';
             <h2 class="detail__title">{{ c.title }}</h2>
             <p class="detail__lead">{{ c.summary }}</p>
             <ul class="facts">
-              <li><app-icon name="clock" [size]="22" />
+              <li><ui-icon name="clock" [size]="22" />
                 <span><strong>{{ c.sessions > 1 ? 'Starts ' : '' }}{{ c.start | when: 'long' }}</strong><br />
                 {{ c.cadence ? c.cadence + ', ' : '' }}{{ c.start | when: 'time' : c.end }}</span></li>
               @if (c.instructor) {
-                <li><app-icon name="people" [size]="22" />
+                <li><ui-icon name="people" [size]="22" />
                   <span>With <a class="linkish" [routerLink]="['/instructors', instructorSlug(c.instructor)]"><strong>{{ c.instructor }}</strong></a></span></li>
               }
-              <li><app-icon name="pin" [size]="22" /><span>{{ site.name }}, {{ site.address.street }}</span></li>
+              <li><ui-icon name="pin" [size]="22" /><span>{{ site.name }}, {{ site.address.street }}</span></li>
               @if (c.spotsLeft != null) {
-                <li><app-icon name="ticket" [size]="22" />
+                <li><ui-icon name="ticket" [size]="22" />
                   <span><strong>{{ c.spotsLeft === 0 ? 'Sold out' : c.spotsLeft + ' of ' + c.capacity + ' spots left' }}</strong></span></li>
               }
             </ul>

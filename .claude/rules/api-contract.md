@@ -19,8 +19,8 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
 | Members | `POST /api/v1/members/signup`, `GET /members/me/subscription` | `Member` |
 | Forms | `POST /api/v1/forms/submissions`, `/forms/newsletter`, `/forms/contact` | anonymous, rate limited |
 | Operations | `GET /api/v1/cms/sync/status`, `POST /cms/sync/outbox/{id}/replay` | `CmsAdmin`, audited |
-| Operations (scaffolding) | `POST /api/v1/cms/ops/ping`: 1.5 only, removed in 1.12 | Development only (404 elsewhere); `CmsAdmin` from 1.7 |
-| Internal | `/api/v1/internal/sessions/**` | gateway service token only |
+| Development-only scaffolding | none today (the 1.5 ping was removed in 1.12); mark any with `[DevelopmentOnly]` | 404 outside Development, before authorization runs |
+| Internal | `/api/v1/internal/sessions/**`, `/api/v1/internal/identity/**` | gateway service token only |
 | Webhooks | `POST /webhooks/square` | signature only |
 
 ## Shapes

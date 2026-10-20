@@ -3,8 +3,9 @@ namespace Arts6311.Tests.Architecture;
 /// <summary>
 /// backend.md "Module rules": the shared kernel depends on no module (ArtsDbContext excepted), a module reaches
 /// another only through its facade, ServiceModels or FK-crossing entities, and there are no layer-first folders at
-/// the Domain root. There are no modules yet, so the rules are also proven against synthetic files below; the
-/// real scan starts biting the moment the first module lands.
+/// the Domain root. The real scan runs against the live modules (Identity and Operations today); the rules are also
+/// proven against synthetic files below, so a scan that saw nothing could not pass. The layer rules inside a module
+/// are <see cref="LayerRuleTests"/>'.
 /// </summary>
 public sealed class ModuleBoundaryTests
 {

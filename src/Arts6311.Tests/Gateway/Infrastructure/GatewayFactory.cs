@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using Arts6311.Gateway;
 using Arts6311.Gateway.Session;
+using Arts6311.Tests.Browser;
+using Arts6311.Tests.Infrastructure;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

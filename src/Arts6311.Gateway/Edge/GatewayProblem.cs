@@ -47,6 +47,19 @@ internal static class GatewayProblem
 
         /// <summary>The internal API could not be reached, so the question could not be answered.</summary>
         public const string IdentityUnavailable = "auth.identity_unavailable";
+
+        /// <summary>
+        /// An emailed reset or confirmation link that cannot be used — wrong, expired, already used, or for an
+        /// address already confirmed. One answer for all of them (ADR 0028). Mirrors the API's code of the same
+        /// spelling; <c>SessionContractTests</c> holds the two together.
+        /// </summary>
+        public const string TokenInvalid = "auth.token_invalid";
+
+        /// <summary>
+        /// The new password does not meet the policy. Only ever returned once the link's token has been accepted,
+        /// so it says nothing to someone without one. Mirrors the API's code.
+        /// </summary>
+        public const string PasswordRejected = "auth.password_rejected";
     }
 
     public static string CodeFor(int status) =>
@@ -67,7 +80,15 @@ internal static class GatewayProblem
     /// The same envelope with a code the caller chose, for the refusals where the status alone does not say
     /// enough — a 400 that means "fetch a new antiforgery token" is acted on differently from any other 400.
     /// </summary>
-    public static async Task WriteAsync(HttpContext context, int status, string code, string title)
+    public static Task WriteAsync(HttpContext context, int status, string code, string title) =>
+        WriteAsync(context, status, code, title, errors: null);
+
+    /// <summary>
+    /// As above, with field errors in the same <c>errors</c> shape the API's validation problems use, so a client
+    /// reads one envelope whichever process refused it.
+    /// </summary>
+    public static async Task WriteAsync(
+        HttpContext context, int status, string code, string title, IReadOnlyDictionary<string, string[]>? errors)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -83,23 +104,22 @@ internal static class GatewayProblem
         // status and the body belong to this method.
         context.Response.StatusCode = status;
 
-        var problem = new ProblemDetails
-        {
-            Status = status,
-            Title = title,
-            Extensions =
-            {
-                ["code"] = code,
+        var problem = errors is { Count: > 0 }
+            ? new ValidationProblemDetails(errors.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal))
+            : new ProblemDetails();
 
-                // The W3C trace id (ADR 0019), so a support request and the dashboard's trace search use the same
-                // value. ASP.NET Core has already parsed any inbound traceparent into this activity.
-                ["correlationId"] = Activity.Current?.TraceId.ToString() ?? string.Empty,
-            },
-        };
+        problem.Status = status;
+        problem.Title = title;
+        problem.Extensions["code"] = code;
 
-        // The contentType argument matters: the two-argument overload writes application/json and would override
-        // anything set on the response beforehand.
+        // The W3C trace id (ADR 0019), so a support request and the dashboard's trace search use the same value.
+        // ASP.NET Core has already parsed any inbound traceparent into this activity.
+        problem.Extensions["correlationId"] = Activity.Current?.TraceId.ToString() ?? string.Empty;
+
+        // The runtime type, not the declared one: serialized as ProblemDetails, a ValidationProblemDetails would
+        // silently lose its errors. The contentType argument matters too: the two-argument overload writes
+        // application/json and would override anything set on the response beforehand.
         await context.Response.WriteAsJsonAsync(
-            problem, options: null, contentType: "application/problem+json", context.RequestAborted);
+            problem, problem.GetType(), options: null, contentType: "application/problem+json", context.RequestAborted);
     }
 }

@@ -3,9 +3,11 @@ using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Identity.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Identity.Managers.Validation;
 using Arts6311.Gateway.Edge;
 using Arts6311.Gateway.Session;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 
 namespace Arts6311.Tests.Gateway;
 
@@ -91,6 +93,43 @@ public sealed class SessionContractTests
         ];
 
         Assert.Contains(GatewayProblem.Codes.CredentialsInvalid, apiCodes, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void TheLinkCodesTheGatewayReadsAreTheOnesTheApiRaises()
+    {
+        // The gateway branches on these to word its answer: a renamed one on the API's side would turn every
+        // rejected password into "this link has expired" (ADR 0028).
+        Assert.Equal(IdentityErrorCodes.TokenInvalid, GatewayProblem.Codes.TokenInvalid);
+        Assert.Equal(IdentityErrorCodes.PasswordRejected, GatewayProblem.Codes.PasswordRejected);
+    }
+
+    [Fact]
+    public void TheGatewaysLinkCeilingsAreTheApisValidators()
+    {
+        // Mirrored so a body the API would refuse is refused at the edge; a drift either way is a 400 nobody can
+        // explain, or an oversized token handed to Data Protection.
+        Assert.Equal(CredentialCheckValidator.EmailMaxLength, BffEndpoints.AccountLimits.EmailMaxLength);
+        Assert.Equal(PasswordResetCompletionValidator.UserIdMaxLength, BffEndpoints.AccountLimits.UserIdMaxLength);
+        Assert.Equal(PasswordResetCompletionValidator.TokenMaxLength, BffEndpoints.AccountLimits.TokenMaxLength);
+        Assert.Equal(CredentialCheckValidator.PasswordMaxLength, BffEndpoints.AccountLimits.PasswordMaxLength);
+    }
+
+    [Theory]
+    [InlineData("ada@example.test")]
+    [InlineData("Ada@Example.TEST")]
+    [InlineData("straße@example.test")]
+    [InlineData("étienne@example.test")]
+    [InlineData(" padded@example.test ")]
+    public void TheCooldownNormalizesAnAddressExactlyAsIdentityLooksItUp(string escaped)
+    {
+        // Every spelling that reaches one account must share one cooldown, and no more: this is the mirror of
+        // Identity's UpperInvariantLookupNormalizer, which the gateway cannot reference (ADR 0022).
+        var email = System.Text.RegularExpressions.Regex.Unescape(escaped);
+
+        Assert.Equal(
+            new UpperInvariantLookupNormalizer().NormalizeEmail(email),
+            PasswordResetRequests.NormalizeEmail(email));
     }
 
     private static string[] PropertyNames<T>() =>

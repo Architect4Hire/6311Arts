@@ -1,4 +1,5 @@
 using System.Net;
+using Arts6311.Tests.Browser;
 using Arts6311.Tests.Gateway.Infrastructure;
 
 namespace Arts6311.Tests.Gateway;

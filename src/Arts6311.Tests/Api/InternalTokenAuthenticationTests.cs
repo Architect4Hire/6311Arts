@@ -1,9 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
-using Arts6311.Domain.Modules.Operations.Facade;
 using Arts6311.Tests.Api.Infrastructure;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Arts6311.Tests.Api;
 
@@ -12,29 +10,26 @@ namespace Arts6311.Tests.Api;
 /// Every case below is the happy-path token with exactly one thing changed.
 /// </summary>
 /// <remarks>
-/// The route used throughout is <c>/api/v1/cms/ops/ping</c>: a product route with a role policy, so one request
-/// exercises authentication, <c>token_use</c> and a role at once. It is scaffolding deleted in 1.12; when it goes,
-/// these tests move to whichever CMS route exists then.
+/// The route used throughout is the test host's <see cref="CmsAdminProbeController"/>: a product route with a role
+/// policy, so one request exercises authentication, <c>token_use</c> and a role at once. It replaced the 1.5 ping
+/// route when that was deleted in 1.12, so these tests no longer depend on which CMS route ships first.
 /// </remarks>
 public sealed class InternalTokenAuthenticationTests
 {
-    private const string ProductRoute = "/api/v1/cms/ops/ping";
+    private const string ProductRoute = "/" + CmsAdminProbeController.Route;
     private const string AnonymousRoute = "/api/v1/site/health-info";
 
     [Fact]
     public async Task AValidAdminTokenReachesAProductRoute()
     {
-        // Proves the negative cases below fail for the reason claimed, and not because the route never works. The
-        // facade is faked because the real one stages an outbox message, which would need a database.
-        var facade = new FakeOperationsFacade();
-        using var api = new ApiFactory(
-            configureServices: services => services.AddScoped<IOperationsFacade>(_ => facade));
+        // Proves the negative cases below fail for the reason claimed, and not because the route never works.
+        using var api = new ApiFactory();
         using var client = api.CreateJsonClient();
 
         var response = await Post(client, api.Tokens.UserToken("Admin"));
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
-        Assert.Equal(1, facade.PingCalls);
+        Assert.Equal(1, api.Probe.Calls);
     }
 
     [Fact]

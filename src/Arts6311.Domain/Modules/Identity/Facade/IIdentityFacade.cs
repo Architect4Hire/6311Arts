@@ -29,9 +29,31 @@ public interface IIdentityFacade
 
     /// <summary>
     /// Stages a password-reset email. Succeeds whether or not the address is registered, so it cannot be used to
-    /// test for an account. No route calls this yet: 1.10's <c>/bff/forgot-password</c> is its caller.
+    /// test for an account. Only a malformed request fails, and that does not depend on any account.
     /// </summary>
-    Task<OperationResult> RequestPasswordResetAsync(string email, CancellationToken cancellationToken);
+    /// <remarks>
+    /// Its response time still differs between a known and an unknown address. That is closed at the gateway, which
+    /// answers the browser before this is called (ADR 0028), not here.
+    /// </remarks>
+    Task<OperationResult> RequestPasswordResetAsync(
+        PasswordResetRequestViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sets a new password with an emailed reset link. The token is checked first; then the staff rule for Admin and
+    /// Editor accounts, and the 8-character floor and bundled list for everyone. Success rotates the security
+    /// stamp, so the link is spent and every live session ends at its next revalidation. Failures are
+    /// <c>auth.token_invalid</c> (one answer for every unusable link) or <c>auth.password_rejected</c> with field
+    /// errors (ADR 0028).
+    /// </summary>
+    Task<OperationResult> ResetPasswordAsync(
+        PasswordResetCompletionViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Confirms an address with an emailed link. Works once; any unusable link, including one for an address that
+    /// is already confirmed, is <c>auth.token_invalid</c> (ADR 0028).
+    /// </summary>
+    Task<OperationResult> ConfirmEmailAsync(
+        EmailConfirmationCompletionViewModel request, CancellationToken cancellationToken);
 
     /// <summary>Stages a confirmation email, or does nothing if the address is already confirmed.</summary>
     Task<OperationResult> RequestEmailConfirmationAsync(string userId, CancellationToken cancellationToken);

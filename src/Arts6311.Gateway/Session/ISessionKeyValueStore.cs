@@ -32,4 +32,11 @@ internal interface ISessionKeyValueStore
     Task<bool> ExpireAsync(string key, TimeSpan timeToLive, CancellationToken cancellationToken);
 
     Task RemoveAsync(string key, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Writes a value <strong>only if the key does not exist</strong>, and says whether it did — Redis
+    /// <c>SET ... NX</c>. One atomic call, so two requests racing for the same key cannot both win; that is what
+    /// the password-reset cooldown is made of (ADR 0028).
+    /// </summary>
+    Task<bool> AddIfAbsentAsync(string key, string value, TimeSpan timeToLive, CancellationToken cancellationToken);
 }

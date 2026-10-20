@@ -1,0 +1,11 @@
+# Keeps the SHA-pinned actions in .github/workflows current (prompt 1.12). Actions only: NuGet versions move with
+# the AspireVersion and SDK pins together (aspire.md), and npm with the Angular workspace, each deliberately.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

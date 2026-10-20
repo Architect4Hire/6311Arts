@@ -24,6 +24,12 @@ internal interface IIdentityBusiness
     Task<EmailTokenServiceModel?> GetPasswordResetTokenAsync(string userId, CancellationToken cancellationToken);
 
     Task<EmailTokenServiceModel?> GetEmailConfirmationTokenAsync(string userId, CancellationToken cancellationToken);
+
+    Task<OperationResult> ResetPasswordAsync(
+        PasswordResetCompletionViewModel request, CancellationToken cancellationToken);
+
+    Task<OperationResult> ConfirmEmailAsync(
+        EmailConfirmationCompletionViewModel request, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -44,7 +50,7 @@ internal sealed class IdentityBusiness(IIdentityDataLayer dataLayer) : IIdentity
             // Hash anyway. Returning here without hashing would make "no such account" measurably faster than
             // "wrong password", which is an enumeration oracle that no amount of identical wording hides.
             dataLayer.VerifyDummyPassword(request.Password);
-            await dataLayer.RecordSignInOutcomeAsync(
+            await dataLayer.RecordAuditAsync(
                 null, IdentityAudit.SignInFailed, "Sign-in failed: no matching account.", cancellationToken);
 
             return Invalid();
@@ -60,7 +66,7 @@ internal sealed class IdentityBusiness(IIdentityDataLayer dataLayer) : IIdentity
             // these codes into one browser response.
             dataLayer.VerifyDummyPassword(request.Password);
 
-            await dataLayer.RecordSignInOutcomeAsync(
+            await dataLayer.RecordAuditAsync(
                 user.Id, IdentityAudit.SignInLockedOut, "Sign-in refused: account locked out.", cancellationToken);
 
             return OperationResult.Failure<UserSummaryServiceModel>(OperationError.Of(
@@ -71,7 +77,7 @@ internal sealed class IdentityBusiness(IIdentityDataLayer dataLayer) : IIdentity
         {
             // Counts towards the lockout, which is what makes the threshold mean anything.
             await dataLayer.RecordFailedAccessAsync(user, cancellationToken);
-            await dataLayer.RecordSignInOutcomeAsync(
+            await dataLayer.RecordAuditAsync(
                 user.Id, IdentityAudit.SignInFailed, "Sign-in failed: incorrect password.", cancellationToken);
 
             return Invalid();
@@ -83,7 +89,7 @@ internal sealed class IdentityBusiness(IIdentityDataLayer dataLayer) : IIdentity
         // confirms simply never gets email. Staff reach the CMS, so the address has to be theirs (auth.md).
         if (!user.EmailConfirmed && IdentityRoles.IsStaff(roles))
         {
-            await dataLayer.RecordSignInOutcomeAsync(
+            await dataLayer.RecordAuditAsync(
                 user.Id,
                 IdentityAudit.SignInFailed,
                 "Sign-in refused: staff email not confirmed.",
@@ -94,7 +100,7 @@ internal sealed class IdentityBusiness(IIdentityDataLayer dataLayer) : IIdentity
         }
 
         await dataLayer.ResetFailedAccessAsync(user, cancellationToken);
-        await dataLayer.RecordSignInOutcomeAsync(
+        await dataLayer.RecordAuditAsync(
             user.Id, IdentityAudit.SignInSucceeded, "Sign-in succeeded.", cancellationToken);
 
         return OperationResult.Success(new UserSummaryServiceModel(
@@ -210,6 +216,136 @@ internal sealed class IdentityBusiness(IIdentityDataLayer dataLayer) : IIdentity
             user.DisplayName,
             await dataLayer.GenerateEmailConfirmationTokenAsync(user, cancellationToken));
     }
+
+    public async Task<OperationResult> ResetPasswordAsync(
+        PasswordResetCompletionViewModel request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // An unknown id gets the answer a bad token gets, and no audit row: there is no account to attach one to.
+        // It is faster than a known id, which is no oracle worth closing: the id is a GUID that only ever arrives
+        // in the emailed link, so there is nothing to guess (ADR 0028).
+        var user = await dataLayer.FindByIdAsync(request.UserId, cancellationToken);
+        if (user is null)
+        {
+            return LinkRefused();
+        }
+
+        // The token before the password policy, deliberately. Checked the other way round, a too-short password
+        // would be refused with auth.password_rejected for staff and auth.token_invalid for members, and anyone
+        // holding a user id but no link could learn which the account is.
+        if (!await dataLayer.VerifyPasswordResetTokenAsync(user, request.Token, cancellationToken))
+        {
+            return await ResetRefusedAsync(user.Id, cancellationToken);
+        }
+
+        // The staff rule cannot be an IPasswordValidator (it needs the roles; StaffPasswordRule explains why), so it
+        // is applied here, to the account being reset. Without it a staff reset could set eight characters, which
+        // is Identity's floor (ADR 0023).
+        var roles = await dataLayer.GetRolesAsync(user, cancellationToken);
+        if (IdentityRoles.IsStaff(roles) && StaffPasswordRule.Violation(request.NewPassword) is { } violation)
+        {
+            return PasswordRejected([violation]);
+        }
+
+        // Identity verifies the token again inside this call, runs the 8-character floor and the bundled list for
+        // everyone, and rotates the security stamp, which spends the link and ends every live session at its next
+        // revalidation (auth.md "Revalidation"). Lockout is left alone: auth.md says it is never relaxed without
+        // an ADR, and a reset is not one.
+        var outcome = await dataLayer.ResetPasswordAsync(user, request.Token, request.NewPassword, cancellationToken);
+
+        if (outcome.TokenRejected)
+        {
+            return await ResetRefusedAsync(user.Id, cancellationToken);
+        }
+
+        if (!outcome.Succeeded)
+        {
+            return PasswordRejected(outcome.PasswordErrors);
+        }
+
+        await dataLayer.RecordAuditAsync(
+            user.Id,
+            IdentityAudit.PasswordResetCompleted,
+            "Password reset with an emailed link; security stamp rotated, so every session ends at revalidation.",
+            cancellationToken);
+
+        return OperationResult.Success();
+    }
+
+    public async Task<OperationResult> ConfirmEmailAsync(
+        EmailConfirmationCompletionViewModel request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var user = await dataLayer.FindByIdAsync(request.UserId, cancellationToken);
+        if (user is null)
+        {
+            return LinkRefused();
+        }
+
+        if (!await dataLayer.VerifyEmailConfirmationTokenAsync(user, request.Token, cancellationToken))
+        {
+            return await ConfirmationRefusedAsync(
+                user.Id, "Email confirmation refused: the link was invalid or expired.", cancellationToken);
+        }
+
+        // What makes a confirmation link work once. Confirming does not rotate the stamp (that would sign out a
+        // member who confirms while signed in), so the token itself stays verifiable for its hour, and this is the
+        // check that spends it. It comes after the token, so only the link's holder learns the address is already
+        // confirmed (ADR 0028).
+        if (user.EmailConfirmed)
+        {
+            return await ConfirmationRefusedAsync(
+                user.Id, "Email confirmation refused: the address was already confirmed.", cancellationToken);
+        }
+
+        if (!await dataLayer.ConfirmEmailAsync(user, request.Token, cancellationToken))
+        {
+            return await ConfirmationRefusedAsync(
+                user.Id, "Email confirmation refused: the store did not accept the link.", cancellationToken);
+        }
+
+        await dataLayer.RecordAuditAsync(
+            user.Id, IdentityAudit.EmailConfirmed, "Email address confirmed with an emailed link.", cancellationToken);
+
+        return OperationResult.Success();
+    }
+
+    private async Task<OperationResult> ResetRefusedAsync(string userId, CancellationToken cancellationToken)
+    {
+        // Audited because, with no second factor, somebody trying links against a staff account is worth seeing
+        // (ADR 0018). The gateway's bff-account rate limit bounds how fast this table can grow from it.
+        await dataLayer.RecordAuditAsync(
+            userId,
+            IdentityAudit.PasswordResetRefused,
+            "Password reset refused: the link was invalid, expired or already used.",
+            cancellationToken);
+
+        return LinkRefused();
+    }
+
+    private async Task<OperationResult> ConfirmationRefusedAsync(
+        string userId, string summary, CancellationToken cancellationToken)
+    {
+        await dataLayer.RecordAuditAsync(userId, IdentityAudit.EmailConfirmationRefused, summary, cancellationToken);
+        return LinkRefused();
+    }
+
+    /// <summary>
+    /// The one answer for a link that cannot be used, whatever the reason: wrong, expired, already used, an unknown
+    /// user, an address already confirmed. The audit row says which; the caller is not told (ADR 0028).
+    /// </summary>
+    private static OperationResult LinkRefused() =>
+        OperationResult.Failure(OperationError.Of(
+            IdentityErrorCodes.TokenInvalid, "This link has expired or has already been used."));
+
+    /// <summary>Only ever reached with a valid token, so the reasons are the link holder's to see.</summary>
+    private static OperationResult PasswordRejected(IReadOnlyList<string> reasons) =>
+        OperationResult.Failure(new OperationError(
+            IdentityErrorCodes.PasswordRejected,
+            "That password cannot be used.",
+            new Dictionary<string, string[]>(StringComparer.Ordinal) { ["newPassword"] = [.. reasons] }));
 
     /// <summary>
     /// The one answer for "no such account" and "wrong password". Distinguishing them here would enumerate

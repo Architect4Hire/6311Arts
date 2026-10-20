@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map, switchMap } from 'rxjs';
+import { UiIcon } from '@6311/ui';
 import { Seo, productLd } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
@@ -10,7 +11,6 @@ import { ArtImage } from '../shared/art-image';
 import { ProductCard } from '../shared/cards';
 import { MoneyPipe } from '../shared/format';
 import { Hero } from '../shared/hero';
-import { Icon } from '../shared/icon';
 import { NotFound } from './not-found';
 
 const CATEGORIES = [
@@ -27,7 +27,7 @@ const CATEGORIES = [
 @Component({
   selector: 'app-shop',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Hero, ProductCard, RouterLink, Icon],
+  imports: [Hero, ProductCard, RouterLink, UiIcon],
   template: `
     <app-hero title="Shop local art" eyebrow="780+ original works"
       lead="Every piece is made by an artist who lives within six miles of the gallery. Buy online or see it in person on Clark Street." [images]="shopPhotos" />
@@ -69,9 +69,9 @@ const CATEGORIES = [
     </section>
     <section class="band band--light">
       <div class="container cols-3 text-center">
-        <div class="feature feature--dark"><app-icon name="heart" [size]="56" [stroke]="1" /><h3 class="feature__title">Support artists</h3><p>Every sale supports the local artist who made the work.</p></div>
-        <div class="feature feature--dark"><app-icon name="pin" [size]="56" [stroke]="1" /><h3 class="feature__title">See it in person</h3><p>Most pieces are on display in the gallery, Wednesday to Sunday.</p></div>
-        <div class="feature feature--dark"><app-icon name="gift" [size]="56" [stroke]="1" /><h3 class="feature__title">14-day returns</h3><p>Shop items come back undamaged with a receipt for a full refund.</p></div>
+        <div class="feature feature--dark"><ui-icon name="heart" [size]="56" [stroke]="1" /><h3 class="feature__title">Support artists</h3><p>Every sale supports the local artist who made the work.</p></div>
+        <div class="feature feature--dark"><ui-icon name="pin" [size]="56" [stroke]="1" /><h3 class="feature__title">See it in person</h3><p>Most pieces are on display in the gallery, Wednesday to Sunday.</p></div>
+        <div class="feature feature--dark"><ui-icon name="gift" [size]="56" [stroke]="1" /><h3 class="feature__title">14-day returns</h3><p>Shop items come back undamaged with a receipt for a full refund.</p></div>
       </div>
     </section>
   `,
@@ -124,7 +124,7 @@ export class Shop {
 @Component({
   selector: 'app-product-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ArtImage, ProductCard, MoneyPipe, RouterLink, Icon, NotFound],
+  imports: [ArtImage, ProductCard, MoneyPipe, RouterLink, UiIcon, NotFound],
   template: `
     @if (product(); as p) {
       <section class="band band--white band--after-nav" id="content">
@@ -147,9 +147,9 @@ export class Shop {
               }
             </div>
             <ul class="facts facts--small">
-              <li><app-icon name="pin" [size]="20" /><span>See it in person at {{ site.address.street }} during gallery hours</span></li>
-              <li><app-icon name="heart" [size]="20" /><span>Made by a North Side artist within six miles of the gallery</span></li>
-              <li><app-icon name="gift" [size]="20" /><span>Returns within 14 days, undamaged, with receipt</span></li>
+              <li><ui-icon name="pin" [size]="20" /><span>See it in person at {{ site.address.street }} during gallery hours</span></li>
+              <li><ui-icon name="heart" [size]="20" /><span>Made by a North Side artist within six miles of the gallery</span></li>
+              <li><ui-icon name="gift" [size]="20" /><span>Returns within 14 days, undamaged, with receipt</span></li>
             </ul>
           </div>
         </div>

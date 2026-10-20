@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { UiIcon } from '@6311/ui';
 import { SITE } from '../core/site';
-import { Icon } from './icon';
 
 @Component({
   selector: 'app-footer',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, Icon],
+  imports: [RouterLink, UiIcon],
   host: { class: 'footer' },
   template: `
     <div class="footer__grid container">
@@ -39,11 +39,11 @@ import { Icon } from './icon';
       </div>
     </div>
     <div class="footer__bar container">
-      <span class="footer__star"><app-icon name="star" [size]="20" [stroke]="2" /></span>
+      <span class="footer__star"><ui-icon name="star" [size]="20" [stroke]="2" /></span>
       <span>© {{ year }} {{ site.name }} · <a routerLink="/privacy">Privacy</a> · <a routerLink="/terms">Terms</a></span>
       <span class="footer__social">
-        <a [href]="site.instagram" target="_blank" rel="noopener" aria-label="Instagram"><app-icon name="instagram" [size]="26" /></a>
-        <a [href]="'mailto:' + site.email" aria-label="Email"><app-icon name="mail" [size]="26" /></a>
+        <a [href]="site.instagram" target="_blank" rel="noopener" aria-label="Instagram"><ui-icon name="instagram" [size]="26" /></a>
+        <a [href]="'mailto:' + site.email" aria-label="Email"><ui-icon name="mail" [size]="26" /></a>
       </span>
     </div>
   `,

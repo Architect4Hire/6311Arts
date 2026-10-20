@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Arts6311.Gateway.Authentication;
+using Arts6311.Gateway.Edge;
 
 namespace Arts6311.Gateway.Session;
 
@@ -27,6 +28,9 @@ internal sealed partial class IdentityApiClient(
     private const string Credentials = "api/v1/internal/sessions/credentials";
     private const string Validate = "api/v1/internal/sessions/validate";
     private const string Revoke = "api/v1/internal/sessions/revoke";
+    private const string PasswordReset = "api/v1/internal/identity/password-reset";
+    private const string PasswordResetComplete = "api/v1/internal/identity/password-reset/complete";
+    private const string EmailConfirmationComplete = "api/v1/internal/identity/email-confirmation/complete";
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -90,6 +94,77 @@ internal sealed partial class IdentityApiClient(
         }
 
         throw new IdentityApiException($"The session revocation route answered {(int)response.StatusCode}.");
+    }
+
+    public async Task RequestPasswordResetAsync(string email, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(PasswordReset, new { email }, cancellationToken);
+
+        // 202 for a registered address and an unregistered one alike, so there is nothing else to read.
+        if (response.StatusCode != HttpStatusCode.Accepted)
+        {
+            throw new IdentityApiException($"The password reset route answered {(int)response.StatusCode}.");
+        }
+    }
+
+    public Task<AccountLinkResult> CompletePasswordResetAsync(
+        string userId, string token, string newPassword, CancellationToken cancellationToken) =>
+        UseLinkAsync(PasswordResetComplete, new { userId, token, newPassword }, cancellationToken);
+
+    public Task<AccountLinkResult> ConfirmEmailAsync(
+        string userId, string token, CancellationToken cancellationToken) =>
+        UseLinkAsync(EmailConfirmationComplete, new { userId, token }, cancellationToken);
+
+    /// <summary>
+    /// 204 is success and a 400 is a refusal with a code. Anything else is "no answer", as on the credential route:
+    /// a 500 reported as "this link has expired" would send people round the reset loop for an outage.
+    /// </summary>
+    private async Task<AccountLinkResult> UseLinkAsync(
+        string route, object payload, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(route, payload, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NoContent)
+        {
+            return AccountLinkResult.Success;
+        }
+
+        if (response.StatusCode != HttpStatusCode.BadRequest)
+        {
+            throw new IdentityApiException($"The account link route answered {(int)response.StatusCode}.");
+        }
+
+        var (code, passwordErrors) = await ReadRefusalAsync(response, cancellationToken);
+
+        // A 400 with no readable code is still a refusal; it is reported as the one answer every bad link gets.
+        return new AccountLinkResult(code ?? GatewayProblem.Codes.TokenInvalid, passwordErrors);
+    }
+
+    /// <summary>The code, and the <c>newPassword</c> field errors when there are any. Nothing else is read.</summary>
+    private static async Task<(string? Code, IReadOnlyList<string> PasswordErrors)> ReadRefusalAsync(
+        HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            var root = document.RootElement;
+
+            var code = root.TryGetProperty("code", out var codeElement) ? codeElement.GetString() : null;
+
+            IReadOnlyList<string> errors =
+                root.TryGetProperty("errors", out var errorsElement)
+                && errorsElement.ValueKind == JsonValueKind.Object
+                && errorsElement.TryGetProperty("newPassword", out var passwordElement)
+                && passwordElement.ValueKind == JsonValueKind.Array
+                    ? [.. passwordElement.EnumerateArray().Select(error => error.GetString() ?? string.Empty)]
+                    : [];
+
+            return (code, errors);
+        }
+        catch (JsonException)
+        {
+            return (null, []);
+        }
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Session revocation found no such account.")]

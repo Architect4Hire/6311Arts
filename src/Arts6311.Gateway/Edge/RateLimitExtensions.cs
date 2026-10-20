@@ -11,13 +11,19 @@ internal static class RateLimitExtensions
     public static class Policies
     {
         public const string BffLogin = "bff-login";
+
+        /// <summary>
+        /// <c>/bff/forgot-password</c>, <c>/bff/reset-password</c> and <c>/bff/confirm-email</c> (ADR 0028). Its own
+        /// window, so a flood of reset requests cannot spend the sign-in budget.
+        /// </summary>
+        public const string BffAccount = "bff-account";
         public const string Forms = "forms";
         public const string Checkout = "checkout";
         public const string Webhooks = "webhooks";
         public const string Api = "api";
 
         /// <summary>Every policy the gateway defines, for the test that keeps this list and gateway.md in step.</summary>
-        public static readonly string[] All = [BffLogin, Forms, Checkout, Webhooks, Api];
+        public static readonly string[] All = [BffLogin, BffAccount, Forms, Checkout, Webhooks, Api];
     }
 
     /// <summary>
@@ -30,7 +36,7 @@ internal static class RateLimitExtensions
     /// one route, long after deployment.
     /// </para>
     /// <para>
-    /// All five are defined now even though <c>bff-login</c>, <c>forms</c> and <c>checkout</c> have no route until
+    /// All five original policies were defined in 1.8 even though <c>bff-login</c>, <c>forms</c> and <c>checkout</c> have no route until
     /// 1.10, 2.12 and 5.14: the prompts that add those routes then only reference a name, and the limits stay in
     /// one place rather than arriving piecemeal.
     /// </para>

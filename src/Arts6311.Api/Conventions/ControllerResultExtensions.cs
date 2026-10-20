@@ -34,6 +34,20 @@ internal static class ControllerResultExtensions
             : controller.ProblemFor(result.Error!);
     }
 
+    /// <summary>
+    /// Success → <c>202</c> with no body: accepted work with nothing to point at, such as a reset request whose
+    /// whole contract is that the caller learns nothing more.
+    /// </summary>
+    public static IActionResult ToAcceptedResult(this ControllerBase controller, OperationResult result)
+    {
+        ArgumentNullException.ThrowIfNull(controller);
+        ArgumentNullException.ThrowIfNull(result);
+
+        return result.Succeeded
+            ? controller.StatusCode(StatusCodes.Status202Accepted)
+            : controller.ProblemFor(result.Error!);
+    }
+
     /// <summary>Success → <c>204</c>. Failure → the mapped <c>ProblemDetails</c>.</summary>
     public static IActionResult ToNoContentResult(this ControllerBase controller, OperationResult result)
     {

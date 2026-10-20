@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Arts6311.Gateway.Edge;
+using Arts6311.Tests.Browser;
 using Arts6311.Tests.Gateway.Infrastructure;
 
 namespace Arts6311.Tests.Gateway;

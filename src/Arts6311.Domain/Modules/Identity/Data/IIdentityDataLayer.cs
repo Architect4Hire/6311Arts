@@ -1,4 +1,5 @@
 using Arts6311.Domain.Modules.Identity.Data.Entities;
+using Arts6311.Domain.Modules.Identity.Managers;
 
 namespace Arts6311.Domain.Modules.Identity.Data;
 
@@ -33,8 +34,11 @@ internal interface IIdentityDataLayer
     /// </summary>
     Task RevokeSessionsAsync(ArtsUser user, CancellationToken cancellationToken);
 
-    /// <summary>Audits the sign-in outcome. One save; no Identity write is involved.</summary>
-    Task RecordSignInOutcomeAsync(string? userId, string action, string summary, CancellationToken cancellationToken);
+    /// <summary>
+    /// Writes one audit row for this module — a sign-in outcome, a reset, a confirmation — in its own save. No
+    /// Identity write is involved and nothing is staged with it.
+    /// </summary>
+    Task RecordAuditAsync(string? userId, string action, string summary, CancellationToken cancellationToken);
 
     /// <summary>
     /// Stages the email message and its audit row, then makes the single save that commits them together.
@@ -44,4 +48,20 @@ internal interface IIdentityDataLayer
     Task<string> GeneratePasswordResetTokenAsync(ArtsUser user, CancellationToken cancellationToken);
 
     Task<string> GenerateEmailConfirmationTokenAsync(ArtsUser user, CancellationToken cancellationToken);
+
+    /// <summary>Whether a reset token is good for this user now. Changes nothing.</summary>
+    Task<bool> VerifyPasswordResetTokenAsync(ArtsUser user, string token, CancellationToken cancellationToken);
+
+    /// <summary>Whether a confirmation token is good for this user now. Changes nothing.</summary>
+    Task<bool> VerifyEmailConfirmationTokenAsync(ArtsUser user, string token, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sets a new password with a reset token. Identity verifies the token again, runs every password validator
+    /// (the 8-character floor and the bundled list) and rotates the security stamp, in its own save.
+    /// </summary>
+    Task<PasswordResetOutcome> ResetPasswordAsync(
+        ArtsUser user, string token, string newPassword, CancellationToken cancellationToken);
+
+    /// <summary>Marks the address confirmed with a confirmation token. <c>false</c> when the store refused it.</summary>
+    Task<bool> ConfirmEmailAsync(ArtsUser user, string token, CancellationToken cancellationToken);
 }

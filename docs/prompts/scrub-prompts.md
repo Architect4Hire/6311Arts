@@ -422,6 +422,53 @@ UTILIZATION: new-component; @design-review, @security-reviewer.
 BEHAVIOR: Plan, wait, implement, npm test, walk me through /signin → dashboard through the gateway URL.
 ```
 
+## 2.2a — Password reset and email confirmation: Identity routes + BFF endpoints
+
+Owed since ADR 0023 and deferred again by ADR 0024/0027: the emailed links already point at
+`/account/confirm-email#…` and `/account/reset-password#…`, and nothing answers them.
+
+```
+SCOPE: IIdentityFacade ResetPasswordAsync(userId, token, newPassword) and ConfirmEmailAsync(userId, token)
+(StaffPasswordRule applied to Admin/Editor targets, breached-list check for everyone, security stamp rotated on
+reset so live sessions end at revalidation, audit rows); internal routes
+POST /api/v1/internal/identity/password-reset, /password-reset/complete, /email-confirmation/complete
+(InternalService token only). Gateway /bff/forgot-password (bff-login-style rate limit + a per-address cooldown
+that behaves identically for known and unknown addresses; always 202), /bff/reset-password,
+/bff/confirm-email, each antiforgery-protected and answering one non-enumerating ProblemDetails on failure.
+Decide and record the reset-request timing oracle ADR 0023 left open.
+
+CONSTRAINT: auth.md; add-endpoint; ADR 0018, 0023, 0024.
+
+RESTRICTION: Tokens only ever in request bodies, never in a URL, a log line, a trace attribute or an outbox
+payload. No account enumeration by status, body, timing or cooldown. No Identity code in the gateway.
+
+UTILIZATION: add-endpoint; @security-reviewer, @outbox-reviewer.
+
+BEHAVIOR: Plan, wait, implement; tests: reset with a valid token works once and ends a second live session,
+expired/reused token refused, short staff password refused, cooldown identical for unknown address, confirm
+works once, reset email in Mailpit. Report.
+```
+
+## 2.2b — Password reset and email confirmation: site pages
+
+```
+SCOPE: projects/site pages /account/forgot-password, /account/reset-password, /account/confirm-email
+(noindex, Cache-Control no-store), plus a "Forgot your password?" link on /signin. The reset and confirm pages
+read userId and token from location.hash in the browser only (never during SSR), clear the fragment with
+history.replaceState before anything else runs, and POST them to 2.2a's /bff routes through a typed service.
+Success sends staff on to /signin; failure offers a fresh request.
+
+CONSTRAINT: frontend.md; design-system.md; auth.md; ADR 0027 (sign-in page patterns, returnUrl rules).
+
+RESTRICTION: The token never reaches the server in a URL, the SSR render, browser storage or console output.
+The forgot-password answer is identical for registered and unregistered addresses. No HttpClient in components.
+
+UTILIZATION: new-component; @design-review, @security-reviewer.
+
+BEHAVIOR: Plan, wait, implement, npm test, walk me through forgot → Mailpit → reset → /signin → dashboard
+through the gateway URL.
+```
+
 ## 2.3 — Media module
 
 ```
@@ -430,7 +477,7 @@ limits, EXIF GPS strip, checksum) storing originals in the media container; `med
 outbox message staged in the same save; Worker handler producing 400/800/1600 WebP+JPEG renditions
 (content-addressed, idempotent); delivery GET /media/{id}/{rendition} with ETag/long cache (draft-only
 assets to CMS sessions only); alt-text update; delete blocked while referenced. Admin: media library
-grid, uploader with progress, alt-text editor, reusable picker.
+grid, uploader with progress, alt-text editor, reusable picker.  Add the ability to compress images using native .net technologies - no external paid nugets or plugins
 
 CONSTRAINT: media.md; add-media-feature; add-outbox-message; add-endpoint.
 

@@ -31,7 +31,7 @@ import {
     }
   `,
   styles: `
-    :host { display: block; position: relative; overflow: hidden; background: #2a2f35; }
+    :host { display: block; position: relative; overflow: hidden; background: var(--ink-2); }
     img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .8s cubic-bezier(.2,.7,.2,1), filter .6s; }
     .ph {
       position: absolute; inset: 0; display: grid; place-items: center;
@@ -42,9 +42,9 @@ import {
     }
     .ph::after {
       content: ''; position: absolute; inset: 0; opacity: .16; mix-blend-mode: overlay;
-      background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.5) 0 1px, transparent 1px 7px);
+      background-image: repeating-linear-gradient(115deg, var(--white-50) 0 1px, transparent 1px 7px);
     }
-    .ph__mark { font-weight: 800; font-size: clamp(28px, 5vw, 56px); letter-spacing: -.02em; color: rgba(255,255,255,.55); text-transform: uppercase; }
+    .ph__mark { font-weight: 800; font-size: clamp(28px, 5vw, 56px); letter-spacing: -.02em; color: var(--white-55); text-transform: uppercase; }
   `,
 })
 export class ArtImage {

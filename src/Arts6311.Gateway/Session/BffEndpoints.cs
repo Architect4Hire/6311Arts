@@ -65,6 +65,9 @@ internal static partial class BffEndpoints
         bff.MapPost("/logout-everywhere", LogoutEverywhereAsync)
             .RequireAuthorization(GatewayPolicies.Session);
 
+        // Forgot, reset and confirm (BffEndpoints.Account.cs). In this group, so the no-store filter covers them.
+        MapAccount(bff);
+
         return endpoints;
     }
 
@@ -198,11 +201,12 @@ internal static partial class BffEndpoints
     /// Writes the gateway's <c>ProblemDetails</c> envelope, so a <c>/bff</c> failure looks exactly like every
     /// other failure from this origin — same <c>code</c>, same <c>correlationId</c>.
     /// </summary>
-    private sealed record GatewayProblemResult(int Status, string Code, string? Title) : IResult
+    private sealed record GatewayProblemResult(
+        int Status, string Code, string? Title, IReadOnlyDictionary<string, string[]>? Errors = null) : IResult
     {
         public Task ExecuteAsync(HttpContext httpContext) => Title is null
             ? GatewayProblem.WriteAsync(httpContext, Status)
-            : GatewayProblem.WriteAsync(httpContext, Status, Code, Title);
+            : GatewayProblem.WriteAsync(httpContext, Status, Code, Title, Errors);
     }
 }
 

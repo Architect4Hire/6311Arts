@@ -1,0 +1,17 @@
+/* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
+/* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
+/* Lives at the workspace root, like tsconfig.site.json: @angular/build names lazy routes relative to this file's
+   folder (frontend.md, Workspace config). */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "outDir": "./out-tsc/admin",
+    "types": []
+  },
+  "angularCompilerOptions": {
+    "strictTemplates": true
+  },
+  "include": ["projects/admin/src/**/*.ts"],
+  "exclude": ["projects/admin/src/**/*.spec.ts"]
+}

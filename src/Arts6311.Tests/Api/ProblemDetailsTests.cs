@@ -3,7 +3,6 @@ using System.Text.Json;
 using Arts6311.Api.Conventions;
 using Arts6311.Domain.Managers.Correlation;
 using Arts6311.Domain.Managers.Results;
-using Arts6311.Domain.Modules.Operations.Facade;
 using Arts6311.Tests.Api.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +16,9 @@ namespace Arts6311.Tests.Api;
 public sealed class ProblemDetailsTests
 {
     private static readonly Guid KnownCorrelationId = Guid.Parse("0123456789abcdef0123456789abcdef");
+
+    /// <summary>A role-gated product route that exists in the test host only.</summary>
+    private const string ProbeRoute = "/" + CmsAdminProbeController.Route;
 
     [Theory]
     [InlineData(ErrorCodes.ValidationFailed, 400)]
@@ -92,7 +94,7 @@ public sealed class ProblemDetailsTests
         using var client = api.CreateJsonClient();
 
         var response = await client.PostAsync(
-            "/api/v1/cms/ops/ping", content: null, TestContext.Current.CancellationToken);
+            ProbeRoute, content: null, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         var problem = await Problem(response);
@@ -106,7 +108,7 @@ public sealed class ProblemDetailsTests
         using var api = Factory();
         using var client = api.CreateJsonClient();
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/cms/ops/ping");
+        using var request = new HttpRequestMessage(HttpMethod.Post, ProbeRoute);
         request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {api.Tokens.UserToken("Member")}");
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
@@ -131,21 +133,18 @@ public sealed class ProblemDetailsTests
     [Fact]
     public async Task AFacadeFailureIsMappedByItsCode()
     {
-        var facade = new FakeOperationsFacade
-        {
-            PingError = OperationError.Of(ErrorCodes.Conflict, "Already pinged."),
-        };
-        using var api = Factory(services => services.AddScoped<IOperationsFacade>(_ => facade));
+        using var api = Factory();
+        api.Probe.Error = OperationError.Of(ErrorCodes.Conflict, "Already probed.");
         using var client = api.CreateJsonClient();
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/cms/ops/ping");
+        using var request = new HttpRequestMessage(HttpMethod.Post, ProbeRoute);
         request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {api.Tokens.UserToken("Admin")}");
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await Problem(response);
         Assert.Equal(ErrorCodes.Conflict, problem.GetProperty("code").GetString());
-        Assert.Equal("Already pinged.", problem.GetProperty("detail").GetString());
+        Assert.Equal("Already probed.", problem.GetProperty("detail").GetString());
         Assert.Equal(KnownCorrelationId.ToString("N"), problem.GetProperty("correlationId").GetString());
     }
 

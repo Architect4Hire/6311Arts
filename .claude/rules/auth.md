@@ -30,7 +30,8 @@ paths:
 - **Sign-in:** the gateway's `/bff/login` calls the API's internal credential check. On success it creates a server-side session ticket in Redis.
   - The cookie is `__Host-6311.session`: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`. It carries only the ticket reference.
 - **Other BFF endpoints:** `/bff/session` (display name and roles, never ids or tokens), `/bff/logout`,
-  `/bff/logout-everywhere`, `/bff/antiforgery`.
+  `/bff/logout-everywhere`, `/bff/antiforgery`, and the emailed-link trio `/bff/forgot-password`,
+  `/bff/reset-password`, `/bff/confirm-email` (below, ADR 0028).
 - **The ticket.** Redis holds it, keyed by the **SHA-256 of the cookie's value**, so the store never holds a
   usable cookie. The `sid` claim is a separate non-secret id, not the cookie. The idle window is the key's time
   to live, capped at the absolute deadline on the ticket (ADR 0024).
@@ -41,13 +42,32 @@ paths:
   | `POST /api/v1/internal/sessions/credentials` | `{ email, password }` | `{ userId, displayName, roles, securityStamp }`, or `auth.credentials_invalid` / `auth.locked_out` / `auth.email_unconfirmed` |
   | `POST /api/v1/internal/sessions/validate` | `{ userId, securityStamp }` | `{ valid, roles }` |
   | `POST /api/v1/internal/sessions/revoke` | `{ userId }` | `204`, or `resource.not_found`. Rotates the security stamp: "log out everywhere" |
+  | `POST /api/v1/internal/identity/password-reset` | `{ email }` | `202`, registered or not |
+  | `POST /api/v1/internal/identity/password-reset/complete` | `{ userId, token, newPassword }` | `204`, or `auth.token_invalid` / `auth.password_rejected` (+ `errors.newPassword`). Rotates the stamp |
+  | `POST /api/v1/internal/identity/email-confirmation/complete` | `{ userId, token }` | `204`, or `auth.token_invalid`. Does not rotate the stamp |
 
   Emailed confirmation and reset links carry the token in the URL **fragment**, not the query string, so it never
-  reaches a server log or a trace — `/bff` pages must read `location.hash` and POST it. Tokens last one hour. A
-  reset request answers the same whether or not the address is registered, and `/bff/forgot-password` owes both a
-  rate limit and a **per-user cooldown that behaves identically for known and unknown addresses**.
+  reaches a server log or a trace — the site's pages read `location.hash` and POST it. Tokens last one hour, and
+  travel only in request bodies: never a URL, a log line, a trace attribute or an outbox payload.
 
-  **Those three failure codes are for the gateway and must not reach a browser.** The gateway needs them to word its message and to audit; a browser given them can enumerate accounts. `/bff/login` collapses them into one response (ADR 0023). The API itself never distinguishes an unknown address from a wrong password, and spends a password hash either way so the two cannot be told apart by timing.
+  **The three credential failure codes are for the gateway and must not reach a browser.** The gateway needs them to word its message and to audit; a browser given them can enumerate accounts. `/bff/login` collapses them into one response (ADR 0023). The API itself never distinguishes an unknown address from a wrong password, and spends a password hash either way so the two cannot be told apart by timing.
+- **Emailed links (ADR 0028):**
+  - `/bff/forgot-password` is **always 202**, and answers **before the API is asked**: it applies the cooldown,
+    queues the address in memory, and a gateway background dispatcher calls the internal route afterwards. That
+    is what stops the response's timing from saying whether an address is registered. Never make it await the
+    API.
+  - The **cooldown** is a Redis `SET NX` on the SHA-256 of the address as Identity normalizes it
+    (`Gateway:PasswordReset:Cooldown`, 5 minutes). The gateway cannot tell a known address from an unknown one,
+    so it behaves identically for both.
+  - All three routes carry antiforgery and the `bff-account` rate limit, separate from `bff-login`.
+  - A reset checks the **token before the password policy**, so `auth.password_rejected` is only reachable with a
+    valid link. Then `StaffPasswordRule` for Admin and Editor, then Identity's floor and the bundled list for
+    everyone. Success rotates the stamp: the link is spent and every session ends at revalidation. Lockout is not
+    cleared.
+  - A confirmation works once because an already-confirmed address is refused; it does **not** rotate the stamp,
+    so a member confirming while signed in stays signed in.
+  - Every unusable link is one `auth.token_invalid`. Only a missing or oversized field is `validation.failed`; an
+    unreachable API is a 503, never "this link has expired".
 - **Logout:** deletes the ticket and clears the cookie, so a copied cookie dies with it. `/bff/logout-everywhere`
   calls the internal revoke route first, then ends this session; the others end at their next revalidation —
   **up to `RevalidationInterval` later**, which ADR 0024 records as accepted.
@@ -97,7 +117,10 @@ paths:
 ## Tests
 
 - Login and lockout. (Lockout *expiry* is not covered: `UserManager` compares `LockoutEnd` against the system clock, not `IClock`, so a fake clock cannot move it.)
-- A short or listed staff password is refused.
+- A short or listed staff password is refused, at reset as well as at seeding.
+- A reset link works once and ends other sessions at revalidation; an expired or reused link is refused; a
+  confirmation link works once.
+- `/bff/forgot-password` answers before the API does, and its cooldown treats every address the same.
 - A staff session ends at its idle and absolute limits, and a member session uses the longer defaults.
 - "Log out everywhere" ends every other session.
 - A rotated stamp ends a live session at the next revalidation, and an unreachable API does not.

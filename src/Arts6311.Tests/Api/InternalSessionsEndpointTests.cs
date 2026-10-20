@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Identity.Facade;
 using Arts6311.Domain.Modules.Identity.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Identity.Managers.ViewModels;
@@ -97,7 +98,7 @@ public sealed class InternalSessionsEndpointTests
     {
         var facade = new FakeIdentityFacade
         {
-            Error = Domain.Managers.Results.OperationError.Of("auth.locked_out", "Locked."),
+            Error = OperationError.Of("auth.locked_out", "Locked."),
         };
         using var api = Factory(facade);
         using var client = api.CreateJsonClient();
@@ -163,63 +164,13 @@ public sealed class InternalSessionsEndpointTests
         Assert.DoesNotContain("internal/sessions", document, StringComparison.Ordinal);
     }
 
-    private static ApiFactory Factory(IIdentityFacade facade) =>
-        new(configureServices: services => services.AddScoped(_ => facade));
+    private static ApiFactory Factory(FakeIdentityFacade facade) =>
+        new(configureServices: services => services.AddScoped<IIdentityFacade>(_ => facade));
 
     private static HttpRequestMessage Request(HttpMethod method, string path, string token)
     {
         var request = new HttpRequestMessage(method, path);
         request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
         return request;
-    }
-
-    private sealed class FakeIdentityFacade : IIdentityFacade
-    {
-        public int CredentialCalls { get; private set; }
-
-        public Domain.Managers.Results.OperationError? Error { get; init; }
-
-        public Task<Domain.Managers.Results.OperationResult<UserSummaryServiceModel>> CheckCredentialsAsync(
-            CredentialCheckViewModel request, CancellationToken cancellationToken)
-        {
-            CredentialCalls++;
-
-            return Task.FromResult(Error is { } error
-                ? Domain.Managers.Results.OperationResult.Failure<UserSummaryServiceModel>(error)
-                : Domain.Managers.Results.OperationResult.Success(
-                    new UserSummaryServiceModel("user-1", "Someone", ["Editor"], "stamp")));
-        }
-
-        public Task<Domain.Managers.Results.OperationResult<SessionValidationServiceModel>> ValidateSessionAsync(
-            SessionValidationViewModel request, CancellationToken cancellationToken) =>
-            Task.FromResult(Domain.Managers.Results.OperationResult.Success(
-                new SessionValidationServiceModel(Valid: true, ["Editor"])));
-
-        public int RevokeCalls { get; private set; }
-
-        public string? RevokedUserId { get; private set; }
-
-        public Task<Domain.Managers.Results.OperationResult> RevokeSessionsAsync(
-            SessionRevocationViewModel request, CancellationToken cancellationToken)
-        {
-            RevokeCalls++;
-            RevokedUserId = request.UserId;
-
-            return Task.FromResult(Error is { } error
-                ? Domain.Managers.Results.OperationResult.Failure(error)
-                : Domain.Managers.Results.OperationResult.Success());
-        }
-
-        public Task<Domain.Managers.Results.OperationResult> RequestPasswordResetAsync(
-            string email, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<Domain.Managers.Results.OperationResult> RequestEmailConfirmationAsync(
-            string userId, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<EmailTokenServiceModel?> GetPasswordResetTokenAsync(
-            string userId, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<EmailTokenServiceModel?> GetEmailConfirmationTokenAsync(
-            string userId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

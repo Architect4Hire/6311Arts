@@ -1,0 +1,143 @@
+/*
+ * @6311/ui design tokens, extracted from the spike's styles.scss (CSoon template direction):
+ * full-colour photography under a light veil, charcoal and pale-gray bands, uppercase letter-spaced headings,
+ * square outlined buttons and thin line icons.
+ *
+ * The art on the walls is the colour here: photos are never desaturated, and veils over them stay light
+ * enough to read the work through. Legibility on top of a photo comes from `--photo-shade`, not from
+ * draining the photo.
+ *
+ * Every value is the one the spike rendered. Feature styles use these tokens and never literal colours.
+ */
+
+:root {
+  /* ---------- colour ---------- */
+  --ink: #1b1f23;
+  --ink-2: #2a2f35;
+  --text: #313b45;
+  --text-soft: #555;
+  --muted: #666;
+  --light: #eee;
+  --line: #ddd;
+  --white: #fff;
+  --black: #000;
+  --veil: rgba(0, 0, 0, 0.38);
+  // text sitting directly on a photo; paired with --veil it keeps white type legible without a darker veil
+  --photo-shade: 0 1px 24px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --accent: #fffeaf; // the template's active-link yellow
+  --hot: #ff5a36; // fills and rules only: as text it is 3.1:1 on white
+  --hot-ink: #cf2500; // --hot's hue and saturation, darkened to read as text: 5.4:1 on white, 4.6:1 on --light
+  --danger: #b42318; // error text and borders on light surfaces (6.5:1 on white)
+  --danger-on-dark: #ffb4a3; // error text on charcoal or photo bands
+
+  // surfaces the spike paints once each
+  --hero-from: #3b4148;
+  --strip: #2d3136;
+  --footer-from: #808080;
+  --footer-to: #737373;
+  --tier-rule: #9aa0a6;
+  --tier-featured: #2f4bff;
+  --placeholder-from: #e9e9e9;
+  --placeholder-to: #cfcfcf;
+  --placeholder-ink: var(
+    --muted
+  ); // stand-in initials: 3.7:1 at the gradient's darkest end (large text needs 3:1)
+
+  // translucent white on dark surfaces, named by alpha
+  --white-92: rgba(255, 255, 255, 0.92);
+  --white-85: rgba(255, 255, 255, 0.85);
+  --white-70: rgba(255, 255, 255, 0.7);
+  --white-60: rgba(255, 255, 255, 0.6);
+  --white-55: rgba(255, 255, 255, 0.55);
+  --white-50: rgba(255, 255, 255, 0.5);
+  --white-40: rgba(255, 255, 255, 0.4);
+  --white-25: rgba(255, 255, 255, 0.25);
+  --white-08: rgba(255, 255, 255, 0.08);
+  --white-06: rgba(255, 255, 255, 0.06);
+
+  // translucent black for veils, rules and shadows, named by alpha
+  --black-85: rgba(0, 0, 0, 0.85);
+  --black-58: rgba(0, 0, 0, 0.58);
+  --black-50: rgba(0, 0, 0, 0.5);
+  --black-30: rgba(0, 0, 0, 0.3);
+  --black-12: rgba(0, 0, 0, 0.12);
+  --black-10: rgba(0, 0, 0, 0.1);
+  --black-08: rgba(0, 0, 0, 0.08);
+  --gray-20: rgba(128, 128, 128, 0.2);
+
+  /* ---------- type ---------- */
+  --font: 'Open Sans', Arial, sans-serif;
+  --fs-micro: 10px; // tags, status chips
+  --fs-label: 11px; // field labels, small buttons, chips
+  --fs-button: 12px; // buttons, eyebrows
+  --fs-small: 13px; // hints, large buttons
+  --fs-meta: 14px;
+  --fs-body: 16px;
+  --fs-lead: 17px; // empty states, prose
+  --fs-title: clamp(24px, 3vw, 32px);
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-bold: 700;
+  --fw-heavy: 800;
+  --track-button: 1px;
+  --track-label: 1.5px;
+  --track-wide: 2px;
+  --track-eyebrow: 0.3em;
+  --lh-body: 1.7;
+  --lh-heading: 1.2;
+  --lh-hint: 1.5;
+
+  /* ---------- space ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --control-pad: 12px 16px;
+  --button-pad: 12px 22px;
+  --button-pad-lg: 16px 30px;
+  --button-pad-sm: 8px 14px;
+  --field-gap: 7px;
+  --wrap: 1180px;
+  --pad: clamp(16px, 4vw, 40px);
+  --band: clamp(72px, 10vw, 128px);
+
+  /* ---------- borders ---------- */
+  --border-thin: 1px;
+  --border: 2px;
+  --border-accent: 4px;
+  --radius: 0;
+  // The focus ring sits outside the element, against the surface behind it (WCAG 1.4.11 needs 3:1).
+  // Light surfaces get ink (16.6:1 on white); dark, photo and gray surfaces set --focus to --focus-on-dark,
+  // the template's yellow (12.5:1 or better on charcoal, 3.8:1 on the footer gray).
+  --focus: var(--ink);
+  --focus-on-dark: var(--accent);
+  --focus-offset: 3px;
+
+  /* ---------- motion ---------- */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 0.25s;
+  --dur: 0.3s;
+  --dur-slow: 0.6s;
+}
+
+/*
+ * Productivity density for the CMS: same typography and palette, tighter spacing.
+ * The admin sets data-density="compact" on its root; the site never does.
+ */
+[data-density='compact'] {
+  --space-1: 2px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --control-pad: 8px 12px;
+  --button-pad: 8px 16px;
+  --button-pad-lg: 12px 22px;
+  --button-pad-sm: 6px 10px;
+  --field-gap: 5px;
+}

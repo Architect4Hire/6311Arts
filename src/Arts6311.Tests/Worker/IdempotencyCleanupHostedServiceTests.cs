@@ -15,13 +15,19 @@ public sealed class IdempotencyCleanupHostedServiceTests : IAsyncDisposable
 
     public IdempotencyCleanupHostedServiceTests() =>
         services = new ServiceCollection()
-            .AddSingleton(maintenance)
-            .AddScoped<IIdempotencyMaintenance>(provider => provider.GetRequiredService<ScriptedMaintenance>())
+
+            // An instance registration, which no scope ever disposes. A scoped factory returning the fake made each
+            // sweep's scope dispose it — semaphore and all — so the next wait threw ObjectDisposedException.
+            .AddSingleton<IIdempotencyMaintenance>(maintenance)
             .BuildServiceProvider(validateScopes: true);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public ValueTask DisposeAsync() => services.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await services.DisposeAsync();
+        maintenance.Dispose();
+    }
 
     [Fact]
     public async Task ASweepRepeatsFullBatchesUntilOneComesBackShort()
@@ -91,6 +97,7 @@ public sealed class IdempotencyCleanupHostedServiceTests : IAsyncDisposable
         return new IdempotencyCleanupHostedService(services.GetRequiredService<IServiceScopeFactory>(), time, logger);
     }
 
+    /// <remarks>Owned by the test class, which disposes it; the container only hands the instance out.</remarks>
     private sealed class ScriptedMaintenance : IIdempotencyMaintenance, IDisposable
     {
         private readonly SemaphoreSlim called = new(0);

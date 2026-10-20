@@ -23,8 +23,10 @@ namespace Arts6311.Domain.Modules.Identity.Data;
 /// <c>ResetAccessFailedCountAsync</c> write immediately through their own store; our audit row is a second save.
 /// That departs from backend.md's "one <c>SaveChangesAsync</c>", and it is accepted here because nothing in that
 /// path stages an outbox message, so there is no commit-together guarantee to lose: a lockout counter and an
-/// audit row that disagree by one row are a worse-than-nothing problem, not a correctness one. The email paths
-/// below <em>do</em> stage a message, and those make exactly one save (ADR 0023).
+/// audit row that disagree by one row are a worse-than-nothing problem, not a correctness one. Using a reset or
+/// confirmation link has the same shape and the same reason — Identity's store saves, then the audit row — and
+/// stages nothing either (ADR 0028). The email-request paths below <em>do</em> stage a message, and those make
+/// exactly one save (ADR 0023).
 /// </para>
 /// </remarks>
 internal sealed class IdentityDataLayer(
@@ -127,7 +129,7 @@ internal sealed class IdentityDataLayer(
         await repository.SaveChangesAsync(cancellationToken);
     }
 
-    public Task RecordSignInOutcomeAsync(
+    public Task RecordAuditAsync(
         string? userId, string action, string summary, CancellationToken cancellationToken)
     {
         // No email address and no password in the summary: an audit row is readable by every Admin, and the
@@ -177,5 +179,94 @@ internal sealed class IdentityDataLayer(
     {
         cancellationToken.ThrowIfCancellationRequested();
         return await users.GenerateEmailConfirmationTokenAsync(user);
+    }
+
+    public async Task<bool> VerifyPasswordResetTokenAsync(
+        ArtsUser user, string token, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return await users.VerifyUserTokenAsync(
+            user,
+            users.Options.Tokens.PasswordResetTokenProvider,
+            UserManager<ArtsUser>.ResetPasswordTokenPurpose,
+            token);
+    }
+
+    public async Task<bool> VerifyEmailConfirmationTokenAsync(
+        ArtsUser user, string token, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return await users.VerifyUserTokenAsync(
+            user,
+            users.Options.Tokens.EmailConfirmationTokenProvider,
+            UserManager<ArtsUser>.ConfirmEmailTokenPurpose,
+            token);
+    }
+
+    /// <remarks>
+    /// <para>
+    /// The same two-save shape as the credential path, accepted for the same reason: <c>ResetPasswordAsync</c>
+    /// writes through Identity's store immediately, our audit row is a separate save, and nothing here stages an
+    /// outbox message (ADR 0023). The stamp rotation inside it is what ends every live session and what spends
+    /// the token: Data Protection tokens embed the stamp, so the same link cannot verify twice.
+    /// </para>
+    /// <para>
+    /// A <c>ConcurrencyFailure</c> is a second use of the same link losing the race to the row — both verified
+    /// before either saved. It is reported as a spent link, which is exactly what it is.
+    /// </para>
+    /// <para>
+    /// <strong>Every failure reloads the entity.</strong> Identity validates the password before it touches the
+    /// user, but sets the new hash and stamp <em>before</em> its user validators and the save — so a refusal from
+    /// either leaves them on the tracked entity, and the refusal's audit save would commit exactly what was
+    /// refused.
+    /// </para>
+    /// </remarks>
+    public async Task<PasswordResetOutcome> ResetPasswordAsync(
+        ArtsUser user, string token, string newPassword, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var result = await users.ResetPasswordAsync(user, token, newPassword);
+        if (result.Succeeded)
+        {
+            return PasswordResetOutcome.Success;
+        }
+
+        await repository.ReloadAsync(user, cancellationToken);
+
+        var describer = users.ErrorDescriber;
+        if (result.Errors.Any(error => error.Code == describer.InvalidToken().Code
+            || error.Code == describer.ConcurrencyFailure().Code))
+        {
+            return PasswordResetOutcome.Rejected;
+        }
+
+        // A failure that names no reason would otherwise read as success (no token problem, no password errors)
+        // and be audited as a completed reset. It is a fault, not an answer.
+        if (!result.Errors.Any())
+        {
+            throw new InvalidOperationException("Identity refused a password reset without saying why.");
+        }
+
+        // Identity's descriptions, and BreachedPasswordValidator's: written for the person, and none of them
+        // quotes the password.
+        return new PasswordResetOutcome(false, [.. result.Errors.Select(error => error.Description)]);
+    }
+
+    public async Task<bool> ConfirmEmailAsync(ArtsUser user, string token, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if ((await users.ConfirmEmailAsync(user, token)).Succeeded)
+        {
+            return true;
+        }
+
+        // A refused token changes nothing, but a lost race or a user-validator refusal leaves the entity modified
+        // in the tracker (see above).
+        await repository.ReloadAsync(user, cancellationToken);
+        return false;
     }
 }

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
+import { UiIcon } from '@6311/ui';
 import { Seo } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { WpApi } from '../core/wp-api.service';
@@ -10,14 +11,13 @@ import { EVENT_PHOTOS, FRONT_PHOTOS, STUDIO_PHOTOS } from '../data/venue-photos'
 import { Contact } from '../shared/contact';
 import { MoneyPipe } from '../shared/format';
 import { Hero } from '../shared/hero';
-import { Icon } from '../shared/icon';
 import { Newsletter } from '../shared/newsletter';
 import { Reveal } from '../shared/reveal';
 
 @Component({
   selector: 'app-memberships',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Hero, Icon, Reveal, MoneyPipe, RouterLink],
+  imports: [Hero, UiIcon, Reveal, MoneyPipe, RouterLink],
   template: `
     <app-hero title="Become a member" eyebrow="From $100 a year"
       lead="Members save on every class, party with the artists once a year and keep a free gallery free for the whole neighborhood."
@@ -30,7 +30,7 @@ import { Reveal } from '../shared/reveal';
             <p class="tier__price">{{ t.price | money }}<span>/year</span></p>
             <p class="tier__save">{{ t.discount }}% off every class</p>
             <ul class="tier__perks">
-              @for (perk of t.perks; track perk) { <li><app-icon name="star" [size]="14" [stroke]="2" />{{ perk }}</li> }
+              @for (perk of t.perks; track perk) { <li><ui-icon name="star" [size]="14" [stroke]="2" />{{ perk }}</li> }
             </ul>
             <a class="btn btn-lg" [class.btn-white]="t.featured" [class.btn-dark]="!t.featured" [href]="api.buyUrl(t)">Join {{ t.name }}</a>
           </article>
@@ -74,7 +74,7 @@ export class Memberships {
 @Component({
   selector: 'app-about',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Hero, Icon, Reveal, RouterLink, Newsletter],
+  imports: [Hero, UiIcon, Reveal, RouterLink, Newsletter],
   template: `
     <app-hero title="Who we are" eyebrow="6311arts · founded in 2025"
       lead="An inclusive art center in a former funeral home on Clark Street." [images]="images" />
@@ -93,9 +93,9 @@ export class Memberships {
     </section>
     <section class="band band--dark">
       <div class="container cols-3 text-center">
-        <div class="feature" reveal><app-icon name="frame" [size]="64" [stroke]="1" /><h3 class="feature__title">The gallery</h3><p>Three rooms of rotating exhibitions, free and open five days a week.</p></div>
-        <div class="feature" reveal="150"><app-icon name="brush" [size]="64" [stroke]="1" /><h3 class="feature__title">The classroom</h3><p>A print studio and workshop space where local artists teach small groups.</p></div>
-        <div class="feature" reveal="300"><app-icon name="cart" [size]="64" [stroke]="1" /><h3 class="feature__title">The shop</h3><p>Hundreds of original works by artists who live within six miles.</p></div>
+        <div class="feature" reveal><ui-icon name="frame" [size]="64" [stroke]="1" /><h3 class="feature__title">The gallery</h3><p>Three rooms of rotating exhibitions, free and open five days a week.</p></div>
+        <div class="feature" reveal="150"><ui-icon name="brush" [size]="64" [stroke]="1" /><h3 class="feature__title">The classroom</h3><p>A print studio and workshop space where local artists teach small groups.</p></div>
+        <div class="feature" reveal="300"><ui-icon name="cart" [size]="64" [stroke]="1" /><h3 class="feature__title">The shop</h3><p>Hundreds of original works by artists who live within six miles.</p></div>
       </div>
     </section>
     <section class="band band--white text-center">
@@ -151,18 +151,18 @@ export class About {
 @Component({
   selector: 'app-visit',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Hero, Contact, Icon, Reveal],
+  imports: [Hero, Contact, UiIcon, Reveal],
   template: `
     <app-hero title="Plan your visit" eyebrow="Free admission"
       [lead]="site.address.street + ', ' + site.address.city + ' · ' + site.address.neighborhood"
       [images]="frontPhotos" />
     <section class="band band--dark" id="content">
       <div class="container cols-3 text-center">
-        <div class="feature" reveal><app-icon name="clock" [size]="56" [stroke]="1" /><h3 class="feature__title">Hours</h3>
+        <div class="feature" reveal><ui-icon name="clock" [size]="56" [stroke]="1" /><h3 class="feature__title">Hours</h3>
           <p>Wed & Sun 11 am – 5 pm<br />Thu – Sat 11 am – 6 pm<br />Mon & Tue by appointment</p></div>
-        <div class="feature" reveal="150"><app-icon name="pin" [size]="56" [stroke]="1" /><h3 class="feature__title">Getting here</h3>
+        <div class="feature" reveal="150"><ui-icon name="pin" [size]="56" [stroke]="1" /><h3 class="feature__title">Getting here</h3>
           <p>On Clark Street a block south of Devon Avenue, on the #22 Clark bus line.</p></div>
-        <div class="feature" reveal="300"><app-icon name="heart" [size]="56" [stroke]="1" /><h3 class="feature__title">Always free</h3>
+        <div class="feature" reveal="300"><ui-icon name="heart" [size]="56" [stroke]="1" /><h3 class="feature__title">Always free</h3>
           <p>The gallery and opening receptions are free and open to everyone.</p></div>
       </div>
     </section>
@@ -190,18 +190,18 @@ export class Visit {
 @Component({
   selector: 'app-submit',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Hero, Icon, Reveal],
+  imports: [Hero, UiIcon, Reveal],
   template: `
     <app-hero title="Submit your work" eyebrow="North Side artists wanted"
       lead="Teach our classes, show in our galleries, sell in our shop. Submissions are open year-round."
       [images]="studioPhotos" />
     <section class="band band--white" id="content">
       <div class="container cols-3 text-center">
-        <div class="feature feature--dark" reveal><app-icon name="brush" [size]="64" [stroke]="1" /><h3 class="feature__title">Teach</h3>
+        <div class="feature feature--dark" reveal><ui-icon name="brush" [size]="64" [stroke]="1" /><h3 class="feature__title">Teach</h3>
           <p>Pitch a one-night workshop or a five-week course in your medium.</p></div>
-        <div class="feature feature--dark" reveal="150"><app-icon name="frame" [size]="64" [stroke]="1" /><h3 class="feature__title">Exhibit</h3>
+        <div class="feature feature--dark" reveal="150"><ui-icon name="frame" [size]="64" [stroke]="1" /><h3 class="feature__title">Exhibit</h3>
           <p>Solo, group and East and West gallery shows, chosen with intention.</p></div>
-        <div class="feature feature--dark" reveal="300"><app-icon name="cart" [size]="64" [stroke]="1" /><h3 class="feature__title">Sell</h3>
+        <div class="feature feature--dark" reveal="300"><ui-icon name="cart" [size]="64" [stroke]="1" /><h3 class="feature__title">Sell</h3>
           <p>Put your prints, ceramics, jewelry and paintings in front of neighbors who buy local.</p></div>
       </div>
     </section>

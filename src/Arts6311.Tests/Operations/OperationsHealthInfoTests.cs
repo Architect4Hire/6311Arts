@@ -1,6 +1,5 @@
 using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Operations.Business;
-using Arts6311.Domain.Modules.Operations.Data;
 using Arts6311.Domain.Modules.Operations.Facade;
 using Arts6311.Domain.Modules.Operations.Managers.ServiceModels;
 using Microsoft.Extensions.Time.Testing;
@@ -13,7 +12,8 @@ namespace Arts6311.Tests.Operations;
 /// <remarks>
 /// There is no DataLayer or repository test here because there is no DataLayer: nothing is read or written. That
 /// is the one deliberate departure from the <c>add-endpoint</c> seam in this route (ADR 0021), and a DataLayer
-/// added only to complete the shape would be the defect rather than the fix.
+/// added only to complete the shape would be the defect rather than the fix. Business takes only the clock, so
+/// the constructor itself is what keeps health-info away from I/O.
 /// </remarks>
 public sealed class OperationsHealthInfoTests
 {
@@ -22,7 +22,7 @@ public sealed class OperationsHealthInfoTests
     [Fact]
     public void BusinessReportsTheClocksInstant()
     {
-        var business = new OperationsBusiness(new UnusedDataLayer(), Clock());
+        var business = new OperationsBusiness(Clock());
 
         var info = business.GetHealthInfo();
 
@@ -31,19 +31,9 @@ public sealed class OperationsHealthInfoTests
     }
 
     [Fact]
-    public void BusinessTouchesNoDataLayer()
-    {
-        // The DataLayer throws on every call, so the test fails rather than passes if health-info ever starts
-        // reading or writing. It is the assertion, not the arrangement.
-        var business = new OperationsBusiness(new UnusedDataLayer(), Clock());
-
-        _ = business.GetHealthInfo();
-    }
-
-    [Fact]
     public async Task TheFacadeWrapsTheBusinessResult()
     {
-        var facade = new OperationsFacade(new OperationsBusiness(new UnusedDataLayer(), Clock()));
+        var facade = new OperationsFacade(new OperationsBusiness(Clock()));
 
         var result = await facade.GetHealthInfoAsync(TestContext.Current.CancellationToken);
 
@@ -52,16 +42,4 @@ public sealed class OperationsHealthInfoTests
     }
 
     private static SystemClock Clock() => new(new FakeTimeProvider(Now));
-
-    private sealed class UnusedDataLayer : IOperationsDataLayer
-    {
-        public Task<Guid> RecordPingRequestedAsync(Guid pingId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("health-info must not reach the DataLayer.");
-
-        public Task<bool> PingHandledRecordedAsync(Guid pingId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("health-info must not reach the DataLayer.");
-
-        public Task RecordPingHandledAsync(Guid pingId, Guid outboxMessageId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("health-info must not reach the DataLayer.");
-    }
 }

@@ -22,6 +22,8 @@ paths:
 
 Destinations resolve through Aspire service discovery. Nothing in the gateway names a host or port.
 
+In run mode the gateway listens on **HTTPS** (the developer certificate), because its `Secure`, `__Host-` cookies and `SecurePolicy = Always` antiforgery refuse plain HTTP. Behind the ACA ingress it sees plain HTTP, so 6.1 must trust the ingress's forwarded headers (`Gateway:TrustedProxies`) before the BFF works there (ADR 0026).
+
 The session gate is the route's own `AuthorizationPolicy`, in that same configuration — not a path list in code.
 **A route that requires a session must also be token-bearing** (`GatewayTransforms.TokenBearingRoutes`), or its
 requests reach the API with no credential; a test asserts it.
@@ -29,8 +31,10 @@ requests reach the API with no credential; a test asserts it.
 ## Edge policy
 
 - **Headers.** Strip client `Authorization`, `Cookie` (after reading the session), `X-Forwarded-*` and any internal header before forwarding. Forwarded headers come only from configured trusted proxies.
-- **Rate limits**, named fixed-window policies from `Gateway:RateLimits`, partitioned by client IP. All five exist from 1.8 so a prompt adding a route references a name rather than inventing a limit; a policy a route names but configuration omits stops the host at startup.
+- **Rate limits**, named fixed-window policies from `Gateway:RateLimits`, partitioned by client IP. Five were defined in 1.8 so a prompt adding a route references a name rather than inventing a limit; a policy a route names but configuration omits stops the host at startup.
   - `bff-login` (1.10)
+  - `bff-account` — `/bff/forgot-password`, `/bff/reset-password`, `/bff/confirm-email` (2.2a, ADR 0028); its own
+    window so reset traffic cannot spend the sign-in budget
   - `forms` (submissions, newsletter, contact — 2.12)
   - `checkout` (5.14)
   - `webhooks` — on `/webhooks/square` from 1.8

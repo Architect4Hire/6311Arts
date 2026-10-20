@@ -10,60 +10,71 @@ namespace Arts6311.Tests.Api;
 /// <remarks>
 /// Prompt 1.5 gated the ping route with an <c>IHostEnvironment</c> check inside the action. That ran after
 /// authorization, so outside Development an anonymous caller got 401 and an admin got 404: the route existed, and
-/// said so. These tests exist to keep that from coming back (ADR 0021).
+/// said so. These tests exist to keep that from coming back (ADR 0021). The ping route was deleted in 1.12, so the
+/// gate is exercised through the test host's <see cref="DevelopmentOnlyProbeController"/>.
 /// </remarks>
 public sealed class DevelopmentOnlyRouteTests
 {
-    private const string PingRoute = "/api/v1/cms/ops/ping";
+    private const string DevelopmentOnlyRoute = "/" + DevelopmentOnlyProbeController.Route;
 
     [Fact]
-    public async Task OutsideDevelopmentThePingRouteIs404WithNoToken()
+    public async Task OutsideDevelopmentADevelopmentOnlyRouteIs404WithNoToken()
     {
         using var api = new ProductionApiFactory();
         using var client = api.CreateJsonClient();
 
         // 404, not 401: an unauthenticated caller must not be able to tell the route apart from one that was never
         // written. A 401 here would confirm its existence.
-        var response = await client.PostAsync(PingRoute, content: null, TestContext.Current.CancellationToken);
+        var response = await client.PostAsync(
+            DevelopmentOnlyRoute, content: null, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    public async Task OutsideDevelopmentThePingRouteIs404EvenForAnAdmin()
+    public async Task OutsideDevelopmentADevelopmentOnlyRouteIs404EvenForAnAdmin()
     {
         using var api = new ProductionApiFactory();
         using var client = api.CreateJsonClient();
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, PingRoute);
+        using var request = new HttpRequestMessage(HttpMethod.Post, DevelopmentOnlyRoute);
         request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {api.Tokens.UserToken("Admin")}");
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(0, api.Probe.Calls);
     }
 
     [Fact]
-    public async Task InDevelopmentThePingRouteExists()
+    public async Task InDevelopmentADevelopmentOnlyRouteExists()
     {
         // The counterpart: without this, removing the controller everywhere would also pass the tests above.
         using var api = new ApiFactory();
         using var client = api.CreateJsonClient();
 
-        var response = await client.PostAsync(PingRoute, content: null, TestContext.Current.CancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, DevelopmentOnlyRoute);
+        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {api.Tokens.UserToken("Admin")}");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Equal(1, api.Probe.Calls);
     }
 
     [Fact]
-    public async Task ThePublicSiteRouteExistsInBothEnvironments()
+    public async Task TheGateIsSelective()
     {
-        // Proves the gate is selective rather than removing controllers wholesale outside Development.
+        // Proves the gate removes only marked controllers rather than controllers wholesale outside Development:
+        // both the public site route and the unmarked probe survive.
         using var api = new ProductionApiFactory();
         using var client = api.CreateJsonClient();
 
-        var response = await client.GetAsync("/api/v1/site/health-info", TestContext.Current.CancellationToken);
+        var site = await client.GetAsync("/api/v1/site/health-info", TestContext.Current.CancellationToken);
+        var unmarked = await client.PostAsync(
+            "/" + CmsAdminProbeController.Route, content: null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, site.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, unmarked.StatusCode);
     }
 }

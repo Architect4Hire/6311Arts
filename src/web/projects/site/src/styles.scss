@@ -1,98 +1,21 @@
 /*
- * 6311arts design system, adapted from the CSoon template:
- * full-colour photography under a light veil, charcoal and pale-gray bands, uppercase letter-spaced headings,
- * square outlined buttons and thin line icons. Rebuilt in modern CSS with no Bootstrap or jQuery.
- *
- * The art on the walls is the colour here: photos are never desaturated, and veils over them stay light
- * enough to read the work through. Legibility on top of a photo comes from `--photo-shade`, not from
- * draining the photo.
+ * 6311arts site styles: the marketing compositions (nav, hero, bands, cards, forms) built on @6311/ui.
+ * Tokens, base elements, .btn and .field come from projects/ui/styles (global.scss, loaded first via angular.json).
+ * Feature styles use tokens and never literal colours.
  */
 
-:root {
-  --ink: #1b1f23;
-  --ink-2: #2a2f35;
-  --text: #313b45;
-  --muted: #666;
-  --light: #eee;
-  --line: #ddd;
-  --white: #fff;
-  --veil: rgba(0, 0, 0, 0.38);
-  // text sitting directly on a photo; paired with --veil it keeps white type legible without a darker veil
-  --photo-shade: 0 1px 24px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
-  --accent: #fffeaf; // the template's active-link yellow
-  --hot: #ff5a36;
-  --font: 'Open Sans', Arial, sans-serif;
-  --wrap: 1180px;
-  --pad: clamp(16px, 4vw, 40px);
-  --band: clamp(72px, 10vw, 128px);
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-  -webkit-text-size-adjust: 100%;
-}
-
-body {
-  margin: 0;
-  font-family: var(--font);
-  font-size: 16px;
-  line-height: 1.7;
-  color: var(--text);
-  background: var(--white);
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-}
-
-img {
-  max-width: 100%;
-  display: block;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-  transition: color 0.3s, opacity 0.3s;
-}
-
-h1,
-h2,
-h3,
-h4 {
-  margin: 0 0 0.6em;
-  line-height: 1.2;
-}
-
-p {
-  margin: 0 0 1.2em;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-}
-
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.sr-only {
-  position: absolute !important;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+/*
+ * Focus rings: ink by default (light surfaces); the template's yellow wherever the surface behind the ring is
+ * charcoal, a photo or the footer gray. Add a surface here when it is dark enough that ink would disappear.
+ */
+.nav,
+.hero,
+.band--dark,
+.band--photo,
+.tier--featured,
+.strip,
+.footer {
+  --focus: var(--focus-on-dark);
 }
 
 .hp {
@@ -121,20 +44,6 @@ textarea {
   max-width: 680px;
 }
 
-.skip {
-  position: absolute;
-  left: 12px;
-  top: -60px;
-  z-index: 100;
-  background: var(--white);
-  color: var(--ink);
-  padding: 10px 14px;
-  font-weight: 700;
-  &:focus {
-    top: 12px;
-  }
-}
-
 /* ---------- brand mark (the 6311arts logo) ---------- */
 
 .mark {
@@ -149,79 +58,7 @@ textarea {
   height: 44px;
 }
 
-/* ---------- buttons, straight from the template ---------- */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  padding: 12px 22px;
-  border: 2px solid transparent;
-  border-radius: 0;
-  cursor: pointer;
-  transition: all 0.3s ease-in-out;
-  white-space: nowrap;
-  &:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
-}
-
-.btn-lg {
-  padding: 16px 30px;
-  font-size: 13px;
-}
-
-.btn-sm {
-  padding: 8px 14px;
-  font-size: 11px;
-}
-
-.btn-border {
-  border-color: var(--white);
-  color: var(--white);
-  background: transparent;
-  &:hover {
-    background: var(--light);
-    border-color: var(--light);
-    color: #000;
-  }
-}
-
-.btn-border-dark {
-  border-color: var(--ink);
-  color: var(--ink);
-  background: transparent;
-  &:hover {
-    background: var(--ink);
-    color: var(--white);
-  }
-}
-
-.btn-white {
-  border-color: var(--white);
-  background: var(--white);
-  color: #000;
-  &:hover {
-    background: transparent;
-    color: var(--white);
-  }
-}
-
-.btn-dark {
-  border-color: var(--text);
-  background: var(--text);
-  color: var(--white);
-  &:hover {
-    background: #000;
-    border-color: #000;
-  }
-}
+/* ---------- button rows, arrow links, tags (buttons themselves live in @6311/ui) ---------- */
 
 .btn-row {
   display: flex;
@@ -262,7 +99,7 @@ textarea {
 
 .tag--light {
   background: var(--accent);
-  color: #000;
+  color: var(--black);
 }
 
 .tag--hot {
@@ -271,7 +108,7 @@ textarea {
 
 .tag--sold {
   background: var(--white);
-  color: #000;
+  color: var(--black);
 }
 
 .eyebrow {
@@ -295,7 +132,7 @@ textarea {
   z-index: 50;
   color: var(--white);
   background: var(--ink);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 1px 0 var(--white-06);
   transition: padding 0.5s ease-in-out;
   padding: 18px 0;
   &.nav--solid {
@@ -347,7 +184,7 @@ textarea {
   text-transform: uppercase;
   color: var(--white);
   &:hover {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--white-70);
   }
   &.is-active {
     color: var(--accent);
@@ -392,7 +229,7 @@ textarea {
     }
     a:not(.btn) {
       padding: 14px 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--white-08);
       font-size: 14px;
     }
     .btn {
@@ -413,7 +250,7 @@ textarea {
   color: var(--white);
   text-align: center;
   overflow: hidden;
-  background: linear-gradient(160deg, #3b4148 0%, var(--ink) 70%);
+  background: linear-gradient(160deg, var(--hero-from) 0%, var(--ink) 70%);
   isolation: isolate;
 }
 
@@ -437,7 +274,9 @@ textarea {
   filter: saturate(1.12) contrast(1.04);
   opacity: 0;
   transform: scale(1.08);
-  transition: opacity 1.6s ease, transform 8s linear;
+  transition:
+    opacity 1.6s ease,
+    transform 8s linear;
   &.is-on {
     opacity: 1;
     transform: scale(1);
@@ -445,9 +284,7 @@ textarea {
 }
 
 .hero__veil {
-  background:
-    radial-gradient(85% 65% at 50% 42%, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.5)),
-    var(--veil);
+  background: radial-gradient(85% 65% at 50% 42%, var(--black-10), var(--black-50)), var(--veil);
   &::after {
     // fine film grain so flat fallbacks still feel photographic
     content: '';
@@ -512,7 +349,9 @@ textarea {
   grid-area: 1 / 1;
   opacity: 0;
   transform: translateY(0.35em);
-  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+  transition:
+    opacity 0.6s var(--ease),
+    transform 0.6s var(--ease);
   &.is-on {
     opacity: 1;
     transform: none;
@@ -524,7 +363,7 @@ textarea {
   font-weight: 300;
   max-width: 640px;
   margin: 0 auto 30px;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--white-92);
   text-shadow: var(--photo-shade);
 }
 
@@ -543,7 +382,7 @@ textarea {
   translate: -50% 0;
   width: 26px;
   height: 42px;
-  border: 2px solid rgba(255, 255, 255, 0.7);
+  border: 2px solid var(--white-70);
   border-radius: 14px;
   span {
     position: absolute;
@@ -613,7 +452,7 @@ textarea {
     position: absolute;
     inset: 0;
     z-index: -1;
-    background: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.58)), var(--veil);
+    background: linear-gradient(var(--black-30), var(--black-58)), var(--veil);
   }
   .band__title,
   .band__lead {
@@ -658,7 +497,7 @@ textarea {
   margin: 0 auto 1.2em;
   .band--white &,
   .band--light & {
-    color: #555;
+    color: var(--text-soft);
   }
 }
 
@@ -672,8 +511,8 @@ textarea {
   gap: 10px;
   font-size: 14px;
   padding: 10px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--white-25);
+  color: var(--white-85);
   .band--light & {
     border-color: var(--line);
     color: var(--text);
@@ -760,7 +599,9 @@ textarea {
   align-items: center;
   padding: 22px 26px;
   background: var(--light);
-  transition: background 0.3s, transform 0.4s var(--ease);
+  transition:
+    background 0.3s,
+    transform 0.4s var(--ease);
   .band--light & {
     background: var(--white);
   }
@@ -768,15 +609,15 @@ textarea {
     background: var(--ink);
     color: var(--white);
     .class-card__date {
-      border-color: rgba(255, 255, 255, 0.4);
+      border-color: var(--white-40);
     }
     .class-card__meta {
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--white-60);
     }
     .btn-dark {
       background: var(--white);
       border-color: var(--white);
-      color: #000;
+      color: var(--black);
     }
   }
 }
@@ -894,7 +735,7 @@ textarea {
     align-items: center;
     gap: 8px 12px;
     padding-top: 14px;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    border-top: 1px solid var(--black-08);
     .btn {
       margin-left: auto;
       min-width: 104px;
@@ -1081,13 +922,15 @@ textarea {
   font-weight: 700;
   line-height: 1.3;
   overflow-wrap: anywhere;
-  transition: background 0.25s, color 0.25s;
+  transition:
+    background 0.25s,
+    color 0.25s;
   &:hover,
   &:focus-visible {
     background: var(--ink);
     color: var(--white);
     .cal__time {
-      color: rgba(255, 255, 255, 0.7);
+      color: var(--white-70);
     }
   }
 }
@@ -1342,7 +1185,7 @@ textarea {
 .detail__lead {
   font-size: 18px;
   font-weight: 300;
-  color: #555;
+  color: var(--text-soft);
 }
 
 .crumbs {
@@ -1476,7 +1319,7 @@ textarea {
   position: absolute;
   inset: auto 0 0;
   padding: 80px 24px 24px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  background: linear-gradient(transparent, var(--black-85));
   h3 {
     font-size: 22px;
     font-weight: 800;
@@ -1571,20 +1414,22 @@ textarea {
   flex-direction: column;
   padding: 44px 36px;
   background: var(--white);
-  border-top: 8px solid #9aa0a6;
-  transition: transform 0.4s var(--ease), box-shadow 0.4s;
+  border-top: 8px solid var(--tier-rule);
+  transition:
+    transform 0.4s var(--ease),
+    box-shadow 0.4s;
   &:hover {
     transform: translateY(-6px);
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 24px 48px var(--black-12);
   }
   .btn {
     margin-top: auto;
   }
   &[data-tier='black'] {
-    border-top-color: #000;
+    border-top-color: var(--black);
   }
   &[data-tier='blue'] {
-    border-top-color: #2f4bff;
+    border-top-color: var(--tier-featured);
   }
 }
 
@@ -1597,7 +1442,6 @@ textarea {
     color: var(--white);
   }
 }
-
 
 .tier__name {
   font-size: 14px;
@@ -1635,7 +1479,7 @@ textarea {
     gap: 10px;
     align-items: center;
     padding: 8px 0;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    border-bottom: 1px solid var(--gray-20);
   }
 }
 
@@ -1658,8 +1502,8 @@ textarea {
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  background: linear-gradient(160deg, #e9e9e9, #cfcfcf);
-  color: #9a9a9a;
+  background: linear-gradient(160deg, var(--placeholder-from), var(--placeholder-to));
+  color: var(--placeholder-ink);
   font-size: 44px;
   font-weight: 800;
   margin-bottom: 18px;
@@ -1683,7 +1527,7 @@ textarea {
 /* ---------- stats strip (template sponsor row) ---------- */
 
 .strip {
-  background: #2d3136;
+  background: var(--strip);
   color: var(--white);
   padding: 44px 0;
 }
@@ -1726,10 +1570,10 @@ textarea {
     flex: 1;
     min-width: 0;
     background: transparent;
-    border-color: rgba(255, 255, 255, 0.6);
+    border-color: var(--white-60);
     color: var(--white);
     &::placeholder {
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--white-60);
     }
     &:focus {
       border-color: var(--white);
@@ -1746,10 +1590,10 @@ textarea {
 }
 
 .subscribe__err {
-  color: #ffb4a3;
+  color: var(--danger-on-dark);
   margin-top: 14px;
   .band--white & {
-    color: #b42318;
+    color: var(--danger);
   }
 }
 
@@ -1836,7 +1680,7 @@ textarea {
 
 .footer {
   display: block;
-  background: linear-gradient(#808080, #737373);
+  background: linear-gradient(var(--footer-from), var(--footer-to));
   color: var(--white);
   padding: 72px 0 0;
   a:hover {
@@ -1899,7 +1743,7 @@ textarea {
   flex-wrap: wrap;
   padding-top: 28px;
   padding-bottom: 28px;
-  border-top: 1px solid rgba(255, 255, 255, 0.25);
+  border-top: 1px solid var(--white-25);
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -1915,7 +1759,9 @@ textarea {
 .js .reveal {
   opacity: 0;
   transform: translateY(26px);
-  transition: opacity 1s var(--ease), transform 1s var(--ease);
+  transition:
+    opacity 1s var(--ease),
+    transform 1s var(--ease);
   transition-delay: var(--reveal-delay, 0ms);
   &.is-in {
     opacity: 1;
@@ -1924,13 +1770,6 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
   .js .reveal {
     opacity: 1;
     transform: none;
@@ -1993,37 +1832,6 @@ textarea {
   .sform__grid {
     grid-template-columns: 1fr;
   }
-}
-
-.field {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
-
-.field--wide {
-  margin-top: 18px;
-}
-
-.field__label {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--ink);
-  i {
-    font-style: normal;
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: var(--hot);
-    margin-left: 6px;
-  }
-}
-
-.field__hint {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.5;
 }
 
 .sform__count {
@@ -2111,8 +1919,8 @@ textarea {
     color: var(--white);
   }
   input:focus-visible + span {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
+    outline: var(--border) solid var(--focus);
+    outline-offset: var(--focus-offset);
   }
 }
 
@@ -2136,7 +1944,7 @@ textarea {
     font-weight: 800;
     letter-spacing: 1px;
     text-transform: uppercase;
-    color: var(--hot);
+    color: var(--hot-ink);
     margin-left: 4px;
   }
 }
@@ -2193,8 +2001,8 @@ textarea {
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  background: linear-gradient(160deg, #e9e9e9, #cfcfcf);
-  color: #9a9a9a;
+  background: linear-gradient(160deg, var(--placeholder-from), var(--placeholder-to));
+  color: var(--placeholder-ink);
   font-size: clamp(56px, 9vw, 120px);
   font-weight: 800;
   letter-spacing: 2px;

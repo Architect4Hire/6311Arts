@@ -1,6 +1,9 @@
 using Arts6311.Api;
-using Microsoft.AspNetCore.Hosting;
+using Arts6311.Tests.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -26,6 +29,9 @@ internal abstract class ApiFactoryBase : WebApplicationFactory<ApiHost>
 {
     /// <summary>Stands in for the gateway, which only learns to sign in prompt 1.8. Disposed with the factory.</summary>
     public InternalTokenFactory Tokens { get; } = new();
+
+    /// <summary>What the test-only probe routes call (<see cref="CmsAdminProbeController"/>).</summary>
+    public ProbeFacade Probe { get; } = new();
 
     protected abstract string EnvironmentName { get; }
 
@@ -64,6 +70,17 @@ internal abstract class ApiFactoryBase : WebApplicationFactory<ApiHost>
             // one because the Worker mints Identity's tokens and the API validates them in a different process
             // (ADR 0023) — that wiring is verified under `aspire run`, not here.
             services.AddDataProtection().UseEphemeralDataProtectionProvider();
+
+            // The ephemeral provider replaces protection, but the framework still loads the configured key ring at
+            // startup — the blob repository — and the Azure SDK retried a storage account that is not there for about
+            // 30 seconds on every host. A ring in a list costs nothing.
+            services.Configure<KeyManagementOptions>(options => options.XmlRepository = new InMemoryXmlRepository());
+
+            // The role-gated probe routes the edge tests aim at, added to the host's own controller set so the
+            // Development-only gate and secure-by-default apply to them exactly as to a real controller.
+            services.AddSingleton<IProbeFacade>(Probe);
+            services.AddControllers().ConfigureApplicationPartManager(manager =>
+                manager.ApplicationParts.Add(new ProbeControllersPart()));
 
             ConfigureTestServices(services);
         });

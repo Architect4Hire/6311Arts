@@ -43,6 +43,10 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0022](0022-gateway-edge-policy-and-internal-token-transform.md) | Gateway edge policy + internal-token transform | Accepted |
 | [0023](0023-identity-module-and-email-through-the-outbox.md) | Identity module + email through the outbox | Accepted |
 | [0024](0024-bff-session-tickets-and-edge-antiforgery.md) | BFF session tickets + antiforgery at the edge | Accepted |
+| [0025](0025-ui-library-tokens-and-primitives.md) | `@6311/ui`: tokens, global styles and shared primitives | Accepted |
+| [0026](0026-https-gateway-in-run-mode-and-the-platform-checkpoint.md) | HTTPS gateway in run mode, hermetic E2E checkpoint, CI | Accepted; forwarded-header trust owed by 6.1 |
+| [0027](0027-admin-shell-and-staff-sign-in-page.md) | CMS shell + staff sign-in page on the site | Accepted; self-hosted fonts DECIDE before launch |
+| [0028](0028-password-reset-and-email-confirmation-routes.md) | Password reset + email confirmation routes; the reset-request timing oracle | Accepted |
 
 ## Template
 

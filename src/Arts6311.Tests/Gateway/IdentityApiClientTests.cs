@@ -113,6 +113,73 @@ public sealed class IdentityApiClientTests
         Assert.Contains("hunter2", handler.Body!, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ARejectedPasswordBringsBackItsCodeAndReasons()
+    {
+        // The shape the API writes for auth.password_rejected (ApiProblemDetails over the field errors Business
+        // keys "newPassword"; Identity/PasswordResetTests pins that side). A renamed key would silently drop every
+        // reason the person needs to choose a better password.
+        using var handler = new RecordingHandler(Json(HttpStatusCode.BadRequest, new
+        {
+            code = "auth.password_rejected",
+            title = "The request was not valid.",
+            errors = new Dictionary<string, string[]>
+            {
+                ["newPassword"] = ["A staff password must be at least 14 characters."],
+            },
+        }));
+
+        var result = await Client(handler).CompletePasswordResetAsync("user-1", "token", "too-short", Ct);
+
+        Assert.Equal("auth.password_rejected", result.FailureCode);
+        Assert.Equal(["A staff password must be at least 14 characters."], result.PasswordErrors);
+        Assert.Equal(
+            "api/v1/internal/identity/password-reset/complete", handler.Request!.RequestUri!.AbsolutePath.TrimStart('/'));
+    }
+
+    [Fact]
+    public async Task A204IsAUsedLink()
+    {
+        using var handler = new RecordingHandler(new HttpResponseMessage(HttpStatusCode.NoContent));
+
+        Assert.True((await Client(handler).ConfirmEmailAsync("user-1", "token", Ct)).Succeeded);
+    }
+
+    [Fact]
+    public async Task A400WithoutACodeIsStillTheOneRefusal()
+    {
+        using var handler = new RecordingHandler(new HttpResponseMessage(HttpStatusCode.BadRequest));
+
+        var result = await Client(handler).ConfirmEmailAsync("user-1", "token", Ct);
+
+        Assert.Equal("auth.token_invalid", result.FailureCode);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.NotFound)]
+    public async Task AFaultUsingALinkIsNotARefusal(HttpStatusCode status)
+    {
+        // Reported as "this link has expired", an outage would send people round the reset loop for nothing.
+        using var handler = new RecordingHandler(new HttpResponseMessage(status));
+
+        await Assert.ThrowsAsync<IdentityApiException>(
+            () => Client(handler).CompletePasswordResetAsync("user-1", "token", "a-new-passphrase", Ct));
+    }
+
+    [Fact]
+    public async Task AResetRequestExpects202AndNothingElse()
+    {
+        using var accepted = new RecordingHandler(new HttpResponseMessage(HttpStatusCode.Accepted));
+        await Client(accepted).RequestPasswordResetAsync("ada@example.test", Ct);
+        Assert.Contains("ada@example.test", accepted.Body!, StringComparison.Ordinal);
+        Assert.DoesNotContain("ada", accepted.Request!.RequestUri!.ToString(), StringComparison.Ordinal);
+
+        using var refused = new RecordingHandler(new HttpResponseMessage(HttpStatusCode.BadRequest));
+        await Assert.ThrowsAsync<IdentityApiException>(
+            () => Client(refused).RequestPasswordResetAsync("ada@example.test", Ct));
+    }
+
     private static IdentityApiClient Client(RecordingHandler handler)
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);

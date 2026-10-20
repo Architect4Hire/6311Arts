@@ -1,14 +1,14 @@
 import { ChangeDetectionStrategy, Component, afterNextRender, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { filter } from 'rxjs';
+import { UiIcon } from '@6311/ui';
 import { WpApi } from '../core/wp-api.service';
-import { Icon } from './icon';
 
 /** Fixed navbar: always charcoal; compacts once the page scrolls. */
 @Component({
   selector: 'app-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterLinkActive, Icon],
+  imports: [RouterLink, RouterLinkActive, UiIcon],
   host: { class: 'nav', '[class.nav--solid]': 'solid() || open()', '[class.nav--open]': 'open()' },
   template: `
     <a class="skip" href="#content">Skip to content</a>
@@ -18,7 +18,7 @@ import { Icon } from './icon';
         <span class="nav__wordmark">6311arts</span>
       </a>
       <button class="nav__toggle" type="button" (click)="open.set(!open())" [attr.aria-expanded]="open()" aria-controls="nav-menu">
-        <app-icon [name]="open() ? 'close' : 'menu'" [size]="26" />
+        <ui-icon [name]="open() ? 'close' : 'menu'" [size]="26" />
         <span class="sr-only">Menu</span>
       </button>
       <nav id="nav-menu" class="nav__menu" aria-label="Main">
@@ -29,7 +29,7 @@ import { Icon } from './icon';
             </li>
           }
           <li>
-            <a class="nav__cart" [href]="api.cartUrl()" aria-label="Cart"><app-icon name="cart" [size]="20" /></a>
+            <a class="nav__cart" [href]="api.cartUrl()" aria-label="Cart"><ui-icon name="cart" [size]="20" /></a>
           </li>
           <li><a class="btn btn-white btn-sm" routerLink="/memberships">Join</a></li>
         </ul>

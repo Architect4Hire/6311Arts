@@ -16,5 +16,8 @@ internal sealed class IdentityRepository(ArtsDbContext context) : IIdentityRepos
     public Task<ArtsUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) =>
         context.Users.FirstOrDefaultAsync(user => user.Id == userId, cancellationToken);
 
+    public Task ReloadAsync(ArtsUser user, CancellationToken cancellationToken) =>
+        context.Entry(user).ReloadAsync(cancellationToken);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);
 }

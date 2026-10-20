@@ -34,5 +34,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/info-pages').then((m) => m.CmsPage),
     data: { wpSlug: 'terms-and-conditions', title: 'Terms and Conditions' },
   },
+  // Staff sign-in. Here rather than in the CMS because /admin/** is behind the session gate (ADR 0024).
+  { path: 'signin', loadComponent: () => import('./pages/signin').then((m) => m.Signin) },
   { path: '**', loadComponent: () => import('./pages/not-found').then((m) => m.NotFound) },
 ];

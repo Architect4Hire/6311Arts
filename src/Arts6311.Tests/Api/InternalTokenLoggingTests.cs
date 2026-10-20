@@ -1,4 +1,5 @@
 using Arts6311.Tests.Api.Infrastructure;
+using Arts6311.Tests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -30,7 +31,7 @@ public sealed class InternalTokenLoggingTests
         using var client = api.CreateJsonClient();
 
         var token = api.Tokens.Token(audience: "6311-someone-else", roles: ["Admin"]);
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/cms/ops/ping");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/" + CmsAdminProbeController.Route);
         request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
         await client.SendAsync(request, TestContext.Current.CancellationToken);
 
@@ -57,54 +58,11 @@ public sealed class InternalTokenLoggingTests
         }));
         using var client = api.CreateJsonClient();
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/cms/ops/ping");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/" + CmsAdminProbeController.Route);
         request.Headers.TryAddWithoutValidation(
             "Authorization", $"Bearer {api.Tokens.Token(audience: "6311-someone-else", roles: ["Admin"])}");
         await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Contains("SecurityTokenInvalidAudienceException", sink.Text(), StringComparison.Ordinal);
-    }
-
-    private sealed class CapturingLoggerProvider : ILoggerProvider
-    {
-        private readonly List<string> lines = [];
-
-        public string Text()
-        {
-            lock (lines)
-            {
-                return string.Join('\n', lines);
-            }
-        }
-
-        public ILogger CreateLogger(string categoryName) => new CapturingLogger(categoryName, lines);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class CapturingLogger(string category, List<string> lines) : ILogger
-        {
-            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(
-                LogLevel logLevel,
-                EventId eventId,
-                TState state,
-                Exception? exception,
-                Func<TState, Exception?, string> formatter)
-            {
-                ArgumentNullException.ThrowIfNull(formatter);
-
-                // The formatted message, the exception and its inner chain: a leak anywhere in that is a leak.
-                var text = $"{category} {logLevel} {formatter(state, exception)} {exception}";
-                lock (lines)
-                {
-                    lines.Add(text);
-                }
-            }
-        }
     }
 }

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
+import { UiIcon } from '@6311/ui';
 import { Seo, exhibitionLd } from '../core/seo.service';
 import { WpApi } from '../core/wp-api.service';
 import { GALLERY_PHOTOS } from '../data/venue-photos';
@@ -8,13 +9,12 @@ import { ArtImage } from '../shared/art-image';
 import { ExhibitionCard, exhibitionStatus } from '../shared/cards';
 import { WhenPipe } from '../shared/format';
 import { Hero } from '../shared/hero';
-import { Icon } from '../shared/icon';
 import { Reveal } from '../shared/reveal';
 
 @Component({
   selector: 'app-exhibitions',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Hero, ExhibitionCard, ArtImage, Icon, Reveal, RouterLink, WhenPipe],
+  imports: [Hero, ExhibitionCard, ArtImage, UiIcon, Reveal, RouterLink, WhenPipe],
   template: `
     <app-hero title="Exhibitions" eyebrow="Free · Open Wed – Sun"
       lead="A new show about every six weeks across the main, East and West galleries, from solo shows to work by students from the high schools nearby."
@@ -32,7 +32,7 @@ import { Reveal } from '../shared/reveal';
               <p class="artists-inline">{{ e.artists.join(' · ') }}</p>
             }
             @if (e.reception) {
-              <p class="band__note band__note--left"><app-icon name="ticket" [size]="20" />
+              <p class="band__note band__note--left"><ui-icon name="ticket" [size]="20" />
                 Opening reception {{ e.reception.start | when: 'long' }}, {{ e.reception.start | when: 'time' : e.reception.end }}. {{ e.reception.note }}.</p>
             }
             <a class="btn btn-lg" [class.btn-white]="!odd" [class.btn-dark]="odd" routerLink="/visit">Plan your visit</a>

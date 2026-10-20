@@ -17,7 +17,7 @@ The forces: the browser must see one origin; the API must trust one caller; a cl
 - **Destinations resolve through Aspire service discovery** as `https+http://<name>`, the documented scheme-priority form. `WithReference` is what populates it; no host or port exists in gateway configuration.
   - **The resolved value must be a full URI**, not a bare `host:port`. With a bare authority the resolver keeps the *first* scheme of `https+http`, so an http-only destination is dialled over https and every request fails with 502. Aspire's own injection is a full URI; the test fixture matches it.
 - **The full five-route table ships before `site` and `admin` exist.** The alternative — adding routes as their resources land — spreads one table across three prompts and leaves it out of step with `gateway.md` until the last of them.
-  - Until 2.2 and 3.3, `/` and `/admin` answer **502**, not the 503 one might expect. Service discovery's pass-through provider resolves an unknown name to a `DnsEndPoint` for that bare name, so YARP has a destination and fails to connect to the host `site`, rather than having no destination at all. Verified by running it; worth knowing because a 502 here means "not built yet", not "the site is down".
+  - Until 3.2 (`site`) and 2.2 (`admin`), `/` and `/admin` answer **502**, not the 503 one might expect. Service discovery's pass-through provider resolves an unknown name to a `DnsEndPoint` for that bare name, so YARP has a destination and fails to connect to the host `site`, rather than having no destination at all. Verified by running it; worth knowing because a 502 here means "not built yet", not "the site is down".
 - **Middleware order**, which is the substance of this change:
 
   | Position | Why there |
@@ -70,7 +70,7 @@ The forces: the browser must see one origin; the API must trust one caller; a cl
 
 ## Consequences
 
-- `/` and `/admin` answer 502 until 2.2 and 3.3. That is expected, not a defect, and those prompts need no gateway change.
+- `/` and `/admin` answer 502 until 3.2 and 2.2 respectively. That is expected, not a defect, and those prompts need no gateway change.
 - `POST /webhooks/square` reaches the API and gets a 404 from it, because the webhook controller arrives in 5.6. The gateway's part — route, method restriction, size limit, rate limit — is in place and tested.
 - Nothing is authenticated until 1.10, so every proxied request is anonymous and the API's `[AllowAnonymous]` routes are all that answer through the gateway. 1.10 adds the session and the signing branch starts firing with no change to the proxy.
 - 1.10 also owes `/bff/**`, which it adds as gateway-own endpoints — they outrank the `site` catch-all by precedence — and the `CmsEditor` session gate on `/admin`.

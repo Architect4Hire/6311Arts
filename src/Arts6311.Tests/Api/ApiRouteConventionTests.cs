@@ -52,13 +52,19 @@ public sealed class ApiRouteConventionTests : IDisposable
     }
 
     [Fact]
-    public void TheOpsPingRouteRequiresCmsAdmin()
+    public void TheInternalSessionRoutesRequireTheInternalServicePolicy()
     {
-        // api-contract.md: "Development only (404 elsewhere); CmsAdmin from 1.7".
-        var ping = Endpoints().Single(endpoint => endpoint.Route == "api/v1/cms/ops/ping");
+        // auth.md: /api/v1/internal/** accepts only token_use=service. The gateway's 404 is the other lock.
+        var internalRoutes = Endpoints()
+            .Where(endpoint => endpoint.Route.StartsWith("api/v1/internal/", StringComparison.Ordinal))
+            .ToList();
 
-        Assert.Contains(ApiPolicies.CmsAdmin, ping.Policies);
-        Assert.False(ping.Anonymous);
+        Assert.NotEmpty(internalRoutes);
+        Assert.All(internalRoutes, endpoint =>
+        {
+            Assert.Contains(ApiPolicies.InternalService, endpoint.Policies);
+            Assert.False(endpoint.Anonymous);
+        });
     }
 
     [Fact]
@@ -76,7 +82,7 @@ public sealed class ApiRouteConventionTests : IDisposable
         var routes = Endpoints().Select(endpoint => endpoint.Route).ToList();
 
         Assert.Contains("api/v1/site/health-info", routes);
-        Assert.Contains("api/v1/cms/ops/ping", routes);
+        Assert.Contains("api/v1/internal/sessions/credentials", routes);
     }
 
     [Fact]
