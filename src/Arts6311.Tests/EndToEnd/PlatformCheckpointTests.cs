@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Arts6311.Domain.Managers;
 using Arts6311.Domain.Managers.Outbox;
 using Arts6311.Domain.Managers.Outbox.Events;
@@ -176,6 +177,68 @@ public sealed class PlatformCheckpointTests(PlatformFixture platform, ITestOutpu
         var shell = await cms.Content.ReadAsStringAsync(Ct);
         Assert.Contains("<cms-root", shell, StringComparison.Ordinal);
         Assert.Contains("<base href=\"/admin/\"", shell, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Every inline script the rendered site carries is allowed by the very policy that response sends (ADR 0039).
+    /// </summary>
+    /// <remarks>
+    /// The hashes in <c>Gateway:Csp:Default</c> are the only thing standing between event replay and a silent
+    /// death: two of the three scripts are Angular's, and the <c>__jsaction_bootstrap</c> call embeds the list of
+    /// event types the site's own templates bind, so adding a <c>(change)</c> or <c>(keydown)</c> binding anywhere
+    /// changes its hash. Nothing in the browser reports that — the script is simply refused and clicks made before
+    /// hydration are lost. So the hashes are never asserted as literals here: they are recomputed from the page the
+    /// gateway actually served, which is what makes this test notice the drift.
+    /// </remarks>
+    [Fact]
+    public async Task EveryInlineScriptOnTheRenderedSiteIsAllowedByItsOwnCsp()
+    {
+        using var browser = Browser(out _);
+
+        var home = await browser.GetAsync("/", "text/html");
+        Assert.Equal(HttpStatusCode.OK, home.StatusCode);
+
+        var html = await home.Content.ReadAsStringAsync(Ct);
+        var policy = home.Headers.TryGetValues("Content-Security-Policy", out var values)
+            ? string.Join(' ', values)
+            : string.Empty;
+
+        Assert.Contains("script-src", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("'unsafe-inline'", policy.Split(';')
+            .First(directive => directive.TrimStart().StartsWith("script-src", StringComparison.Ordinal)));
+
+        var executable = InlineScripts(html).ToList();
+
+        // The `js` class, Angular's event-dispatch contract and the bootstrap call that arms event replay.
+        Assert.Equal(3, executable.Count);
+
+        foreach (var script in executable)
+        {
+            var hash = Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(script)));
+
+            Assert.True(
+                policy.Contains($"'sha256-{hash}'", StringComparison.Ordinal),
+                $"The CSP does not allow an inline script the site renders. Add 'sha256-{hash}' to "
+                + $"Gateway:Csp:Default (script-src). The script begins: {script[..Math.Min(80, script.Length)]}");
+        }
+    }
+
+    /// <summary>The inline scripts a browser executes: no <c>src</c>, and not a data block such as JSON-LD.</summary>
+    private static IEnumerable<string> InlineScripts(string html)
+    {
+        foreach (Match match in Regex.Matches(
+            html, "<script([^>]*)>(.*?)</script>", RegexOptions.Singleline))
+        {
+            var attributes = match.Groups[1].Value;
+            if (attributes.Contains("src=", StringComparison.Ordinal)) continue;
+
+            // type="application/json" and type="application/ld+json" are data the browser never executes.
+            var type = Regex.Match(attributes, "type=\"([^\"]+)\"").Groups[1].Value;
+            if (type.Contains("json", StringComparison.OrdinalIgnoreCase)) continue;
+
+            yield return match.Groups[2].Value;
+        }
     }
 
     [Fact]

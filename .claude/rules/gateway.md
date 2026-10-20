@@ -50,6 +50,16 @@ requests reach the API with no credential; a test asserts it.
   - `Referrer-Policy`
   - `frame-ancestors 'none'`
   - CSP from configuration: `Gateway:Csp:Default`, plus `Gateway:Csp:Overrides` as a path prefix → policy map, longest prefix winning. The Square Web Payments SDK origins (script, frame, connect) are allowed **only** on checkout and member-billing routes, as override entries added in 5.14; the sandbox vs production SDK host comes from configuration.
+  - **`script-src` carries three `sha256-` hashes and no `'unsafe-inline'`** (ADR 0039): the site's `js`-class
+    script, Angular's event-dispatch contract and the `__jsaction_bootstrap` call that arms event replay. Never a
+    nonce — SSR pages are cached with `s-maxage`, so a per-response nonce and the cached body drift apart. The
+    bootstrap script's text embeds the event types the site's templates bind, so **a new event binding type in
+    `projects/site` changes its hash**; the `Category=E2E` test
+    `EveryInlineScriptOnTheRenderedSiteIsAllowedByItsOwnCsp` recomputes the hashes from the rendered page and names
+    any that the policy no longer allows. A new inline script is refused by design — bundle it instead.
+  - **The WordPress origins (`https://6311arts.com`, `https://i0.wp.com`) are in `appsettings.Development.json`
+    only**, for as long as `WpApi` still reads the live site. They must never enter the shipped policy; a test
+    asserts both halves (ADR 0039).
 - **Limits and correlation.**
   - Request size limits: **1 MiB for every route** (`Kestrel:Limits:MaxRequestBodySize`, in the gateway and the API), with per-route YARP `MaxRequestBodySize` above or below it. `/webhooks/square` is capped at 256 KB; `cms-media-upload` is raised to 26 MiB. Uploads are streamed.
   - Forwarded headers are honoured only when `Gateway:TrustedProxies` names the sender; with it empty the middleware that reads them is not in the pipeline at all, and client-supplied `X-Forwarded-*` and `Forwarded` are stripped inbound (ADR 0022).

@@ -57,6 +57,7 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0036](0036-revalidation-scheduled-publishing-and-previews.md) | Revalidation by cache tag through a shared Redis L2 (≤1 minute stale), the row-version-claimed scheduled publisher, Data Protection preview links, the Preview module | Accepted; media visibility still DECIDE, now owned by 3.1 |
 | [0037](0037-classes-and-the-shared-catalog-sku-registry.md) | Classes: the shared catalog SKU registry, session-level Square projections, sanitized class bodies | Accepted |
 | [0038](0038-shop-items-artwork-categories-and-one-of-a-kind.md) | Shop items: artwork only, a category allow-list, an ordered gallery, the one-of-a-kind freeze | Accepted |
+| [0039](0039-csp-hashes-for-the-sites-inline-scripts.md) | The site's three inline scripts are allowed by `sha256-` hash, never by nonce (cached HTML) or `'unsafe-inline'`; WordPress origins are development-only | Accepted |
 
 ## Template
 

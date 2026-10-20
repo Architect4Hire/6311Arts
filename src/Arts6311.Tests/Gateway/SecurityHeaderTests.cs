@@ -58,22 +58,61 @@ public sealed class SecurityHeaderTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task TheDefaultCspAllowsGoogleFontsForStylesAndFontsOnly()
+    public async Task TheShippedCspAllowsGoogleFontsForStylesAndFontsOnly()
     {
         // Open Sans comes from Google Fonts, as on spike0 (design-system.md; ADR 0027). The stylesheet host and the
-        // font host are allowed in exactly the two directives that load them; scripts stay same-origin only.
-        using var gateway = new GatewayFactory(destination);
-        using var client = gateway.CreateJsonClient();
-
-        var response = await client.GetAsync("/api/v1/site/health-info", TestContext.Current.CancellationToken);
-        var directives = Header(response, "Content-Security-Policy")
-            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToDictionary(directive => directive.Split(' ')[0], directive => directive.Split(' ')[1..]);
+        // font host are allowed in exactly the two directives that load them. Asserted outside Development, because
+        // that environment loosens two directives for the WordPress migration (below, ADR 0039).
+        var directives = await DirectivesAsync(Environments.Production);
 
         Assert.Equal(["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], directives["style-src"]);
         Assert.Equal(["'self'", "https://fonts.gstatic.com"], directives["font-src"]);
-        Assert.Equal(["'self'"], directives["script-src"]);
         Assert.Equal(["'self'"], directives["connect-src"]);
+        Assert.Equal(["'self'", "data:", "blob:"], directives["img-src"]);
+    }
+
+    [Fact]
+    public async Task ScriptsAreSameOriginPlusTheHashesOfTheInlineScriptsTheSiteRenders()
+    {
+        // ADR 0039: the SSR site emits three inline scripts a browser executes — the `js` class on <html>, Angular's
+        // event-dispatch contract and the __jsaction_bootstrap call that arms event replay. They are allowed by
+        // hash, never by 'unsafe-inline', and never by a per-response nonce, which cached HTML cannot carry.
+        var directives = await DirectivesAsync(Environments.Production);
+        var scriptSrc = directives["script-src"];
+
+        Assert.Equal("'self'", scriptSrc[0]);
+        Assert.Equal(3, scriptSrc.Count(source => source.StartsWith("'sha256-", StringComparison.Ordinal)));
+        Assert.DoesNotContain("'unsafe-inline'", scriptSrc);
+        Assert.DoesNotContain("'unsafe-eval'", scriptSrc);
+    }
+
+    [Fact]
+    public async Task TheWordPressOriginsAreDevelopmentOnly()
+    {
+        // The site still reads classes, exhibitions and shop items from the live WordPress while the migration runs
+        // (ADR 0039). That is a local crutch: it must never reach a deployed policy, where those reads come from the
+        // API on this origin. Both halves are asserted, because a crutch nobody tests is a crutch that ships.
+        var development = await DirectivesAsync(Environments.Development);
+        var shipped = await DirectivesAsync(Environments.Production);
+
+        Assert.Contains("https://6311arts.com", development["connect-src"]);
+        Assert.Contains("https://i0.wp.com", development["img-src"]);
+
+        Assert.DoesNotContain("https://6311arts.com", shipped["connect-src"]);
+        Assert.DoesNotContain("https://i0.wp.com", shipped["img-src"]);
+    }
+
+    /// <summary>The policy a response really carries, split into directive → sources.</summary>
+    private async Task<Dictionary<string, string[]>> DirectivesAsync(string environmentName)
+    {
+        using var gateway = new GatewayFactory(destination, environmentName);
+        using var client = gateway.CreateJsonClient();
+
+        var response = await client.GetAsync("/api/v1/site/health-info", TestContext.Current.CancellationToken);
+
+        return Header(response, "Content-Security-Policy")
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToDictionary(directive => directive.Split(' ')[0], directive => directive.Split(' ')[1..]);
     }
 
     [Fact]
