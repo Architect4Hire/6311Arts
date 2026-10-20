@@ -66,6 +66,8 @@ const COMMAND_LABELS: Readonly<
   publish: { busy: 'Publishing…', done: 'Published.' },
   unpublish: { busy: 'Unpublishing…', done: 'Unpublished. The page is a draft again.' },
   archive: { busy: 'Archiving…', done: 'Archived.' },
+  schedule: { busy: 'Scheduling…', done: 'Scheduled.' },
+  unschedule: { busy: 'Unscheduling…', done: 'Unscheduled. The page is a draft again.' },
 };
 
 /**
@@ -77,6 +79,9 @@ const COMMAND_LABELS: Readonly<
  * failure, and a 409 shows the saved version beside the editor's own (frontend.md). Status commands act on the saved
  * version, so they wait until the form is saved.
  */
+import { PreviewLinkButton } from '../../shared/preview-link';
+import { ScheduleControl } from '../../shared/schedule-control';
+
 @Component({
   selector: 'cms-page-editor',
   imports: [
@@ -88,6 +93,8 @@ const COMMAND_LABELS: Readonly<
     UiField,
     UiNotice,
     UiStatusChip,
+    PreviewLinkButton,
+    ScheduleControl,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -290,6 +297,18 @@ const COMMAND_LABELS: Readonly<
                     </button>
                   }
                 </div>
+
+                <cms-schedule-control
+                  noun="page"
+                  [status]="page.status"
+                  [scheduledFor]="page.scheduledFor"
+                  [disabled]="dirty() || busy()"
+                  [busy]="commanding()"
+                  (schedule)="schedule($event)"
+                  (unschedule)="unschedule()"
+                />
+
+                <cms-preview-link entityType="page" [entityId]="page.id" [dirty]="dirty()" />
               </section>
             </aside>
           }
@@ -638,6 +657,32 @@ export class PageEditor implements HasUnsavedChanges {
       cancelLabel: 'Keep it',
     });
     if (confirmed) await this.run('archive');
+  }
+
+  /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */
+  protected async schedule(scheduledFor: string): Promise<void> {
+    const page = this.page();
+    if (!page || this.busy() || this.dirty()) return;
+
+    this.errors.set({});
+    this.formError.set(null);
+    this.status.set({ kind: 'commanding', command: 'schedule' });
+    this.announce(COMMAND_LABELS.schedule.busy);
+    try {
+      const updated = await firstValueFrom(
+        this.pages.schedule(page.id, scheduledFor, page.etag),
+      );
+      this.page.set(updated);
+      this.draft.set(draftOf(updated));
+      this.status.set({ kind: 'ready' });
+      this.announce(COMMAND_LABELS.schedule.done);
+    } catch (error: unknown) {
+      await this.commandFailed(error);
+    }
+  }
+
+  protected async unschedule(): Promise<void> {
+    await this.run('unschedule');
   }
 
   protected async run(command: PageCommand): Promise<void> {

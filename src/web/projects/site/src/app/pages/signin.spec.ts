@@ -119,7 +119,18 @@ describe('Signin', () => {
     await type('password', 'pw');
     await submit();
 
-    expect(assign).toHaveBeenCalledWith('/admin/');
+    expect(assign).toHaveBeenCalledWith('/');
+  });
+
+  it('leaves for the home page when nothing asked for a screen', async () => {
+    const { sessions, assign, type, submit } = await render();
+    sessions.signIn.mockResolvedValue({ kind: 'signed-in', session: staff });
+
+    await type('email', 'ada@6311arts.test');
+    await type('password', 'pw');
+    await submit();
+
+    expect(assign).toHaveBeenCalledWith('/');
   });
 
   it('keeps a member account out of the CMS instead of sending it to a 403', async () => {
@@ -156,15 +167,17 @@ describe('Signin', () => {
     expect(document.activeElement).toBe(input('password'));
   });
 
-  it('survives a repeated returnUrl and falls back to the CMS', async () => {
-    const { sessions, assign, type, submit } = await render({ returnUrl: ['/admin/x', '//evil.example'] as unknown as string });
+  it('survives a repeated returnUrl and falls back to the home page', async () => {
+    const { sessions, assign, type, submit } = await render({
+      returnUrl: ['/admin/x', '//evil.example'] as unknown as string,
+    });
     sessions.signIn.mockResolvedValue({ kind: 'signed-in', session: staff });
 
     await type('email', 'ada@6311arts.test');
     await type('password', 'pw');
     await submit();
 
-    expect(assign).toHaveBeenCalledWith('/admin/');
+    expect(assign).toHaveBeenCalledWith('/');
   });
 
   it('keeps its live region in the page before anything is said', async () => {

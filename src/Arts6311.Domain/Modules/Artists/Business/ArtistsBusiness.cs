@@ -226,9 +226,7 @@ internal sealed class ArtistsBusiness(IArtistsDataLayer dataLayer, IClock clock)
         var from = artist.Status;
         if (PublishLifecycle.Next(from, command) is not { } to)
         {
-            return OperationResult.Failure<ArtistServiceModel>(OperationError.Of(
-                ContentErrorCodes.StatusTransitionInvalid,
-                $"This artist is {from.ToString().ToLowerInvariant()}, so “{command.Verb()}” doesn't apply. Reload it to see its current status."));
+            return OperationResult.Failure<ArtistServiceModel>(TransitionInvalid(from, command));
         }
 
         if (command == PublishCommand.Publish)
@@ -241,6 +239,12 @@ internal sealed class ArtistsBusiness(IArtistsDataLayer dataLayer, IClock clock)
             artist.PublishedAt ??= clock.UtcNow;
             artist.ScheduledFor = null;
         }
+        else if (command == PublishCommand.Archive)
+        {
+            // An archived artist is never published by the scheduled publisher, so a time left on it would only
+            // mislead the staff reading it.
+            artist.ScheduledFor = null;
+        }
 
         artist.Status = to;
 
@@ -250,6 +254,143 @@ internal sealed class ArtistsBusiness(IArtistsDataLayer dataLayer, IClock clock)
             _ => Conflict(),
         };
     }
+
+    public async Task<OperationResult<ArtistServiceModel>> ScheduleAsync(
+        Guid id,
+        DateTimeOffset scheduledFor,
+        string? ifMatch,
+        ArtistPortraitCheck? portrait,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var artist = await dataLayer.FindAsync(id, cancellationToken);
+        if (artist is null)
+        {
+            return NotFound();
+        }
+
+        if (EntityTag.Verify(artist.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure<ArtistServiceModel>(versionError);
+        }
+
+        var from = artist.Status;
+        if (PublishLifecycle.Next(from, PublishCommand.Schedule) is not { } to)
+        {
+            return OperationResult.Failure<ArtistServiceModel>(TransitionInvalid(from, PublishCommand.Schedule));
+        }
+
+        // A time already past would be published by the next pass, a minute later, which is not what "schedule"
+        // means: staff who want it out now have the publish command for that.
+        if (scheduledFor <= clock.UtcNow)
+        {
+            return OperationResult.Failure<ArtistServiceModel>(OperationError.Validation(
+                "Choose a time in the future.",
+                [("scheduledFor", "This time has passed. Publish the artist now instead, or pick a later time.")]));
+        }
+
+        // Checked now as well as at publish, so staff hear about a missing portrait while they are looking at the
+        // screen rather than at midnight, when only the audit trail is watching (ADR 0036).
+        if (PublishRequirementError(artist, portrait) is { } requirementError)
+        {
+            return OperationResult.Failure<ArtistServiceModel>(requirementError);
+        }
+
+        artist.ScheduledFor = scheduledFor;
+        artist.Status = to;
+
+        return await dataLayer.TransitionAsync(artist, PublishCommand.Schedule, from, actorUserId, cancellationToken) switch
+        {
+            ArtistWriteOutcome.Saved => OperationResult.Success(ToServiceModel(artist)),
+            _ => Conflict(),
+        };
+    }
+
+    public async Task<OperationResult<ArtistServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var artist = await dataLayer.FindAsync(id, cancellationToken);
+        if (artist is null)
+        {
+            return NotFound();
+        }
+
+        if (EntityTag.Verify(artist.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure<ArtistServiceModel>(versionError);
+        }
+
+        var from = artist.Status;
+        if (PublishLifecycle.Next(from, PublishCommand.Unschedule) is not { } to)
+        {
+            return OperationResult.Failure<ArtistServiceModel>(TransitionInvalid(from, PublishCommand.Unschedule));
+        }
+
+        artist.ScheduledFor = null;
+        artist.Status = to;
+
+        return await dataLayer.TransitionAsync(artist, PublishCommand.Unschedule, from, actorUserId, cancellationToken) switch
+        {
+            ArtistWriteOutcome.Saved => OperationResult.Success(ToServiceModel(artist)),
+            _ => Conflict(),
+        };
+    }
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        dataLayer.ListDueAsync(asOf, take, cancellationToken);
+
+    public async Task<ScheduledPublishOutcome> PublishScheduledAsync(
+        Guid id, DateTimeOffset asOf, ArtistPortraitCheck? portrait, CancellationToken cancellationToken)
+    {
+        var artist = await dataLayer.FindAsync(id, cancellationToken);
+
+        // Read again inside this scope, because the due list is a snapshot: staff may have published, rescheduled
+        // or archived the artist since, and another Worker may have taken it.
+        if (artist is null || artist.Status != PublishStatus.Scheduled || artist.ScheduledFor is null || artist.ScheduledFor > asOf)
+        {
+            return ScheduledPublishOutcome.Skipped;
+        }
+
+        // The portrait the facade asked Media about is no longer this artist's: whoever changed it is mid-edit, so
+        // this pass leaves the artist to them and the next one asks again.
+        if (artist.PortraitMediaId is not null && portrait?.PortraitMediaId != artist.PortraitMediaId)
+        {
+            return ScheduledPublishOutcome.Lost;
+        }
+
+        var from = artist.Status;
+        if (PublishRequirementError(artist, portrait) is { } requirementError)
+        {
+            // Back to Draft rather than left Scheduled: a record whose time has passed would otherwise be retried
+            // every minute for ever, and nobody would be told (ADR 0036).
+            artist.ScheduledFor = null;
+            artist.Status = PublishStatus.Draft;
+
+            return await dataLayer.AbandonScheduleAsync(artist, from, requirementError.Message, cancellationToken) switch
+            {
+                ArtistWriteOutcome.Saved => ScheduledPublishOutcome.Unscheduled,
+                _ => ScheduledPublishOutcome.Lost,
+            };
+        }
+
+        artist.PublishedAt ??= clock.UtcNow;
+        artist.ScheduledFor = null;
+        artist.Status = PublishStatus.Published;
+
+        return await dataLayer.TransitionAsync(
+            artist, PublishCommand.Publish, from, ScheduledPublishPolicy.Actor, cancellationToken) switch
+        {
+            ArtistWriteOutcome.Saved => ScheduledPublishOutcome.Published,
+
+            // The row version moved under this save: another Worker published it, or staff changed it. Either way
+            // it is theirs now.
+            _ => ScheduledPublishOutcome.Lost,
+        };
+    }
+
+    private static OperationError TransitionInvalid(PublishStatus from, PublishCommand command) => OperationError.Of(
+        ContentErrorCodes.StatusTransitionInvalid,
+        $"This artist is {from.ToString().ToLowerInvariant()}, so “{command.Verb()}” doesn't apply. Reload it to see its current status.");
 
     /// <summary>
     /// content.md: what the site needs is checked at publish, not at draft. The name and slug are guaranteed by

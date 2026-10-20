@@ -49,5 +49,10 @@ internal sealed class ArtistConfiguration : IEntityTypeConfiguration<Artist>
 
         builder.HasIndex(artist => new { artist.Status, artist.Name, artist.Id })
             .HasDatabaseName("IX_Artists_Status_Name_Id");
+
+        // The Worker's scheduled-publish pass, every minute: the Scheduled rows due by now, oldest first
+        // (ADR 0036).
+        builder.HasIndex(artist => new { artist.Status, artist.ScheduledFor })
+            .HasDatabaseName("IX_Artists_Status_ScheduledFor");
     }
 }

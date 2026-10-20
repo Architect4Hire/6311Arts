@@ -158,6 +158,23 @@ public sealed class AppHostModelTests
     }
 
     [Fact(Timeout = TimeoutMs)]
+    public async Task TheApiAndTheWorkerShareTheCacheAsHybridCachesL2()
+    {
+        // ADR 0036: a revalidation in the Worker reaches the API's cached pages only through a shared,
+        // out-of-process cache. With L1 alone each process would invalidate its own copy and nothing else.
+        await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(WaitsFor(appHost, "api", "cache", WaitType.WaitUntilHealthy));
+        Assert.True(WaitsFor(appHost, "worker", "cache", WaitType.WaitUntilHealthy));
+
+        var api = await EnvironmentOfAsync(appHost, "api");
+        var worker = await EnvironmentOfAsync(appHost, "worker");
+
+        Assert.Contains("ConnectionStrings__cache", api.Keys);
+        Assert.Contains("ConnectionStrings__cache", worker.Keys);
+    }
+
+    [Fact(Timeout = TimeoutMs)]
     public async Task MigrationsRunAgainstAppdbAndGateTheApiAndWorker()
     {
         await using var appHost = await CreateRunModeAsync(TestContext.Current.CancellationToken);

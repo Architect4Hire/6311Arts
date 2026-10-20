@@ -48,4 +48,33 @@ internal interface IArtistsBusiness
         ArtistPortraitCheck? portrait,
         string actorUserId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Draft or Scheduled → Scheduled for <paramref name="scheduledFor"/>. Refusals: <c>concurrency.*</c>,
+    /// <c>cms.status_transition_invalid</c>, and <c>validation.failed</c> for a time already past or a portrait
+    /// that could not be published (ADR 0036). The <c>schedule</c> command is its own method rather than another
+    /// <see cref="TransitionAsync"/> argument, because it is the one command with a body.
+    /// </summary>
+    /// <param name="portrait">What Media said about the artist's current portrait, as for a publish.</param>
+    Task<OperationResult<ArtistServiceModel>> ScheduleAsync(
+        Guid id,
+        DateTimeOffset scheduledFor,
+        string? ifMatch,
+        ArtistPortraitCheck? portrait,
+        string actorUserId,
+        CancellationToken cancellationToken);
+
+    /// <summary>Scheduled → Draft, with the time cleared.</summary>
+    Task<OperationResult<ArtistServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>The artists due to be published at <paramref name="asOf"/>, for the Worker's scheduled publisher.</summary>
+    Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Publishes one due artist on the scheduled publisher's behalf, re-reading it first: the row version is the
+    /// claim, so two Workers acting on one artist produce one publish and one <see cref="ScheduledPublishOutcome.Lost"/>.
+    /// </summary>
+    Task<ScheduledPublishOutcome> PublishScheduledAsync(
+        Guid id, DateTimeOffset asOf, ArtistPortraitCheck? portrait, CancellationToken cancellationToken);
 }

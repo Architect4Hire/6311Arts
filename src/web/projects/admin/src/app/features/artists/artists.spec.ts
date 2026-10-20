@@ -388,6 +388,106 @@ describe('ArtistEditor', () => {
     expect(text(root.querySelector('header'))).toContain('Archived');
   });
 
+  it('schedules the artist for a time at the gallery and unschedules it again', async () => {
+    const { http, fixture, root } = await openEditor(ARTIST);
+
+    type(root, 'scheduleDate', '2026-12-24');
+    type(root, 'scheduleTime', '17:00');
+    await settle(fixture);
+    button(root, 'Schedule')!.click();
+
+    const schedule = http.expectOne(`${ONE}/schedule`);
+    expect(schedule.request.headers.get('If-Match')).toBe(ARTIST.etag);
+
+    // Chicago is six hours behind UTC in December, so 17:00 at the gallery is 23:00 UTC.
+    expect(schedule.request.body).toEqual({ scheduledFor: '2026-12-24T23:00:00+00:00' });
+
+    schedule.flush({
+      ...ARTIST,
+      status: 'Scheduled',
+      scheduledFor: '2026-12-24T23:00:00+00:00',
+      etag: '"v2"',
+    });
+    await settle(fixture);
+    expect(text(root)).toContain('Publishing on');
+    expect(text(root.querySelector('header'))).toContain('Scheduled');
+
+    button(root, 'Unschedule')!.click();
+    const unschedule = http.expectOne(`${ONE}/unschedule`);
+    expect(unschedule.request.headers.get('If-Match')).toBe('"v2"');
+    unschedule.flush({ ...ARTIST, status: 'Draft', scheduledFor: null, etag: '"v3"' });
+    await settle(fixture);
+
+    expect(text(root)).not.toContain('Publishing on');
+  });
+
+  it('refuses a scheduled time that has passed without asking the API', async () => {
+    const { http, fixture, root } = await openEditor(ARTIST);
+
+    type(root, 'scheduleDate', '2020-01-01');
+    type(root, 'scheduleTime', '09:00');
+    await settle(fixture);
+    button(root, 'Schedule')!.click();
+    await settle(fixture);
+
+    expect(text(root)).toContain('That time has passed');
+    http.expectNone(`${ONE}/schedule`);
+  });
+
+  it('asks for a preview link and shows where it opens', async () => {
+    const { http, fixture, root } = await openEditor(ARTIST);
+
+    button(root, 'Preview')!.click();
+    const minted = http.expectOne('/api/v1/cms/preview');
+    expect(minted.request.body).toEqual({ entityType: 'artist', entityId: ARTIST.id });
+    minted.flush({
+      token: 'CfDJ8-token',
+      path: '/preview/CfDJ8-token',
+      expiresAt: '2026-10-20T12:30:00+00:00',
+    });
+    await settle(fixture);
+
+    const open = root.querySelector('a[href^="/preview/"]') as HTMLAnchorElement;
+    expect(open.getAttribute('href')).toBe('/preview/CfDJ8-token');
+    expect(open.getAttribute('target')).toBe('_blank');
+    expect(open.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(text(root)).toContain('This link works until');
+    expect(text(root)).toContain('gallery time');
+
+    // What staff copy is the whole address, not a path (so it can be pasted into a message), and the token is
+    // never kept anywhere (auth.md "Token storage").
+    expect((root.querySelector('input[readonly]') as HTMLInputElement).value).toBe(
+      `${document.location.origin}/preview/CfDJ8-token`,
+    );
+    expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it('says why a preview link could not be made, in place', async () => {
+    const { http, fixture, root } = await openEditor(ARTIST);
+
+    button(root, 'Preview')!.click();
+    http
+      .expectOne('/api/v1/cms/preview')
+      .flush({ code: 'resource.not_found', detail: 'This preview link is not valid any more.' }, {
+        status: 404,
+        statusText: 'Not Found',
+      });
+    await settle(fixture);
+
+    expect(text(root)).toContain('This preview link is not valid any more.');
+    expect(root.querySelector('a[href^="/preview/"]')).toBeNull();
+  });
+
+  it('says a preview shows the saved version while there are unsaved edits', async () => {
+    const { fixture, root } = await openEditor(ARTIST);
+
+    type(root, 'medium', 'Ceramics');
+    await settle(fixture);
+
+    expect(text(root)).toContain('A preview shows the saved version');
+  });
+
   it('says plainly when the artist does not exist', async () => {
     const { http, fixture, root } = await openEditor(null);
     fixture.componentRef.setInput('id', 'missing');

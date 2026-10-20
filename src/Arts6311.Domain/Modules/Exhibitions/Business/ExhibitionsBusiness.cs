@@ -267,9 +267,7 @@ internal sealed class ExhibitionsBusiness(IExhibitionsDataLayer dataLayer, ICloc
         var from = exhibition.Status;
         if (PublishLifecycle.Next(from, command) is not { } to)
         {
-            return OperationResult.Failure<ExhibitionDetail>(OperationError.Of(
-                ContentErrorCodes.StatusTransitionInvalid,
-                $"This exhibition is {from.ToString().ToLowerInvariant()}, so “{command.Verb()}” doesn't apply. Reload it to see its current status."));
+            return OperationResult.Failure<ExhibitionDetail>(TransitionInvalid(from, command));
         }
 
         if (command == PublishCommand.Publish)
@@ -282,6 +280,12 @@ internal sealed class ExhibitionsBusiness(IExhibitionsDataLayer dataLayer, ICloc
             exhibition.PublishedAt ??= clock.UtcNow;
             exhibition.ScheduledFor = null;
         }
+        else if (command == PublishCommand.Archive)
+        {
+            // An archived exhibition is never published by the scheduled publisher, so a time left on it would
+            // only mislead the staff reading it.
+            exhibition.ScheduledFor = null;
+        }
 
         exhibition.Status = to;
 
@@ -291,6 +295,146 @@ internal sealed class ExhibitionsBusiness(IExhibitionsDataLayer dataLayer, ICloc
             _ => Conflict(),
         };
     }
+
+    public async Task<OperationResult<ExhibitionDetail>> ScheduleAsync(
+        Guid id,
+        DateTimeOffset scheduledFor,
+        string? ifMatch,
+        ExhibitionHeroCheck? hero,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var exhibition = await dataLayer.FindAsync(id, cancellationToken);
+        if (exhibition is null)
+        {
+            return NotFound();
+        }
+
+        if (EntityTag.Verify(exhibition.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure<ExhibitionDetail>(versionError);
+        }
+
+        var from = exhibition.Status;
+        if (PublishLifecycle.Next(from, PublishCommand.Schedule) is not { } to)
+        {
+            return OperationResult.Failure<ExhibitionDetail>(TransitionInvalid(from, PublishCommand.Schedule));
+        }
+
+        // A time already past would be published by the next pass, a minute later, which is not what "schedule"
+        // means: staff who want it out now have the publish command for that.
+        if (scheduledFor <= clock.UtcNow)
+        {
+            return OperationResult.Failure<ExhibitionDetail>(OperationError.Validation(
+                "Choose a time in the future.",
+                [("scheduledFor", "This time has passed. Publish the exhibition now instead, or pick a later time.")]));
+        }
+
+        // Checked now as well as at publish, so staff hear about a missing summary or hero while they are looking
+        // at the screen rather than at midnight, when only the audit trail is watching (ADR 0036).
+        if (PublishRequirementError(exhibition, hero) is { } requirementError)
+        {
+            return OperationResult.Failure<ExhibitionDetail>(requirementError);
+        }
+
+        exhibition.ScheduledFor = scheduledFor;
+        exhibition.Status = to;
+
+        return await dataLayer.TransitionAsync(exhibition, PublishCommand.Schedule, from, actorUserId, cancellationToken) switch
+        {
+            ExhibitionWriteOutcome.Saved => OperationResult.Success(ToDetail(exhibition)),
+            _ => Conflict(),
+        };
+    }
+
+    public async Task<OperationResult<ExhibitionDetail>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var exhibition = await dataLayer.FindAsync(id, cancellationToken);
+        if (exhibition is null)
+        {
+            return NotFound();
+        }
+
+        if (EntityTag.Verify(exhibition.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure<ExhibitionDetail>(versionError);
+        }
+
+        var from = exhibition.Status;
+        if (PublishLifecycle.Next(from, PublishCommand.Unschedule) is not { } to)
+        {
+            return OperationResult.Failure<ExhibitionDetail>(TransitionInvalid(from, PublishCommand.Unschedule));
+        }
+
+        exhibition.ScheduledFor = null;
+        exhibition.Status = to;
+
+        return await dataLayer.TransitionAsync(exhibition, PublishCommand.Unschedule, from, actorUserId, cancellationToken) switch
+        {
+            ExhibitionWriteOutcome.Saved => OperationResult.Success(ToDetail(exhibition)),
+            _ => Conflict(),
+        };
+    }
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        dataLayer.ListDueAsync(asOf, take, cancellationToken);
+
+    public async Task<ScheduledPublishOutcome> PublishScheduledAsync(
+        Guid id, DateTimeOffset asOf, ExhibitionHeroCheck? hero, CancellationToken cancellationToken)
+    {
+        var exhibition = await dataLayer.FindAsync(id, cancellationToken);
+
+        // Read again inside this scope, because the due list is a snapshot: staff may have published, rescheduled
+        // or archived the exhibition since, and another Worker may have taken it.
+        if (exhibition is null
+            || exhibition.Status != PublishStatus.Scheduled
+            || exhibition.ScheduledFor is null
+            || exhibition.ScheduledFor > asOf)
+        {
+            return ScheduledPublishOutcome.Skipped;
+        }
+
+        // The hero the facade asked Media about is no longer this exhibition's: whoever changed it is mid-edit, so
+        // this pass leaves the exhibition to them and the next one asks again.
+        if (exhibition.HeroMediaId is not null && hero?.HeroMediaId != exhibition.HeroMediaId)
+        {
+            return ScheduledPublishOutcome.Lost;
+        }
+
+        var from = exhibition.Status;
+        if (PublishRequirementError(exhibition, hero) is { } requirementError)
+        {
+            // Back to Draft rather than left Scheduled: a record whose time has passed would otherwise be retried
+            // every minute for ever, and nobody would be told (ADR 0036).
+            exhibition.ScheduledFor = null;
+            exhibition.Status = PublishStatus.Draft;
+
+            return await dataLayer.AbandonScheduleAsync(exhibition, from, requirementError.Message, cancellationToken) switch
+            {
+                ExhibitionWriteOutcome.Saved => ScheduledPublishOutcome.Unscheduled,
+                _ => ScheduledPublishOutcome.Lost,
+            };
+        }
+
+        exhibition.PublishedAt ??= clock.UtcNow;
+        exhibition.ScheduledFor = null;
+        exhibition.Status = PublishStatus.Published;
+
+        return await dataLayer.TransitionAsync(
+            exhibition, PublishCommand.Publish, from, ScheduledPublishPolicy.Actor, cancellationToken) switch
+        {
+            ExhibitionWriteOutcome.Saved => ScheduledPublishOutcome.Published,
+
+            // The row version moved under this save: another Worker published it, or staff changed it. Either way
+            // it is theirs now.
+            _ => ScheduledPublishOutcome.Lost,
+        };
+    }
+
+    private static OperationError TransitionInvalid(PublishStatus from, PublishCommand command) => OperationError.Of(
+        ContentErrorCodes.StatusTransitionInvalid,
+        $"This exhibition is {from.ToString().ToLowerInvariant()}, so “{command.Verb()}” doesn't apply. Reload it to see its current status.");
 
     public async Task<int> SeedAsync(IReadOnlyList<ExhibitionSeed> seeds, string actor, CancellationToken cancellationToken)
     {

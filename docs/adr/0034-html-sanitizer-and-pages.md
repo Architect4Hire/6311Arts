@@ -71,8 +71,8 @@ and inline handlers never to be stored. The sanitizer must have its own suite of
    - **An untouched placeholder can't be published.** A body still equal to a seeded placeholder is refused, so a
      one-click publish of "This privacy policy has not been written yet" can't happen.
    - The body is capped at 100,000 characters *after* sanitizing; the raw input is capped at 200,000.
-   - **No outbox message yet:** content.md's dated exception now names Pages too (2.8 adds
-     `site.revalidate-requested`). A skipped placeholder test holds the place.
+   - **No outbox message yet:** content.md's dated exception named Pages too until 2.8 added
+     `site.revalidate-requested` (ADR 0036) and the skipped placeholder test became a real one.
 7. **Placeholder pages are seeded in every environment, as Drafts (your decision).**
    - MigrationService runs `PagePlaceholderSeeder` outside the Development block. It seeds `privacy` ("Privacy
      Policy") and `terms` ("Terms and Conditions"), matching the site's `/privacy` and `/terms` and its footer.
@@ -109,4 +109,5 @@ and inline handlers never to be stored. The sanitizer must have its own suite of
 - Upgrading HtmlSanitizer or AngleSharp re-runs the payload suite, which is part of `dotnet test`.
 - The importer (4.x) must rewrite WordPress upload URLs to library renditions *before* sanitizing, or its images are
   removed (and reported).
-- 2.8 adds revalidation to `PagesDataLayer.TransitionAsync` and removes the skip. 2.7 relaxes the slug lock.
+- 2.8 added revalidation to `PagesDataLayer.TransitionAsync` and removed the skip (ADR 0036). 2.7 relaxed the
+  slug lock.

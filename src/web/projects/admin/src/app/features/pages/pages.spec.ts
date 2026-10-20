@@ -240,4 +240,38 @@ describe('PageEditor', () => {
     await settle(fixture);
     expect(text(root.querySelector('header'))).toContain('Archived');
   });
+
+  it('schedules the page and offers a preview link', async () => {
+    const { http, fixture, root } = await openEditor(PAGE);
+
+    type(root, 'scheduleDate', '2026-12-24');
+    type(root, 'scheduleTime', '17:00');
+    await settle(fixture);
+    button(root, 'Schedule')!.click();
+
+    const schedule = http.expectOne(`${ONE}/schedule`);
+    expect(schedule.request.headers.get('If-Match')).toBe(PAGE.etag);
+    expect(schedule.request.body).toEqual({ scheduledFor: '2026-12-24T23:00:00+00:00' });
+    schedule.flush({
+      ...PAGE,
+      status: 'Scheduled',
+      scheduledFor: '2026-12-24T23:00:00+00:00',
+      etag: '"v2"',
+    });
+    await settle(fixture);
+    expect(text(root)).toContain('Publishing on');
+
+    button(root, 'Preview')!.click();
+    const minted = http.expectOne('/api/v1/cms/preview');
+    expect(minted.request.body).toEqual({ entityType: 'page', entityId: PAGE.id });
+    minted.flush({
+      token: 'CfDJ8-token',
+      path: '/preview/CfDJ8-token',
+      expiresAt: '2026-10-20T12:30:00+00:00',
+    });
+    await settle(fixture);
+    expect(
+      (root.querySelector('a[href^="/preview/"]') as HTMLAnchorElement).getAttribute('href'),
+    ).toBe('/preview/CfDJ8-token');
+  });
 });

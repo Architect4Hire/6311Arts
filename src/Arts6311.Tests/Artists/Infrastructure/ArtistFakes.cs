@@ -4,6 +4,7 @@ using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Managers.Time;
+using Arts6311.Domain.Modules.Artists.Facade;
 using Arts6311.Domain.Modules.Artists.Business;
 using Arts6311.Domain.Modules.Artists.Data;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
@@ -97,6 +98,19 @@ internal sealed class FakeArtistsRepository(CallLog log) : IArtistsRepository
     public Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
         Task.FromResult(Rows.Where(row => slugs.Contains(row.Slug)).Select(Summary).ToList());
 
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
+    {
+        log.Add("list-due");
+        return Task.FromResult<IReadOnlyList<Guid>>(
+        [
+            .. Rows
+                .Where(row => row.Status == PublishStatus.Scheduled && row.ScheduledFor is { } when && when <= asOf)
+                .OrderBy(row => row.ScheduledFor)
+                .Take(take)
+                .Select(row => row.Id),
+        ]);
+    }
+
     internal static ArtistSummaryServiceModel Summary(Artist row) =>
         new(row.Id, row.Name, row.Slug, row.Medium, row.Active, row.Status, row.PortraitMediaId, row.UpdatedAt);
 
@@ -178,6 +192,26 @@ internal sealed class FakeArtistsDataLayer : IArtistsDataLayer
         LastTransition = (command, from);
         return Task.FromResult(Outcome);
     }
+
+    public (PublishStatus From, string Reason)? LastAbandon { get; private set; }
+
+    public Task<ArtistWriteOutcome> AbandonScheduleAsync(
+        Artist artist, PublishStatus from, string reason, CancellationToken cancellationToken)
+    {
+        Writes.Add("abandon-schedule");
+        LastAbandon = (from, reason);
+        return Task.FromResult(Outcome);
+    }
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Guid>>(
+        [
+            .. Rows.Values
+                .Where(row => row.Status == PublishStatus.Scheduled && row.ScheduledFor is { } when && when <= asOf)
+                .OrderBy(row => row.ScheduledFor)
+                .Take(take)
+                .Select(row => row.Id),
+        ]);
 
     public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         Task.FromResult(Rows.Values.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
@@ -279,6 +313,51 @@ internal sealed class RecordingArtistsBusiness : IArtistsBusiness
         LastTransition = (command, portrait);
         return Task.FromResult(OperationResult.Success(Current));
     }
+
+    public DateTimeOffset? LastScheduledFor { get; private set; }
+
+    public ArtistPortraitCheck? SchedulePortrait { get; private set; }
+
+    public Task<OperationResult<ArtistServiceModel>> ScheduleAsync(
+        Guid id,
+        DateTimeOffset scheduledFor,
+        string? ifMatch,
+        ArtistPortraitCheck? portrait,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        Calls.Add("schedule");
+        LastScheduledFor = scheduledFor;
+        SchedulePortrait = portrait;
+        return Task.FromResult(OperationResult.Success(Current));
+    }
+
+    public Task<OperationResult<ArtistServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        Calls.Add("unschedule");
+        return Task.FromResult(OperationResult.Success(Current));
+    }
+
+    public IReadOnlyList<Guid> Due { get; set; } = [];
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
+    {
+        Calls.Add("list-due");
+        return Task.FromResult(Due);
+    }
+
+    public ScheduledPublishOutcome ScheduledOutcome { get; set; } = ScheduledPublishOutcome.Published;
+
+    public ArtistPortraitCheck? ScheduledPublishPortrait { get; private set; }
+
+    public Task<ScheduledPublishOutcome> PublishScheduledAsync(
+        Guid id, DateTimeOffset asOf, ArtistPortraitCheck? portrait, CancellationToken cancellationToken)
+    {
+        Calls.Add("publish-scheduled");
+        ScheduledPublishPortrait = portrait;
+        return Task.FromResult(ScheduledOutcome);
+    }
 }
 
 /// <summary>Media as far as Artists uses it: the attachability question. Everything else is out of scope here.</summary>
@@ -321,5 +400,72 @@ internal sealed class FakeMediaFacade : IMediaFacade
         throw new NotSupportedException();
 
     public Task PurgeAsync(Guid assetId, int attempt, bool lastAttempt, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Artists as far as another module uses it: the lookups that Exhibitions, Shop and the seeders ask for. The CMS
+/// routes are out of scope here.
+/// </summary>
+internal sealed class FakeArtistsFacade : IArtistsFacade
+{
+    public Dictionary<Guid, ArtistSummaryServiceModel> Roster { get; } = [];
+
+    public int Lookups { get; private set; }
+
+    public ArtistSummaryServiceModel Add(string name, PublishStatus status = PublishStatus.Published)
+    {
+        var artist = new ArtistSummaryServiceModel(
+            Guid.NewGuid(), name, name.ToLowerInvariant().Replace(' ', '-'), null, true, status, null, DateTimeOffset.UnixEpoch);
+        Roster[artist.Id] = artist;
+        return artist;
+    }
+
+    public Task<IReadOnlyList<ArtistSummaryServiceModel>> GetSummariesAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        Lookups++;
+        return Task.FromResult<IReadOnlyList<ArtistSummaryServiceModel>>([.. ids.Distinct().Where(Roster.ContainsKey).Select(id => Roster[id])]);
+    }
+
+    public Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken)
+    {
+        Lookups++;
+        return Task.FromResult<IReadOnlyList<ArtistSummaryServiceModel>>([.. Roster.Values.Where(artist => slugs.Contains(artist.Slug))]);
+    }
+
+    public Task<OperationResult<CursorPage<ArtistSummaryServiceModel>>> ListAsync(ArtistListViewModel request, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<ArtistServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<ArtistServiceModel>> CreateAsync(ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<ArtistServiceModel>> UpdateAsync(
+        Guid id, ArtistUpdateViewModel update, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<ArtistServiceModel>> PublishAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<ArtistServiceModel>> ScheduleAsync(
+        Guid id, ContentScheduleViewModel schedule, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<ArtistServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<ArtistServiceModel>> UnpublishAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<ArtistServiceModel>> ArchiveAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 }

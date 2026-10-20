@@ -82,6 +82,10 @@ paths:
   - Two cookies: `__Host-6311.xsrf` (the secret, `HttpOnly`) and `__Host-6311.csrf` (what script reads). **The token is never written into a response body** — the gateway compresses, and that would be a BREACH oracle.
   - **The token is bound to the signed-in identity.** Validation runs after authentication and before authorization, and `/bff/login`, `/bff/logout` and `/bff/logout-everywhere` re-issue the pair. Either omission refuses every write a signed-in person makes.
 - **Token storage:** tokens never appear in localStorage, sessionStorage, IndexedDB, URLs or logs.
+  - **The one exception is the preview link** (ADR 0036), whose token is in the path because the site's server
+    reads it while rendering and cannot be handed a fragment. It is a capability URL: 30 minutes, one read of one
+    record, no write path accepts it, and `ServiceDefaults.RedactSecretSegments` replaces the segment after
+    `/preview/` in every exported span. Another token in a URL needs its own ADR.
 
 ## Gateway → API trust
 

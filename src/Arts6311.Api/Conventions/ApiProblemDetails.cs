@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Media.Managers;
@@ -53,6 +54,10 @@ internal static class ApiProblemDetails
         [ContentErrorCodes.SlugTaken] = StatusCodes.Status409Conflict,
         [ContentErrorCodes.SlugLocked] = StatusCodes.Status409Conflict,
         [ContentErrorCodes.StatusTransitionInvalid] = StatusCodes.Status409Conflict,
+
+        // The catalog's shared SKU (ADR 0032, 0037): another record in the CMS has it, which the editor resolves by
+        // choosing another.
+        [CatalogErrorCodes.SkuTaken] = StatusCodes.Status409Conflict,
 
         // Redirects (ADR 0035): a clash with another redirect is a state the admin resolves.
         [RedirectErrorCodes.FromTaken] = StatusCodes.Status409Conflict,

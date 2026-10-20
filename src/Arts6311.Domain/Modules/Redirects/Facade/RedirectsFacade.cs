@@ -12,9 +12,9 @@ using FluentValidation;
 namespace Arts6311.Domain.Modules.Redirects.Facade;
 
 /// <summary>
-/// Validates shape and calls Business; the site's list is cached. Writes don't clear the cache: invalidation comes from
-/// <c>site.revalidate-requested</c> handlers, never inline after a save (outbox.md), and that arrives in 2.8. Until then
-/// the entry expires on its own (ADR 0035).
+/// Validates shape and calls Business; the site's list is cached. Writes don't clear the cache here: every write
+/// stages <c>site.revalidate-requested</c> in its own save and the Worker's handler clears the tag, because
+/// invalidation never happens inline after a save (outbox.md, ADR 0036).
 /// </summary>
 internal sealed class RedirectsFacade(
     IRedirectsBusiness business,
@@ -26,7 +26,7 @@ internal sealed class RedirectsFacade(
 {
     private const string What = "this redirect";
 
-    /// <summary>The site's whole list, under one key; tagged so 2.8's revalidation can clear it with the type.</summary>
+    /// <summary>The site's whole list, under one key; tagged so a redirect change clears it with the type.</summary>
     internal static readonly string SiteListKey = CacheKeys.List("redirect", "site");
 
     internal static readonly string[] SiteListTags = [CacheTags.Type("redirect")];

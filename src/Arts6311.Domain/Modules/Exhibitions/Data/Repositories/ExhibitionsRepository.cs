@@ -66,6 +66,16 @@ internal sealed class ExhibitionsRepository(ArtsDbContext context) : IExhibition
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        await Exhibitions.AsNoTracking()
+            .Where(exhibition => exhibition.Status == PublishStatus.Scheduled
+                && exhibition.ScheduledFor != null && exhibition.ScheduledFor <= asOf)
+            .OrderBy(exhibition => exhibition.ScheduledFor)
+            .ThenBy(exhibition => exhibition.Id)
+            .Take(take)
+            .Select(exhibition => exhibition.Id)
+            .ToListAsync(cancellationToken);
+
     public void DiscardChanges() => context.ChangeTracker.Clear();
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);

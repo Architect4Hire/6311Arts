@@ -67,7 +67,8 @@ public sealed class ArtistsLayerTests
         Assert.Equal("artist.archived", entry.Action);
         Assert.Equal("status:Published", entry.BeforeReference);
         Assert.Equal("status:Archived", entry.AfterReference);
-        Assert.Equal(["audit:artist.archived", "save"], log.Calls);
+        // The revalidation is staged before the audit row and both before the one save (outbox.md, ADR 0036).
+        Assert.Equal(["outbox:site.revalidate-requested", "audit:artist.archived", "save"], log.Calls);
     }
 
     [Fact]
@@ -427,6 +428,9 @@ public sealed class ArtistsLayerTests
     {
         var business = new RecordingArtistsBusiness();
         var media = new FakeMediaFacade();
-        return (new ArtistsFacade(business, media, new ArtistCreateValidator(), new ArtistUpdateValidator(), new ArtistListValidator()), business, media);
+        var facade = new ArtistsFacade(
+            business, media, new ArtistCreateValidator(), new ArtistUpdateValidator(), new ArtistListValidator(),
+            new ContentScheduleValidator());
+        return (facade, business, media);
     }
 }

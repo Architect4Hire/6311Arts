@@ -210,6 +210,33 @@ public sealed class CmsExhibitionsEndpointTests
         return client;
     }
 
+    [Fact]
+    public async Task ScheduleCarriesItsTimeAndIfMatchAndUnscheduleCarriesItsIfMatch()
+    {
+        var facade = new RecordingExhibitionsFacade();
+        using var api = Factory(facade);
+        using var client = Client(api, "Editor");
+        var when = new DateTimeOffset(2026, 12, 24, 17, 0, 0, TimeSpan.Zero);
+
+        using var schedule = new HttpRequestMessage(
+            HttpMethod.Post, $"{Base}/{RecordingExhibitionsFacade.Exhibition.Id}/schedule")
+        {
+            Content = JsonContent.Create(new { scheduledFor = when }),
+        };
+        schedule.Headers.TryAddWithoutValidation("If-Match", "\"v1\"");
+        using var scheduled = await client.SendAsync(schedule, Ct);
+        var (scheduleCommand, scheduleIfMatch) = (facade.Command, facade.IfMatch);
+        using var unscheduled = await client.SendAsync(Command("unschedule", "\"v2\""), Ct);
+
+        Assert.Equal(HttpStatusCode.OK, scheduled.StatusCode);
+        Assert.Equal(when, facade.Schedule!.ScheduledFor);
+        Assert.Equal(("schedule", "\"v1\""), (scheduleCommand, scheduleIfMatch));
+        Assert.Equal(HttpStatusCode.OK, unscheduled.StatusCode);
+        Assert.Equal("unschedule", facade.Command);
+        Assert.Equal("\"v2\"", facade.IfMatch);
+        Assert.Equal(RecordingExhibitionsFacade.Exhibition.ETag, unscheduled.Headers.ETag?.ToString());
+    }
+
     private static HttpRequestMessage Command(string command, string ifMatch)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, $"{Base}/{RecordingExhibitionsFacade.Exhibition.Id}/{command}");
@@ -296,6 +323,30 @@ public sealed class CmsExhibitionsEndpointTests
 
         public Task<OperationResult<ExhibitionServiceModel>> ArchiveAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
             Run("archive", ifMatch, actorUserId);
+
+        public ContentScheduleViewModel? Schedule { get; private set; }
+
+        public Task<OperationResult<ExhibitionServiceModel>> ScheduleAsync(
+            Guid id,
+            ContentScheduleViewModel schedule,
+            string? ifMatch,
+            string actorUserId,
+            CancellationToken cancellationToken)
+        {
+            Schedule = schedule;
+            return Run("schedule", ifMatch, actorUserId);
+        }
+
+        public Task<OperationResult<ExhibitionServiceModel>> UnscheduleAsync(
+            Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+            Run("unschedule", ifMatch, actorUserId);
+
+        // The Worker's, not a route's.
+        public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         private Task<OperationResult<ExhibitionServiceModel>> Run(string command, string? ifMatch, string actorUserId)
         {

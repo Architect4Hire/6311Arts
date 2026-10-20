@@ -2,28 +2,39 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { UiIcon } from '@6311/ui';
 import { SITE } from '../core/site';
+import { StaffAccess } from './staff-access';
 
 @Component({
   selector: 'app-footer',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, UiIcon],
+  imports: [RouterLink, UiIcon, StaffAccess],
   host: { class: 'footer' },
   template: `
     <div class="footer__grid container">
       <div>
         <img class="mark" src="/logo.webp" alt="" width="112" height="112" decoding="async" />
-        <p class="footer__blurb">An art center that makes room for everyone. Gallery, shop and classes on Clark Street since {{ site.founded }}.</p>
+        <p class="footer__blurb">
+          An art center that makes room for everyone. Gallery, shop and classes on Clark Street
+          since {{ site.founded }}.
+        </p>
       </div>
       <div>
         <h3 class="footer__h">Visit</h3>
-        <p>{{ site.address.street }}<br />{{ site.address.city }}, {{ site.address.region }} {{ site.address.postal }}</p>
-        <p><a [href]="'tel:' + site.phone.replaceAll('-', '')">{{ site.phone }}</a><br /><a [href]="'mailto:' + site.email">{{ site.email }}</a></p>
+        <p>
+          {{ site.address.street }}<br />{{ site.address.city }}, {{ site.address.region }}
+          {{ site.address.postal }}
+        </p>
+        <p>
+          <a [href]="'tel:' + site.phone.replaceAll('-', '')">{{ site.phone }}</a
+          ><br /><a [href]="'mailto:' + site.email">{{ site.email }}</a>
+        </p>
       </div>
       <div>
         <h3 class="footer__h">Hours</h3>
         <dl class="footer__hours">
           @for (h of site.hours; track h.days) {
-            <dt>{{ h.days }}</dt><dd>{{ h.time }}</dd>
+            <dt>{{ h.days }}</dt>
+            <dd>{{ h.time }}</dd>
           }
         </dl>
       </div>
@@ -40,10 +51,17 @@ import { SITE } from '../core/site';
     </div>
     <div class="footer__bar container">
       <span class="footer__star"><ui-icon name="star" [size]="20" [stroke]="2" /></span>
-      <span>© {{ year }} {{ site.name }} · <a routerLink="/privacy">Privacy</a> · <a routerLink="/terms">Terms</a></span>
+      <span
+        >© {{ year }} {{ site.name }} · <a routerLink="/privacy">Privacy</a> ·
+        <a routerLink="/terms">Terms</a><app-staff-access
+      /></span>
       <span class="footer__social">
-        <a [href]="site.instagram" target="_blank" rel="noopener" aria-label="Instagram"><ui-icon name="instagram" [size]="26" /></a>
-        <a [href]="'mailto:' + site.email" aria-label="Email"><ui-icon name="mail" [size]="26" /></a>
+        <a [href]="site.instagram" target="_blank" rel="noopener" aria-label="Instagram"
+          ><ui-icon name="instagram" [size]="26"
+        /></a>
+        <a [href]="'mailto:' + site.email" aria-label="Email"
+          ><ui-icon name="mail" [size]="26"
+        /></a>
       </span>
     </div>
   `,

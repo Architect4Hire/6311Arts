@@ -39,11 +39,22 @@ internal interface IExhibitionsDataLayer
         Exhibition exhibition, string actorUserId, string summary, PublishedPathChange? pathChange, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Saves a status change Business already applied, with its audit entry, in one save. From 2.8 this is also where
-    /// <c>site.revalidate-requested</c> is staged (ADR 0031, 0033).
+    /// Saves a status change Business already applied, with its audit entry and <c>site.revalidate-requested</c>,
+    /// in one save (ADR 0031, 0033, 0036).
     /// </summary>
     Task<ExhibitionWriteOutcome> TransitionAsync(
         Exhibition exhibition, PublishCommand command, PublishStatus from, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Saves the scheduled publisher giving up: the Draft that Business already applied, its revalidation, and an
+    /// audit row of its own saying why (ADR 0036).
+    /// </summary>
+    /// <param name="reason">The refusal staff will read, from the requirement that failed. Never a provider message.</param>
+    Task<ExhibitionWriteOutcome> AbandonScheduleAsync(
+        Exhibition exhibition, PublishStatus from, string reason, CancellationToken cancellationToken);
+
+    /// <summary>The ids of exhibitions Scheduled for <paramref name="asOf"/> or earlier, oldest first.</summary>
+    Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
     /// <summary>Every slug in use, for the development seed.</summary>
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);

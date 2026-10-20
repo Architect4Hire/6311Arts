@@ -1,6 +1,7 @@
 using Arts6311.Domain.Managers;
 using Arts6311.Domain.Managers.Outbox;
 using Arts6311.Domain.Managers.Persistence;
+using Arts6311.Domain.Managers.Revalidation;
 using Arts6311.Domain.Modules.Artists;
 using Arts6311.Domain.Modules.Artists.Facade;
 using Arts6311.Domain.Modules.Media;
@@ -55,6 +56,10 @@ internal sealed class RedirectsTestHost : IAsyncDisposable
         collection.AddMediaModule();
         collection.AddArtistsModule();
         collection.AddRedirectsModule();
+
+        // As the Worker composes it: a content save now stages site.revalidate-requested beside the slug change, so
+        // a dispatch here has to be able to handle it too (ADR 0036).
+        collection.AddArtsRevalidation();
         if (withSeeder)
         {
             collection.AddLegacyRedirectSeeder();

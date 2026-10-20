@@ -49,6 +49,19 @@ internal sealed class FakeExhibitionsRepository(CallLog log) : IExhibitionsRepos
         ExhibitionListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         Task.FromResult(new List<ExhibitionSummaryServiceModel>());
 
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
+    {
+        log.Add("list-due");
+        return Task.FromResult<IReadOnlyList<Guid>>(
+        [
+            .. Rows
+                .Where(row => row.Status == PublishStatus.Scheduled && row.ScheduledFor is { } when && when <= asOf)
+                .OrderBy(row => row.ScheduledFor)
+                .Take(take)
+                .Select(row => row.Id),
+        ]);
+    }
+
     public void DiscardChanges() => log.Add("discard");
 
     public Task SaveChangesAsync(CancellationToken cancellationToken)
@@ -115,6 +128,26 @@ internal sealed class FakeExhibitionsDataLayer : IExhibitionsDataLayer
         LastTransition = (command, from);
         return Task.FromResult(Outcome);
     }
+
+    public (PublishStatus From, string Reason)? LastAbandon { get; private set; }
+
+    public Task<ExhibitionWriteOutcome> AbandonScheduleAsync(
+        Exhibition exhibition, PublishStatus from, string reason, CancellationToken cancellationToken)
+    {
+        Writes.Add("abandon-schedule");
+        LastAbandon = (from, reason);
+        return Task.FromResult(Outcome);
+    }
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Guid>>(
+        [
+            .. Rows.Values
+                .Where(row => row.Status == PublishStatus.Scheduled && row.ScheduledFor is { } when && when <= asOf)
+                .OrderBy(row => row.ScheduledFor)
+                .Take(take)
+                .Select(row => row.Id),
+        ]);
 
     public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         Task.FromResult(Rows.Values.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
@@ -218,54 +251,49 @@ internal sealed class RecordingExhibitionsBusiness : IExhibitionsBusiness
 
     public Task<int> SeedAsync(IReadOnlyList<ExhibitionSeed> seeds, string actor, CancellationToken cancellationToken) =>
         Task.FromResult(0);
-}
 
-/// <summary>Artists as far as Exhibitions uses it: the lookups. The CMS routes are out of scope here.</summary>
-internal sealed class FakeArtistsFacade : IArtistsFacade
-{
-    public Dictionary<Guid, ArtistSummaryServiceModel> Roster { get; } = [];
+    public DateTimeOffset? LastScheduledFor { get; private set; }
 
-    public int Lookups { get; private set; }
+    public ExhibitionHeroCheck? ScheduleHero { get; private set; }
 
-    public ArtistSummaryServiceModel Add(string name, PublishStatus status = PublishStatus.Published)
+    public Task<OperationResult<ExhibitionDetail>> ScheduleAsync(
+        Guid id,
+        DateTimeOffset scheduledFor,
+        string? ifMatch,
+        ExhibitionHeroCheck? hero,
+        string actorUserId,
+        CancellationToken cancellationToken)
     {
-        var artist = new ArtistSummaryServiceModel(
-            Guid.NewGuid(), name, name.ToLowerInvariant().Replace(' ', '-'), null, true, status, null, DateTimeOffset.UnixEpoch);
-        Roster[artist.Id] = artist;
-        return artist;
+        Calls.Add("schedule");
+        LastScheduledFor = scheduledFor;
+        ScheduleHero = hero;
+        return Task.FromResult(OperationResult.Success(Current));
     }
 
-    public Task<IReadOnlyList<ArtistSummaryServiceModel>> GetSummariesAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    public Task<OperationResult<ExhibitionDetail>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
     {
-        Lookups++;
-        return Task.FromResult<IReadOnlyList<ArtistSummaryServiceModel>>([.. ids.Distinct().Where(Roster.ContainsKey).Select(id => Roster[id])]);
+        Calls.Add("unschedule");
+        return Task.FromResult(OperationResult.Success(Current));
     }
 
-    public Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken)
+    public IReadOnlyList<Guid> Due { get; set; } = [];
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
     {
-        Lookups++;
-        return Task.FromResult<IReadOnlyList<ArtistSummaryServiceModel>>([.. Roster.Values.Where(artist => slugs.Contains(artist.Slug))]);
+        Calls.Add("list-due");
+        return Task.FromResult(Due);
     }
 
-    public Task<OperationResult<CursorPage<ArtistSummaryServiceModel>>> ListAsync(ArtistListViewModel request, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+    public ScheduledPublishOutcome ScheduledOutcome { get; set; } = ScheduledPublishOutcome.Published;
 
-    public Task<OperationResult<ArtistServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+    public ExhibitionHeroCheck? ScheduledPublishHero { get; private set; }
 
-    public Task<OperationResult<ArtistServiceModel>> CreateAsync(ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
-
-    public Task<OperationResult<ArtistServiceModel>> UpdateAsync(
-        Guid id, ArtistUpdateViewModel update, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
-
-    public Task<OperationResult<ArtistServiceModel>> PublishAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
-
-    public Task<OperationResult<ArtistServiceModel>> UnpublishAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
-
-    public Task<OperationResult<ArtistServiceModel>> ArchiveAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+    public Task<ScheduledPublishOutcome> PublishScheduledAsync(
+        Guid id, DateTimeOffset asOf, ExhibitionHeroCheck? hero, CancellationToken cancellationToken)
+    {
+        Calls.Add("publish-scheduled");
+        ScheduledPublishHero = hero;
+        return Task.FromResult(ScheduledOutcome);
+    }
 }

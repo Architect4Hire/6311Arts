@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Paging;
+using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Exhibitions.Managers.ViewModels;
@@ -43,4 +44,32 @@ public interface IExhibitionsFacade
     /// <summary>Draft or Published → Archived. Admin only at the route (auth.md "Sensitive operations"); audited.</summary>
     Task<OperationResult<ExhibitionServiceModel>> ArchiveAsync(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Draft or Scheduled → Scheduled, for the Worker to publish when the time comes (ADR 0036). Refusals:
+    /// <c>validation.failed</c> (a time already past, or anything publishing would refuse),
+    /// <c>resource.not_found</c>, <c>concurrency.*</c>, <c>cms.status_transition_invalid</c>.
+    /// </summary>
+    Task<OperationResult<ExhibitionServiceModel>> ScheduleAsync(
+        Guid id,
+        ContentScheduleViewModel schedule,
+        string? ifMatch,
+        string actorUserId,
+        CancellationToken cancellationToken);
+
+    /// <summary>Scheduled → Draft, with the time cleared.</summary>
+    Task<OperationResult<ExhibitionServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For the Worker's scheduled publisher (<see cref="IScheduledPublisher"/>): the exhibitions due at
+    /// <paramref name="asOf"/>, oldest first.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For the Worker's scheduled publisher: publishes one due exhibition, re-read first, claimed by its row
+    /// version. Never throws for a record that moved on — it reports what happened instead.
+    /// </summary>
+    Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken);
 }

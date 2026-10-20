@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Concurrency;
+using Arts6311.Domain.Managers.Outbox.Events;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Media.Data.Entities;
@@ -263,7 +264,10 @@ public sealed class PagesModuleTests
             page.Id, new PageUpdateViewModel(Slug: "terms-of-use"), published.ETag, Editor, Ct)));
 
         Assert.Equal("terms", (await host.StoredAsync(page.Id))!.Slug);
-        Assert.Equal(0, await host.QueryAsync(context => context.OutboxMessages.CountAsync(Ct)));
+        // Scoped to the rename's own message: the publish above left a site.revalidate-requested of its own, which
+        // committed with it (ADR 0036).
+        Assert.Equal(0, await host.QueryAsync(context => context.OutboxMessages
+            .CountAsync(message => message.Type == RedirectSlugChanged.MessageType, Ct)));
     }
 
     [Fact]
@@ -283,7 +287,7 @@ public sealed class PagesModuleTests
         Assert.Empty(await host.AuditActionsAsync());
     }
 
-    [Fact(Skip = "Prompt 2.8: publish and unpublish stage site.revalidate-requested in the same save (content.md, ADR 0031, 0034). Unskip and implement there.")]
+    [Fact]
     public async Task PublishStagesARevalidationInTheSameSave()
     {
         await using var host = await PagesTestHost.CreateAsync(Ct);
@@ -291,8 +295,95 @@ public sealed class PagesModuleTests
 
         await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(page.Id, page.ETag, Editor, Ct)));
 
-        var types = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking().Select(message => message.Type).ToListAsync(Ct));
-        Assert.Contains("site.revalidate-requested", types);
+        var messages = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking().ToListAsync(Ct));
+        var message = Assert.Single(messages);
+        Assert.Equal(SiteRevalidateRequested.MessageType, message.Type);
+
+        // A page lives at the root, so its address is just its slug (ADR 0036).
+        var staged = SiteRevalidateRequested.TryParse(message.PayloadJson)!;
+        Assert.Equal("page", staged.EntityType);
+        Assert.Equal(page.Id, staged.EntityId);
+        Assert.Equal(["/terms"], staged.Paths);
+    }
+
+    [Fact]
+    public async Task EveryStatusCommandStagesItsOwnRevalidationAndAFailedOneStagesNone()
+    {
+        var failAudit = new FailInsertInto("AuditLogs") { Armed = false };
+        await using var host = await PagesTestHost.CreateAsync(Ct, failAudit);
+        var page = await CreateAsync(host, new PageCreateViewModel("Terms", Body: "<p>T.</p>"));
+
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(page.Id, page.ETag, Editor, Ct)));
+        var drafted = await Ok(host.WithFacadeAsync(facade => facade.UnpublishAsync(page.Id, published.ETag, Editor, Ct)));
+
+        failAudit.Armed = true;
+        await Assert.ThrowsAnyAsync<Exception>(() => host.WithFacadeAsync(
+            facade => facade.ArchiveAsync(page.Id, drafted.ETag, PagesTestHost.AdminId, Ct)));
+
+        // Two commits, two messages: the archive that failed left neither its status nor its message (outbox.md).
+        Assert.Equal(2, await host.QueryAsync(context => context.OutboxMessages
+            .CountAsync(message => message.Type == SiteRevalidateRequested.MessageType, Ct)));
+        Assert.Equal(PublishStatus.Draft, (await host.StoredAsync(page.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task SchedulingSetsTheTimeUnschedulingClearsItAndAPastTimeIsRefused()
+    {
+        await using var host = await PagesTestHost.CreateAsync(Ct);
+        var page = await CreateAsync(host, new PageCreateViewModel("Terms", Body: "<p>T.</p>"));
+        var when = host.Time.GetUtcNow().AddHours(2);
+
+        var past = await host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            page.Id, new ContentScheduleViewModel(host.Time.GetUtcNow().AddMinutes(-1)), page.ETag, Editor, Ct));
+        var scheduled = await Ok(host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            page.Id, new ContentScheduleViewModel(when), page.ETag, Editor, Ct)));
+        var drafted = await Ok(host.WithFacadeAsync(facade => facade.UnscheduleAsync(page.Id, scheduled.ETag, Editor, Ct)));
+
+        Assert.Equal(ErrorCodes.ValidationFailed, past.Error!.Code);
+        Assert.Contains("scheduledFor", past.Error.FieldErrors.Keys);
+        Assert.Equal((PublishStatus.Scheduled, when), (scheduled.Status, scheduled.ScheduledFor));
+        Assert.Equal((PublishStatus.Draft, (DateTimeOffset?)null), (drafted.Status, drafted.ScheduledFor));
+    }
+
+    [Fact]
+    public async Task APlaceholderBodyIsRefusedAtScheduleAsWellAsAtPublish()
+    {
+        await using var host = await PagesTestHost.CreateAsync(Ct, withSeeder: true);
+        await host.SeedAsync(Ct);
+        var placeholder = await host.QueryAsync(context => context.Set<Page>().AsNoTracking().FirstAsync(Ct));
+
+        var result = await host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            placeholder.Id,
+            new ContentScheduleViewModel(host.Time.GetUtcNow().AddHours(1)),
+            EntityTag.Format(placeholder.RowVersion),
+            Editor,
+            Ct));
+
+        Assert.Equal(ErrorCodes.ValidationFailed, result.Error!.Code);
+        Assert.Contains("body", result.Error.FieldErrors.Keys);
+    }
+
+    [Fact]
+    public async Task TheScheduledPublisherPublishesADuePageOnceAndSkipsOneAlreadyPublished()
+    {
+        await using var host = await PagesTestHost.CreateAsync(Ct);
+        var page = await CreateAsync(host, new PageCreateViewModel("Terms", Body: "<p>T.</p>"));
+        var asOf = host.Time.GetUtcNow();
+        await Ok(host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            page.Id, new ContentScheduleViewModel(asOf.AddMinutes(1)), page.ETag, Editor, Ct)));
+
+        var passTime = asOf.AddMinutes(2);
+        var due = await host.WithFacadeAsync(facade => facade.ListDueAsync(passTime, 50, Ct));
+        var first = await host.WithFacadeAsync(facade => facade.PublishScheduledAsync(page.Id, passTime, Ct));
+        var second = await host.WithFacadeAsync(facade => facade.PublishScheduledAsync(page.Id, passTime, Ct));
+
+        Assert.Equal([page.Id], due);
+        Assert.Equal(ScheduledPublishOutcome.Published, first);
+
+        // The second pass re-reads it, finds it published, and does nothing: the unit is idempotent.
+        Assert.Equal(ScheduledPublishOutcome.Skipped, second);
+        Assert.Equal(PublishStatus.Published, (await host.StoredAsync(page.Id))!.Status);
+        Assert.Single(await host.AuditActionsAsync(), action => action == "page.published");
     }
 
     [Fact]

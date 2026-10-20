@@ -10,7 +10,13 @@ const artistEditor = () =>
 const exhibitionEditor = () =>
   import('./features/exhibitions/exhibition-editor').then((m) => m.ExhibitionEditor);
 
+const classEditor = () =>
+  import('./features/classes/class-editor').then((m) => m.ClassEditor);
+
 const pageEditor = () => import('./features/pages/page-editor').then((m) => m.PageEditor);
+
+const shopItemEditor = () =>
+  import('./features/shop/shop-item-editor').then((m) => m.ShopItemEditor);
 
 const redirectEditor = () =>
   import('./features/redirects/redirect-editor').then((m) => m.RedirectEditor);
@@ -28,8 +34,14 @@ const SCREENS: Readonly<Record<string, Pick<Route, 'loadComponent' | 'canDeactiv
   artists: {
     loadComponent: () => import('./features/artists/artist-list').then((m) => m.ArtistList),
   },
+  classes: {
+    loadComponent: () => import('./features/classes/class-list').then((m) => m.ClassList),
+  },
   pages: {
     loadComponent: () => import('./features/pages/page-list').then((m) => m.PageList),
+  },
+  shop: {
+    loadComponent: () => import('./features/shop/shop-list').then((m) => m.ShopList),
   },
   redirects: {
     loadComponent: () => import('./features/redirects/redirect-list').then((m) => m.RedirectList),
@@ -59,6 +71,10 @@ const DETAIL_ROUTES: Routes = [
     section: 'exhibitions',
     loadComponent: exhibitionEditor,
   },
+  { path: 'classes/new', title: 'New class', section: 'classes', loadComponent: classEditor },
+  { path: 'classes/:id', title: 'Class', section: 'classes', loadComponent: classEditor },
+  { path: 'shop/new', title: 'New piece', section: 'shop', loadComponent: shopItemEditor },
+  { path: 'shop/:id', title: 'Piece', section: 'shop', loadComponent: shopItemEditor },
   { path: 'pages/new', title: 'New page', section: 'pages', loadComponent: pageEditor },
   { path: 'pages/:id', title: 'Page', section: 'pages', loadComponent: pageEditor },
   { path: 'redirects/new', title: 'New redirect', section: 'redirects', loadComponent: redirectEditor },

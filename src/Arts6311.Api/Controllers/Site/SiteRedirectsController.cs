@@ -15,7 +15,8 @@ namespace Arts6311.Api.Controllers.Site;
 /// </summary>
 /// <remarks>
 /// Cached for <see cref="RedirectPolicy.SiteCacheLifetime"/> in the API (HybridCache) and by anyone in front of it
-/// (<c>Cache-Control: public</c>). Until 2.8's revalidation, a change shows within that long (ADR 0035).
+/// (<c>Cache-Control: public</c>). A change invalidates the API's copy through <c>site.revalidate-requested</c>
+/// (ADR 0036); a cache in front of this host still holds its own for up to that long (ADR 0035).
 /// </remarks>
 [ApiController]
 [Route("api/v1/site/redirects")]

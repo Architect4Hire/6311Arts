@@ -17,9 +17,9 @@ namespace Arts6311.Domain.Modules.Exhibitions.Data;
 /// its audit row together. It stamps the bookkeeping (who, when, a new row version) and decides nothing itself.
 /// </summary>
 /// <remarks>
-/// A slug change on a published record stages <c>redirects.slug-changed</c> in its save (ADR 0035). Status
-/// changes stage nothing yet: nothing reads or caches exhibitions outside the CMS until Phase 3. 2.8 adds <c>site.revalidate-requested</c> to <see cref="TransitionAsync"/>
-/// (content.md's dated exception, ADR 0031, 0033).
+/// A slug change on a published record stages <c>redirects.slug-changed</c> in its save (ADR 0035), and every
+/// status change stages <c>site.revalidate-requested</c> in its own (ADR 0036). Both are staged before the single
+/// save, so the write and the message commit together or neither does (outbox.md).
 /// </remarks>
 internal sealed class ExhibitionsDataLayer(
     IExhibitionsRepository repository,
@@ -84,6 +84,7 @@ internal sealed class ExhibitionsDataLayer(
         ArgumentNullException.ThrowIfNull(exhibition);
 
         Stamp(exhibition, actorUserId, clock.UtcNow);
+        StageRevalidation(exhibition);
         audit.Record(new AuditEntry(
             actorUserId, ExhibitionAudit.For(command), ExhibitionAudit.ResourceType, exhibition.Id.ToString(),
             correlation.Current, $"{from} → {exhibition.Status}.",
@@ -91,6 +92,26 @@ internal sealed class ExhibitionsDataLayer(
 
         return await SaveAsync(exhibition, cancellationToken);
     }
+
+    public async Task<ExhibitionWriteOutcome> AbandonScheduleAsync(
+        Exhibition exhibition, PublishStatus from, string reason, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exhibition);
+
+        Stamp(exhibition, ScheduledPublishPolicy.Actor, clock.UtcNow);
+        StageRevalidation(exhibition);
+
+        // No actor: nobody did this, the schedule ran out (AuditLog.ActorUserId, as the seeders do).
+        audit.Record(new AuditEntry(
+            null, ExhibitionAudit.ScheduleAbandoned, ExhibitionAudit.ResourceType, exhibition.Id.ToString(),
+            correlation.Current, $"Scheduled publish abandoned: {reason}",
+            BeforeReference: $"status:{from}", AfterReference: $"status:{exhibition.Status}"));
+
+        return await SaveAsync(exhibition, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        repository.ListDueAsync(asOf, take, cancellationToken);
 
     public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         repository.GetSlugsAsync(cancellationToken);
@@ -122,6 +143,19 @@ internal sealed class ExhibitionsDataLayer(
     /// Who and when, and a new row version so every other open form's If-Match goes stale — a change to the credits
     /// alone included. EF still compares against the version the row was read with.
     /// </summary>
+    /// <summary>
+    /// Stages <c>site.revalidate-requested</c> for the exhibition's own page and, through the type tag, every list
+    /// that shows it (ADR 0036). Staged before the one save, so the status change and the invalidation commit
+    /// together or not at all (outbox.md).
+    /// </summary>
+    private void StageRevalidation(Exhibition exhibition) =>
+        outbox.Enqueue(
+            SiteRevalidateRequested.MessageType,
+            new SiteRevalidateRequested(
+                ExhibitionAudit.ResourceType, exhibition.Id,
+                [SitePaths.AddressOf(ExhibitionPolicy.SitePathPrefix, exhibition.Slug)]).Serialize(),
+            correlation.Current);
+
     private static void Stamp(Exhibition exhibition, string actorUserId, DateTimeOffset now)
     {
         exhibition.UpdatedAt = now;

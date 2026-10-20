@@ -66,6 +66,20 @@ export class ArtistService {
       })
       .pipe(map((body) => decoded(decodeArtist(body), 'artist')));
   }
+
+  /**
+   * The `schedule` command, under the row version the editor read: the Worker publishes the artist at
+   * `scheduledFor` (ADR 0036). Sending it again moves the time.
+   */
+  schedule(id: string, scheduledFor: string, etag: string): Observable<Artist> {
+    return this.http
+      .post<unknown>(
+        `${BASE}/${encodeURIComponent(id)}/schedule`,
+        { scheduledFor },
+        { headers: new HttpHeaders({ 'If-Match': etag }), context: quiet() },
+      )
+      .pipe(map((body) => decoded(decodeArtist(body), 'artist')));
+  }
 }
 
 function quiet(): HttpContext {

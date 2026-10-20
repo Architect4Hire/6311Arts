@@ -17,9 +17,9 @@ namespace Arts6311.Domain.Modules.Pages.Data;
 /// audit row together. It stamps the bookkeeping (who, when, a new row version) and decides nothing itself.
 /// </summary>
 /// <remarks>
-/// A slug change on a published record stages <c>redirects.slug-changed</c> in its save (ADR 0035). Status
-/// changes stage nothing yet: nothing reads or caches pages outside the CMS until Phase 3. 2.8 adds <c>site.revalidate-requested</c> to <see cref="TransitionAsync"/>
-/// (content.md's dated exception, ADR 0031, 0034).
+/// A slug change on a published record stages <c>redirects.slug-changed</c> in its save (ADR 0035), and every
+/// status change stages <c>site.revalidate-requested</c> in its own (ADR 0036). Both are staged before the single
+/// save, so the write and the message commit together or neither does (outbox.md).
 /// </remarks>
 internal sealed class PagesDataLayer(
     IPagesRepository repository,
@@ -82,12 +82,33 @@ internal sealed class PagesDataLayer(
         ArgumentNullException.ThrowIfNull(page);
 
         Stamp(page, actorUserId, clock.UtcNow);
+        StageRevalidation(page);
         audit.Record(new AuditEntry(
             actorUserId, PageAudit.For(command), PageAudit.ResourceType, page.Id.ToString(), correlation.Current,
             $"{from} → {page.Status}.", BeforeReference: $"status:{from}", AfterReference: $"status:{page.Status}"));
 
         return await SaveAsync(page, cancellationToken);
     }
+
+    public async Task<PageWriteOutcome> AbandonScheduleAsync(
+        Page page, PublishStatus from, string reason, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+
+        Stamp(page, ScheduledPublishPolicy.Actor, clock.UtcNow);
+        StageRevalidation(page);
+
+        // No actor: nobody did this, the schedule ran out (AuditLog.ActorUserId, as the seeders do).
+        audit.Record(new AuditEntry(
+            null, PageAudit.ScheduleAbandoned, PageAudit.ResourceType, page.Id.ToString(), correlation.Current,
+            $"Scheduled publish abandoned: {reason}",
+            BeforeReference: $"status:{from}", AfterReference: $"status:{page.Status}"));
+
+        return await SaveAsync(page, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        repository.ListDueAsync(asOf, take, cancellationToken);
 
     public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         repository.GetSlugsAsync(cancellationToken);
@@ -112,6 +133,18 @@ internal sealed class PagesDataLayer(
         await repository.SaveChangesAsync(cancellationToken);
         return pages.Count;
     }
+
+    /// <summary>
+    /// Stages <c>site.revalidate-requested</c> for the page's own address and, through the type tag, anything else
+    /// derived from pages (ADR 0036). Staged before the one save, so the status change and the invalidation commit
+    /// together or not at all (outbox.md).
+    /// </summary>
+    private void StageRevalidation(Page page) =>
+        outbox.Enqueue(
+            SiteRevalidateRequested.MessageType,
+            new SiteRevalidateRequested(
+                PageAudit.ResourceType, page.Id, [SitePaths.AddressOf(PagePolicy.SitePathPrefix, page.Slug)]).Serialize(),
+            correlation.Current);
 
     /// <summary>Who and when, and a new row version so every other open form's If-Match goes stale.</summary>
     private static void Stamp(Page page, string actorUserId, DateTimeOffset now)

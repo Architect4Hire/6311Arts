@@ -129,6 +129,8 @@ const COMMAND_LABELS: Readonly<
   publish: { busy: 'Publishing…', done: 'Published.' },
   unpublish: { busy: 'Unpublishing…', done: 'Unpublished. The exhibition is a draft again.' },
   archive: { busy: 'Archiving…', done: 'Archived.' },
+  schedule: { busy: 'Scheduling…', done: 'Scheduled.' },
+  unschedule: { busy: 'Unscheduling…', done: 'Unscheduled. The exhibition is a draft again.' },
 };
 
 const RECEPTION_TIME = new Intl.DateTimeFormat('en-US', {
@@ -146,6 +148,9 @@ const RECEPTION_TIME = new Intl.DateTimeFormat('en-US', {
  * shows the saved version beside the editor's own so neither is lost. Status commands act on the saved version, so
  * they wait until the form is saved. Reception times are typed and shown on the gallery's clock and travel as UTC.
  */
+import { PreviewLinkButton } from '../../shared/preview-link';
+import { ScheduleControl } from '../../shared/schedule-control';
+
 @Component({
   selector: 'cms-exhibition-editor',
   imports: [
@@ -158,6 +163,8 @@ const RECEPTION_TIME = new Intl.DateTimeFormat('en-US', {
     UiField,
     UiNotice,
     UiStatusChip,
+    PreviewLinkButton,
+    ScheduleControl,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -564,6 +571,18 @@ const RECEPTION_TIME = new Intl.DateTimeFormat('en-US', {
                     </button>
                   }
                 </div>
+
+                <cms-schedule-control
+                  noun="exhibition"
+                  [status]="exhibition.status"
+                  [scheduledFor]="exhibition.scheduledFor"
+                  [disabled]="dirty() || busy()"
+                  [busy]="commanding()"
+                  (schedule)="schedule($event)"
+                  (unschedule)="unschedule()"
+                />
+
+                <cms-preview-link entityType="exhibition" [entityId]="exhibition.id" [dirty]="dirty()" />
               </section>
             }
           </aside>
@@ -1038,6 +1057,32 @@ export class ExhibitionEditor implements HasUnsavedChanges {
       cancelLabel: 'Keep it',
     });
     if (confirmed) await this.run('archive');
+  }
+
+  /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */
+  protected async schedule(scheduledFor: string): Promise<void> {
+    const exhibition = this.exhibition();
+    if (!exhibition || this.busy() || this.dirty()) return;
+
+    this.errors.set({});
+    this.formError.set(null);
+    this.status.set({ kind: 'commanding', command: 'schedule' });
+    this.announce(COMMAND_LABELS.schedule.busy);
+    try {
+      const updated = await firstValueFrom(
+        this.exhibitions.schedule(exhibition.id, scheduledFor, exhibition.etag),
+      );
+      this.exhibition.set(updated);
+      this.draft.set(draftOf(updated));
+      this.status.set({ kind: 'ready' });
+      this.announce(COMMAND_LABELS.schedule.done);
+    } catch (error: unknown) {
+      await this.commandFailed(error);
+    }
+  }
+
+  protected async unschedule(): Promise<void> {
+    await this.run('unschedule');
   }
 
   protected async run(command: ExhibitionCommand): Promise<void> {

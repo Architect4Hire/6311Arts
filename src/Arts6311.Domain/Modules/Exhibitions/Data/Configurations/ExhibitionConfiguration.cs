@@ -58,5 +58,10 @@ internal sealed class ExhibitionConfiguration : IEntityTypeConfiguration<Exhibit
         builder.HasIndex(exhibition => new { exhibition.Status, exhibition.StartDate, exhibition.Id })
             .IsDescending(false, true, true)
             .HasDatabaseName("IX_Exhibitions_Status_StartDate_Id");
+
+        // The Worker's scheduled-publish pass, every minute: the Scheduled rows due by now, oldest first
+        // (ADR 0036).
+        builder.HasIndex(exhibition => new { exhibition.Status, exhibition.ScheduledFor })
+            .HasDatabaseName("IX_Exhibitions_Status_ScheduledFor");
     }
 }

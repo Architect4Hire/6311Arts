@@ -1,6 +1,13 @@
 import { DEFAULT_RETURN_URL, isCmsPath, safeReturnUrl } from './return-url';
 
 describe('safeReturnUrl', () => {
+  // The gateway's own returnUrl still wins; this is the bare /signin arrival, from the footer's staff link.
+  it('defaults to the home page, not the CMS', () => {
+    expect(DEFAULT_RETURN_URL).toBe('/');
+    expect(safeReturnUrl(undefined)).toBe('/');
+    expect(safeReturnUrl('/admin/artists')).toBe('/admin/artists');
+  });
+
   it.each([
     ['/admin/', '/admin/'],
     ['/admin', '/admin/'],
@@ -36,7 +43,7 @@ describe('safeReturnUrl', () => {
     ['/bff/logout'],
     ['/api/v1/cms/pages'],
     ['/' + 'a'.repeat(2048)],
-  ])('falls back to the CMS for %j', (raw) => {
+  ])('falls back to the home page for %j', (raw) => {
     expect(safeReturnUrl(raw)).toBe(DEFAULT_RETURN_URL);
   });
 

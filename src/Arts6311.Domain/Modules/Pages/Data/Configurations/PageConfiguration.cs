@@ -46,5 +46,10 @@ internal sealed class PageConfiguration : IEntityTypeConfiguration<Page>
 
         builder.HasIndex(page => new { page.Status, page.Title, page.Id })
             .HasDatabaseName("IX_Pages_Status_Title_Id");
+
+        // The Worker's scheduled-publish pass, every minute: the Scheduled rows due by now, oldest first
+        // (ADR 0036).
+        builder.HasIndex(page => new { page.Status, page.ScheduledFor })
+            .HasDatabaseName("IX_Pages_Status_ScheduledFor");
     }
 }

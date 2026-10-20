@@ -14,7 +14,10 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
 | Family | Example | Auth |
 |---|---|---|
 | Public site reads | `GET /api/v1/site/classes`, `/site/classes/{slug}`, `/site/artists`, `/site/exhibitions`, `/site/shop`, `/site/memberships`, `/site/pages/{slug}`, `/site/redirects` | `[AllowAnonymous]` |
-| CMS | `GET/POST /api/v1/cms/classes`, `PATCH /cms/classes/{id}`, `POST /cms/classes/{id}/publish` | `CmsEditor` (deletes `CmsAdmin`) |
+| Preview | `GET /api/v1/site/preview/{token}` | `[AllowAnonymous]`; the signed, expiring token is the credential (ADR 0036). `no-store`, `X-Robots-Tag: noindex`, read-only; anything unusable is 404 |
+| CMS | `GET/POST /api/v1/cms/classes`, `PATCH /cms/classes/{id}`, `POST /cms/classes/{id}/publish`; the same shape for `/cms/artists`, `/cms/exhibitions`, `/cms/pages`, `/cms/shop` (artwork; `?category=` filters it) and `/cms/media` | `CmsEditor` (deletes `CmsAdmin`) |
+| CMS status commands | `POST /api/v1/cms/{type}/{id}/publish`, `/unpublish`, `/schedule` (body `ContentScheduleViewModel`), `/unschedule`, `/archive` (`CmsAdmin`) | `CmsEditor`; every one carries `If-Match` |
+| CMS previews | `POST /api/v1/cms/preview` → `{ token, path, expiresAt }` | `CmsEditor`; mints a link for one record, changes nothing |
 | Commerce | `POST /api/v1/cart/items`, `POST /checkout/quote`, `POST /checkout/pay` | anonymous cart; pay is idempotent |
 | Members | `POST /api/v1/members/signup`, `GET /members/me/subscription` | `Member` |
 | Forms | `POST /api/v1/forms/submissions`, `/forms/newsletter`, `/forms/contact` | anonymous, rate limited |
@@ -40,7 +43,7 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
   | `request.method_not_allowed` | 405 |
   | `request.payload_too_large` | 413 |
   | `request.unsupported_media_type` | 415 |
-  | `resource.conflict`, `concurrency.conflict`, `media.duplicate`, `media.in_use`, `cms.slug_taken`, `cms.slug_locked` (no longer returned since 2.7), `cms.status_transition_invalid`, `redirects.from_taken`, `redirects.loop_or_chain` | 409 |
+  | `resource.conflict`, `concurrency.conflict`, `media.duplicate`, `media.in_use`, `cms.slug_taken`, `cms.slug_locked` (no longer returned since 2.7), `cms.status_transition_invalid`, `cms.sku_taken`, `redirects.from_taken`, `redirects.loop_or_chain` | 409 |
   | `concurrency.precondition_required` (no `If-Match`; a malformed one is `validation.failed`) | 428 |
   | `media.too_large` | 413 |
   | `media.type_unsupported`, `media.extension_mismatch` | 415 |

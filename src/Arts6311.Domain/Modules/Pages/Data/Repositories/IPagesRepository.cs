@@ -21,6 +21,13 @@ internal interface IPagesRepository
     Task<List<PageSummaryServiceModel>> ListAsync(
         PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The ids of pages Scheduled for <paramref name="asOf"/> or earlier, oldest first, at most
+    /// <paramref name="take"/>: the Worker's scheduled-publish pass (ADR 0036). Ids only, because the pass reads
+    /// each page again before it acts on it.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
+
     /// <summary>Throws away every unsaved change, after a save that failed, so the next save starts clean.</summary>
     void DiscardChanges();
 

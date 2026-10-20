@@ -16,4 +16,8 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Arts6311.Tests" />
+  </ItemGroup>
+
 </Project>

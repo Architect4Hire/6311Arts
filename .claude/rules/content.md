@@ -19,8 +19,8 @@ The CMS is closed by design. Every content type is code we own: there are no plu
 |---|---|
 | `Artist` | Name, slug, bio, medium, portrait, active |
 | `Exhibition` | Title, slug, summary, body, start/end, reception start/end/note, hero, artists (M:N) |
-| `ClassOffering` | Title, slug, summary, body, type, level, instructor, hero, cadence, starting price; has `ClassSession` rows (start, end, display zone, SKU, capacity). **Square-synced** (ADR 0032). |
-| `ShopItem` | Artwork only (merch is POS-only, ADR 0032). Title, slug, description, artist, categories, gallery, SKU, one-of-a-kind flag, starting price, starting quantity. **Square-synced.** |
+| `ClassOffering` | Title, slug, sanitized HTML body, summary, type, level, instructor, hero, cadence, starting price; has `ClassSession` rows (start, end, display zone, SKU, capacity). **Square-synced** (ADR 0032, 0037). |
+| `ShopItem` | Artwork only (merch is POS-only, ADR 0032). Title, slug, sanitized HTML description, artist (optional, via the Artists facade), categories, ordered gallery, SKU, one-of-a-kind flag, starting price, starting quantity. **Square-synced** (ADR 0038). |
 | `MembershipPlan` | Name, slug, perks, class discount %, featured, order, starting price. **Square-synced.** |
 | `Page` | Slug, title, sanitized HTML body (privacy, terms, about copy blocks) |
 | `Redirect` | From path, to path, 301/302, source (`Manual` / `Imported` / `SlugChange`). No lifecycle: live once written (ADR 0035) |
@@ -28,32 +28,55 @@ The CMS is closed by design. Every content type is code we own: there are no plu
 ## Lifecycle
 
 ```text
-Draft → Scheduled → Published → Archived
-          └──────────┘ (unschedule)
+Draft ──schedule──▶ Scheduled ──publish──▶ Published ──unpublish──▶ Draft
+  │    ◀─unschedule────┘            ▲
+  └──────publish─────────────────────┘
+  └──────archive─────────┴───────────┴──▶ Archived
 ```
 
 - **Every publishable type has:** `Status`, `PublishedAt`, `ScheduledFor` (UTC), `UpdatedAt`, `UpdatedBy`, `RowVersion`.
-- **Transitions are explicit commands** (`publish`, `unpublish`, `schedule`, `archive`) and are audited. A `PATCH` never changes status.
+- **Transitions are explicit commands** (`publish`, `unpublish`, `schedule`, `unschedule`, `archive`) and are audited. A `PATCH` never changes status.
+  - `schedule` is the only one with a body: the shared `ContentScheduleViewModel` (`{scheduledFor}`, UTC, in the
+    future). Sending it again moves the time; a published record is unpublished before it can be scheduled.
+  - **What publishing requires is checked at schedule too** (ADR 0036), so a missing image alt text, summary or
+    body is refused on the screen rather than at midnight.
+  - **The scheduled publisher** runs in the Worker every minute, claims each record by its row version (so two
+    replicas publish it once), publishes through the module's facade as `system:scheduled-publisher`, and returns a
+    record it can no longer publish to Draft with a `<type>.schedule-abandoned` audit row. A unit that throws is
+    counted and logged and the pass carries on, so one stuck record never starves the ones behind it.
 - **Square-synced types:**
   - Publish, update and archive stage the matching `square.*` outbox message in the same save.
   - Sync status is shown, never inferred from content status.
-- **Every publish or unpublish stages `site.revalidate-requested`,** so cached SSR pages and API cache tags refresh.
+- **Every status command stages `site.revalidate-requested {entityType, entityId, paths}`** in the same save
+  (ADR 0036), so the cache stops serving what the change affects. The Worker's kernel handler clears the
+  `type:`, `entity:` and `site:` tags; nothing invalidates inline after a save, and nothing calls the site over
+  HTTP. The API's own in-memory copy lives at most `HybridAppCache.MaxLocalLifetime` (one minute), which is the
+  worst case for a change appearing on the site.
 - **Slugs** are unique per type. A slug change on a record that has ever been published redirects its old address to the new one (ADR 0035): the content module's DataLayer stages `redirects.slug-changed` in the rename's own save, and the Redirects module applies it.
 - **Shared kernel** (ADR 0031): `Managers/Publishing/` holds `PublishStatus`, the transition table `PublishLifecycle.Next`, `Slugs` and `ContentErrorCodes`; `Managers/Concurrency/EntityTag` verifies `If-Match`. A content module uses these rather than its own.
   - Status commands carry `If-Match` too. An illegal move (publishing what is published, anything from Archived) is `cms.status_transition_invalid`, never a silent no-op.
   - `PublishedAt` is the **first** publish and survives an unpublish; it is what makes a slug change owe a redirect (`PublishedPathChange.For`). Since 2.7 nothing returns `cms.slug_locked`; the code stays in the contract, and the ServiceModels' `slugLocked` now means "changing it redirects".
-  - Each type's site address is its policy's `SitePathPrefix` plus the slug: `/artists/`, `/exhibitions/`, `/` for pages.
+  - Each type's site address is its policy's `SitePathPrefix` plus the slug: `/artists/`, `/exhibitions/`, `/` for
+    pages. The prefixes live once, in the kernel's `Managers/Publishing/SitePaths`, because redirects, revalidation
+    and previews all need the mapping from outside the module (ADR 0036).
 - **Redirects** (ADR 0035):
   - Addresses are stored in one normal form (`RedirectPaths`): a lower-case site path with no trailing slash, plus any query. The site normalizes an incoming path the same way before it looks one up.
   - An old address can't be the home page, have a fragment, or sit under a reserved prefix (`/admin`, `/api`, `/bff`, `/media`, `/webhooks`, `/health`, `/alive`, `/signin`, `/account`).
   - A destination is a site path or an `https://` address.
   - **Staff writes refuse loops and chains longer than one hop** (`redirects.loop_or_chain`).
   - **Slug changes keep every chain one hop instead of refusing.** Redirects arriving at the old address are repointed. A redirect leaving an address that is live again is retired. Each row's `EffectiveAt` makes out-of-order delivery safe.
-  - Every change is Admin-only and audited. The site's list is cached for 5 minutes until 2.8's revalidation.
-  - **Dated exception to the revalidation rule above, until 2.8 (ADR 0031, 0033, 0034):** Artists', Exhibitions' and Pages' status commands stage no outbox message yet, because nothing outside the CMS reads content before Phase 3. A skipped test `PublishStagesARevalidationInTheSameSave` in each module holds the place. It is granted per type, by ADR, and is not a precedent for any other type.
+  - Every change is Admin-only and audited. The site's list is cached for 5 minutes, and every redirect write
+    (and every row a slug change touches) stages `site.revalidate-requested`, so the API's copy is cleared within
+    a minute (ADR 0036).
   - **Cross-module content** (ADR 0033): a type that credits another's records (an exhibition's artists) holds a join table with a `Restrict` foreign key to the other's entity, and asks the other's facade who the records are and whether they can be linked. An archived record gains no new links.
   - An image on a Published or Scheduled record needs alt text when it is attached, not only when the record is published.
 - **Previews** use a signed, expiring token, render `noindex`, never enter the sitemap and grant no write access.
+  - Staff mint one with `POST /api/v1/cms/preview` (`{entityType, entityId}`); the site reads it back from
+    `GET /api/v1/site/preview/{token}`. The token is a 30-minute Data Protection token over `type:id` and is the
+    whole credential, so it is never logged, stored in the browser or accepted for a write (ADR 0036).
+  - Everything unusable — expired, tampered with, or a record since deleted — is one `resource.not_found`, so a
+    holder learns nothing from the answer. The answer is `no-store` and `X-Robots-Tag: noindex, nofollow`.
+  - A new publishable type joins `PreviewPolicy.EntityTypes` and `SitePaths` when it lands.
 
 ## Content rules
 
@@ -61,6 +84,24 @@ Draft → Scheduled → Published → Archived
   - The allow-list is `HtmlPolicy`: `p`, `h2`–`h4`, lists, `strong`, `em`, `a[href]`, `br`, `blockquote`, `img[src][alt]`. Links are site-relative, `#`, `http(s):`, `mailto:` or `tel:`; images are library renditions (`/media/{id}/{rendition}`) only. Widening it needs an ADR and the sanitizer suite's payloads extended.
   - **Every picture in HTML is a library original with its own `alt`,** and the content module records it in a reference table with a `Restrict` key to `MediaAsset` (as `PageMediaReferences`), kept in step with the body on each write, so Media's delete guard sees it.
   - Long-text fields that predate the sanitizer (the artist bio, the exhibition body) stay plain text until a prompt converts them.
-- **Square-owned fields** (price, stock or seats, sold-out) are read-only projections on the CMS record, maintained by the `SquareSync` module. CMS write models don't contain them.
+- **Square-owned fields** (price, stock or seats, sold-out) are read-only projections on the CMS record, maintained by the `SquareSync` module. CMS write models don't contain them, and a test proves it per type (`ClassWriteModelTests`).
+  - The *starting* price is the CMS's own draft field, and it stays editable only until Square has reported a price
+    for the record (`startingPriceEditable`, ADR 0037). After that a change is the 5.4a command.
+- **SKUs are unique across the CMS**, not per type: the shared kernel's `CatalogSkus` registry (`Managers/Catalog/`,
+  ADR 0037) holds one row per SKU with its owner's type and id, so one unique key covers class sessions and (from
+  2.10) shop items. A content module's DataLayer reserves and releases through `ISkuRegistry` in the **same save** as
+  the row that carries the SKU, and a clash is `cms.sku_taken`. The CMS suggests one on create
+  (`CLS-<offering>-<n>`, `ART-<n>`) and staff may edit it.
+- **A class session stores its display time zone** (the gallery's unless staff change it) and returns it as
+  `displayTimeZone`, because its times are stored UTC and read as a wall clock (backend.md).
+- **Shop categories are a fixed allow-list** (`ShopPolicy.Categories`, ADR 0038): the six the site filters on, each
+  with its label. A write is validated against it, and widening it is a line of code plus an ADR note — not a field
+  staff type. The admin mirrors the labels (`SHOP_CATEGORIES`) as it mirrors every policy's numbers.
+- **A shop item's gallery is ordered, and its first photograph leads** (the card, the Open Graph image, and the
+  first image the 5.x push sends). Every photograph needs alt text before the item is published, because the product
+  page shows them all.
+- **One of a kind means a starting quantity of one** (ADR 0032): a count other than one sent with the flag is
+  refused rather than quietly replaced, and the flag and the count freeze together once Square holds the record
+  (`startingStockEditable`, ADR 0038).
 - **Import.** `Arts6311.Importer` creates Draft records with legacy WordPress ids for idempotent re-runs and provenance. It never overwrites a record a staff member has edited since import (compares `UpdatedBy`).
 - **Copy and SEO.** Editors write titles and descriptions. The site's `SeoService` and JSON-LD come from these fields, so required SEO fields are validated at publish, not at draft.

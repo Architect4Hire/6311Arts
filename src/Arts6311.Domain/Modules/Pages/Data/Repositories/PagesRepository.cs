@@ -58,6 +58,15 @@ internal sealed class PagesRepository(ArtsDbContext context) : IPagesRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        await Pages.AsNoTracking()
+            .Where(page => page.Status == PublishStatus.Scheduled && page.ScheduledFor != null && page.ScheduledFor <= asOf)
+            .OrderBy(page => page.ScheduledFor)
+            .ThenBy(page => page.Id)
+            .Take(take)
+            .Select(page => page.Id)
+            .ToListAsync(cancellationToken);
+
     public void DiscardChanges() => context.ChangeTracker.Clear();
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);

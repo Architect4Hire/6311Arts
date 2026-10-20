@@ -78,6 +78,15 @@ internal sealed class ArtistsRepository(ArtsDbContext context) : IArtistsReposit
     public Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
         Artists.AsNoTracking().Where(artist => slugs.Contains(artist.Slug)).Select(ToSummary).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        await Artists.AsNoTracking()
+            .Where(artist => artist.Status == PublishStatus.Scheduled && artist.ScheduledFor != null && artist.ScheduledFor <= asOf)
+            .OrderBy(artist => artist.ScheduledFor)
+            .ThenBy(artist => artist.Id)
+            .Take(take)
+            .Select(artist => artist.Id)
+            .ToListAsync(cancellationToken);
+
     public void DiscardChanges() => context.ChangeTracker.Clear();
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);

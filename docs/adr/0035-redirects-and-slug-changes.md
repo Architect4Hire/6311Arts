@@ -98,8 +98,9 @@ Three content types (Artists, Exhibitions, Pages) relax that lock here.
 7. **The site list is cached for 5 minutes (your decision).**
    - The cache is HybridCache under `redirect:list:site`, tagged `type:redirect`, with
      `Cache-Control: public, max-age=300`.
-   - Writes don't clear it. Invalidation must come from `site.revalidate-requested` handlers, never inline after a
-     save, and that is 2.8's to build. 2.8 adds the tag invalidation.
+   - Writes don't clear it here. Invalidation comes from `site.revalidate-requested` handlers, never inline after
+     a save: 2.8 built that, and every redirect write now stages the message (ADR 0036). A cache in front of this
+     host still holds its own copy for up to five minutes.
    - The route is anonymous (`[AllowAnonymous]`) and returns everything, as a small fixed list (api-contract.md).
      It names no one.
 8. **Seed:** the spike's three fixed legacy redirects (`/events`, `/gallery`, `/submit-your-work`), **once per database**
@@ -131,6 +132,7 @@ Three content types (Artists, Exhibitions, Pages) relax that lock here.
 - Every Square-synced type in Phase 5 relaxes its slug lock the same way, with its own `SitePathPrefix` and a
   `redirects.slug-changed` from its DataLayer.
 - The Worker now hosts the Redirects module.
-- 2.8 adds revalidation of `type:redirect` (and of the content pages) to these writes.
+- 2.8 added revalidation of `type:redirect` (and of the content pages) to these writes (ADR 0036), so the API's
+  own copy is cleared within a minute instead of five.
 - The importer (4.x) loads WordPress redirects as `Imported` through the Redirects facade's create path, so the same
   loop and chain rules apply. It has to order or flatten its source data accordingly.

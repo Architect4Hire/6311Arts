@@ -1,0 +1,46 @@
+using System.Text.RegularExpressions;
+using Arts6311.Domain.Modules.Preview.Managers;
+using Arts6311.Domain.Modules.Shop.Managers;
+
+namespace Arts6311.Tests.Api;
+
+/// <summary>
+/// The lists the admin has to mirror by hand, pinned to the C# they mirror.
+/// </summary>
+/// <remarks>
+/// api-contract.md makes the OpenAPI snapshot the contract, and a snapshot cannot carry these: a category slug is a
+/// plain string in the schema, and a preview type never appears in it at all. A mismatch would not fail a build —
+/// it would quietly give staff a filter the API refuses, or a preview link the API will not mint. So the lists are
+/// compared here, by reading the TypeScript the admin ships.
+/// </remarks>
+public sealed class AdminConstantContractTests
+{
+    [Fact]
+    public void TheAdminsShopCategoriesAreTheOnesTheApiAllows()
+    {
+        var slugs = Slugs(Read("models", "shop.ts"), "SHOP_CATEGORIES", @"slug:\s*'([^']+)'");
+
+        Assert.Equal(ShopPolicy.Categories.Select(category => category.Slug), slugs);
+    }
+
+    [Fact]
+    public void TheAdminsPreviewTypesAreTheOnesTheApiMints()
+    {
+        var types = Slugs(Read("models", "content.ts"), "PREVIEW_TYPES", @"'([^']+)'");
+
+        Assert.Equal(PreviewPolicy.PathPrefixes.Keys, types);
+    }
+
+    /// <summary>The strings in one <c>export const NAME = [...]</c> declaration, in the order they are written.</summary>
+    private static List<string> Slugs(string source, string name, string pattern)
+    {
+        var declaration = new Regex($@"export const {name}[^=]*=\s*\[(?<body>.*?)\]\s*as const;", RegexOptions.Singleline)
+            .Match(source);
+        Assert.True(declaration.Success, $"{name} is not declared as an `as const` array any more.");
+
+        return [.. Regex.Matches(declaration.Groups["body"].Value, pattern).Select(match => match.Groups[1].Value)];
+    }
+
+    private static string Read(params string[] parts) => File.ReadAllText(Path.Combine(
+        [RepoPaths.SourceRoot(), "web", "projects", "admin", "src", "app", .. parts]));
+}

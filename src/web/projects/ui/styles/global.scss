@@ -212,7 +212,9 @@ textarea {
   line-height: var(--lh-hint);
 }
 
-// Applied by the uiControl directive only, so hand-written site fields keep their own rules.
+// Applied by the uiControl directive, and by hand only where a control has no `ui-field` to sit in — a cell of an
+// editable table, which labels its inputs by `aria-label` from the column header instead (the CMS's session grid).
+// Hand-written site fields keep their own rules.
 .field__control {
   width: 100%;
   border: var(--border) solid var(--line);

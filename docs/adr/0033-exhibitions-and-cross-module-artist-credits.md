@@ -70,10 +70,10 @@ to go facade to facade.
 6. **The body is plain text** (up to 10,000 characters, line breaks normalised to `\n`) until the sanitizer arrives in
    2.6, as the artist bio is (ADR 0031 §4).
 7. **No outbox message yet: content.md's dated exception now names Exhibitions too.** Nothing outside the CMS reads
-   exhibitions before Phase 3, and 2.8 designs `site.revalidate-requested` (ADR 0031 rejected a do-nothing handler).
-   `ExhibitionsModuleTests.PublishStagesARevalidationInTheSameSave` is written and skipped. 2.8 adds the message to
-   `ExhibitionsDataLayer.TransitionAsync`, along with the hero hand-off ADR 0031 §5 describes for portraits. The
-   exception is granted per type, by ADR; it is still not a precedent.
+   exhibitions before Phase 3, and 2.8 designed `site.revalidate-requested` (ADR 0036; ADR 0031 rejected a
+   do-nothing handler). `ExhibitionsModuleTests.PublishStagesARevalidationInTheSameSave` was written and skipped;
+   2.8 added the message to `ExhibitionsDataLayer.TransitionAsync` and unskipped it. The hero hand-off ADR 0031 §5
+   describes for portraits is still open, and belongs to 3.1.
 8. **The development seed credits roster artists through the Artists facade.**
    - `ExhibitionDevelopmentSeeder` seeds the spike's eight shows (Published, no hero, with the Boats & Pianos
      reception). It resolves the credited names to artists with `IArtistsFacade.FindBySlugsAsync`.
@@ -105,7 +105,7 @@ to go facade to facade.
 - `IArtistsFacade` has callers outside the API. Its lookups must stay cheap and Media-free in practice (they are one
   indexed query), even though DI composes Media.
 - MigrationService's Development composition grows with each module whose seed reads another module's facade.
-- 2.7 must relax `cms.slug_locked` in Exhibitions as in Artists. 2.8 must add revalidation and the hero hand-off to
-  `ExhibitionsDataLayer.TransitionAsync`, and remove the skip.
+- 2.7 relaxed `cms.slug_locked` in Exhibitions as in Artists. 2.8 added revalidation to
+  `ExhibitionsDataLayer.TransitionAsync` and removed the skip (ADR 0036); the hero hand-off is 3.1's.
 - Phase 3's site exhibition pages read credits through the same facade path, and decide how a Draft or Archived
   credit shows.

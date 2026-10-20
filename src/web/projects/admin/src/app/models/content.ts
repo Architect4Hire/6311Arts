@@ -5,6 +5,8 @@
 
 import { IconName, StatusTone } from '@6311/ui';
 
+import { fields, isString } from './decode';
+
 /** `PublishStatus`: the content lifecycle every CMS type shares. */
 export const PUBLISH_STATUSES = ['Draft', 'Scheduled', 'Published', 'Archived'] as const;
 export type PublishStatus = (typeof PUBLISH_STATUSES)[number];
@@ -34,7 +36,39 @@ export const CONTENT_CODES = {
 } as const;
 
 /** The status commands, as their route segments. */
-export type ContentCommand = 'publish' | 'unpublish' | 'archive';
+export type ContentCommand = 'publish' | 'unpublish' | 'archive' | 'schedule' | 'unschedule';
+
+/** The body of the `schedule` command (`ContentScheduleViewModel`): when to publish, as an instant. */
+export interface ContentSchedule {
+  readonly scheduledFor: string;
+}
+
+/** The content types a preview link can be made for (`PreviewPolicy.EntityTypes`). */
+export const PREVIEW_TYPES = [
+  'artist',
+  'exhibition',
+  'page',
+  'class-offering',
+  'shop-item',
+] as const;
+export type PreviewType = (typeof PREVIEW_TYPES)[number];
+
+/** A preview link (`PreviewLinkServiceModel`): the token is the whole credential, so it is never stored. */
+export interface PreviewLink {
+  readonly token: string;
+  /** Where to open it on the site, `/preview/{token}`. */
+  readonly path: string;
+  readonly expiresAt: string;
+}
+
+export function decodePreviewLink(value: unknown): PreviewLink | null {
+  const body = fields(value);
+  if (!body) return null;
+
+  const { token, path, expiresAt } = body;
+  if (!isString(token) || !isString(path) || !isString(expiresAt)) return null;
+  return { token, path, expiresAt };
+}
 
 /** `Slugs.MaxLength`. */
 export const SLUG_MAX_LENGTH = 120;

@@ -3,11 +3,17 @@ using Arts6311.Domain.Managers.Email;
 using Arts6311.Domain.Managers.Idempotency;
 using Arts6311.Domain.Managers.Outbox;
 using Arts6311.Domain.Managers.Persistence;
+using Arts6311.Domain.Managers.Revalidation;
+using Arts6311.Domain.Modules.Artists;
+using Arts6311.Domain.Modules.Classes;
+using Arts6311.Domain.Modules.Exhibitions;
 using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Media;
+using Arts6311.Domain.Modules.Pages;
 using Arts6311.Domain.Modules.Redirects;
+using Arts6311.Domain.Modules.Shop;
 using Arts6311.Domain.Modules.Operations;
 using Arts6311.Worker;
 using Arts6311.Worker.Email;
@@ -28,6 +34,12 @@ builder.Services.AddOpenTelemetry().WithTracing(tracing => tracing
 
 builder.AddSqlServerDbContext<ArtsDbContext>(
     ArtsDbContext.ConnectionName, configureDbContextOptions: ArtsDbContextOptions.Configure);
+
+// The same Redis the API uses as its HybridCache L2. This host writes to it rather than reads from it: the
+// site.revalidate-requested handler tells the shared cache to stop serving what a change affects, which is the
+// only way an invalidation here reaches the API's entries (ADR 0036). Before AddArtsKernel, so HybridCache sees it.
+builder.AddRedisDistributedCache("cache");
+
 builder.Services.AddArtsKernel();
 builder.Services.AddArtsIdempotencyMaintenance();
 builder.Services.AddOperationsModule();
@@ -42,6 +54,18 @@ builder.Services.AddMediaModule();
 
 // The redirects.slug-changed handler: a published record's old address leads to its new one (ADR 0035).
 builder.Services.AddRedirectsModule();
+
+// The site.revalidate-requested handler: a content change stops the cache serving what it affects (ADR 0036).
+builder.Services.AddArtsRevalidation();
+
+// The content modules, for the scheduled publisher: it publishes what is due through each module's facade, and
+// those facades ask Media about images, so they come after AddMediaModule. Artists before Exhibitions, whose
+// facade asks Artists about credits (ADR 0033).
+builder.Services.AddArtistsModule();
+builder.Services.AddExhibitionsModule();
+builder.Services.AddPagesModule();
+builder.Services.AddClassesModule();
+builder.Services.AddShopModule();
 
 // The token provider is added by the host, not the module: it lives in the ASP.NET Core framework assembly, which
 // the Domain deliberately does not reference.
@@ -69,6 +93,9 @@ builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 builder.Services.AddHostedService<OutboxDispatcherHostedService>();
 builder.Services.AddHostedService<IdempotencyCleanupHostedService>();
+
+// Publishes what staff scheduled, once a minute, guarded by each record's row version (ADR 0036).
+builder.Services.AddHostedService<ScheduledPublishHostedService>();
 
 var host = builder.Build();
 

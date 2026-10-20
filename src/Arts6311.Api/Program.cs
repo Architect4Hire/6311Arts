@@ -4,13 +4,16 @@ using Arts6311.Domain.Managers;
 using Arts6311.Domain.Managers.Idempotency;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Modules.Artists;
+using Arts6311.Domain.Modules.Classes;
 using Arts6311.Domain.Modules.Exhibitions;
 using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Media;
 using Arts6311.Domain.Modules.Pages;
+using Arts6311.Domain.Modules.Preview;
 using Arts6311.Domain.Modules.Redirects;
+using Arts6311.Domain.Modules.Shop;
 using Arts6311.Domain.Modules.Operations;
 using Microsoft.AspNetCore.Identity;
 
@@ -24,6 +27,12 @@ builder.WebHost.ConfigureKestrel(kestrel => builder.Configuration.GetSection("Ke
 
 builder.AddSqlServerDbContext<ArtsDbContext>(
     ArtsDbContext.ConnectionName, configureDbContextOptions: ArtsDbContextOptions.Configure);
+
+// The IDistributedCache HybridCache picks up as its L2 (aspire.md). It has to be registered before
+// AddArtsKernel's AddArtsCaching so HybridCache sees it, and it is what makes a revalidation in the Worker reach
+// this host's entries: with L1 alone each process would only ever invalidate its own copy (ADR 0036).
+builder.AddRedisDistributedCache("cache");
+
 builder.Services.AddArtsKernel();
 builder.Services.AddArtsIdempotency(builder.Configuration);
 builder.Services.AddOperationsModule();
@@ -45,8 +54,20 @@ builder.Services.AddExhibitionsModule();
 // Pages (content.md): sanitized HTML bodies. Its facade asks Media about the pictures a body shows.
 builder.Services.AddPagesModule();
 
+// Classes (content.md, ADR 0037): offerings and their sessions. Its facade asks Media about the hero and the
+// pictures a description shows, so it comes after AddMediaModule.
+builder.Services.AddClassesModule();
+
+// The shop's artwork (content.md, ADR 0038). Its facade asks Media about the photographs and Artists about the
+// credit, so it comes after both.
+builder.Services.AddShopModule();
+
 // Redirects (content.md): the CMS's list and the site's. Its slug-change handler is the Worker's (ADR 0035).
 builder.Services.AddRedirectsModule();
+
+// Previews (ADR 0036): staff mint a signed, expiring link here and the site reads it back. After the content
+// modules, whose facades it asks for the record, and after Data Protection, which signs the token.
+builder.Services.AddPreviewModule();
 
 // The credential store (ADR 0002). AddIdentityCore only: no cookie scheme and no SignInManager, because the
 // gateway owns the browser session and the API takes no cookies at all.

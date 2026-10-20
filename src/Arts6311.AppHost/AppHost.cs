@@ -98,6 +98,11 @@ var apiService = builder.AddProject<Projects.Arts6311_Api>("api")
     .WithReference(appdb)
     .WaitFor(appdb)
 
+    // HybridCache's L2 (aspire.md). Shared with the Worker, which is what lets a revalidation there stop this
+    // host serving a cached page: with L1 alone each process would only invalidate its own copy (ADR 0036).
+    .WithReference(cache)
+    .WaitFor(cache)
+
     // The Data Protection key ring, shared with the Worker: it mints Identity's confirmation and reset tokens,
     // this host validates them, and separate rings would fail every emailed link (ADR 0023).
     .WithReference(blobs)
@@ -171,6 +176,11 @@ gateway
 builder.AddProject<Projects.Arts6311_Worker>("worker")
     .WithReference(appdb)
     .WaitFor(appdb)
+
+    // The same HybridCache L2 the API reads: the site.revalidate-requested handler invalidates tags there, which
+    // is the only path from a published change to the API's cached pages (ADR 0036).
+    .WithReference(cache)
+    .WaitFor(cache)
 
     // Every email in the system is an outbox message, so this is the only host that sends one (ADR 0023).
     .WithReference(mail)

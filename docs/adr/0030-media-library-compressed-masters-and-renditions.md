@@ -184,7 +184,9 @@ client-rendered only, so fetch's SSR advantages never applied there.
 ### Publishing an image — **DECIDE**
 
 Every asset is `Visibility = Draft` until content publishing marks it `Published`. Until the first content type
-exists, an anonymous visitor gets 404 for every image. Options for 2.4/2.8:
+exists, an anonymous visitor gets 404 for every image. **Still open: 2.8 declined it and ADR 0036 moved ownership
+to 3.1**, when the site first serves images to anonymous visitors; until then the only cost is that a preview
+link's images are staff-only. The options:
 
 1. **The content module calls `IMediaFacade` after its publish commits**, through its `site.revalidate-requested`
    handler or a `media.publish-requested` message of its own. This keeps module ownership, but visibility trails

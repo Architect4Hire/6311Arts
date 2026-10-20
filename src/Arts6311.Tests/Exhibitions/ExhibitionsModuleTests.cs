@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Concurrency;
+using Arts6311.Domain.Managers.Outbox.Events;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
@@ -233,7 +234,10 @@ public sealed class ExhibitionsModuleTests
             exhibition.Id, new ExhibitionUpdateViewModel(Slug: "the-show"), published.ETag, Editor, Ct)));
 
         Assert.Equal("show", (await host.StoredAsync(exhibition.Id))!.Slug);
-        Assert.Equal(0, await host.QueryAsync(context => context.OutboxMessages.CountAsync(Ct)));
+        // Scoped to the rename's own message: the publish above left a site.revalidate-requested of its own, which
+        // committed with it (ADR 0036).
+        Assert.Equal(0, await host.QueryAsync(context => context.OutboxMessages
+            .CountAsync(message => message.Type == RedirectSlugChanged.MessageType, Ct)));
     }
 
     [Fact]
@@ -301,16 +305,85 @@ public sealed class ExhibitionsModuleTests
         Assert.Equal(exhibition.ETag, EntityTag.Format(stored.RowVersion));
     }
 
-    [Fact(Skip = "Prompt 2.8: publish and unpublish stage site.revalidate-requested in the same save (content.md, ADR 0031, 0033). Unskip and implement there.")]
+    [Fact]
     public async Task PublishStagesARevalidationInTheSameSave()
     {
         await using var host = await ExhibitionsTestHost.CreateAsync(Ct);
         var exhibition = await CreateAsync(host, new ExhibitionCreateViewModel("Show", Start, End, Summary: "A show."));
 
-        await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(exhibition.Id, exhibition.ETag, Editor, Ct)));
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(exhibition.Id, exhibition.ETag, Editor, Ct)));
 
-        var types = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking().Select(message => message.Type).ToListAsync(Ct));
-        Assert.Contains("site.revalidate-requested", types);
+        var messages = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking().ToListAsync(Ct));
+        var message = Assert.Single(messages);
+        Assert.Equal(SiteRevalidateRequested.MessageType, message.Type);
+
+        var staged = SiteRevalidateRequested.TryParse(message.PayloadJson)!;
+        Assert.Equal("exhibition", staged.EntityType);
+        Assert.Equal(exhibition.Id, staged.EntityId);
+        Assert.Equal([$"/exhibitions/{published.Slug}"], staged.Paths);
+    }
+
+    [Fact]
+    public async Task EveryStatusCommandStagesItsOwnRevalidationAndAFailedOneStagesNone()
+    {
+        var failAudit = new FailInsertInto("AuditLogs") { Armed = false };
+        await using var host = await ExhibitionsTestHost.CreateAsync(Ct, failAudit);
+        var exhibition = await CreateAsync(host, new ExhibitionCreateViewModel("Show", Start, End, Summary: "A show."));
+
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(exhibition.Id, exhibition.ETag, Editor, Ct)));
+        var drafted = await Ok(host.WithFacadeAsync(facade => facade.UnpublishAsync(exhibition.Id, published.ETag, Editor, Ct)));
+
+        failAudit.Armed = true;
+        await Assert.ThrowsAnyAsync<Exception>(() => host.WithFacadeAsync(
+            facade => facade.ArchiveAsync(exhibition.Id, drafted.ETag, ExhibitionsTestHost.AdminId, Ct)));
+
+        // Two commits, two messages: the archive that failed left neither its status nor its message (outbox.md).
+        Assert.Equal(2, await host.QueryAsync(context => context.OutboxMessages
+            .CountAsync(message => message.Type == SiteRevalidateRequested.MessageType, Ct)));
+        Assert.Equal(PublishStatus.Draft, (await host.StoredAsync(exhibition.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task SchedulingSetsTheTimeUnschedulingClearsItAndASummarylessShowIsRefused()
+    {
+        await using var host = await ExhibitionsTestHost.CreateAsync(Ct);
+        var ready = await CreateAsync(host, new ExhibitionCreateViewModel("Show", Start, End, Summary: "A show."));
+        var unready = await CreateAsync(host, new ExhibitionCreateViewModel("Queue", Start, End));
+        var when = host.Time.GetUtcNow().AddHours(2);
+
+        var scheduled = await Ok(host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            ready.Id, new ContentScheduleViewModel(when), ready.ETag, Editor, Ct)));
+        var refused = await host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            unready.Id, new ContentScheduleViewModel(when), unready.ETag, Editor, Ct));
+        var drafted = await Ok(host.WithFacadeAsync(facade => facade.UnscheduleAsync(ready.Id, scheduled.ETag, Editor, Ct)));
+
+        Assert.Equal((PublishStatus.Scheduled, when), (scheduled.Status, scheduled.ScheduledFor));
+
+        // What publishing requires is checked at schedule too (ADR 0036).
+        Assert.Equal(ErrorCodes.ValidationFailed, refused.Error!.Code);
+        Assert.Contains("summary", refused.Error.FieldErrors.Keys);
+        Assert.Equal((PublishStatus.Draft, (DateTimeOffset?)null), (drafted.Status, drafted.ScheduledFor));
+    }
+
+    [Fact]
+    public async Task TheScheduledPublisherPublishesWhatIsDueAndLeavesTheRestAlone()
+    {
+        await using var host = await ExhibitionsTestHost.CreateAsync(Ct);
+        var exhibition = await CreateAsync(host, new ExhibitionCreateViewModel("Show", Start, End, Summary: "A show."));
+        var asOf = host.Time.GetUtcNow();
+        await Ok(host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            exhibition.Id, new ContentScheduleViewModel(asOf.AddMinutes(1)), exhibition.ETag, Editor, Ct)));
+
+        var passTime = asOf.AddMinutes(2);
+        var due = await host.WithFacadeAsync(facade => facade.ListDueAsync(passTime, 50, Ct));
+        var outcome = await host.WithFacadeAsync(facade => facade.PublishScheduledAsync(exhibition.Id, passTime, Ct));
+
+        Assert.Equal([exhibition.Id], due);
+        Assert.Equal(ScheduledPublishOutcome.Published, outcome);
+        var stored = (await host.StoredAsync(exhibition.Id))!;
+        Assert.Equal(PublishStatus.Published, stored.Status);
+        Assert.Equal(ScheduledPublishPolicy.Actor, stored.UpdatedBy);
+        Assert.Empty(await host.WithFacadeAsync(facade => facade.ListDueAsync(passTime, 50, Ct)));
     }
 
     [Fact]

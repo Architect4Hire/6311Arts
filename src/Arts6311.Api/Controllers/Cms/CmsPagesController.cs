@@ -108,6 +108,35 @@ public sealed class CmsPagesController(IPagesFacade facade) : ControllerBase
         Guid id, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken cancellationToken) =>
         WithETag(await facade.ArchiveAsync(id, ifMatch, User.UserId(), cancellationToken));
 
+
+    /// <summary>
+    /// Draft or Scheduled → Scheduled: the Worker publishes a page when the time comes (ADR 0036). Sending it
+    /// again moves the time. Refused for a time already past, or for anything that would stop a publish now.
+    /// </summary>
+    [HttpPost("{id:guid}/schedule")]
+    [ProducesResponseType<PageServiceModel>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status428PreconditionRequired)]
+    public async Task<IActionResult> ScheduleAsync(
+        Guid id,
+        [FromBody] ContentScheduleViewModel schedule,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken cancellationToken) =>
+        WithETag(await facade.ScheduleAsync(id, schedule, ifMatch, User.UserId(), cancellationToken));
+
+    /// <summary>Scheduled → Draft, with the time cleared.</summary>
+    [HttpPost("{id:guid}/unschedule")]
+    [ProducesResponseType<PageServiceModel>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status428PreconditionRequired)]
+    public async Task<IActionResult> UnscheduleAsync(
+        Guid id, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken cancellationToken) =>
+        WithETag(await facade.UnscheduleAsync(id, ifMatch, User.UserId(), cancellationToken));
+
     private IActionResult WithETag(OperationResult<PageServiceModel> result)
     {
         if (result.Succeeded)

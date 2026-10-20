@@ -33,7 +33,8 @@ internal sealed class ArtistsFacade(
     IMediaFacade media,
     IValidator<ArtistCreateViewModel> createValidator,
     IValidator<ArtistUpdateViewModel> updateValidator,
-    IValidator<ArtistListViewModel> listValidator) : IArtistsFacade
+    IValidator<ArtistListViewModel> listValidator,
+    IValidator<ContentScheduleViewModel> scheduleValidator) : IArtistsFacade
 {
     private const string What = "this artist";
 
@@ -121,22 +122,92 @@ internal sealed class ArtistsFacade(
             return OperationResult.Failure<ArtistServiceModel>(preconditionError);
         }
 
-        var current = await business.GetAsync(id, cancellationToken);
-        if (!current.Succeeded)
+        var portrait = await PortraitOfAsync(id, cancellationToken);
+        if (!portrait.Succeeded)
         {
-            return current;
+            return OperationResult.Failure<ArtistServiceModel>(portrait.Error!);
         }
 
-        var portrait = current.Value!.PortraitMediaId is { } portraitId
-            ? await AskMediaAsync(portraitId, cancellationToken)
-            : ArtistPortraitCheck.None;
-
-        return await business.TransitionAsync(id, PublishCommand.Publish, ifMatch, portrait, actorUserId, cancellationToken);
+        return await business.TransitionAsync(
+            id, PublishCommand.Publish, ifMatch, portrait.Value, actorUserId, cancellationToken);
     }
 
     public Task<OperationResult<ArtistServiceModel>> UnpublishAsync(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
         business.TransitionAsync(id, PublishCommand.Unpublish, ifMatch, portrait: null, actorUserId, cancellationToken);
+
+    public async Task<OperationResult<ArtistServiceModel>> ScheduleAsync(
+        Guid id,
+        ContentScheduleViewModel schedule,
+        string? ifMatch,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<ArtistServiceModel>(preconditionError);
+        }
+
+        if (await scheduleValidator.ValidateOrErrorAsync(schedule, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<ArtistServiceModel>(error);
+        }
+
+        // Scheduling is a publish with a delay, so the portrait is vouched for now as well: the same two Business
+        // calls, safe for the same reason — the If-Match covers anything that changed in between (ADR 0031).
+        var portrait = await PortraitOfAsync(id, cancellationToken);
+        if (!portrait.Succeeded)
+        {
+            return OperationResult.Failure<ArtistServiceModel>(portrait.Error!);
+        }
+
+        return await business.ScheduleAsync(
+            id, schedule.ScheduledFor, ifMatch, portrait.Value, actorUserId, cancellationToken);
+    }
+
+    public Task<OperationResult<ArtistServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+        business.UnscheduleAsync(id, ifMatch, actorUserId, cancellationToken);
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(take);
+        return business.ListDueAsync(asOf, take, cancellationToken);
+    }
+
+    public async Task<ScheduledPublishOutcome> PublishScheduledAsync(
+        Guid id, DateTimeOffset asOf, CancellationToken cancellationToken)
+    {
+        var portrait = await PortraitOfAsync(id, cancellationToken);
+        if (portrait.Succeeded)
+        {
+            return await business.PublishScheduledAsync(id, asOf, portrait.Value, cancellationToken);
+        }
+
+        // Gone since the due list was read: nothing for this pass to do. Anything else — Media unreachable, say —
+        // is a failure the pass logs and counts, not a quiet "nothing due" that would repeat for ever (ADR 0036).
+        return portrait.Error!.Code == ErrorCodes.NotFound
+            ? ScheduledPublishOutcome.Skipped
+            : throw new InvalidOperationException(
+                $"Reading artist {id} for its scheduled publish failed ({portrait.Error.Code}).");
+    }
+
+    /// <summary>
+    /// What Media says about the artist's current portrait, or <see cref="ArtistPortraitCheck.None"/> when there
+    /// is none. Business checks the answer is about the portrait the artist still has.
+    /// </summary>
+    private async Task<OperationResult<ArtistPortraitCheck>> PortraitOfAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var current = await business.GetAsync(id, cancellationToken);
+        if (!current.Succeeded)
+        {
+            return OperationResult.Failure<ArtistPortraitCheck>(current.Error!);
+        }
+
+        return OperationResult.Success(current.Value!.PortraitMediaId is { } portraitId
+            ? await AskMediaAsync(portraitId, cancellationToken)
+            : ArtistPortraitCheck.None);
+    }
 
     public Task<OperationResult<ArtistServiceModel>> ArchiveAsync(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>

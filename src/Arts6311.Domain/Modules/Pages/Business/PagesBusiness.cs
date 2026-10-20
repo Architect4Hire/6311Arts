@@ -212,31 +212,23 @@ internal sealed class PagesBusiness(IPagesDataLayer dataLayer, IHtmlSanitizer sa
         var from = page.Status;
         if (PublishLifecycle.Next(from, command) is not { } to)
         {
-            return OperationResult.Failure<PageServiceModel>(OperationError.Of(
-                ContentErrorCodes.StatusTransitionInvalid,
-                $"This page is {from.ToString().ToLowerInvariant()}, so “{command.Verb()}” doesn't apply. Reload it to see its current status."));
+            return OperationResult.Failure<PageServiceModel>(TransitionInvalid(from, command));
         }
 
         if (command == PublishCommand.Publish)
         {
-            // content.md: what the site needs is checked at publish. The pictures were checked when the body was saved,
-            // and their Restrict references have kept them in the library since.
-            if (string.IsNullOrEmpty(page.Body))
+            if (PublishRequirementError(page) is { } requirementError)
             {
-                return OperationResult.Failure<PageServiceModel>(OperationError.Validation(
-                    "This page isn't ready to publish yet.",
-                    [("body", "Write the page first: a published page with no text would be empty on the site.")]));
-            }
-
-            // A legal placeholder published by a slip would tell visitors the policy "has not been written yet".
-            if (IsPlaceholder(page.Body))
-            {
-                return OperationResult.Failure<PageServiceModel>(OperationError.Validation(
-                    "This page still has its placeholder text.",
-                    [("body", "Replace the placeholder with the real text, then publish.")]));
+                return OperationResult.Failure<PageServiceModel>(requirementError);
             }
 
             page.PublishedAt ??= clock.UtcNow;
+            page.ScheduledFor = null;
+        }
+        else if (command == PublishCommand.Archive)
+        {
+            // An archived page is never published by the scheduled publisher, so a time left on it would only
+            // mislead the staff reading it.
             page.ScheduledFor = null;
         }
 
@@ -248,6 +240,153 @@ internal sealed class PagesBusiness(IPagesDataLayer dataLayer, IHtmlSanitizer sa
             _ => Conflict(),
         };
     }
+
+    public async Task<OperationResult<PageServiceModel>> ScheduleAsync(
+        Guid id, DateTimeOffset scheduledFor, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var page = await dataLayer.FindAsync(id, cancellationToken);
+        if (page is null)
+        {
+            return NotFound();
+        }
+
+        if (EntityTag.Verify(page.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure<PageServiceModel>(versionError);
+        }
+
+        var from = page.Status;
+        if (PublishLifecycle.Next(from, PublishCommand.Schedule) is not { } to)
+        {
+            return OperationResult.Failure<PageServiceModel>(TransitionInvalid(from, PublishCommand.Schedule));
+        }
+
+        // A time already past would be published by the next pass, a minute later, which is not what "schedule"
+        // means: staff who want it out now have the publish command for that.
+        if (scheduledFor <= clock.UtcNow)
+        {
+            return OperationResult.Failure<PageServiceModel>(OperationError.Validation(
+                "Choose a time in the future.",
+                [("scheduledFor", "This time has passed. Publish the page now instead, or pick a later time.")]));
+        }
+
+        // Checked now as well as at publish, so staff hear about an empty or placeholder body while they are
+        // looking at the screen rather than at midnight, when only the audit trail is watching (ADR 0036).
+        if (PublishRequirementError(page) is { } requirementError)
+        {
+            return OperationResult.Failure<PageServiceModel>(requirementError);
+        }
+
+        page.ScheduledFor = scheduledFor;
+        page.Status = to;
+
+        return await dataLayer.TransitionAsync(page, PublishCommand.Schedule, from, actorUserId, cancellationToken) switch
+        {
+            PageWriteOutcome.Saved => OperationResult.Success(ToServiceModel(page)),
+            _ => Conflict(),
+        };
+    }
+
+    public async Task<OperationResult<PageServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var page = await dataLayer.FindAsync(id, cancellationToken);
+        if (page is null)
+        {
+            return NotFound();
+        }
+
+        if (EntityTag.Verify(page.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure<PageServiceModel>(versionError);
+        }
+
+        var from = page.Status;
+        if (PublishLifecycle.Next(from, PublishCommand.Unschedule) is not { } to)
+        {
+            return OperationResult.Failure<PageServiceModel>(TransitionInvalid(from, PublishCommand.Unschedule));
+        }
+
+        page.ScheduledFor = null;
+        page.Status = to;
+
+        return await dataLayer.TransitionAsync(page, PublishCommand.Unschedule, from, actorUserId, cancellationToken) switch
+        {
+            PageWriteOutcome.Saved => OperationResult.Success(ToServiceModel(page)),
+            _ => Conflict(),
+        };
+    }
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+        dataLayer.ListDueAsync(asOf, take, cancellationToken);
+
+    public async Task<ScheduledPublishOutcome> PublishScheduledAsync(
+        Guid id, DateTimeOffset asOf, CancellationToken cancellationToken)
+    {
+        var page = await dataLayer.FindAsync(id, cancellationToken);
+
+        // Read again inside this scope, because the due list is a snapshot: staff may have published, rescheduled
+        // or archived the page since, and another Worker may have taken it.
+        if (page is null || page.Status != PublishStatus.Scheduled || page.ScheduledFor is null || page.ScheduledFor > asOf)
+        {
+            return ScheduledPublishOutcome.Skipped;
+        }
+
+        var from = page.Status;
+        if (PublishRequirementError(page) is { } requirementError)
+        {
+            // Back to Draft rather than left Scheduled: a record whose time has passed would otherwise be retried
+            // every minute for ever, and nobody would be told (ADR 0036).
+            page.ScheduledFor = null;
+            page.Status = PublishStatus.Draft;
+
+            return await dataLayer.AbandonScheduleAsync(page, from, requirementError.Message, cancellationToken) switch
+            {
+                PageWriteOutcome.Saved => ScheduledPublishOutcome.Unscheduled,
+                _ => ScheduledPublishOutcome.Lost,
+            };
+        }
+
+        page.PublishedAt ??= clock.UtcNow;
+        page.ScheduledFor = null;
+        page.Status = PublishStatus.Published;
+
+        return await dataLayer.TransitionAsync(
+            page, PublishCommand.Publish, from, ScheduledPublishPolicy.Actor, cancellationToken) switch
+        {
+            PageWriteOutcome.Saved => ScheduledPublishOutcome.Published,
+
+            // The row version moved under this save: another Worker published it, or staff changed it. Either way
+            // it is theirs now.
+            _ => ScheduledPublishOutcome.Lost,
+        };
+    }
+
+    /// <summary>
+    /// content.md: what the site needs is checked at publish, and again at schedule. The pictures were checked when
+    /// the body was saved, and their <c>Restrict</c> references have kept them in the library since, so only the
+    /// text itself is in question here.
+    /// </summary>
+    private OperationError? PublishRequirementError(Page page)
+    {
+        if (string.IsNullOrEmpty(page.Body))
+        {
+            return OperationError.Validation(
+                "This page isn't ready to publish yet.",
+                [("body", "Write the page first: a published page with no text would be empty on the site.")]);
+        }
+
+        // A legal placeholder published by a slip would tell visitors the policy "has not been written yet".
+        return IsPlaceholder(page.Body)
+            ? OperationError.Validation(
+                "This page still has its placeholder text.",
+                [("body", "Replace the placeholder with the real text, then publish.")])
+            : null;
+    }
+
+    private static OperationError TransitionInvalid(PublishStatus from, PublishCommand command) => OperationError.Of(
+        ContentErrorCodes.StatusTransitionInvalid,
+        $"This page is {from.ToString().ToLowerInvariant()}, so “{command.Verb()}” doesn't apply. Reload it to see its current status.");
 
     public async Task<int> SeedAsync(IReadOnlyList<PagePlaceholder> placeholders, string actor, CancellationToken cancellationToken)
     {

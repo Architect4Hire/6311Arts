@@ -24,8 +24,9 @@ Modules/<Context>/
 ├── Managers/            # this module's ViewModels, ServiceModels, domain models, validators, policies, outbox handlers
 └── <Context>ServiceCollectionExtensions.cs
 
-Managers/                # shared kernel: Persistence, Outbox, Idempotency, Caching, Time, Results, Paging, Audit,
-                         # Publishing (content lifecycle, slugs), Concurrency (row-version ETags)
+Managers/                # shared kernel: Persistence, Outbox, Idempotency, Caching, Revalidation (the cache-tag
+                         # handler), Time, Results, Paging, Audit, Publishing (content lifecycle, slugs, site paths,
+                         # scheduled publishing), Concurrency (row-version ETags)
 ```
 
 **Modules:**
@@ -42,6 +43,7 @@ Managers/                # shared kernel: Persistence, Outbox, Idempotency, Cach
 - `Members` (member accounts ↔ Square customers and subscriptions)
 - `SquareSync` (catalog links, webhook inbox, reconciliation)
 - `Redirects`
+- `Preview` (signed preview links; the one module that knows every content type, ADR 0036)
 - `Import` (WordPress import staging and runs)
 - `Identity` (internal session and credential operations)
 - `Operations` (outbox replay/discard and other ops tooling; today only the public health-info echo)

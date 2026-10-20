@@ -1,5 +1,6 @@
 using System.Reflection;
 using Arts6311.Api.Conventions;
+using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Media.Managers;
@@ -140,6 +141,24 @@ public sealed class ErrorCodeMapTests
         Assert.Equal(
             [ContentErrorCodes.SlugLocked, ContentErrorCodes.SlugTaken, ContentErrorCodes.StatusTransitionInvalid],
             codes);
+        Assert.All(codes, code =>
+        {
+            Assert.Equal(409, ApiProblemDetails.StatusFor(code));
+            Assert.Matches("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$", code);
+        });
+    }
+
+    [Fact]
+    public void EveryCatalogCodeIsAConflict()
+    {
+        // ADR 0037: a SKU another record in the CMS already uses is a state the editor resolves by choosing another.
+        var codes = typeof(CatalogErrorCodes)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal([CatalogErrorCodes.SkuTaken], codes);
         Assert.All(codes, code =>
         {
             Assert.Equal(409, ApiProblemDetails.StatusFor(code));

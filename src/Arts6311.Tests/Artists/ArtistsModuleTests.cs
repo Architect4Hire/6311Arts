@@ -25,6 +25,8 @@ public sealed class ArtistsModuleTests
 {
     private const string Editor = ArtistsTestHost.EditorId;
 
+    private const string Admin = ArtistsTestHost.AdminId;
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -265,16 +267,216 @@ public sealed class ArtistsModuleTests
         Assert.Equal(described, accepted.Value!.PortraitMediaId);
     }
 
-    [Fact(Skip = "Prompt 2.8: publish and unpublish stage site.revalidate-requested in the same save (content.md, ADR 0031). Unskip and implement there.")]
+    [Fact]
     public async Task PublishStagesARevalidationInTheSameSave()
     {
         await using var host = await ArtistsTestHost.CreateAsync(Ct);
         var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
 
-        await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(artist.Id, artist.ETag, Editor, Ct)));
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(artist.Id, artist.ETag, Editor, Ct)));
 
-        var types = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking().Select(message => message.Type).ToListAsync(Ct));
-        Assert.Contains("site.revalidate-requested", types);
+        var messages = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking().ToListAsync(Ct));
+        var message = Assert.Single(messages);
+        Assert.Equal(SiteRevalidateRequested.MessageType, message.Type);
+
+        // The payload names the artist and the address it lives at, and nothing else (ADR 0036).
+        var staged = SiteRevalidateRequested.TryParse(message.PayloadJson)!;
+        Assert.Equal("artist", staged.EntityType);
+        Assert.Equal(artist.Id, staged.EntityId);
+        Assert.Equal([$"/artists/{published.Slug}"], staged.Paths);
+    }
+
+    [Fact]
+    public async Task EveryStatusCommandStagesItsOwnRevalidation()
+    {
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(artist.Id, artist.ETag, Editor, Ct)));
+        var drafted = await Ok(host.WithFacadeAsync(facade => facade.UnpublishAsync(artist.Id, published.ETag, Editor, Ct)));
+        await Ok(host.WithFacadeAsync(facade => facade.ArchiveAsync(artist.Id, drafted.ETag, Admin, Ct)));
+
+        var types = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
+            .Select(message => message.Type).ToListAsync(Ct));
+
+        Assert.Equal(3, types.Count);
+        Assert.All(types, type => Assert.Equal(SiteRevalidateRequested.MessageType, type));
+    }
+
+    [Fact]
+    public async Task AFailedStatusChangeLeavesNeitherTheStatusNorItsRevalidation()
+    {
+        // outbox.md's required atomicity test for the new message type, on a real database.
+        var failAudit = new FailInsertInto("AuditLogs") { Armed = false };
+        await using var host = await ArtistsTestHost.CreateAsync(Ct, failAudit);
+        var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+
+        failAudit.Armed = true;
+        await Assert.ThrowsAnyAsync<Exception>(() => host.WithFacadeAsync(
+            facade => facade.PublishAsync(artist.Id, artist.ETag, Editor, Ct)));
+
+        Assert.Equal(PublishStatus.Draft, (await host.StoredAsync(artist.Id))!.Status);
+        Assert.Equal(0, await host.QueryAsync(context => context.OutboxMessages.CountAsync(Ct)));
+    }
+
+    [Fact]
+    public async Task SchedulingSetsTheTimeAndUnschedulingClearsIt()
+    {
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+        var when = host.Time.GetUtcNow().AddHours(2);
+
+        var scheduled = await Ok(host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            artist.Id, new ContentScheduleViewModel(when), artist.ETag, Editor, Ct)));
+
+        Assert.Equal(PublishStatus.Scheduled, scheduled.Status);
+        Assert.Equal(when, scheduled.ScheduledFor);
+        Assert.Null(scheduled.PublishedAt);
+
+        // Rescheduling a Scheduled artist moves the time rather than being refused as a no-op.
+        var moved = await Ok(host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            artist.Id, new ContentScheduleViewModel(when.AddDays(1)), scheduled.ETag, Editor, Ct)));
+        Assert.Equal(when.AddDays(1), moved.ScheduledFor);
+
+        var drafted = await Ok(host.WithFacadeAsync(facade => facade.UnscheduleAsync(artist.Id, moved.ETag, Editor, Ct)));
+
+        Assert.Equal(PublishStatus.Draft, drafted.Status);
+        Assert.Null(drafted.ScheduledFor);
+        Assert.Equal(
+            ["artist.created", "artist.scheduled", "artist.scheduled", "artist.unscheduled"],
+            await host.AuditActionsAsync());
+    }
+
+    [Fact]
+    public async Task ATimeAlreadyPastIsRefusedOnTheField()
+    {
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+
+        var result = await host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            artist.Id, new ContentScheduleViewModel(host.Time.GetUtcNow().AddMinutes(-1)), artist.ETag, Editor, Ct));
+
+        Assert.Equal(ErrorCodes.ValidationFailed, result.Error!.Code);
+        Assert.Contains("scheduledFor", result.Error.FieldErrors.Keys);
+        Assert.Equal(PublishStatus.Draft, (await host.StoredAsync(artist.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task SchedulingARecordThatCouldNotBePublishedIsRefusedNowRatherThanLater()
+    {
+        // ADR 0036: the publish requirements are checked at schedule too, so a missing alt text is a refusal on
+        // the screen rather than an abandoned schedule at midnight.
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var bare = await host.AddImageAsync(altText: null);
+        var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe", PortraitMediaId: bare));
+
+        var result = await host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            artist.Id, new ContentScheduleViewModel(host.Time.GetUtcNow().AddHours(1)), artist.ETag, Editor, Ct));
+
+        Assert.Equal(ErrorCodes.ValidationFailed, result.Error!.Code);
+        Assert.Contains("portraitMediaId", result.Error.FieldErrors.Keys);
+    }
+
+    [Fact]
+    public async Task SchedulingAPublishedArtistAndUnschedulingADraftAreBothRefused()
+    {
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(artist.Id, artist.ETag, Editor, Ct)));
+        var draft = await CreateAsync(host, new ArtistCreateViewModel("John Doe"));
+
+        var schedulePublished = await host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            artist.Id, new ContentScheduleViewModel(host.Time.GetUtcNow().AddHours(1)), published.ETag, Editor, Ct));
+        var unscheduleDraft = await host.WithFacadeAsync(facade => facade.UnscheduleAsync(draft.Id, draft.ETag, Editor, Ct));
+
+        Assert.Equal(ContentErrorCodes.StatusTransitionInvalid, schedulePublished.Error!.Code);
+        Assert.Equal(ContentErrorCodes.StatusTransitionInvalid, unscheduleDraft.Error!.Code);
+    }
+
+    [Fact]
+    public async Task AStatusCommandWithoutAnIfMatchIsRefusedBeforeAnythingIsRead()
+    {
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+
+        var schedule = await host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            artist.Id, new ContentScheduleViewModel(host.Time.GetUtcNow().AddHours(1)), ifMatch: null, Editor, Ct));
+        var unschedule = await host.WithFacadeAsync(facade => facade.UnscheduleAsync(artist.Id, ifMatch: null, Editor, Ct));
+
+        Assert.Equal(ErrorCodes.PreconditionRequired, schedule.Error!.Code);
+        Assert.Equal(ErrorCodes.PreconditionRequired, unschedule.Error!.Code);
+    }
+
+    [Fact]
+    public async Task TheScheduledPublisherPublishesWhatIsDueAndSkipsWhatIsNot()
+    {
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var due = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+        var later = await CreateAsync(host, new ArtistCreateViewModel("John Doe"));
+        var asOf = host.Time.GetUtcNow();
+        await Ok(host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            due.Id, new ContentScheduleViewModel(asOf.AddMinutes(1)), due.ETag, Editor, Ct)));
+        await Ok(host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            later.Id, new ContentScheduleViewModel(asOf.AddHours(3)), later.ETag, Editor, Ct)));
+
+        // The pass runs at the first artist's time: the second is not due yet.
+        var passTime = asOf.AddMinutes(2);
+        var ids = await host.WithFacadeAsync(facade => facade.ListDueAsync(passTime, 50, Ct));
+        var outcome = await host.WithFacadeAsync(facade => facade.PublishScheduledAsync(due.Id, passTime, Ct));
+        var notDue = await host.WithFacadeAsync(facade => facade.PublishScheduledAsync(later.Id, passTime, Ct));
+
+        Assert.Equal([due.Id], ids);
+        Assert.Equal(ScheduledPublishOutcome.Published, outcome);
+        Assert.Equal(ScheduledPublishOutcome.Skipped, notDue);
+
+        var stored = (await host.StoredAsync(due.Id))!;
+        Assert.Equal(PublishStatus.Published, stored.Status);
+        Assert.Null(stored.ScheduledFor);
+        Assert.Equal(ScheduledPublishPolicy.Actor, stored.UpdatedBy);
+        Assert.Equal(PublishStatus.Scheduled, (await host.StoredAsync(later.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task ADueArtistThatCanNoLongerBePublishedBecomesADraftWithAnAuditRow()
+    {
+        // ADR 0036: rather than retrying every minute for ever with nobody told.
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var described = await host.AddImageAsync("Jane at the wheel");
+        var artist = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe", PortraitMediaId: described));
+        var asOf = host.Time.GetUtcNow();
+        await Ok(host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            artist.Id, new ContentScheduleViewModel(asOf.AddMinutes(1)), artist.ETag, Editor, Ct)));
+
+        // The portrait loses its alt text while the artist waits.
+        await host.ExecuteAsync(async context =>
+        {
+            var asset = await context.Set<MediaAsset>().SingleAsync(image => image.Id == described, Ct);
+            asset.AltText = null;
+            await context.SaveChangesAsync(Ct);
+        });
+
+        var outcome = await host.WithFacadeAsync(facade => facade.PublishScheduledAsync(artist.Id, asOf.AddMinutes(2), Ct));
+
+        Assert.Equal(ScheduledPublishOutcome.Unscheduled, outcome);
+        var stored = (await host.StoredAsync(artist.Id))!;
+        Assert.Equal(PublishStatus.Draft, stored.Status);
+        Assert.Null(stored.ScheduledFor);
+        Assert.Contains("artist.schedule-abandoned", await host.AuditActionsAsync());
+
+        // Giving up is a status change like any other, so it stages its own revalidation in the same save: the
+        // schedule's message and this one (ADR 0036).
+        var staged = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
+            .Where(message => message.Type == SiteRevalidateRequested.MessageType)
+            .Select(message => message.PayloadJson)
+            .ToListAsync(Ct));
+
+        Assert.Equal(2, staged.Count);
+        Assert.All(staged, payload =>
+        {
+            var parsed = SiteRevalidateRequested.TryParse(payload)!;
+            Assert.Equal(("artist", artist.Id), (parsed.EntityType, parsed.EntityId));
+            Assert.Equal(["/artists/jane-doe"], parsed.Paths);
+        });
     }
 
     [Fact]

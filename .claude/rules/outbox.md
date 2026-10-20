@@ -45,7 +45,16 @@ There's no message broker. The outbox table in `ArtsDbContext` *is* the queue, a
 
   Never put content, prices, tokens, card data or email bodies in a payload.
 
-  **The one documented exception:** `redirects.slug-changed` carries the two public paths, plus the rename's time (ADR 0035). A rename's old address is an immutable fact that no reload could recover, and a path is a public URL, not content or anyone's data. Any other exception needs its own ADR.
+  **The two documented exceptions,** both public site paths and nothing else:
+  - `redirects.slug-changed` carries the two paths plus the rename's time (ADR 0035). A rename's old address is an
+    immutable fact that no reload could recover, and a path is a public URL, not content or anyone's data.
+  - `site.revalidate-requested` (`{entityType, entityId, paths}`; written by content modules and Redirects, handled
+    by the kernel's `Managers/Revalidation/`, ADR 0036) carries the paths a change affects (ADR 0036), on the same reasoning: the address a
+    record was published at when the transition committed is not recoverable later, because the next edit may move
+    it. Its `TryParse` rejects anything the cache-tag builders would throw on, so a bad payload is poisoned on its
+    first attempt.
+
+  Any further exception needs its own ADR.
 - **`CorrelationId`** carries the request's correlation id, so one trace runs from CMS save → message → Square call.
 - **Message types are kebab-case `area.event`:**
   - `square.catalog-push-requested`
@@ -90,6 +99,9 @@ There's no message broker. The outbox table in `ArtsDbContext` *is* the queue, a
 - **On the last attempt** (`envelope.Attempt >= OutboxPolicy.MaxAttempts`), a handler records a terminal state the admin can see (for example `SyncStatus = NeedsAttention`) instead of throwing forever.
   - **Exception:** a handler that calls no provider can only fail when the database does, and then a terminal-state write would fail too. It may skip this step, with a remark saying so. The Poisoned message is its visible state.
 - **Handlers live in their module's `Managers/`** and are registered in that module's `ServiceCollectionExtensions` with `TryAddKeyedScoped<IOutboxMessageHandler, THandler>(TEvent.MessageType)`.
+  - A message no module owns is handled in the shared kernel instead, beside what it works on:
+    `email.send-requested` in `Managers/Email/`, `site.revalidate-requested` in `Managers/Revalidation/`. Each has
+    its own `AddArts*` the Worker calls.
 
 ## Inbound webhooks use the same mechanism
 

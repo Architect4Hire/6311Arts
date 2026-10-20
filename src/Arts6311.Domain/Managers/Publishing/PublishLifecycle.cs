@@ -3,12 +3,15 @@ namespace Arts6311.Domain.Managers.Publishing;
 /// <summary>
 /// The transition table every publishable type shares (content.md "Lifecycle"):
 /// <code>
-/// Draft ──publish──▶ Published ──unpublish──▶ Draft
-///   │                    │
-///   └──────archive───────┴──▶ Archived
+/// Draft ──schedule──▶ Scheduled ──publish──▶ Published ──unpublish──▶ Draft
+///   │    ◀─unschedule─────┘           ▲
+///   └──────publish────────────────────┘
+///   └──────archive────────┴───────────┴──▶ Archived
 /// </code>
-/// A Scheduled record may be published (the scheduled publisher, 2.8) or archived. Anything else — publishing what
-/// is already published, leaving Archived — is refused, so a status command never silently does nothing.
+/// A Scheduled record is published by the Worker's scheduled publisher when its time comes (ADR 0036), or by
+/// staff at once; it can also be rescheduled to another time. Anything else — publishing what is already
+/// published, scheduling a published record, leaving Archived — is refused, so a status command never silently
+/// does nothing.
 /// </summary>
 public static class PublishLifecycle
 {
@@ -18,6 +21,11 @@ public static class PublishLifecycle
         (PublishStatus.Draft or PublishStatus.Scheduled, PublishCommand.Publish) => PublishStatus.Published,
         (PublishStatus.Published, PublishCommand.Unpublish) => PublishStatus.Draft,
         (PublishStatus.Draft or PublishStatus.Scheduled or PublishStatus.Published, PublishCommand.Archive) => PublishStatus.Archived,
+
+        // Scheduled → Scheduled is a reschedule: the time changes, so it is a real write, not a no-op. A published
+        // record is unpublished first, which is the decision staff should have to make deliberately.
+        (PublishStatus.Draft or PublishStatus.Scheduled, PublishCommand.Schedule) => PublishStatus.Scheduled,
+        (PublishStatus.Scheduled, PublishCommand.Unschedule) => PublishStatus.Draft,
         _ => null,
     };
 
@@ -27,6 +35,8 @@ public static class PublishLifecycle
         PublishCommand.Publish => "publish",
         PublishCommand.Unpublish => "unpublish",
         PublishCommand.Archive => "archive",
+        PublishCommand.Schedule => "schedule",
+        PublishCommand.Unschedule => "unschedule",
         _ => throw new ArgumentOutOfRangeException(nameof(command)),
     };
 }

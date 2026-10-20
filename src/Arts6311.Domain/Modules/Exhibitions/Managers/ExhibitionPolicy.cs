@@ -1,3 +1,5 @@
+using Arts6311.Domain.Managers.Publishing;
+
 namespace Arts6311.Domain.Modules.Exhibitions.Managers;
 
 /// <summary>Field limits for an exhibition. The admin's form uses the same numbers (<c>EXHIBITION_LIMITS</c>).</summary>
@@ -23,7 +25,7 @@ public static class ExhibitionPolicy
     /// Where a published exhibition lives on the site: its address is this plus its slug. A slug change after publish
     /// redirects the old address to the new one (ADR 0035).
     /// </summary>
-    public const string SitePathPrefix = "/exhibitions/";
+    public const string SitePathPrefix = SitePaths.Exhibitions;
 
     /// <summary>Identity's user id column length, so <c>UpdatedBy</c> can hold any user id.</summary>
     internal const int UserIdMaxLength = 450;

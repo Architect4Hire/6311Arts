@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Paging;
+using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Artists.Managers.ViewModels;
@@ -53,4 +54,32 @@ public interface IArtistsFacade
     /// <summary>Draft or Published → Archived. Admin only at the route (auth.md "Sensitive operations"); audited.</summary>
     Task<OperationResult<ArtistServiceModel>> ArchiveAsync(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Draft or Scheduled → Scheduled, for the Worker to publish when the time comes (ADR 0036). Refusals:
+    /// <c>validation.failed</c> (a time already past, or a portrait that could not be published),
+    /// <c>resource.not_found</c>, <c>concurrency.*</c>, <c>cms.status_transition_invalid</c>.
+    /// </summary>
+    Task<OperationResult<ArtistServiceModel>> ScheduleAsync(
+        Guid id,
+        ContentScheduleViewModel schedule,
+        string? ifMatch,
+        string actorUserId,
+        CancellationToken cancellationToken);
+
+    /// <summary>Scheduled → Draft, with the time cleared.</summary>
+    Task<OperationResult<ArtistServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For the Worker's scheduled publisher (<see cref="IScheduledPublisher"/>): the artists due at
+    /// <paramref name="asOf"/>, oldest first.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For the Worker's scheduled publisher: publishes one due artist, re-read first, claimed by its row version.
+    /// Never throws for an artist that moved on — it reports what happened instead.
+    /// </summary>
+    Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken);
 }

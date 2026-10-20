@@ -18,6 +18,16 @@ public static class Extensions
     private const string HealthEndpointPath = "/health";
     private const string AlivenessEndpointPath = "/alive";
 
+    /// <summary>
+    /// Path segments after which the next segment is a credential, not an identifier, and must not be exported.
+    /// A preview link carries its token in the path (`/preview/{token}`, `/api/v1/site/preview/{token}`), because
+    /// the site's server reads it while rendering and cannot be handed a fragment the way an emailed link is
+    /// (ADR 0029, ADR 0036). Nothing else may be added here without an ADR.
+    /// </summary>
+    private static readonly string[] SecretPathSegments = ["preview"];
+
+    private const string Redacted = "REDACTED";
+
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
         builder.ConfigureOpenTelemetry();
@@ -63,11 +73,17 @@ public static class Extensions
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
                     .AddAspNetCoreInstrumentation(tracing =>
+                    {
                         // Exclude health check requests from tracing
                         tracing.Filter = context =>
                             !context.Request.Path.StartsWithSegments(HealthEndpointPath)
-                            && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath)
-                    )
+                            && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath);
+
+                        // A preview token travels in the path, and a span attribute is exported and kept. The
+                        // segment after /preview/ is replaced before it leaves the process (ADR 0036).
+                        tracing.EnrichWithHttpRequest = (activity, request) =>
+                            activity.SetTag("url.path", RedactSecretSegments(request.Path.Value));
+                    })
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     //.AddGrpcClientInstrumentation()
                     .AddHttpClientInstrumentation();
@@ -95,6 +111,31 @@ public static class Extensions
         //}
 
         return builder;
+    }
+
+    /// <summary>
+    /// <paramref name="path"/> with the segment after any of <see cref="SecretPathSegments"/> replaced, so a
+    /// credential carried in a URL never reaches a trace, a log or the dashboard. Internal for its tests.
+    /// </summary>
+    internal static string? RedactSecretSegments(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return path;
+        }
+
+        var segments = path.Split('/');
+        var redacted = false;
+        for (var i = 1; i < segments.Length - 1; i++)
+        {
+            if (Array.IndexOf(SecretPathSegments, segments[i]) >= 0 && segments[i + 1].Length > 0)
+            {
+                segments[i + 1] = Redacted;
+                redacted = true;
+            }
+        }
+
+        return redacted ? string.Join('/', segments) : path;
     }
 
     public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder

@@ -38,7 +38,8 @@ internal sealed class ExhibitionsFacade(
     IArtistsFacade artists,
     IValidator<ExhibitionCreateViewModel> createValidator,
     IValidator<ExhibitionUpdateViewModel> updateValidator,
-    IValidator<ExhibitionListViewModel> listValidator) : IExhibitionsFacade
+    IValidator<ExhibitionListViewModel> listValidator,
+    IValidator<ContentScheduleViewModel> scheduleValidator) : IExhibitionsFacade
 {
     private const string What = "this exhibition";
 
@@ -121,19 +122,97 @@ internal sealed class ExhibitionsFacade(
             return OperationResult.Failure<ExhibitionServiceModel>(preconditionError);
         }
 
+        var hero = await HeroOfAsync(id, cancellationToken);
+        if (!hero.Succeeded)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(hero.Error!);
+        }
+
+        return await CompleteAsync(
+            await business.TransitionAsync(id, PublishCommand.Publish, ifMatch, hero.Value, actorUserId, cancellationToken),
+            cancellationToken);
+    }
+
+    public async Task<OperationResult<ExhibitionServiceModel>> ScheduleAsync(
+        Guid id,
+        ContentScheduleViewModel schedule,
+        string? ifMatch,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(preconditionError);
+        }
+
+        if (await scheduleValidator.ValidateOrErrorAsync(schedule, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(error);
+        }
+
+        // Scheduling is a publish with a delay, so the hero is vouched for now as well: the same two Business
+        // calls, safe for the same reason — the If-Match covers anything that changed in between (ADR 0031).
+        var hero = await HeroOfAsync(id, cancellationToken);
+        if (!hero.Succeeded)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(hero.Error!);
+        }
+
+        return await CompleteAsync(
+            await business.ScheduleAsync(id, schedule.ScheduledFor, ifMatch, hero.Value, actorUserId, cancellationToken),
+            cancellationToken);
+    }
+
+    public async Task<OperationResult<ExhibitionServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(preconditionError);
+        }
+
+        return await CompleteAsync(
+            await business.UnscheduleAsync(id, ifMatch, actorUserId, cancellationToken), cancellationToken);
+    }
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(take);
+        return business.ListDueAsync(asOf, take, cancellationToken);
+    }
+
+    public async Task<ScheduledPublishOutcome> PublishScheduledAsync(
+        Guid id, DateTimeOffset asOf, CancellationToken cancellationToken)
+    {
+        var hero = await HeroOfAsync(id, cancellationToken);
+        if (hero.Succeeded)
+        {
+            return await business.PublishScheduledAsync(id, asOf, hero.Value, cancellationToken);
+        }
+
+        // Gone since the due list was read: nothing for this pass to do. Anything else — Media unreachable, say —
+        // is a failure the pass logs and counts, not a quiet "nothing due" that would repeat for ever (ADR 0036).
+        return hero.Error!.Code == ErrorCodes.NotFound
+            ? ScheduledPublishOutcome.Skipped
+            : throw new InvalidOperationException(
+                $"Reading exhibition {id} for its scheduled publish failed ({hero.Error.Code}).");
+    }
+
+    /// <summary>
+    /// What Media says about the exhibition's current hero, or <see cref="ExhibitionHeroCheck.None"/> when there is
+    /// none. Business checks the answer is about the hero the exhibition still has.
+    /// </summary>
+    private async Task<OperationResult<ExhibitionHeroCheck>> HeroOfAsync(Guid id, CancellationToken cancellationToken)
+    {
         var current = await business.GetAsync(id, cancellationToken);
         if (!current.Succeeded)
         {
-            return OperationResult.Failure<ExhibitionServiceModel>(current.Error!);
+            return OperationResult.Failure<ExhibitionHeroCheck>(current.Error!);
         }
 
-        var hero = current.Value!.HeroMediaId is { } heroId
+        return OperationResult.Success(current.Value!.HeroMediaId is { } heroId
             ? await AskMediaAsync(heroId, cancellationToken)
-            : ExhibitionHeroCheck.None;
-
-        return await CompleteAsync(
-            await business.TransitionAsync(id, PublishCommand.Publish, ifMatch, hero, actorUserId, cancellationToken),
-            cancellationToken);
+            : ExhibitionHeroCheck.None);
     }
 
     public Task<OperationResult<ExhibitionServiceModel>> UnpublishAsync(

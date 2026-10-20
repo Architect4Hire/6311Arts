@@ -25,11 +25,11 @@ Square is the system of record for money. The CMS is the system of record for co
 | CMS-owned → pushed on every content push | Square holds the record → pulled into projections | CMS *requests* a change (command → outbox) |
 |---|---|---|
 | Name, description, artist, categories, images, publish/archive state | Price | Artwork and class session price: **change price** (compare-and-set) |
-| **SKU** (per `ShopItem`, per `ClassSession`; unique in the CMS) | Stock, seats remaining, sold-out | Artwork quantity: **set quantity** (`PHYSICAL_COUNT` dated to the request) |
+| **SKU** (per `ShopItem`, per `ClassSession`; unique across the CMS through the kernel's `CatalogSkus` registry, ADR 0037) | Stock, seats remaining, sold-out | Artwork quantity: **set quantity** (`PHYSICAL_COUNT` dated to the request) |
 | Class details, session dates/times, **session capacity** | Orders, payments, refunds, taxes, customers, cards, subscriptions, member status | Capacity change → seat `ADJUSTMENT` by the difference |
 | Membership plan name/description/perks | Plan pricing and billing cadence after creation | — (ADR 0005 still applies to plans) |
 
-- **Before the first sync,** the starting price, quantity and capacity are draft fields, and the first push creates the Square objects with them. After the item is linked, they're frozen.
+- **Before the first sync,** the starting price, quantity and capacity are draft fields, and the first push creates the Square objects with them. After the item is linked, they're frozen. Until `SquareCatalogLink` exists (5.1), "linked" is read from the projections themselves: a record whose price Square has reported is past its first sync (`startingPriceEditable`, ADR 0037).
 - **Square-owned projection columns** (`PriceCents`, `StockOnHand`, `SeatsRemaining`, `SoldOut`, plan price/cadence) are written only by the inbound pull through the `SquareSync` facade. A command never writes them, and the content push and the content hash never include price or stock.
 - **Every command** is a `SquareChangeRequest` row (`Pending` / `Applied` / `Rejected` / `NeedsAttention`) plus one outbox message in the same save. It requires `CmsEditor`, an `Idempotency-Key`, and an audit row.
 - **Change price** carries `expectedPriceCents`. If Square's current price differs, the request is `Rejected`. Never overwrite a price someone else set.

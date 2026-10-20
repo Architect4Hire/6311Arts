@@ -28,7 +28,8 @@ internal sealed class PagesFacade(
     IHtmlSanitizer sanitizer,
     IValidator<PageCreateViewModel> createValidator,
     IValidator<PageUpdateViewModel> updateValidator,
-    IValidator<PageListViewModel> listValidator) : IPagesFacade
+    IValidator<PageListViewModel> listValidator,
+    IValidator<ContentScheduleViewModel> scheduleValidator) : IPagesFacade
 {
     private const string What = "this page";
 
@@ -86,6 +87,48 @@ internal sealed class PagesFacade(
     public Task<OperationResult<PageServiceModel>> ArchiveAsync(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
         TransitionAsync(id, PublishCommand.Archive, ifMatch, actorUserId, cancellationToken);
+
+    public async Task<OperationResult<PageServiceModel>> ScheduleAsync(
+        Guid id,
+        ContentScheduleViewModel schedule,
+        string? ifMatch,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<PageServiceModel>(preconditionError);
+        }
+
+        if (await scheduleValidator.ValidateOrErrorAsync(schedule, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<PageServiceModel>(error);
+        }
+
+        // Media is not asked: a page's pictures were vouched for when its body was saved, and their Restrict
+        // references have kept them in the library since (ADR 0034).
+        return await business.ScheduleAsync(id, schedule.ScheduledFor, ifMatch, actorUserId, cancellationToken);
+    }
+
+    public async Task<OperationResult<PageServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<PageServiceModel>(preconditionError);
+        }
+
+        return await business.UnscheduleAsync(id, ifMatch, actorUserId, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(take);
+        return business.ListDueAsync(asOf, take, cancellationToken);
+    }
+
+    public Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken) =>
+        business.PublishScheduledAsync(id, asOf, cancellationToken);
 
     /// <summary>A status command. Without If-Match it is a 428 before anything is read.</summary>
     private async Task<OperationResult<PageServiceModel>> TransitionAsync(

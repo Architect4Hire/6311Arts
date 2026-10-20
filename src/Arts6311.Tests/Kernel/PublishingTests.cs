@@ -21,6 +21,17 @@ public sealed class PublishingTests
         { PublishStatus.Archived, PublishCommand.Publish, null },
         { PublishStatus.Archived, PublishCommand.Unpublish, null },
         { PublishStatus.Archived, PublishCommand.Archive, null },
+
+        // The scheduling commands (ADR 0036). A Scheduled record may be rescheduled, which is a real write: its
+        // time changes. A Published one is unpublished first, deliberately.
+        { PublishStatus.Draft, PublishCommand.Schedule, PublishStatus.Scheduled },
+        { PublishStatus.Draft, PublishCommand.Unschedule, null },
+        { PublishStatus.Scheduled, PublishCommand.Schedule, PublishStatus.Scheduled },
+        { PublishStatus.Scheduled, PublishCommand.Unschedule, PublishStatus.Draft },
+        { PublishStatus.Published, PublishCommand.Schedule, null },
+        { PublishStatus.Published, PublishCommand.Unschedule, null },
+        { PublishStatus.Archived, PublishCommand.Schedule, null },
+        { PublishStatus.Archived, PublishCommand.Unschedule, null },
     };
 
     [Theory]

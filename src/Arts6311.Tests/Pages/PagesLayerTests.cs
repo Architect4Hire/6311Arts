@@ -43,7 +43,10 @@ public sealed class PagesLayerTests
         await dataLayer.CreateAsync(NewPage(), "editor-1", "Created as Draft.", Ct);
         await dataLayer.TransitionAsync(NewPage(PublishStatus.Archived), PublishCommand.Archive, PublishStatus.Draft, "admin-1", Ct);
 
-        Assert.Equal(["add", "audit:page.created", "save", "audit:page.archived", "save"], log.Calls);
+        // The transition's revalidation is staged before its audit row and both before its one save (ADR 0036).
+        Assert.Equal(
+            ["add", "audit:page.created", "save", "outbox:site.revalidate-requested", "audit:page.archived", "save"],
+            log.Calls);
         Assert.Equal(("status:Draft", "status:Archived"), (audit.Entries[^1].BeforeReference, audit.Entries[^1].AfterReference));
         Assert.Single(repository.Rows);
     }
@@ -261,7 +264,8 @@ public sealed class PagesLayerTests
         var business = new RecordingPagesBusiness();
         var media = new FakeMediaFacade();
         var facade = new PagesFacade(
-            business, media, new AllowListHtmlSanitizer(), new PageCreateValidator(), new PageUpdateValidator(), new PageListValidator());
+            business, media, new AllowListHtmlSanitizer(), new PageCreateValidator(), new PageUpdateValidator(),
+            new PageListValidator(), new ContentScheduleValidator());
         return (facade, business, media);
     }
 
@@ -288,6 +292,19 @@ public sealed class PagesLayerTests
         public Task<List<PageSummaryServiceModel>> ListAsync(
             PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
             Task.FromResult(new List<PageSummaryServiceModel>());
+
+        public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
+        {
+            log.Add("list-due");
+            return Task.FromResult<IReadOnlyList<Guid>>(
+            [
+                .. Rows
+                    .Where(row => row.Status == PublishStatus.Scheduled && row.ScheduledFor is { } when && when <= asOf)
+                    .OrderBy(row => row.ScheduledFor)
+                    .Take(take)
+                    .Select(row => row.Id),
+            ]);
+        }
 
         public void DiscardChanges() => log.Add("discard");
 
@@ -351,6 +368,26 @@ public sealed class PagesLayerTests
             return Task.FromResult(PageWriteOutcome.Saved);
         }
 
+        public (PublishStatus From, string Reason)? LastAbandon { get; private set; }
+
+        public Task<PageWriteOutcome> AbandonScheduleAsync(
+            Page page, PublishStatus from, string reason, CancellationToken cancellationToken)
+        {
+            Writes.Add("abandon-schedule");
+            LastAbandon = (from, reason);
+            return Task.FromResult(PageWriteOutcome.Saved);
+        }
+
+        public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Guid>>(
+            [
+                .. rows.Values
+                    .Where(row => row.Status == PublishStatus.Scheduled && row.ScheduledFor is { } when && when <= asOf)
+                    .OrderBy(row => row.ScheduledFor)
+                    .Take(take)
+                    .Select(row => row.Id),
+            ]);
+
         public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(rows.Values.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
 
@@ -408,5 +445,38 @@ public sealed class PagesLayerTests
 
         public Task<int> SeedAsync(IReadOnlyList<PagePlaceholder> placeholders, string actor, CancellationToken cancellationToken) =>
             Task.FromResult(0);
+
+        public DateTimeOffset? LastScheduledFor { get; private set; }
+
+        public Task<OperationResult<PageServiceModel>> ScheduleAsync(
+            Guid id, DateTimeOffset scheduledFor, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+        {
+            Calls.Add("schedule");
+            LastScheduledFor = scheduledFor;
+            return Task.FromResult(OperationResult.Success(Page));
+        }
+
+        public Task<OperationResult<PageServiceModel>> UnscheduleAsync(
+            Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+        {
+            Calls.Add("unschedule");
+            return Task.FromResult(OperationResult.Success(Page));
+        }
+
+        public IReadOnlyList<Guid> Due { get; set; } = [];
+
+        public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
+        {
+            Calls.Add("list-due");
+            return Task.FromResult(Due);
+        }
+
+        public ScheduledPublishOutcome ScheduledOutcome { get; set; } = ScheduledPublishOutcome.Published;
+
+        public Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken)
+        {
+            Calls.Add("publish-scheduled");
+            return Task.FromResult(ScheduledOutcome);
+        }
     }
 }

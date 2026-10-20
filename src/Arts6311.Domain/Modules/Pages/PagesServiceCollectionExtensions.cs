@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Persistence;
+using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Pages.Business;
 using Arts6311.Domain.Modules.Pages.Data;
 using Arts6311.Domain.Modules.Pages.Data.Repositories;
@@ -19,6 +20,11 @@ public static class PagesServiceCollectionExtensions
     {
         services.TryAddScoped<IPagesFacade, PagesFacade>();
         AddBusinessAndBelow(services);
+
+        // One of several IScheduledPublisher implementations, so TryAddEnumerable: the Worker resolves them all,
+        // and registering this module twice still leaves one (ADR 0036).
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IScheduledPublisher, PageScheduledPublisher>());
+
         return services;
     }
 

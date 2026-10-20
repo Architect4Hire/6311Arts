@@ -1,3 +1,5 @@
+using Arts6311.Domain.Managers.Publishing;
+
 namespace Arts6311.Domain.Modules.Pages.Managers;
 
 /// <summary>Field limits for a page. The admin's form uses the same numbers (<c>PAGE_LIMITS</c>).</summary>
@@ -24,7 +26,7 @@ public static class PagePolicy
     /// Where a published page lives on the site: its address is this plus its slug. A slug change after publish
     /// redirects the old address to the new one (ADR 0035).
     /// </summary>
-    public const string SitePathPrefix = "/";
+    public const string SitePathPrefix = SitePaths.Pages;
 
     /// <summary>
     /// Slugs a page can't have: a page lives at <c>/{slug}</c>, so these would sit on an address the gateway, staff

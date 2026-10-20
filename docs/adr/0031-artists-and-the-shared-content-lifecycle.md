@@ -14,7 +14,7 @@
 Prompt 2.4 builds the first CMS content type, `Artist`, with `add-content-entity` and `add-endpoint`. The rules
 it follows assume pieces that arrive in later prompts:
 
-- `site.revalidate-requested` and the scheduled publisher arrive in 2.8.
+- `site.revalidate-requested` and the scheduled publisher arrived in 2.8 (ADR 0036).
 - The HTML sanitizer arrives in 2.6.
 - Redirects, which a slug change after publish creates, arrive in 2.7.
 - Site reads of artists arrive in 3.1.
@@ -53,10 +53,10 @@ they can share.
 4. **The bio is plain text** (up to 5,000 characters, with line breaks normalised to `\n`) until the sanitizer
    lands in 2.6. Storing HTML before there is anything to sanitize it would break `content.md`.
 5. **No outbox message in 2.4.** Nothing outside the CMS reads or caches artists before 3.1, so a commit has no
-   effect to pass on. 2.8 adds `site.revalidate-requested` to `ArtistsDataLayer.TransitionAsync`. It also decides
-   ADR 0030's "Publishing an image", for which we recommend option 1: `media.publish-requested` staged by
-   publish. Until then a published artist's portrait stays `Draft` in Media, which no anonymous request can see
-   before Phase 3.
+   effect to pass on. 2.8 added `site.revalidate-requested` to `ArtistsDataLayer.TransitionAsync` (ADR 0036). It
+   left ADR 0030's "Publishing an image" open, now owned by 3.1; the recommendation stands (option 1:
+   `media.publish-requested` staged by publish). Until then a published artist's portrait stays `Draft` in Media,
+   which no anonymous request can see before Phase 3.
 6. **The portrait goes through Media's facade.** Artists declares a `Restrict` foreign key to `MediaAsset.Id`, so
    Media's delete guard finds it without naming the module.
    - On create and edit, `ArtistsFacade` asks `IMediaFacade.CheckAttachableAsync`. A missing original is a field
@@ -73,7 +73,7 @@ they can share.
      save on the foreign key (500, data intact). Cleared alt text publishes the artist with an image that has lost
      its alt text. Both need two staff acting on the same image within milliseconds. Closing the window would need
      Media to refuse clearing alt text on an image used by published content, which belongs with the
-     image-publishing hand-off in 2.8.
+     image-publishing hand-off, which 3.1 now owns (ADR 0036).
 7. **No DELETE route.** The prompt's routes don't include one, and archive is how an artist is retired.
 8. **Development seed.** `ArtistDevelopmentSeeder` (MigrationService, Development only) hands the spike's 51
    artists to `IArtistsBusiness.SeedAsync`. Business decides what is seeded (Published, no portraits, only slugs
@@ -98,8 +98,9 @@ they can share.
 - 2.5–2.11 reuse `PublishLifecycle`, `Slugs`, `EntityTag.Verify` and `ContentErrorCodes`. Each still writes its
   own Business rules and audit vocabulary.
 - 2.7 must relax `cms.slug_locked` to "create a Redirect" in Artists, and in each type built by then.
-- 2.8 must add revalidation (and the portrait hand-off) to the Artists DataLayer's transitions.
-  `ArtistsModuleTests.PublishStagesARevalidationInTheSameSave` is written and skipped; 2.8 removes the skip.
+- 2.8 added revalidation to the Artists DataLayer's transitions and unskipped
+  `ArtistsModuleTests.PublishStagesARevalidationInTheSameSave` (ADR 0036). The portrait hand-off is still open and
+  belongs to 3.1.
 - `Bio` is `nvarchar(max)` in SQL Server (5,000 is beyond `nvarchar`'s 4,000 limit), with the length enforced by
   the validator.
 - A portrait deleted in the instant between the facade's check and the save fails the save on the foreign key and

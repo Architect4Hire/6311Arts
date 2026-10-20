@@ -31,6 +31,28 @@ internal interface IPagesBusiness
         Guid id, PublishCommand command, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Draft or Scheduled → Scheduled for <paramref name="scheduledFor"/>. Refusals: <c>concurrency.*</c>,
+    /// <c>cms.status_transition_invalid</c>, and <c>validation.failed</c> for a time already past or a body
+    /// publishing would refuse (ADR 0036). Its own method, because <c>schedule</c> carries a body.
+    /// </summary>
+    Task<OperationResult<PageServiceModel>> ScheduleAsync(
+        Guid id, DateTimeOffset scheduledFor, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>Scheduled → Draft, with the time cleared.</summary>
+    Task<OperationResult<PageServiceModel>> UnscheduleAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>The pages due to be published at <paramref name="asOf"/>, for the Worker's scheduled publisher.</summary>
+    Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Publishes one due page on the scheduled publisher's behalf, re-reading it first: the row version is the
+    /// claim, so two Workers acting on one page produce one publish and one
+    /// <see cref="ScheduledPublishOutcome.Lost"/>.
+    /// </summary>
+    Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken);
+
+    /// <summary>
     /// The placeholder pages: adds each, as a Draft, whose slug is not in use yet. Returns how many were added. Never
     /// touches an existing row, so the real policy a staff member wrote survives every rerun.
     /// </summary>

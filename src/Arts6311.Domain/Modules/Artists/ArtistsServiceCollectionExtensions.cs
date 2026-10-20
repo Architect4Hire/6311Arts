@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Persistence;
+using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Artists.Business;
 using Arts6311.Domain.Modules.Artists.Data;
 using Arts6311.Domain.Modules.Artists.Data.Repositories;
@@ -21,6 +22,10 @@ public static class ArtistsServiceCollectionExtensions
         services.TryAddScoped<IArtistsBusiness, ArtistsBusiness>();
         services.TryAddScoped<IArtistsDataLayer, ArtistsDataLayer>();
         services.TryAddScoped<IArtistsRepository, ArtistsRepository>();
+
+        // One of several IScheduledPublisher implementations, so TryAddEnumerable: the Worker resolves them all,
+        // and registering this module twice still leaves one (ADR 0036).
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IScheduledPublisher, ArtistScheduledPublisher>());
 
         return services;
     }

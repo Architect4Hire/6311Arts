@@ -1,5 +1,15 @@
-/** Where a staff sign-in goes when nothing (or nothing safe) asked for anywhere else. */
-export const DEFAULT_RETURN_URL = '/admin/';
+/**
+ * Where a sign-in goes when nothing (or nothing safe) asked for anywhere else: the home page.
+ *
+ * The gateway always writes `returnUrl` from the gated path it turned away (ADR 0024), so someone sent here from
+ * `/admin/artists` still lands back on `/admin/artists`. This is the other arrival — the footer's "Staff sign-in",
+ * where no particular screen was asked for — and the site's own front door is the honest answer for it. The CMS is
+ * then one click away in the footer (`StaffAccess`), in a new tab.
+ */
+export const DEFAULT_RETURN_URL = '/';
+
+/** The CMS's base href. It is another app on this origin, so every link to it is a full navigation. */
+export const CMS_HOME = '/admin/';
 
 /** A throwaway origin to resolve against: anything that resolves elsewhere was trying to leave this site. */
 const PROBE_ORIGIN = 'https://signin.invalid';
@@ -47,7 +57,7 @@ export function safeReturnUrl(raw: unknown): string {
   }
 
   // The CMS is served under /admin/ (its base href); the bare prefix is the same place.
-  const pathname = url.pathname === '/admin' ? '/admin/' : url.pathname;
+  const pathname = url.pathname === '/admin' ? CMS_HOME : url.pathname;
   return pathname + url.search + url.hash;
 }
 

@@ -89,6 +89,8 @@ const COMMAND_LABELS: Readonly<
   publish: { busy: 'Publishing…', done: 'Published.' },
   unpublish: { busy: 'Unpublishing…', done: 'Unpublished. The artist is a draft again.' },
   archive: { busy: 'Archiving…', done: 'Archived.' },
+  schedule: { busy: 'Scheduling…', done: 'Scheduled.' },
+  unschedule: { busy: 'Unscheduling…', done: 'Unscheduled. The artist is a draft again.' },
 };
 
 /**
@@ -99,6 +101,9 @@ const COMMAND_LABELS: Readonly<
  * shows the saved version beside the editor's own so neither is lost. Status commands act on the saved version, so
  * they wait until the form is saved.
  */
+import { PreviewLinkButton } from '../../shared/preview-link';
+import { ScheduleControl } from '../../shared/schedule-control';
+
 @Component({
   selector: 'cms-artist-editor',
   imports: [
@@ -110,6 +115,8 @@ const COMMAND_LABELS: Readonly<
     UiField,
     UiNotice,
     UiStatusChip,
+    PreviewLinkButton,
+    ScheduleControl,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -418,6 +425,18 @@ const COMMAND_LABELS: Readonly<
                     </button>
                   }
                 </div>
+
+                <cms-schedule-control
+                  noun="artist"
+                  [status]="artist.status"
+                  [scheduledFor]="artist.scheduledFor"
+                  [disabled]="dirty() || busy()"
+                  [busy]="commanding()"
+                  (schedule)="schedule($event)"
+                  (unschedule)="unschedule()"
+                />
+
+                <cms-preview-link entityType="artist" [entityId]="artist.id" [dirty]="dirty()" />
               </section>
             }
           </aside>
@@ -836,6 +855,32 @@ export class ArtistEditor implements HasUnsavedChanges {
       cancelLabel: 'Keep them',
     });
     if (confirmed) await this.run('archive');
+  }
+
+  /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */
+  protected async schedule(scheduledFor: string): Promise<void> {
+    const artist = this.artist();
+    if (!artist || this.busy() || this.dirty()) return;
+
+    this.errors.set({});
+    this.formError.set(null);
+    this.status.set({ kind: 'commanding', command: 'schedule' });
+    this.announce(COMMAND_LABELS.schedule.busy);
+    try {
+      const updated = await firstValueFrom(
+        this.artists.schedule(artist.id, scheduledFor, artist.etag),
+      );
+      this.artist.set(updated);
+      this.draft.set(draftOf(updated));
+      this.status.set({ kind: 'ready' });
+      this.announce(COMMAND_LABELS.schedule.done);
+    } catch (error: unknown) {
+      await this.commandFailed(error);
+    }
+  }
+
+  protected async unschedule(): Promise<void> {
+    await this.run('unschedule');
   }
 
   protected async run(command: ArtistCommand): Promise<void> {

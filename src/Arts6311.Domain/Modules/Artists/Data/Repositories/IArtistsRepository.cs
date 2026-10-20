@@ -27,6 +27,13 @@ internal interface IArtistsRepository
     /// <summary>The artists with these slugs, projected to list rows, in no particular order.</summary>
     Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The ids of artists Scheduled for <paramref name="asOf"/> or earlier, oldest first, at most
+    /// <paramref name="take"/>: the Worker's scheduled-publish pass (ADR 0036). Ids only, because the pass reads
+    /// each artist again before it acts on it.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
+
     /// <summary>Throws away every unsaved change, after a save that failed, so the next save starts clean.</summary>
     void DiscardChanges();
 

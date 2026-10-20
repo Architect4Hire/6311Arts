@@ -12,7 +12,7 @@ paths:
 ```text
 sql (AddAzureSqlServer → RunAsContainer locally, Azure SQL when published) ─ appdb
   ├─> migrations (run-once: apply EF migrations + seed) ─completed─> api, worker
-cache (Redis container locally; ADR decides Azure) ─> gateway (session tickets), api (HybridCache L2)
+cache (Redis container locally; ADR decides Azure) ─> gateway (session tickets), api + worker (HybridCache L2, ADR 0036)
 storage (AddAzureStorage → RunAsEmulator/Azurite locally) ─ blobs: media, dataprotection ─> api, worker
 mail (Mailpit locally; Azure Communication Services when published) ─> worker
 squarefake (run mode, square-mode=fake) ─> api, worker
@@ -32,7 +32,8 @@ Stable logical names: `sql`, `appdb`, `cache`, `storage`, `blobs`, `mail`, `squa
 
 - `migrations` waits for `appdb` and **completes** before `api` and `worker` start (`WaitForCompletion`).
 - `api` waits for `appdb`, `cache` and `blobs`.
-- `worker` waits for `appdb`, `blobs` and `mail`.
+- `worker` waits for `appdb`, `cache`, `blobs` and `mail`. It shares the API's HybridCache L2 because that is the
+  only path from a revalidation it dispatches to the API's cached pages (ADR 0036).
 - `gateway` waits for `api`, `site`, `admin` and `cache`.
 - `site` and `admin` share `src/web`: each waits for its Aspire installer, and `admin-installer` waits for `site-installer` so two installs never run in one `node_modules`. Installs pass `--no-save` and never rewrite `package-lock.json` (ADR 0027).
 - Use `WaitFor` and health checks. No sleeps.

@@ -48,12 +48,15 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0027](0027-admin-shell-and-staff-sign-in-page.md) | CMS shell + staff sign-in page on the site | Accepted; self-hosted fonts DECIDE before launch; amended by 0030 |
 | [0028](0028-password-reset-and-email-confirmation-routes.md) | Password reset + email confirmation routes; the reset-request timing oracle | Accepted; amended by 0029 |
 | [0029](0029-emailed-link-pages-and-confirmation-resend.md) | Emailed-link pages on the site; asking for a new confirmation link | Accepted |
-| [0030](0030-media-library-compressed-masters-and-renditions.md) | Media library: SkiaSharp, compressed masters, metadata allow-list, content-addressed renditions | Accepted; publishing an image is DECIDE (owned by 2.8, see 0031) |
+| [0030](0030-media-library-compressed-masters-and-renditions.md) | Media library: SkiaSharp, compressed masters, metadata allow-list, content-addressed renditions | Accepted; publishing an image is DECIDE (owned by 3.1, see 0036) |
 | [0031](0031-artists-and-the-shared-content-lifecycle.md) | Artists + the shared content lifecycle: status commands, slug lock, row-version tags, deferred effects | Accepted |
 | [0032](0032-website-items-managed-from-the-cms.md) | Website items managed from the CMS (SKU, price and quantity commands); merch stays in Square POS | Accepted |
 | [0033](0033-exhibitions-and-cross-module-artist-credits.md) | Exhibitions: artist credits facade to facade, calendar dates and UTC reception times, the content seed in MigrationService | Accepted |
 | [0034](0034-html-sanitizer-and-pages.md) | The shared HTML sanitizer (HtmlSanitizer 9.2, allow-list, library-only images) and Pages; Tiptap 3 in the admin; placeholder pages everywhere | Accepted |
-| [0035](0035-redirects-and-slug-changes.md) | Redirects: one hop, slug changes through the outbox (paths in the payload), a 5-minute site cache until 2.8, a SlugChange source | Accepted |
+| [0035](0035-redirects-and-slug-changes.md) | Redirects: one hop, slug changes through the outbox (paths in the payload), a 5-minute site cache until 2.8, a SlugChange source | Accepted; the cache is now cleared by 0036 |
+| [0036](0036-revalidation-scheduled-publishing-and-previews.md) | Revalidation by cache tag through a shared Redis L2 (≤1 minute stale), the row-version-claimed scheduled publisher, Data Protection preview links, the Preview module | Accepted; media visibility still DECIDE, now owned by 3.1 |
+| [0037](0037-classes-and-the-shared-catalog-sku-registry.md) | Classes: the shared catalog SKU registry, session-level Square projections, sanitized class bodies | Accepted |
+| [0038](0038-shop-items-artwork-categories-and-one-of-a-kind.md) | Shop items: artwork only, a category allow-list, an ordered gallery, the one-of-a-kind freeze | Accepted |
 
 ## Template
 

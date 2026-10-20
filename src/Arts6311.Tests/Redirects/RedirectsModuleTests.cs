@@ -7,6 +7,7 @@ using Arts6311.Domain.Modules.Redirects.Data.Entities;
 using Arts6311.Domain.Modules.Redirects.Managers;
 using Arts6311.Domain.Modules.Redirects.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Redirects.Managers.ViewModels;
+using Arts6311.Tests.Media.Infrastructure;
 using Arts6311.Tests.Redirects.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,19 @@ public sealed class RedirectsModuleTests
     private static readonly DateTimeOffset T3 = T1.AddDays(2);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    /// <summary>Every <c>site.revalidate-requested</c> staged so far, oldest first, parsed.</summary>
+    private static async Task<List<SiteRevalidateRequested>> StagedAsync(RedirectsTestHost host)
+    {
+        var rows = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
+            .Where(message => message.Type == SiteRevalidateRequested.MessageType)
+            .OrderBy(message => message.CreatedAt)
+            .ThenBy(message => message.Id)
+            .Select(message => message.PayloadJson)
+            .ToListAsync());
+
+        return [.. rows.Select(payload => SiteRevalidateRequested.TryParse(payload)!)];
+    }
 
     // ---- Staff writes ----
 
@@ -107,6 +121,64 @@ public sealed class RedirectsModuleTests
 
         Assert.Equal(RedirectErrorCodes.LoopOrChain, throughFragment.Error!.Code);
         Assert.Equal(RedirectSource.Manual, external.Source);
+    }
+
+    [Fact]
+    public async Task EveryStaffWriteStagesOneRevalidationNamingBothEndsOfTheHop()
+    {
+        await using var host = await RedirectsTestHost.CreateAsync(Ct);
+
+        var created = await CreateAsync(host, new RedirectCreateViewModel("/gallery", "/exhibitions"));
+        var updated = await Ok(host.WithFacadeAsync(facade => facade.UpdateAsync(
+            created.Id, new RedirectUpdateViewModel(ToPath: "/artists"), created.ETag, Admin, Ct)));
+        var deleted = await host.WithFacadeAsync(facade => facade.DeleteAsync(created.Id, updated.ETag, Admin, Ct));
+        Assert.True(deleted.Succeeded);
+
+        var staged = await StagedAsync(host);
+
+        Assert.Equal(3, staged.Count);
+        Assert.All(staged, message => Assert.Equal("redirect", message.EntityType));
+        Assert.All(staged, message => Assert.Equal(created.Id, message.EntityId));
+
+        // The create names the hop it made; the edit and the delete name the hop as it then stood. All three
+        // commit in the same save as their write, and the clock does not move between them, so they are compared
+        // as a set.
+        Assert.Equal(
+            ["/gallery,/artists", "/gallery,/artists", "/gallery,/exhibitions"],
+            staged.Select(message => string.Join(',', message.Paths)).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task AnAddressACacheTagCannotHoldIsLeftOutRatherThanPoisoningTheMessage()
+    {
+        // RedirectPaths keeps a query, so an old address may hold a ':' that CacheTags.SitePath refuses, and an
+        // external destination is not a site path at all. Either one in the payload would poison the message and
+        // clear nothing; the type tag still clears the site's list (ADR 0036).
+        await using var host = await RedirectsTestHost.CreateAsync(Ct);
+
+        var withQuery = await CreateAsync(host, new RedirectCreateViewModel("/old?at=10:30", "/exhibitions"));
+        var external = await CreateAsync(host, new RedirectCreateViewModel("/press", "https://example.org/press"));
+
+        var staged = await StagedAsync(host);
+
+        // The query is dropped — a tag would never match it — and the external destination is left out entirely.
+        Assert.Equal(["/old", "/exhibitions"], staged.Single(message => message.EntityId == withQuery.Id).Paths);
+        Assert.Equal(["/press"], staged.Single(message => message.EntityId == external.Id).Paths);
+    }
+
+    [Fact]
+    public async Task AFailedRedirectWriteLeavesNeitherTheRowNorItsRevalidation()
+    {
+        // outbox.md's atomicity test for this module's staging path: the row and the message commit together.
+        var failAudit = new FailInsertInto("AuditLogs");
+        await using var host = await RedirectsTestHost.CreateAsync(Ct, failAudit);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => host.WithFacadeAsync(
+            facade => facade.CreateAsync(new RedirectCreateViewModel("/gallery", "/exhibitions"), Admin, Ct)));
+
+        Assert.True(failAudit.Fired);
+        Assert.Empty(await host.TableAsync());
+        Assert.Equal(0, await host.QueryAsync(context => context.OutboxMessages.CountAsync(Ct)));
     }
 
     [Fact]
@@ -260,8 +332,23 @@ public sealed class RedirectsModuleTests
         await host.DispatchAsync(Ct);
 
         Assert.Equal(["/artists/jane-doe → /artists/jane-q-doe"], await host.TableAsync());
-        var message = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking().SingleAsync(Ct));
+
+        // The rename's own message. The publish and the rename each staged a site.revalidate-requested as well,
+        // and those are delivered by the same pass (ADR 0036).
+        var message = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
+            .SingleAsync(row => row.Type == RedirectSlugChanged.MessageType, Ct));
         Assert.Equal(OutboxMessageStatus.Completed, message.Status);
+        // Three messages in all, and the pass left no failure behind: the publish's revalidation and the rename's
+        // slug change are delivered, and the redirect the handler wrote staged a revalidation of its own, which
+        // the next pass delivers (ADR 0036).
+        var all = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
+            .OrderBy(row => row.CreatedAt).ThenBy(row => row.Id).ToListAsync(Ct));
+
+        Assert.Equal(3, all.Count);
+        Assert.Equal(2, all.Count(row => row.Status == OutboxMessageStatus.Completed));
+        var pending = Assert.Single(all, row => row.Status == OutboxMessageStatus.Pending);
+        Assert.Equal(SiteRevalidateRequested.MessageType, pending.Type);
+        Assert.All(all, row => Assert.Null(row.LastError));
     }
 
     [Fact]

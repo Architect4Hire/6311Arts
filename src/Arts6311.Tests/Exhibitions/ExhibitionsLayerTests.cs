@@ -68,7 +68,10 @@ public sealed class ExhibitionsLayerTests
         await dataLayer.CreateAsync(new FakeExhibitionsDataLayer().Add(), "editor-1", Ct);
         await dataLayer.TransitionAsync(exhibition, PublishCommand.Archive, PublishStatus.Published, "admin-1", Ct);
 
-        Assert.Equal(["add", "audit:exhibition.created", "save", "audit:exhibition.archived", "save"], log.Calls);
+        // The transition's revalidation is staged before its audit row and both before its one save (ADR 0036).
+        Assert.Equal(
+            ["add", "audit:exhibition.created", "save", "outbox:site.revalidate-requested", "audit:exhibition.archived", "save"],
+            log.Calls);
         var archived = audit.Entries[^1];
         Assert.Equal(("status:Published", "status:Archived"), (archived.BeforeReference, archived.AfterReference));
     }
@@ -431,7 +434,8 @@ public sealed class ExhibitionsLayerTests
         var media = new FakeMediaFacade();
         var artists = new FakeArtistsFacade();
         var facade = new ExhibitionsFacade(
-            business, media, artists, new ExhibitionCreateValidator(), new ExhibitionUpdateValidator(), new ExhibitionListValidator());
+            business, media, artists, new ExhibitionCreateValidator(), new ExhibitionUpdateValidator(),
+            new ExhibitionListValidator(), new ContentScheduleValidator());
         return (facade, business, media, artists);
     }
 }
