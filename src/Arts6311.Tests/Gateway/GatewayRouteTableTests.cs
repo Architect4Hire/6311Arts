@@ -19,6 +19,7 @@ public sealed class GatewayRouteTableTests : IDisposable
     [InlineData("webhooks-square", "api", "/webhooks/square")]
     [InlineData("media", "api", "/media/{**rest}")]
     [InlineData("cms", "api", "/api/v1/cms/{**rest}")]
+    [InlineData("cms-media-upload", "api", "/api/v1/cms/media")]
     [InlineData("api", "api", "/api/{**rest}")]
     [InlineData("admin", "admin", "/admin/{**rest}")]
     [InlineData("site", "site", "/{**rest}")]
@@ -35,7 +36,7 @@ public sealed class GatewayRouteTableTests : IDisposable
     {
         // An extra route is as much a problem as a missing one: it is public surface nobody reviewed.
         Assert.Equal(
-            ["admin", "api", "cms", "media", "site", "webhooks-square"],
+            ["admin", "api", "cms", "cms-media-upload", "media", "site", "webhooks-square"],
             Config().Routes.Select(route => route.RouteId).Order(StringComparer.Ordinal));
     }
 
@@ -51,9 +52,31 @@ public sealed class GatewayRouteTableTests : IDisposable
         Assert.Equal(RateLimitExtensions.Policies.Webhooks, route.RateLimiterPolicy);
     }
 
+    [Fact]
+    public void TheMediaUploadRouteIsAPostWithTheUploadLimit()
+    {
+        // gateway.md "Uploads are streamed": the one CMS route allowed a large body, sized from the same constant
+        // the API's RequestSizeLimit uses, so the two cannot drift apart. Everything else under /api/v1/cms/** keeps
+        // the server default.
+        var route = Route("cms-media-upload");
+
+        Assert.Equal(["POST"], route.Match.Methods);
+        Assert.Equal(Arts6311.Domain.Modules.Media.Managers.MediaPolicy.MaxUploadRequestBytes, route.MaxRequestBodySize);
+        Assert.Equal(GatewayPolicies.CmsEditor, route.AuthorizationPolicy);
+        Assert.Equal(RateLimitExtensions.Policies.Api, route.RateLimiterPolicy);
+    }
+
+    [Fact]
+    public void MediaDeliveryIsReadOnly()
+    {
+        // /media/** serves bytes and nothing else; there is no write behind it to reach.
+        Assert.Equal(["GET", "HEAD"], Route("media").Match.Methods);
+    }
+
     [Theory]
     [InlineData("admin")]
     [InlineData("cms")]
+    [InlineData("cms-media-upload")]
     public void TheCmsSurfaceNeedsAnEditorSession(string routeId)
     {
         // gateway.md: "/admin/** and /api/v1/cms/** need a CmsEditor session". Declared on the route, so the

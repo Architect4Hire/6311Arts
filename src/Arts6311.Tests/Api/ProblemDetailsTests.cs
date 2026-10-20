@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Arts6311.Api.Conventions;
 using Arts6311.Domain.Managers.Correlation;
+using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Tests.Api.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
@@ -49,11 +50,12 @@ public sealed class ProblemDetailsTests
     [Fact]
     public void AProblemCarriesTheCodeAndCorrelationId()
     {
-        var problem = ApiProblemDetails.From(OperationError.Of("cms.slug_taken", "That slug is in use."), KnownCorrelationId);
+        var problem = ApiProblemDetails.From(OperationError.Of(ContentErrorCodes.SlugTaken, "That slug is in use."), KnownCorrelationId);
 
-        Assert.Equal(400, problem.Status);
+        // Declared 409 since Artists (2.4); the status follows the code.
+        Assert.Equal(409, problem.Status);
         Assert.Equal("That slug is in use.", problem.Detail);
-        Assert.Equal("cms.slug_taken", problem.Extensions["code"]);
+        Assert.Equal(ContentErrorCodes.SlugTaken, problem.Extensions["code"]);
         Assert.Equal(KnownCorrelationId.ToString("N"), problem.Extensions["correlationId"]);
     }
 

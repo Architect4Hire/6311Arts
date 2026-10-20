@@ -180,6 +180,20 @@ public sealed class IdentityApiClientTests
             () => Client(refused).RequestPasswordResetAsync("ada@example.test", Ct));
     }
 
+    [Fact]
+    public async Task AConfirmationRequestPutsTheAddressInTheBodyAndTreatsAnythingButA202AsNoAnswer()
+    {
+        using var accepted = new RecordingHandler(new HttpResponseMessage(HttpStatusCode.Accepted));
+        await Client(accepted).RequestEmailConfirmationAsync("ada@example.test", Ct);
+        Assert.Equal(
+            "api/v1/internal/identity/email-confirmation", accepted.Request!.RequestUri!.AbsolutePath.TrimStart('/'));
+        Assert.Contains("ada@example.test", accepted.Body!, StringComparison.Ordinal);
+
+        using var refused = new RecordingHandler(new HttpResponseMessage(HttpStatusCode.BadRequest));
+        await Assert.ThrowsAsync<IdentityApiException>(
+            () => Client(refused).RequestEmailConfirmationAsync("ada@example.test", Ct));
+    }
+
     private static IdentityApiClient Client(RecordingHandler handler)
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);

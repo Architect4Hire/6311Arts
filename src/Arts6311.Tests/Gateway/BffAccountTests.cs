@@ -12,8 +12,8 @@ using Microsoft.Extensions.Logging;
 namespace Arts6311.Tests.Gateway;
 
 /// <summary>
-/// <c>/bff/forgot-password</c>, <c>/bff/reset-password</c> and <c>/bff/confirm-email</c> (auth.md, ADR 0028): what
-/// the browser is told, and what it is never told.
+/// <c>/bff/forgot-password</c>, <c>/bff/resend-confirmation</c>, <c>/bff/reset-password</c> and
+/// <c>/bff/confirm-email</c> (auth.md, ADR 0028, 0029): what the browser is told, and what it is never told.
 /// </summary>
 public sealed class BffAccountTests : IDisposable
 {
@@ -128,7 +128,7 @@ public sealed class BffAccountTests : IDisposable
         var key = Assert.Single(gateway.Sessions.Keys);
         Assert.StartsWith("6311:password-reset-cooldown:", key, StringComparison.Ordinal);
         Assert.DoesNotContain("ada", key, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(PasswordResetRequests.CooldownKey("ada@example.test"), key);
+        Assert.Equal(AccountEmailRequests.CooldownKey(AccountEmailKind.PasswordReset, "ada@example.test"), key);
     }
 
     [Fact]
@@ -170,19 +170,63 @@ public sealed class BffAccountTests : IDisposable
         Assert.Equal("ada@example.test", await gateway.Identity.NextResetRequestAsync());
     }
 
+    [Fact]
+    public async Task AResendIsAnsweredExactlyAsAResetRequestIsAndReachesTheApi()
+    {
+        // ADR 0029: the same shape as forgot-password, so it says nothing about whether the address is registered or
+        // already confirmed. The gateway cannot know either, and answers before the API is asked.
+        using var browser = gateway.CreateBffClient();
+
+        using var forgot = await ForgotAsync(browser, "ada@example.test");
+        using var resend = await ResendAsync(browser, "grace@example.test");
+
+        Assert.Equal(HttpStatusCode.Accepted, resend.StatusCode);
+        Assert.Equal("no-store", resend.Headers.CacheControl?.ToString());
+        Assert.Equal(await DescribeAsync(forgot), await DescribeAsync(resend));
+        Assert.Equal("grace@example.test", await gateway.Identity.NextConfirmationRequestAsync());
+    }
+
+    [Fact]
+    public async Task EachKindHasItsOwnCooldown()
+    {
+        // A reset request must not hold back a confirmation for the same address, or the other way round; each is
+        // still limited to one per window, for every spelling Identity would match.
+        using var browser = gateway.CreateBffClient();
+
+        (await ForgotAsync(browser, "ada@example.test")).Dispose();
+        (await ResendAsync(browser, "ada@example.test")).Dispose();
+        (await ResendAsync(browser, "Ada@Example.TEST")).Dispose();
+        (await ResendAsync(browser, "last@example.test")).Dispose();
+
+        Assert.Equal("ada@example.test", await gateway.Identity.NextResetRequestAsync());
+        Assert.Equal("ada@example.test", await gateway.Identity.NextConfirmationRequestAsync());
+        Assert.Equal("last@example.test", await gateway.Identity.NextConfirmationRequestAsync());
+        Assert.Equal(2, gateway.Identity.ConfirmationRequests.Count);
+
+        Assert.Contains(
+            AccountEmailRequests.CooldownKey(AccountEmailKind.EmailConfirmation, "ada@example.test"),
+            gateway.Sessions.Keys);
+        Assert.Contains(
+            AccountEmailRequests.CooldownKey(AccountEmailKind.PasswordReset, "ada@example.test"),
+            gateway.Sessions.Keys);
+    }
+
     [Theory]
-    [InlineData("")]
-    [InlineData(" ")]
-    [InlineData(null)]
-    public async Task AMissingAddressIs400(string? email)
+    [InlineData("/bff/forgot-password", "")]
+    [InlineData("/bff/forgot-password", " ")]
+    [InlineData("/bff/forgot-password", null)]
+    [InlineData("/bff/resend-confirmation", "")]
+    [InlineData("/bff/resend-confirmation", null)]
+    public async Task AMissingAddressIs400(string route, string? email)
     {
         using var browser = gateway.CreateBffClient();
 
-        using var response = await browser.PostAsync("/bff/forgot-password", new { email });
+        using var response = await browser.PostAsync(route, new { email });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(GatewayProblem.Codes.ValidationFailed, (await ProblemAsync(response)).Code);
         Assert.Empty(gateway.Identity.ResetRequests);
+        Assert.Empty(gateway.Identity.ConfirmationRequests);
     }
 
     [Fact]
@@ -222,6 +266,7 @@ public sealed class BffAccountTests : IDisposable
 
     [Theory]
     [InlineData("/bff/forgot-password")]
+    [InlineData("/bff/resend-confirmation")]
     [InlineData("/bff/reset-password")]
     [InlineData("/bff/confirm-email")]
     public async Task EachRouteRefusesARequestWithoutAntiforgery(string route)
@@ -236,25 +281,28 @@ public sealed class BffAccountTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(GatewayProblem.Codes.AntiforgeryRequired, (await ProblemAsync(response)).Code);
         Assert.Empty(gateway.Identity.ResetRequests);
+        Assert.Empty(gateway.Identity.ConfirmationRequests);
         Assert.Equal(0, gateway.Identity.ResetCompletions);
         Assert.Equal(0, gateway.Identity.Confirmations);
     }
 
     [Fact]
-    public async Task TheThreeRoutesShareARateLimitThatSignInDoesNot()
+    public async Task TheFourRoutesShareARateLimitThatSignInDoesNot()
     {
         using var limited = new GatewayFactory()
-            .With("Gateway:RateLimits:bff-account:PermitLimit", "2")
+            .With("Gateway:RateLimits:bff-account:PermitLimit", "3")
             .With("Gateway:RateLimits:bff-account:Window", "00:05:00");
         using var browser = limited.CreateBffClient();
 
         using var first = await ForgotAsync(browser, "ada@example.test");
         using var second = await ConfirmAsync(browser);
-        using var third = await ResetAsync(browser);
+        using var third = await ResendAsync(browser, "ada@example.test");
+        using var fourth = await ResetAsync(browser);
 
         Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
-        Assert.Equal(HttpStatusCode.TooManyRequests, third.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, third.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, fourth.StatusCode);
         Assert.Equal(0, limited.Identity.ResetCompletions);
 
         // A flood of reset requests must not spend the sign-in budget.
@@ -398,6 +446,8 @@ public sealed class BffAccountTests : IDisposable
 
         (await ForgotAsync(browser, "ada.lovelace@example.test")).Dispose();
         Assert.Equal("ada.lovelace@example.test", await gateway.Identity.NextResetRequestAsync());
+        (await ResendAsync(browser, "ada.byron@example.test")).Dispose();
+        Assert.Equal("ada.byron@example.test", await gateway.Identity.NextConfirmationRequestAsync());
         (await ResetAsync(browser)).Dispose();
         (await ConfirmAsync(browser)).Dispose();
 
@@ -412,11 +462,15 @@ public sealed class BffAccountTests : IDisposable
         Assert.DoesNotContain(LinkToken, text, StringComparison.Ordinal);
         Assert.DoesNotContain(NewPhrase, text, StringComparison.Ordinal);
         Assert.DoesNotContain("lovelace", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("byron", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("hopper", text, StringComparison.OrdinalIgnoreCase);
     }
 
     private static Task<HttpResponseMessage> ForgotAsync(BffClient browser, string email) =>
         browser.PostAsync("/bff/forgot-password", new { email });
+
+    private static Task<HttpResponseMessage> ResendAsync(BffClient browser, string email) =>
+        browser.PostAsync("/bff/resend-confirmation", new { email });
 
     private static Task<HttpResponseMessage> ResetAsync(BffClient browser) =>
         browser.PostAsync("/bff/reset-password", new { userId = "user-1", token = LinkToken, newPassword = NewPhrase });

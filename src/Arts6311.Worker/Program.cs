@@ -6,6 +6,7 @@ using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
+using Arts6311.Domain.Modules.Media;
 using Arts6311.Domain.Modules.Operations;
 using Arts6311.Worker;
 using Arts6311.Worker.Email;
@@ -34,6 +35,9 @@ builder.Services.AddOperationsModule();
 // both must share it or every emailed link fails (ADR 0023).
 builder.AddAzureBlobServiceClient("blobs");
 builder.Services.AddArtsDataProtection(DataProtectionApplicationName.Value);
+
+// The media.rendition-requested and media.purge-requested handlers, and the image library they use (ADR 0030).
+builder.Services.AddMediaModule();
 
 // The token provider is added by the host, not the module: it lives in the ASP.NET Core framework assembly, which
 // the Domain deliberately does not reference.

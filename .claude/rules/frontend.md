@@ -37,6 +37,9 @@ paths:
 - **XSRF** is Angular's own interceptor via `withXsrfConfiguration({ cookieName: '__Host-6311.csrf', headerName: 'X-XSRF-TOKEN' })`. It runs before every `withInterceptors` function, so an interceptor that retries a write sets the header itself (ADR 0027).
 - **Leaving an app** (site → CMS, CMS → `/signin`) is a full navigation through an injectable (`BrowserNavigation`, `BrowserLocation`), never `window.location` in a component, so tests can see it.
 - **`?returnUrl`** is untrusted: read it only through the site's `safeReturnUrl` (ADR 0027).
+- **Emailed-link credentials** (`#userId=…&token=…`) are taken out of the address bar by `captureLinkFragment` in
+  `main.ts`, before bootstrap, and handed to the page once through `LinkFragment`. Never read `location.hash` for
+  them in a component, and never keep them anywhere but a private field (ADR 0029).
 
 ## Site (SSR) — keep what the spike got right
 
@@ -60,7 +63,9 @@ paths:
 - **Unsaved edits** survive recoverable errors and warn on navigation.
 - **Square-owned values** (price, stock or seats, sold-out) show as read-only, with "Managed in Square" and the sync status chip.
 - **A 409 conflict** shows both versions and keeps the editor's changes.
-- **The shell** (2.2, ADR 0027): `SessionService` (signal, memory only), `sessionGuard` on the shell, `roleGuard(...)` per section (Sync is Admin-only), `unsavedChangesGuard` + `warnBeforeUnload` on editors, and the problem interceptor's toasts. A screen that shows a failure in place sets `SUPPRESS_PROBLEM_TOAST`. A new section is an entry in `features/layout/sections.ts`; its prompt swaps the placeholder `loadComponent`.
+- **The shell** (2.2, ADR 0027): `SessionService` (signal, memory only), `sessionGuard` on the shell, `roleGuard(...)` per section (Sync is Admin-only), `unsavedChangesGuard` + `warnBeforeUnload` on editors, and the problem interceptor's toasts. A screen that shows a failure in place sets `SUPPRESS_PROBLEM_TOAST`. A new section is an entry in `features/layout/sections.ts`; its prompt swaps the placeholder `loadComponent`. A record's editor (`artists/new`, `artists/:id`) is an entry in `DETAIL_ROUTES` in `app.routes.ts`, which gives it the section's roles and the unsaved-changes guard.
+- **HTTP backend.** The CMS uses Angular's default XHR backend, not `withFetch()`, because fetch can't report upload progress (ADR 0030). The site keeps `withFetch()`.
+- **Media.** `features/media/` holds the library, uploader, editor, and `MediaPicker` (`<cms-media-picker [(open)] (picked)>`) for any editor that needs an image.
 - **Dev servers** run without live reload: the gateway does not carry Vite's websocket. Refresh to see a change (ADR 0027).
 
 ## Verification

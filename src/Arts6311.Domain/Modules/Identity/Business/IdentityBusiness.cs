@@ -21,6 +21,8 @@ internal interface IIdentityBusiness
 
     Task RequestEmailConfirmationAsync(string userId, CancellationToken cancellationToken);
 
+    Task ResendEmailConfirmationAsync(string email, CancellationToken cancellationToken);
+
     Task<EmailTokenServiceModel?> GetPasswordResetTokenAsync(string userId, CancellationToken cancellationToken);
 
     Task<EmailTokenServiceModel?> GetEmailConfirmationTokenAsync(string userId, CancellationToken cancellationToken);
@@ -182,6 +184,26 @@ internal sealed class IdentityBusiness(IIdentityDataLayer dataLayer) : IIdentity
             IdentityEmailKinds.EmailConfirmation,
             IdentityAudit.EmailConfirmationRequested,
             "Email confirmation requested.",
+            cancellationToken);
+    }
+
+    public async Task ResendEmailConfirmationAsync(string email, CancellationToken cancellationToken)
+    {
+        var user = await dataLayer.FindByEmailAsync(email, cancellationToken);
+
+        // Nothing staged and nothing recorded for an address we do not hold, or one that is already confirmed: the
+        // caller is told the same either way, so the form cannot test whether an address is registered or whether
+        // it has been confirmed (ADR 0029). An already-confirmed person who lands here can simply sign in.
+        if (user is null || user.EmailConfirmed)
+        {
+            return;
+        }
+
+        await dataLayer.RequestEmailAsync(
+            user.Id,
+            IdentityEmailKinds.EmailConfirmation,
+            IdentityAudit.EmailConfirmationRequested,
+            "Email confirmation resent at the account holder's request.",
             cancellationToken);
     }
 

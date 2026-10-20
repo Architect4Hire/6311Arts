@@ -6,6 +6,8 @@ import { ConfirmService } from '../confirm/confirm.service';
 /** An editor screen that can hold work nobody has saved yet (frontend.md, Admin). */
 export interface HasUnsavedChanges {
   hasUnsavedChanges(): boolean;
+  /** What is at stake, when it is not edits — uploads still running, say. Defaults to unsaved edits. */
+  unsavedChangesMessage?(): string;
 }
 
 /**
@@ -17,7 +19,9 @@ export const unsavedChangesGuard: CanDeactivateFn<HasUnsavedChanges> = (componen
 
   return inject(ConfirmService).confirm({
     heading: 'Discard unsaved changes?',
-    message: 'You have edits on this screen that haven’t been saved. Leaving now loses them.',
+    message:
+      component.unsavedChangesMessage?.() ??
+      'You have edits on this screen that haven’t been saved. Leaving now loses them.',
     confirmLabel: 'Discard changes',
     cancelLabel: 'Keep editing',
   });

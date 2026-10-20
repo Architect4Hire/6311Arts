@@ -22,6 +22,8 @@ internal sealed class FakeIdentityFacade : IIdentityFacade
 
     public PasswordResetRequestViewModel? ResetRequest { get; private set; }
 
+    public EmailConfirmationRequestViewModel? ConfirmationRequest { get; private set; }
+
     public PasswordResetCompletionViewModel? ResetCompletion { get; private set; }
 
     public EmailConfirmationCompletionViewModel? Confirmation { get; private set; }
@@ -72,6 +74,13 @@ internal sealed class FakeIdentityFacade : IIdentityFacade
 
     public Task<OperationResult> RequestEmailConfirmationAsync(
         string userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult> ResendEmailConfirmationAsync(
+        EmailConfirmationRequestViewModel request, CancellationToken cancellationToken)
+    {
+        ConfirmationRequest = request;
+        return Task.FromResult(Outcome());
+    }
 
     public Task<EmailTokenServiceModel?> GetPasswordResetTokenAsync(
         string userId, CancellationToken cancellationToken) => throw new NotSupportedException();

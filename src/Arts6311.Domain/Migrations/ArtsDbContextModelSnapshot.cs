@@ -233,6 +233,83 @@ namespace Arts6311.Domain.Migrations
                     b.ToTable("OutboxMessages", (string)null);
                 });
 
+            modelBuilder.Entity("Arts6311.Domain.Modules.Artists.Data.Entities.Artist", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Bio")
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long?>("LegacyWordPressId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Medium")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("PortraitMediaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ScheduledFor")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("varchar(120)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LegacyWordPressId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Artists_LegacyWordPressId")
+                        .HasFilter("[LegacyWordPressId] IS NOT NULL");
+
+                    b.HasIndex("PortraitMediaId");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Artists_Slug");
+
+                    b.HasIndex("Name", "Id")
+                        .HasDatabaseName("IX_Artists_Name_Id");
+
+                    b.HasIndex("Status", "Name", "Id")
+                        .HasDatabaseName("IX_Artists_Status_Name_Id");
+
+                    b.ToTable("Artists", (string)null);
+                });
+
             modelBuilder.Entity("Arts6311.Domain.Modules.Identity.Data.Entities.ArtsRole", b =>
                 {
                     b.Property<string>("Id")
@@ -331,6 +408,103 @@ namespace Arts6311.Domain.Migrations
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
                     b.ToTable("AspNetUsers", (string)null);
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Media.Data.Entities.MediaAsset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AltText")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("BlobKey")
+                        .IsRequired()
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<long>("Bytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Checksum")
+                        .IsRequired()
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<int>("CompressionPreset")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Credit")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<Guid?>("ParentAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ProcessingStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProfileHash")
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<string>("RenditionName")
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<long?>("UploadedBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Visibility")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Checksum", "Kind")
+                        .HasDatabaseName("IX_MediaAssets_Checksum_Kind");
+
+                    b.HasIndex("ParentAssetId", "RenditionName")
+                        .IsUnique()
+                        .HasDatabaseName("IX_MediaAssets_ParentAssetId_RenditionName")
+                        .HasFilter("[ParentAssetId] IS NOT NULL AND [RenditionName] IS NOT NULL");
+
+                    b.HasIndex("Kind", "UploadedAt", "Id")
+                        .HasDatabaseName("IX_MediaAssets_Kind_UploadedAt_Id");
+
+                    b.ToTable("MediaAssets", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -437,6 +611,22 @@ namespace Arts6311.Domain.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Artists.Data.Entities.Artist", b =>
+                {
+                    b.HasOne("Arts6311.Domain.Modules.Media.Data.Entities.MediaAsset", null)
+                        .WithMany()
+                        .HasForeignKey("PortraitMediaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Media.Data.Entities.MediaAsset", b =>
+                {
+                    b.HasOne("Arts6311.Domain.Modules.Media.Data.Entities.MediaAsset", null)
+                        .WithMany()
+                        .HasForeignKey("ParentAssetId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

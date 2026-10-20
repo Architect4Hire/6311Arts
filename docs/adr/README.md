@@ -45,8 +45,11 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0024](0024-bff-session-tickets-and-edge-antiforgery.md) | BFF session tickets + antiforgery at the edge | Accepted |
 | [0025](0025-ui-library-tokens-and-primitives.md) | `@6311/ui`: tokens, global styles and shared primitives | Accepted |
 | [0026](0026-https-gateway-in-run-mode-and-the-platform-checkpoint.md) | HTTPS gateway in run mode, hermetic E2E checkpoint, CI | Accepted; forwarded-header trust owed by 6.1 |
-| [0027](0027-admin-shell-and-staff-sign-in-page.md) | CMS shell + staff sign-in page on the site | Accepted; self-hosted fonts DECIDE before launch |
-| [0028](0028-password-reset-and-email-confirmation-routes.md) | Password reset + email confirmation routes; the reset-request timing oracle | Accepted |
+| [0027](0027-admin-shell-and-staff-sign-in-page.md) | CMS shell + staff sign-in page on the site | Accepted; self-hosted fonts DECIDE before launch; amended by 0030 |
+| [0028](0028-password-reset-and-email-confirmation-routes.md) | Password reset + email confirmation routes; the reset-request timing oracle | Accepted; amended by 0029 |
+| [0029](0029-emailed-link-pages-and-confirmation-resend.md) | Emailed-link pages on the site; asking for a new confirmation link | Accepted |
+| [0030](0030-media-library-compressed-masters-and-renditions.md) | Media library: SkiaSharp, compressed masters, metadata allow-list, content-addressed renditions | Accepted; publishing an image is DECIDE (owned by 2.8, see 0031) |
+| [0031](0031-artists-and-the-shared-content-lifecycle.md) | Artists + the shared content lifecycle: status commands, slug lock, row-version tags, deferred effects | Accepted |
 
 ## Template
 

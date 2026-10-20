@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Outbox.Events;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Modules.Identity.Managers;
@@ -8,7 +9,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Arts6311.Tests.Identity;
 
 /// <summary>
-/// Confirming an address with an emailed link (auth.md, ADR 0028), against real Identity.
+/// Confirming an address with an emailed link, and asking for a new one (auth.md, ADR 0028, 0029), against real
+/// Identity.
 /// </summary>
 public sealed class EmailConfirmationTests
 {
@@ -115,6 +117,79 @@ public sealed class EmailConfirmationTests
         var result = await ConfirmAsync(host, "user", string.Empty);
 
         Assert.Equal(ErrorCodes.ValidationFailed, result.Error!.Code);
+    }
+
+    [Fact]
+    public async Task ANewLinkIsStagedForAnUnconfirmedAddress()
+    {
+        // The way back for someone whose link expired: ask by address (ADR 0029). The message carries the user id
+        // and kind only; the composer mints the token at send time.
+        await using var host = await IdentityTestHost.CreateAsync(Ct);
+        var user = await host.CreateUserAsync("e@6311arts.test", Passphrase, emailConfirmed: false, IdentityRoles.Editor);
+
+        var result = await ResendAsync(host, "E@6311arts.TEST");
+        Assert.True(result.Succeeded, result.Error?.Code);
+
+        using var scope = host.CreateScope();
+        var context = IdentityTestHost.Resolve<ArtsDbContext>(scope);
+        var message = await context.OutboxMessages.SingleAsync(Ct);
+        Assert.Equal(EmailSendRequested.MessageType, message.Type);
+        Assert.Equal(
+            new EmailSendRequested(IdentityEmailKinds.EmailConfirmation, user.Id),
+            EmailSendRequested.TryParse(message.PayloadJson));
+        Assert.DoesNotContain("@", message.PayloadJson, StringComparison.Ordinal);
+
+        var audit = await context.AuditLogs.SingleAsync(Ct);
+        Assert.Equal(IdentityAudit.EmailConfirmationRequested, audit.Action);
+        Assert.DoesNotContain("@", audit.Summary, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("nobody@6311arts.test")]
+    [InlineData("done@6311arts.test")]
+    public async Task AnUnknownOrAlreadyConfirmedAddressGetsTheSameSuccessAndWritesNothing(string email)
+    {
+        // Neither an unknown address nor a confirmed one may be told apart from the one above, and an
+        // unauthenticated caller must not be able to grow the audit or outbox tables by asking (ADR 0023, 0029).
+        await using var host = await IdentityTestHost.CreateAsync(Ct);
+        await host.CreateUserAsync("done@6311arts.test", Passphrase, emailConfirmed: true, IdentityRoles.Member);
+
+        var result = await ResendAsync(host, email);
+        Assert.True(result.Succeeded);
+
+        using var scope = host.CreateScope();
+        var context = IdentityTestHost.Resolve<ArtsDbContext>(scope);
+        Assert.Empty(await context.OutboxMessages.ToListAsync(Ct));
+        Assert.Empty(await context.AuditLogs.ToListAsync(Ct));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task AMissingAddressIsAValidationFailure(string email)
+    {
+        await using var host = await IdentityTestHost.CreateAsync(Ct);
+
+        var result = await ResendAsync(host, email);
+
+        Assert.Equal(ErrorCodes.ValidationFailed, result.Error!.Code);
+    }
+
+    [Fact]
+    public async Task AnOversizedAddressIsAValidationFailure()
+    {
+        await using var host = await IdentityTestHost.CreateAsync(Ct);
+
+        var result = await ResendAsync(host, new string('a', 250) + "@x.test");
+
+        Assert.Equal(ErrorCodes.ValidationFailed, result.Error!.Code);
+    }
+
+    private static async Task<OperationResult> ResendAsync(IdentityTestHost host, string email)
+    {
+        using var scope = host.CreateScope();
+        return await IdentityTestHost.Facade(scope)
+            .ResendEmailConfirmationAsync(new EmailConfirmationRequestViewModel(email), Ct);
     }
 
     private static async Task<OperationResult> ConfirmAsync(IdentityTestHost host, string userId, string token)

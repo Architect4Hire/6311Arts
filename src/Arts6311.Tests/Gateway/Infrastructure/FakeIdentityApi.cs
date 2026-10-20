@@ -115,6 +115,29 @@ internal sealed class FakeIdentityApi : IIdentityApiClient
         return await resetRequested.Reader.ReadAsync(timeout.Token);
     }
 
+    /// <summary>Every address the dispatcher passed on for a new confirmation link, in order.</summary>
+    public ConcurrentQueue<string> ConfirmationRequests { get; } = new();
+
+    private readonly Channel<string> confirmationRequested = Channel.CreateUnbounded<string>();
+
+    public Task RequestEmailConfirmationAsync(string email, CancellationToken cancellationToken)
+    {
+        ConfirmationRequests.Enqueue(email);
+        confirmationRequested.Writer.TryWrite(email);
+        ThrowIfUnavailable();
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>The next address the dispatcher passes on for a confirmation link.</summary>
+    public async Task<string> NextConfirmationRequestAsync()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+
+        return await confirmationRequested.Reader.ReadAsync(timeout.Token);
+    }
+
     public Task<AccountLinkResult> CompletePasswordResetAsync(
         string userId, string token, string newPassword, CancellationToken cancellationToken)
     {

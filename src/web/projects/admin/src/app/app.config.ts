@@ -1,9 +1,4 @@
-import {
-  provideHttpClient,
-  withFetch,
-  withInterceptors,
-  withXsrfConfiguration,
-} from '@angular/common/http';
+import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 import {
   ApplicationConfig,
   Injectable,
@@ -38,8 +33,9 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withComponentInputBinding()),
     { provide: TitleStrategy, useClass: CmsTitleStrategy },
+    // The default XHR backend, not withFetch(): fetch cannot report upload progress, and the media uploader shows it
+    // (ADR 0030). The CMS is client-rendered only, so fetch's SSR advantages never applied here.
     provideHttpClient(
-      withFetch(),
       // Angular's own XSRF interceptor, pointed at the gateway's pair (ADR 0024). It adds the header to unsafe,
       // relative requests only, so the token never travels to another origin.
       withXsrfConfiguration({ cookieName: XSRF_COOKIE_NAME, headerName: XSRF_HEADER_NAME }),

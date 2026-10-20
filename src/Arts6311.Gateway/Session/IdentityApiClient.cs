@@ -29,6 +29,7 @@ internal sealed partial class IdentityApiClient(
     private const string Validate = "api/v1/internal/sessions/validate";
     private const string Revoke = "api/v1/internal/sessions/revoke";
     private const string PasswordReset = "api/v1/internal/identity/password-reset";
+    private const string EmailConfirmation = "api/v1/internal/identity/email-confirmation";
     private const string PasswordResetComplete = "api/v1/internal/identity/password-reset/complete";
     private const string EmailConfirmationComplete = "api/v1/internal/identity/email-confirmation/complete";
 
@@ -104,6 +105,17 @@ internal sealed partial class IdentityApiClient(
         if (response.StatusCode != HttpStatusCode.Accepted)
         {
             throw new IdentityApiException($"The password reset route answered {(int)response.StatusCode}.");
+        }
+    }
+
+    public async Task RequestEmailConfirmationAsync(string email, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(EmailConfirmation, new { email }, cancellationToken);
+
+        // 202 for every address, registered, unknown or already confirmed alike.
+        if (response.StatusCode != HttpStatusCode.Accepted)
+        {
+            throw new IdentityApiException($"The email confirmation route answered {(int)response.StatusCode}.");
         }
     }
 

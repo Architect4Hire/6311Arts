@@ -8,8 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace Arts6311.Api.Controllers.Internal;
 
 /// <summary>
-/// What the gateway calls behind <c>/bff/forgot-password</c>, <c>/bff/reset-password</c> and
-/// <c>/bff/confirm-email</c> (auth.md, ADR 0028).
+/// What the gateway calls behind <c>/bff/forgot-password</c>, <c>/bff/resend-confirmation</c>,
+/// <c>/bff/reset-password</c> and <c>/bff/confirm-email</c> (auth.md, ADR 0028, 0029).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -55,6 +55,19 @@ public sealed class InternalIdentityController(IIdentityFacade facade) : Control
     public async Task<IActionResult> CompletePasswordResetAsync(
         [FromBody] PasswordResetCompletionViewModel request, CancellationToken cancellationToken) =>
         this.ToNoContentResult(await facade.ResetPasswordAsync(request, cancellationToken));
+
+    /// <summary>
+    /// Stages a new confirmation email if the address is registered and not yet confirmed. <c>202</c> whatever the
+    /// address is; only a malformed body is refused (ADR 0029).
+    /// </summary>
+    [HttpPost("email-confirmation")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ResendEmailConfirmationAsync(
+        [FromBody] EmailConfirmationRequestViewModel request, CancellationToken cancellationToken) =>
+        this.ToAcceptedResult(await facade.ResendEmailConfirmationAsync(request, cancellationToken));
 
     /// <summary>Confirms an address with the emailed link's user id and token. Works once.</summary>
     [HttpPost("email-confirmation/complete")]

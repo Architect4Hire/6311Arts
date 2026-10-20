@@ -3,15 +3,21 @@ using Arts6311.Api.Conventions;
 using Arts6311.Domain.Managers;
 using Arts6311.Domain.Managers.Idempotency;
 using Arts6311.Domain.Managers.Persistence;
+using Arts6311.Domain.Modules.Artists;
 using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
+using Arts6311.Domain.Modules.Media;
 using Arts6311.Domain.Modules.Operations;
 using Microsoft.AspNetCore.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+
+// Kestrel:Limits from appsettings.json: 1 MiB for every request body, raised only where a route says so (YARP's
+// MaxRequestBodySize, [RequestSizeLimit]). Kestrel does not bind its limits from configuration by itself (ADR 0030).
+builder.WebHost.ConfigureKestrel(kestrel => builder.Configuration.GetSection("Kestrel:Limits").Bind(kestrel.Limits));
 
 builder.AddSqlServerDbContext<ArtsDbContext>(
     ArtsDbContext.ConnectionName, configureDbContextOptions: ArtsDbContextOptions.Configure);
@@ -23,6 +29,12 @@ builder.Services.AddOperationsModule();
 // email; this host is where the link is validated, so a separate ring would fail every one (ADR 0023).
 builder.AddAzureBlobServiceClient("blobs");
 builder.Services.AddArtsDataProtection(DataProtectionApplicationName.Value);
+
+// The media library and /media/** delivery, on the same "blobs" client: the `media` container (media.md).
+builder.Services.AddMediaModule();
+
+// The artist roster (content.md). Its facade asks Media about portraits, so it comes after AddMediaModule.
+builder.Services.AddArtistsModule();
 
 // The credential store (ADR 0002). AddIdentityCore only: no cookie scheme and no SignInManager, because the
 // gateway owns the browser session and the API takes no cookies at all.

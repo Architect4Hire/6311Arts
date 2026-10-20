@@ -129,7 +129,7 @@ public sealed class SessionContractTests
 
         Assert.Equal(
             new UpperInvariantLookupNormalizer().NormalizeEmail(email),
-            PasswordResetRequests.NormalizeEmail(email));
+            AccountEmailRequests.NormalizeEmail(email));
     }
 
     private static string[] PropertyNames<T>() =>

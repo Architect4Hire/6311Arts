@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { RESPONSE_INIT } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Meta } from '@angular/platform-browser';
+import { Navigation, Router, provideRouter } from '@angular/router';
 import { BffSessionService, Session, SignInResult } from '../core/bff-session.service';
 import { BrowserLocation } from '../core/browser-location';
 import { Signin } from './signin';
@@ -11,7 +12,9 @@ class FakeSessions {
   signIn = vi.fn<(email: string, password: string) => Promise<SignInResult>>();
 }
 
-async function render(options: { returnUrl?: string; current?: Session | null } = {}) {
+async function render(
+  options: { returnUrl?: string; current?: Session | null; arrivedWith?: unknown } = {},
+) {
   const sessions = new FakeSessions();
   sessions.current.mockResolvedValue(options.current ?? null);
   const responseInit: ResponseInit = {};
@@ -19,6 +22,7 @@ async function render(options: { returnUrl?: string; current?: Session | null } 
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
+      provideRouter([]),
       { provide: BffSessionService, useValue: sessions },
       { provide: RESPONSE_INIT, useValue: responseInit },
     ],
@@ -26,6 +30,12 @@ async function render(options: { returnUrl?: string; current?: Session | null } 
   const assign = vi
     .spyOn(TestBed.inject(BrowserLocation), 'assign')
     .mockImplementation(() => undefined);
+
+  if (options.arrivedWith !== undefined) {
+    vi.spyOn(TestBed.inject(Router), 'currentNavigation').mockReturnValue({
+      extras: { state: { signinNotice: options.arrivedWith } },
+    } as unknown as Navigation);
+  }
 
   const fixture: ComponentFixture<Signin> = TestBed.createComponent(Signin);
   if (options.returnUrl !== undefined)
@@ -159,10 +169,34 @@ describe('Signin', () => {
 
   it('keeps its live region in the page before anything is said', async () => {
     const { element } = await render();
-    const region = element.querySelector('.signin__status');
+    const region = element.querySelector('.account-panel__status');
 
     expect(region?.getAttribute('aria-live')).toBe('polite');
     expect(region?.querySelector('ui-notice')).toBeNull();
+  });
+
+  it('offers a way back in for a forgotten password', async () => {
+    const { element } = await render({ returnUrl: '/admin/media' });
+    const link = element.querySelector<HTMLAnchorElement>('a[href="/account/forgot-password"]');
+
+    expect(link?.textContent?.trim()).toBe('Forgot your password?');
+  });
+
+  it.each([
+    ['password-changed', 'Your password has been changed'],
+    ['email-confirmed', 'Your email address is confirmed'],
+  ])('says why a finished %s link sent the person here', async (notice, heading) => {
+    const { element } = await render({ arrivedWith: notice });
+
+    expect(element.querySelector('ui-notice[role="status"]')?.textContent).toContain(heading);
+    // Announced as a change to the live region, and read in context from the heading.
+    expect(document.activeElement).toBe(element.querySelector('h1'));
+  });
+
+  it('ignores a notice it does not know', async () => {
+    const { element } = await render({ arrivedWith: '<img src=x>' });
+
+    expect(element.querySelector('ui-notice')).toBeNull();
   });
 
   it('offers to continue when a staff session already exists', async () => {

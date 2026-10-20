@@ -1,6 +1,7 @@
 # 0028 — Password reset and email confirmation: internal routes, BFF endpoints and the reset-request timing oracle
 
-- **Status:** Accepted
+- **Status:** Accepted; amended by [0029](0029-emailed-link-pages-and-confirmation-resend.md) (the hand-off queue
+  also carries confirmation requests; `Gateway:PasswordReset` is now `Gateway:AccountEmail`)
 - **Date:** 2026-10-20
 - **Rules affected:** `.claude/rules/auth.md`, `.claude/rules/gateway.md`, `.claude/rules/api-contract.md`
 - **Implements:** what [0023](0023-identity-module-and-email-through-the-outbox.md) deferred to 1.10 and

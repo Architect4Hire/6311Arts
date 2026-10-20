@@ -1,6 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { postWithAntiforgery, retryAfterSeconds } from './bff-problem';
 
 /**
  * What `/bff/session` and a successful `/bff/login` return, and the whole of it: a display name and roles, never
@@ -25,8 +26,6 @@ export type SignInResult =
   | { readonly kind: 'rate-limited'; readonly retryAfterSeconds: number | null }
   | { readonly kind: 'unavailable' };
 
-const ANTIFORGERY_REQUIRED = 'auth.antiforgery_required';
-
 /**
  * The gateway's browser-session endpoints, for the staff sign-in page (auth.md "Browser session", ADR 0024).
  * Browser only: nothing here runs during server rendering.
@@ -49,27 +48,13 @@ export class BffSessionService {
 
   async signIn(email: string, password: string): Promise<SignInResult> {
     try {
-      return await this.attempt(email, password);
+      // Login is an unsafe request like any other, so it needs a fresh antiforgery pair before it can be sent.
+      const body = await postWithAntiforgery<unknown>(this.http, '/bff/login', { email, password });
+      const session = decodeSession(body);
+      return session ? { kind: 'signed-in', session } : { kind: 'unavailable' };
     } catch (error) {
-      // The pair can be stale (a key-ring rotation, a dropped cookie): fetch a new one and try exactly once more.
-      if (problemCode(error) !== ANTIFORGERY_REQUIRED) return classify(error);
-      try {
-        return await this.attempt(email, password);
-      } catch (retryError) {
-        return classify(retryError);
-      }
+      return classify(error);
     }
-  }
-
-  /**
-   * Fetches a fresh antiforgery pair for whoever the browser is now, then posts the credentials. Login is an
-   * unsafe request like any other, so it needs the pair before it can be sent.
-   */
-  private async attempt(email: string, password: string): Promise<SignInResult> {
-    await firstValueFrom(this.http.get('/bff/antiforgery', { observe: 'response' }));
-    const body = await firstValueFrom(this.http.post<unknown>('/bff/login', { email, password }));
-    const session = decodeSession(body);
-    return session ? { kind: 'signed-in', session } : { kind: 'unavailable' };
   }
 }
 
@@ -81,27 +66,14 @@ function decodeSession(body: unknown): Session | null {
   return { displayName, roles };
 }
 
-function problemCode(error: unknown): string | null {
-  if (!(error instanceof HttpErrorResponse)) return null;
-  const body: unknown = error.error;
-  if (typeof body !== 'object' || body === null) return null;
-  const code = (body as Record<string, unknown>)['code'];
-  return typeof code === 'string' ? code : null;
-}
-
 function classify(error: unknown): SignInResult {
   if (!(error instanceof HttpErrorResponse)) return { kind: 'unavailable' };
   switch (error.status) {
     case 400:
     case 401:
       return { kind: 'refused' };
-    case 429: {
-      const seconds = Number(error.headers.get('Retry-After'));
-      return {
-        kind: 'rate-limited',
-        retryAfterSeconds: Number.isFinite(seconds) && seconds > 0 ? seconds : null,
-      };
-    }
+    case 429:
+      return { kind: 'rate-limited', retryAfterSeconds: retryAfterSeconds(error) };
     default:
       return { kind: 'unavailable' };
   }

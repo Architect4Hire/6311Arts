@@ -1,4 +1,6 @@
+using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
+using Arts6311.Domain.Modules.Media.Managers;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Arts6311.Api.Conventions;
@@ -33,6 +35,23 @@ internal static class ApiProblemDetails
         [ErrorCodes.NotFound] = StatusCodes.Status404NotFound,
         [ErrorCodes.Conflict] = StatusCodes.Status409Conflict,
         [ErrorCodes.ConcurrencyConflict] = StatusCodes.Status409Conflict,
+
+        // api-contract.md "Concurrency": a write to a row-versioned record with no If-Match cannot be checked.
+        [ErrorCodes.PreconditionRequired] = StatusCodes.Status428PreconditionRequired,
+
+        // Media (media.md, ADR 0030). An upload the API cannot take is told why, by the status a client expects.
+        [MediaErrorCodes.TypeUnsupported] = StatusCodes.Status415UnsupportedMediaType,
+        [MediaErrorCodes.ExtensionMismatch] = StatusCodes.Status415UnsupportedMediaType,
+        [MediaErrorCodes.TooLarge] = StatusCodes.Status413PayloadTooLarge,
+        [MediaErrorCodes.DimensionsOutOfRange] = StatusCodes.Status400BadRequest,
+        [MediaErrorCodes.Undecodable] = StatusCodes.Status400BadRequest,
+        [MediaErrorCodes.Duplicate] = StatusCodes.Status409Conflict,
+        [MediaErrorCodes.InUse] = StatusCodes.Status409Conflict,
+
+        // CMS content (content.md, ADR 0031): each is a state the editor resolves, so each is a 409.
+        [ContentErrorCodes.SlugTaken] = StatusCodes.Status409Conflict,
+        [ContentErrorCodes.SlugLocked] = StatusCodes.Status409Conflict,
+        [ContentErrorCodes.StatusTransitionInvalid] = StatusCodes.Status409Conflict,
 
         // api-contract.md: the same key with a different body is refused, not retried (ADR 0020).
         [ErrorCodes.IdempotencyKeyReused] = StatusCodes.Status422UnprocessableEntity,
@@ -135,6 +154,7 @@ internal static class ApiProblemDetails
         StatusCodes.Status403Forbidden => "This request is not allowed.",
         StatusCodes.Status404NotFound => "The resource was not found.",
         StatusCodes.Status409Conflict => "The request conflicts with the current state.",
+        StatusCodes.Status428PreconditionRequired => "The request must be conditional.",
         StatusCodes.Status422UnprocessableEntity => "The request could not be processed.",
         StatusCodes.Status500InternalServerError => "The request could not be completed.",
         _ => "The request failed.",

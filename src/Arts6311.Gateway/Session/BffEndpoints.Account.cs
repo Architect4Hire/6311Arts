@@ -5,19 +5,20 @@ using Microsoft.AspNetCore.Mvc;
 namespace Arts6311.Gateway.Session;
 
 /// <summary>
-/// The emailed-link endpoints: <c>/bff/forgot-password</c>, <c>/bff/reset-password</c> and <c>/bff/confirm-email</c>
-/// (auth.md, ADR 0028). The site's pages (2.2b) read the user id and token from <c>location.hash</c> and POST them
-/// here; the token is never in a URL.
+/// The emailed-link endpoints: <c>/bff/forgot-password</c>, <c>/bff/resend-confirmation</c>,
+/// <c>/bff/reset-password</c> and <c>/bff/confirm-email</c> (auth.md, ADR 0028, 0029). The site's pages (2.2b) read
+/// the user id and token from <c>location.hash</c> and POST them here; the token is never in a URL.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Antiforgery comes from the edge middleware like every other unsafe request, and the group's filter makes every
-/// answer <c>no-store</c>. All three share the <c>bff-account</c> rate limit — separate from <c>bff-login</c>, so a
+/// answer <c>no-store</c>. All four share the <c>bff-account</c> rate limit — separate from <c>bff-login</c>, so a
 /// flood of reset requests cannot spend the sign-in budget.
 /// </para>
 /// <para>
-/// <strong>None of these may enumerate accounts.</strong> <c>forgot-password</c> answers 202 before anything that
-/// knows the answer has run; the other two answer one <c>auth.token_invalid</c> for every unusable link.
+/// <strong>None of these may enumerate accounts.</strong> <c>forgot-password</c> and <c>resend-confirmation</c>
+/// answer 202 before anything that knows the answer has run; the other two answer one <c>auth.token_invalid</c> for
+/// every unusable link.
 /// </para>
 /// </remarks>
 internal static partial class BffEndpoints
@@ -39,6 +40,9 @@ internal static partial class BffEndpoints
         bff.MapPost("/forgot-password", ForgotPasswordAsync)
             .RequireRateLimiting(RateLimitExtensions.Policies.BffAccount);
 
+        bff.MapPost("/resend-confirmation", ResendConfirmationAsync)
+            .RequireRateLimiting(RateLimitExtensions.Policies.BffAccount);
+
         bff.MapPost("/reset-password", ResetPasswordAsync)
             .RequireRateLimiting(RateLimitExtensions.Policies.BffAccount);
 
@@ -51,10 +55,43 @@ internal static partial class BffEndpoints
     /// the API is called after this returns. Only a missing or oversized address is refused, which says nothing
     /// about any account.
     /// </summary>
-    private static async Task<IResult> ForgotPasswordAsync(
-        [FromBody] ForgotPasswordRequest? request,
-        IPasswordResetRequests requests,
+    private static Task<IResult> ForgotPasswordAsync(
+        [FromBody] AccountEmailAddressRequest? request,
+        IAccountEmailRequests requests,
         ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+        RequestAccountEmailAsync(
+            AccountEmailKind.PasswordReset,
+            request,
+            requests,
+            loggerFactory,
+            "Password reset is unavailable. Try again shortly.",
+            cancellationToken);
+
+    /// <summary>
+    /// A new confirmation link, for someone whose link expired or went missing (ADR 0029). Exactly
+    /// <see cref="ForgotPasswordAsync"/>'s shape: always 202, answered before the API is asked, so it says nothing
+    /// about whether the address is registered or already confirmed.
+    /// </summary>
+    private static Task<IResult> ResendConfirmationAsync(
+        [FromBody] AccountEmailAddressRequest? request,
+        IAccountEmailRequests requests,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+        RequestAccountEmailAsync(
+            AccountEmailKind.EmailConfirmation,
+            request,
+            requests,
+            loggerFactory,
+            "Confirmation emails are unavailable. Try again shortly.",
+            cancellationToken);
+
+    private static async Task<IResult> RequestAccountEmailAsync(
+        AccountEmailKind kind,
+        AccountEmailAddressRequest? request,
+        IAccountEmailRequests requests,
+        ILoggerFactory loggerFactory,
+        string unavailableTitle,
         CancellationToken cancellationToken)
     {
         if (request is null
@@ -67,7 +104,7 @@ internal static partial class BffEndpoints
 
         try
         {
-            await requests.SubmitAsync(request.Email, cancellationToken);
+            await requests.SubmitAsync(kind, request.Email, cancellationToken);
         }
         catch (ArgumentException)
         {
@@ -80,13 +117,11 @@ internal static partial class BffEndpoints
         {
             // The cooldown store is unreachable. That is true for every address at once, so answering it says
             // nothing about this one; answering 202 would promise an email nothing is going to send.
-            LogResetRequestUnavailable(
-                loggerFactory.CreateLogger(typeof(BffEndpoints).FullName!), exception.GetType().Name);
+            LogAccountEmailRequestUnavailable(
+                loggerFactory.CreateLogger(typeof(BffEndpoints).FullName!), kind, exception.GetType().Name);
 
             return Problem(
-                StatusCodes.Status503ServiceUnavailable,
-                GatewayProblem.Codes.IdentityUnavailable,
-                "Password reset is unavailable. Try again shortly.");
+                StatusCodes.Status503ServiceUnavailable, GatewayProblem.Codes.IdentityUnavailable, unavailableTitle);
         }
 
         return Results.Accepted();
@@ -205,8 +240,9 @@ internal static partial class BffEndpoints
 
     [LoggerMessage(
         Level = LogLevel.Error,
-        Message = "A password reset request could not be accepted: the cooldown store did not answer ({ExceptionType}).")]
-    private static partial void LogResetRequestUnavailable(ILogger logger, string exceptionType);
+        Message = "An account email request ({Kind}) could not be accepted: the cooldown store did not answer ({ExceptionType}).")]
+    private static partial void LogAccountEmailRequestUnavailable(
+        ILogger logger, AccountEmailKind kind, string exceptionType);
 
     [LoggerMessage(
         Level = LogLevel.Error,
@@ -214,11 +250,13 @@ internal static partial class BffEndpoints
     private static partial void LogAccountLinkUnavailable(ILogger logger, Exception exception);
 }
 
-/// <summary>A reset request. The address is on this record and in the queue, and nowhere else.</summary>
-internal sealed record ForgotPasswordRequest(string Email)
+/// <summary>
+/// A reset or confirmation request by address. The address is on this record and in the queue, and nowhere else.
+/// </summary>
+internal sealed record AccountEmailAddressRequest(string Email)
 {
     /// <summary>Nothing: the generated <c>ToString</c> would print the address.</summary>
-    public override string ToString() => nameof(ForgotPasswordRequest);
+    public override string ToString() => nameof(AccountEmailAddressRequest);
 }
 
 /// <summary>

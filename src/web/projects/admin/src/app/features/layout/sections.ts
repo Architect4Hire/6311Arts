@@ -45,7 +45,7 @@ export const CMS_SECTIONS: readonly CmsSection[] = [
     label: 'Artists',
     icon: 'brush',
     roles: STAFF_ROLES,
-    summary: 'The artist roster: bios, links and the work they show here.',
+    summary: 'The artist roster: names, bios, mediums and portraits.',
   },
   {
     path: 'shop',

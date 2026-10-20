@@ -22,6 +22,7 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
 | Development-only scaffolding | none today (the 1.5 ping was removed in 1.12); mark any with `[DevelopmentOnly]` | 404 outside Development, before authorization runs |
 | Internal | `/api/v1/internal/sessions/**`, `/api/v1/internal/identity/**` | gateway service token only |
 | Webhooks | `POST /webhooks/square` | signature only |
+| Media delivery | `GET/HEAD /media/{id}/{rendition}`: unversioned file URLs, outside OpenAPI (ADR 0030) | `[AllowAnonymous]`; drafts are staff-only, enforced in Business |
 
 ## Shapes
 
@@ -39,12 +40,16 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
   | `request.method_not_allowed` | 405 |
   | `request.payload_too_large` | 413 |
   | `request.unsupported_media_type` | 415 |
-  | `resource.conflict`, `concurrency.conflict` | 409 |
+  | `resource.conflict`, `concurrency.conflict`, `media.duplicate`, `media.in_use`, `cms.slug_taken`, `cms.slug_locked`, `cms.status_transition_invalid` | 409 |
+  | `concurrency.precondition_required` (no `If-Match`; a malformed one is `validation.failed`) | 428 |
+  | `media.too_large` | 413 |
+  | `media.type_unsupported`, `media.extension_mismatch` | 415 |
+  | `media.dimensions_out_of_range`, `media.undecodable` | 400 |
   | `idempotency.key_reused` | 422 |
   | `server.error` (the whole 5xx family) | 500 |
   | `request.rejected` (the edge's remainder), anything unmapped | 400 |
 
-  `square.unavailable` → 503 arrives with 5.2; a 429 code plus `Retry-After` and a missing-`If-Match` code arrive with the routes that need them. `ErrorCodeMapTests` fails if a code in `ErrorCodes` has no status here.
+  `square.unavailable` → 503 arrives with 5.2; a 429 code plus `Retry-After` arrives with the routes that need it. The missing-`If-Match` code arrived with media (2.3). `ErrorCodeMapTests` fails if a code in `ErrorCodes` has no status here.
 
   A new code with any other status is added to that map deliberately. `code`, `correlationId` and `errors` are `ProblemDetails` extensions, which a generator can't infer, so the `ProblemDetails` component is hand-written to declare them. `correlationId` is the W3C trace id as 32 lower-case hex digits.
 - **Concurrency.** Editable CMS records use a row version (`ETag` / `If-Match`). A stale write gets a 409 with code `concurrency.conflict`.

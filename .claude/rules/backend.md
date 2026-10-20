@@ -24,7 +24,8 @@ Modules/<Context>/
 ├── Managers/            # this module's ViewModels, ServiceModels, domain models, validators, policies, outbox handlers
 └── <Context>ServiceCollectionExtensions.cs
 
-Managers/                # shared kernel: Persistence, Outbox, Idempotency, Caching, Time, Results, Paging, Audit
+Managers/                # shared kernel: Persistence, Outbox, Idempotency, Caching, Time, Results, Paging, Audit,
+                         # Publishing (content lifecycle, slugs), Concurrency (row-version ETags)
 ```
 
 **Modules:**

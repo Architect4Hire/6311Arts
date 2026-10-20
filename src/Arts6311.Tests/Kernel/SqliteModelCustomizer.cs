@@ -21,7 +21,7 @@ namespace Arts6311.Tests.Kernel;
 /// remembering to come back here.
 /// </para>
 /// </remarks>
-internal sealed class SqliteModelCustomizer(ModelCustomizerDependencies dependencies) : RelationalModelCustomizer(dependencies)
+internal class SqliteModelCustomizer(ModelCustomizerDependencies dependencies) : RelationalModelCustomizer(dependencies)
 {
     private static readonly ValueConverter<DateTimeOffset, long> ToUtcTicks =
         new(value => value.UtcTicks, ticks => new DateTimeOffset(ticks, TimeSpan.Zero));

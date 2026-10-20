@@ -10,6 +10,12 @@ public static class ErrorCodes
     public const string NotFound = "resource.not_found";
     public const string Conflict = "resource.conflict";
     public const string ConcurrencyConflict = "concurrency.conflict";
+
+    /// <summary>
+    /// A write to a row-versioned record arrived without an <c>If-Match</c> (api-contract.md "Concurrency"), so it
+    /// cannot be checked against what the editor saw. Returned with a 428.
+    /// </summary>
+    public const string PreconditionRequired = "concurrency.precondition_required";
     public const string Forbidden = "access.forbidden";
     public const string CursorInvalid = "paging.cursor.invalid";
 

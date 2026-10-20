@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  RESPONSE_INIT,
   afterNextRender,
   computed,
   inject,
@@ -11,11 +10,15 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
 import { UiButton, UiControl, UiField, UiNotice } from '@6311/ui';
 import { BffSessionService, Session, isStaff } from '../core/bff-session.service';
 import { BrowserLocation } from '../core/browser-location';
+import { noStore } from '../core/no-store';
 import { isCmsPath, safeReturnUrl } from '../core/return-url';
 import { Seo } from '../core/seo.service';
+import { SigninNotice, arrivedWith } from '../core/signin-notice';
+import { AccountPanel } from '../shared/account-panel';
 
 type Status =
   | { readonly kind: 'idle' }
@@ -40,18 +43,26 @@ type Status =
 @Component({
   selector: 'app-signin',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, UiButton, UiControl, UiField, UiNotice],
+  imports: [FormsModule, RouterLink, UiButton, UiControl, UiField, UiNotice, AccountPanel],
   template: `
-    <section class="band band--light band--after-nav">
-      <div class="container container--narrow signin">
-        <h1 class="band__title band__title--left">Staff sign-in</h1>
-        <p class="band__lead band__lead--left">
-          For 6311arts staff and volunteers who edit the site.
-        </p>
-
-
+    <app-account-panel
+      heading="Staff sign-in"
+      lead="For 6311arts staff and volunteers who edit the site."
+    >
         <!-- In the page from the first render, so what appears in it later is announced (see ui-notice). -->
-        <div class="signin__status" aria-live="polite">
+        <div class="account-panel__status" aria-live="polite">
+          @switch (notice()) {
+            @case ('password-changed') {
+              <ui-notice tone="success" heading="Your password has been changed">
+                <p>Sign in with your new password.</p>
+              </ui-notice>
+            }
+            @case ('email-confirmed') {
+              <ui-notice tone="success" heading="Your email address is confirmed">
+                <p>You can sign in now.</p>
+              </ui-notice>
+            }
+          }
           @if (signedInAs(); as who) {
             <ui-notice tone="info" heading="You’re already signed in">
               <p>
@@ -87,8 +98,8 @@ type Status =
           }
         </div>
 
-        <form class="signin__form" method="post" novalidate (ngSubmit)="submit()">
-          <fieldset class="signin__fields" [disabled]="!ready()">
+        <form method="post" novalidate (ngSubmit)="submit()">
+          <fieldset class="account-panel__fields" [disabled]="!ready()">
             <legend class="sr-only">Your staff account</legend>
             <ui-field label="Email" required [error]="emailError()">
               <input
@@ -118,38 +129,10 @@ type Status =
             </p>
           </fieldset>
         </form>
-      </div>
-    </section>
-  `,
-  styles: `
-    .signin {
-      display: grid;
-      gap: var(--space-5);
-      max-width: 520px;
-    }
-    .signin .band__title,
-    .signin .band__lead {
-      margin-bottom: 0;
-    }
-    .signin__status {
-      display: grid;
-      gap: var(--space-5);
-    }
-    /* Kept in the page while empty (it is the live region), without adding a gap to the layout. */
-    .signin__status:empty {
-      margin-bottom: calc(-1 * var(--space-5));
-    }
-    .signin__fields {
-      display: grid;
-      gap: var(--space-5);
-      margin: 0;
-      padding: 0;
-      border: 0;
-      min-width: 0;
-    }
-    .signin__fields p {
-      margin: 0;
-    }
+        <p class="account-panel__aside">
+          <a routerLink="/account/forgot-password">Forgot your password?</a>
+        </p>
+    </app-account-panel>
   `,
 })
 export class Signin {
@@ -164,6 +147,10 @@ export class Signin {
   protected readonly ready = signal(false);
   protected readonly status = signal<Status>({ kind: 'idle' });
   protected readonly signedInAs = signal<Session | null>(null);
+  /** Set when a finished emailed link sent the person here (ADR 0029); read once, from the navigation. */
+  protected readonly notice = signal<SigninNotice | null>(null);
+  private readonly arrival = arrivedWith(inject(Router));
+  private readonly panel = viewChild.required(AccountPanel);
   protected readonly destination = computed(() => safeReturnUrl(this.returnUrl()));
 
   private readonly emailInput = viewChild.required<ElementRef<HTMLInputElement>>('emailInput');
@@ -194,14 +181,15 @@ export class Signin {
 
     // A sign-in page is never cached, by a browser or by anything between: it answers per person, and a cached
     // copy would outlive a deploy that changed how sign-in works.
-    const init = inject(RESPONSE_INIT, { optional: true });
-    if (init) {
-      const headers = new Headers(init.headers);
-      headers.set('Cache-Control', 'no-store');
-      init.headers = headers;
-    }
+    noStore();
 
     afterNextRender(async () => {
+      // Set after the first render, not in it: a live region announces what changes inside it, not what it was
+      // born with. Focus goes to the heading, so the notice is read in context after the route change.
+      if (this.arrival) {
+        this.notice.set(this.arrival);
+        this.panel().focusHeading();
+      }
       this.ready.set(true);
       const session = await this.sessions.current();
       if (session && (!isCmsPath(this.destination()) || isStaff(session))) {
@@ -220,6 +208,7 @@ export class Signin {
     if (this.emailError()) return this.emailInput().nativeElement.focus();
     if (this.passwordError()) return this.passwordInput().nativeElement.focus();
 
+    this.notice.set(null);
     this.status.set({ kind: 'busy' });
     const result = await this.sessions.signIn(email, this.password());
 

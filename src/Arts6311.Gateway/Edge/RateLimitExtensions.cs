@@ -13,8 +13,9 @@ internal static class RateLimitExtensions
         public const string BffLogin = "bff-login";
 
         /// <summary>
-        /// <c>/bff/forgot-password</c>, <c>/bff/reset-password</c> and <c>/bff/confirm-email</c> (ADR 0028). Its own
-        /// window, so a flood of reset requests cannot spend the sign-in budget.
+        /// <c>/bff/forgot-password</c>, <c>/bff/resend-confirmation</c>, <c>/bff/reset-password</c> and
+        /// <c>/bff/confirm-email</c> (ADR 0028, 0029). Its own window, so a flood of reset requests cannot spend the
+        /// sign-in budget.
         /// </summary>
         public const string BffAccount = "bff-account";
         public const string Forms = "forms";

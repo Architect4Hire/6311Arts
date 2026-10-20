@@ -23,6 +23,7 @@ internal static class OpenApiExtensions
     {
         services.AddOpenApi(DocumentName, options => options
             .AddOperationTransformer(AddStandardErrorResponses)
+            .AddOperationTransformer(StreamedMultipartUploadAttribute.Describe)
             .AddDocumentTransformer((document, _, _) =>
             {
                 document.Info.Title = "6311arts API";

@@ -20,8 +20,11 @@ public sealed class ApiRouteConventionTests : IDisposable
 {
     private readonly ApiFactory api = new();
 
-    /// <summary>Webhooks are signature-verified and unversioned by design (api-contract.md "Route families").</summary>
-    private static readonly string[] PermittedPrefixes = ["api/v1/", "webhooks/"];
+    /// <summary>
+    /// Webhooks are signature-verified and unversioned by design (api-contract.md "Route families"), and
+    /// <c>media/</c> is image delivery: file URLs written into the site's markup, not the JSON API (ADR 0030).
+    /// </summary>
+    private static readonly string[] PermittedPrefixes = ["api/v1/", "webhooks/", "media/"];
 
     [Fact]
     public void EveryControllerRouteIsVersioned()

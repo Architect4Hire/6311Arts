@@ -50,6 +50,7 @@ public sealed class PlatformCheckpointTests(PlatformFixture platform, ITestOutpu
         "/api/v1/internal/sessions/revoke",
         "/api/v1/internal/identity/password-reset",
         "/api/v1/internal/identity/password-reset/complete",
+        "/api/v1/internal/identity/email-confirmation",
         "/api/v1/internal/identity/email-confirmation/complete",
         "/api/v1/internal/anything-else",
     ];
@@ -332,6 +333,99 @@ public sealed class PlatformCheckpointTests(PlatformFixture platform, ITestOutpu
     }
 
     /// <summary>A browser on the gateway's HTTPS endpoint, and the jar holding its cookies.</summary>
+    /// <summary>
+    /// The edge's default body limit (ADR 0030), which only real Kestrel enforces: a 2 MB body to a route that reads
+    /// one is refused before it reaches anything that would buffer it.
+    /// </summary>
+    [Fact]
+    public async Task ABodyOverTheDefaultLimitIsRefusedAtTheEdge()
+    {
+        using var browser = Browser(out _);
+        await browser.EnsureAntiforgeryAsync();
+
+        // Kestrel answers 413 as soon as the endpoint starts reading a body whose Content-Length is over the limit, and
+        // closes the connection; a client still sending the rest may see that as a reset instead of the 413. Either
+        // is the refusal under test — what must not happen is a 2xx or a 4xx from the endpoint itself.
+        HttpStatusCode? status;
+        try
+        {
+            var response = await browser.PostAsync(
+                "/bff/forgot-password", new { email = new string('a', 2 * 1024 * 1024) + "@6311arts.test" });
+            status = response.StatusCode;
+        }
+        catch (HttpRequestException exception) when (exception.InnerException is IOException)
+        {
+            status = null;
+        }
+
+        Assert.True(status is null or HttpStatusCode.RequestEntityTooLarge, $"Expected a refusal, got {status}.");
+
+        // The control: the same route with an ordinary body is answered, so the refusal above was the size.
+        using var control = Browser(out _);
+        var accepted = await control.PostAsync("/bff/forgot-password", new { email = "nobody@6311arts.test" });
+        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+    }
+
+    /// <summary>
+    /// Prompt 2.3's demo as a test: a signed-in Admin uploads an image larger than the default body limit through the
+    /// gateway, the API stores its compressed master, and the Worker turns the staged <c>media.rendition-requested</c>
+    /// into six renditions that the gateway then serves to staff and refuses to anonymous visitors (a draft).
+    /// </summary>
+    [Fact]
+    public async Task AnUploadedImageGetsItsRenditionsThroughTheWorker()
+    {
+        using var browser = Browser(out _);
+        await SignInAsync(browser);
+        await browser.EnsureAntiforgeryAsync();
+
+        // Over 1 MiB on the wire (trailing bytes after the image's end marker, which the master drops), so the upload
+        // route's raised limit is what lets it through.
+        byte[] photo = [.. Media.Infrastructure.ImageFixtures.Jpeg(2000, 1200, exifTiff: Media.Infrastructure.ImageFixtures.ExifWithGps()),
+            .. new byte[1536 * 1024]];
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent("A gradient with a red block in its top-left corner"), "altText" },
+        };
+        var file = new ByteArrayContent(photo);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+        form.Add(file, "file", "e2e-gradient.jpg");
+        using var upload = new HttpRequestMessage(HttpMethod.Post, "/api/v1/cms/media") { Content = form };
+        upload.Headers.TryAddWithoutValidation("X-XSRF-TOKEN", browser.RequestToken);
+
+        var created = await browser.Http.SendAsync(upload, Ct);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetString();
+
+        JsonElement asset = default;
+        var deadline = Stopwatch.StartNew();
+        while (deadline.Elapsed < TimeSpan.FromSeconds(90))
+        {
+            asset = await (await browser.GetAsync($"/api/v1/cms/media/{id}", "application/json")).Content
+                .ReadFromJsonAsync<JsonElement>(Ct);
+            if (asset.GetProperty("processingStatus").GetString() != "Pending")
+            {
+                break;
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1), Ct);
+        }
+
+        output.WriteLine($"Renditions after {deadline.Elapsed.TotalSeconds:F1}s.");
+        Assert.Equal("Ready", asset.GetProperty("processingStatus").GetString());
+        var renditions = asset.GetProperty("renditions").EnumerateArray().ToList();
+        Assert.Equal(6, renditions.Count);
+        Assert.True(asset.GetProperty("bytes").GetInt64() < photo.Length);
+
+        var url = renditions.Single(rendition => rendition.GetProperty("name").GetString() == "800.webp")
+            .GetProperty("url").GetString()!;
+        var staff = await browser.GetAsync(url);
+        Assert.Equal(HttpStatusCode.OK, staff.StatusCode);
+        Assert.Equal("image/webp", staff.Content.Headers.ContentType?.MediaType);
+
+        using var visitor = Browser(out _);
+        Assert.Equal(HttpStatusCode.NotFound, (await visitor.GetAsync(url)).StatusCode);
+    }
+
     private BffClient Browser(out CookieJarHandler jar, bool followRedirects = true)
     {
         var handler = DevCertificateHandler.Create();

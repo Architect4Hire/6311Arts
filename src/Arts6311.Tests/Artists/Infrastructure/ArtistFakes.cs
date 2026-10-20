@@ -1,0 +1,277 @@
+using Arts6311.Domain.Managers.Audit;
+using Arts6311.Domain.Managers.Correlation;
+using Arts6311.Domain.Managers.Paging;
+using Arts6311.Domain.Managers.Publishing;
+using Arts6311.Domain.Managers.Results;
+using Arts6311.Domain.Managers.Time;
+using Arts6311.Domain.Modules.Artists.Business;
+using Arts6311.Domain.Modules.Artists.Data;
+using Arts6311.Domain.Modules.Artists.Data.Entities;
+using Arts6311.Domain.Modules.Artists.Data.Repositories;
+using Arts6311.Domain.Modules.Artists.Managers;
+using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Artists.Managers.ViewModels;
+using Arts6311.Domain.Modules.Media.Facade;
+using Arts6311.Domain.Modules.Media.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Media.Managers.ViewModels;
+
+namespace Arts6311.Tests.Artists.Infrastructure;
+
+/// <summary>One ordered log of calls, shared by the fakes of one test, so call order is what a test asserts.</summary>
+internal sealed class CallLog
+{
+    public List<string> Calls { get; } = [];
+
+    public void Add(string call) => Calls.Add(call);
+}
+
+internal sealed class FixedClock(DateTimeOffset now) : IClock
+{
+    public DateTimeOffset UtcNow { get; set; } = now;
+}
+
+internal sealed class FixedCorrelation : ICorrelationContext
+{
+    public Guid Current { get; } = Guid.Parse("0123456789abcdef0123456789abcdef");
+}
+
+internal sealed class RecordingAuditWriter(CallLog log) : IAuditWriter
+{
+    public List<AuditEntry> Entries { get; } = [];
+
+    public void Record(AuditEntry entry)
+    {
+        log.Add($"audit:{entry.Action}");
+        Entries.Add(entry);
+    }
+}
+
+/// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
+internal sealed class FakeArtistsRepository(CallLog log) : IArtistsRepository
+{
+    public List<Artist> Rows { get; } = [];
+
+    /// <summary>Thrown by the next save, then cleared.</summary>
+    public Exception? SaveFailure { get; set; }
+
+    /// <summary>What <see cref="SlugExistsAsync"/> answers when set; otherwise it looks at <see cref="Rows"/>.</summary>
+    public bool? SlugExists { get; set; }
+
+    public void Add(Artist artist)
+    {
+        log.Add("add");
+        Rows.Add(artist);
+    }
+
+    public Task<Artist?> FindAsync(Guid id, CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.FirstOrDefault(row => row.Id == id));
+
+    public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken)
+    {
+        log.Add("slug-exists");
+        return Task.FromResult(SlugExists ?? Rows.Any(row => row.Slug == slug && row.Id != exceptId));
+    }
+
+    public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
+
+    public Task<List<ArtistSummaryServiceModel>> ListAsync(
+        ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        Task.FromResult(new List<ArtistSummaryServiceModel>());
+
+    public void DiscardChanges() => log.Add("discard");
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        log.Add("save");
+        if (SaveFailure is { } failure)
+        {
+            SaveFailure = null;
+            throw failure;
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
+internal sealed class FakeArtistsDataLayer : IArtistsDataLayer
+{
+    public Dictionary<Guid, Artist> Rows { get; } = [];
+
+    public ArtistWriteOutcome Outcome { get; set; } = ArtistWriteOutcome.Saved;
+
+    public bool SlugExists { get; set; }
+
+    public List<string> Writes { get; } = [];
+
+    public (PublishCommand Command, PublishStatus From)? LastTransition { get; private set; }
+
+    public Task<Artist?> FindAsync(Guid id, CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.GetValueOrDefault(id));
+
+    public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
+        Task.FromResult(SlugExists);
+
+    public Task<List<ArtistSummaryServiceModel>> ListAsync(
+        ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        Task.FromResult(new List<ArtistSummaryServiceModel>());
+
+    public Task<ArtistWriteOutcome> CreateAsync(Artist artist, string actorUserId, CancellationToken cancellationToken)
+    {
+        Writes.Add("create");
+        if (Outcome == ArtistWriteOutcome.Saved)
+        {
+            artist.RowVersion = Guid.NewGuid();
+            Rows[artist.Id] = artist;
+        }
+
+        return Task.FromResult(Outcome);
+    }
+
+    public Task<ArtistWriteOutcome> UpdateAsync(Artist artist, string actorUserId, string summary, CancellationToken cancellationToken)
+    {
+        Writes.Add($"update:{summary}");
+        return Task.FromResult(Outcome);
+    }
+
+    public Task<ArtistWriteOutcome> TransitionAsync(
+        Artist artist, PublishCommand command, PublishStatus from, string actorUserId, CancellationToken cancellationToken)
+    {
+        Writes.Add($"transition:{command}");
+        LastTransition = (command, from);
+        return Task.FromResult(Outcome);
+    }
+
+    public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.Values.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
+
+    public List<Artist> Seeded { get; } = [];
+
+    public Task<int> AddSeedAsync(IReadOnlyList<Artist> artists, string actor, CancellationToken cancellationToken)
+    {
+        Seeded.AddRange(artists);
+        return Task.FromResult(artists.Count);
+    }
+
+    public Artist Add(PublishStatus status = PublishStatus.Draft, Guid? portrait = null, DateTimeOffset? publishedAt = null)
+    {
+        var artist = new Artist
+        {
+            Id = Guid.NewGuid(),
+            Name = "Jane Doe",
+            Slug = "jane-doe",
+            Status = status,
+            PortraitMediaId = portrait,
+            PublishedAt = publishedAt,
+            UpdatedBy = "editor-1",
+            RowVersion = Guid.NewGuid(),
+        };
+        Rows[artist.Id] = artist;
+        return artist;
+    }
+}
+
+/// <summary>Business that records what the facade asked and answers what the test set.</summary>
+internal sealed class RecordingArtistsBusiness : IArtistsBusiness
+{
+    public static readonly ArtistServiceModel Artist = new(
+        Guid.Parse("44444444-4444-4444-4444-444444444444"), "Jane Doe", "jane-doe", null, null, true, null,
+        PublishStatus.Draft, null, null, false, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "editor-1",
+        "\"0123456789abcdef0123456789abcdef\"");
+
+    public List<string> Calls { get; } = [];
+
+    public ArtistServiceModel Current { get; set; } = Artist;
+
+    public (PublishCommand Command, ArtistPortraitCheck? Portrait)? LastTransition { get; private set; }
+
+    public Task<OperationResult<CursorPage<ArtistSummaryServiceModel>>> ListAsync(ArtistListViewModel request, CancellationToken cancellationToken)
+    {
+        Calls.Add("list");
+        return Task.FromResult(OperationResult.Success(new CursorPage<ArtistSummaryServiceModel>([], null)));
+    }
+
+    public Task<OperationResult<ArtistServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken)
+    {
+        Calls.Add("get");
+        return Task.FromResult(id == Current.Id
+            ? OperationResult.Success(Current)
+            : OperationResult.Failure<ArtistServiceModel>(OperationError.Of(ErrorCodes.NotFound, "No.")));
+    }
+
+    public Task<OperationResult<ArtistServiceModel>> CreateAsync(ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken)
+    {
+        Calls.Add("create");
+        return Task.FromResult(OperationResult.Success(Current));
+    }
+
+    public ArtistPortraitCheck? UpdatePortrait { get; private set; }
+
+    public Task<OperationResult<ArtistServiceModel>> UpdateAsync(
+        Guid id,
+        ArtistUpdateViewModel update,
+        string? ifMatch,
+        ArtistPortraitCheck? portrait,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        Calls.Add("update");
+        UpdatePortrait = portrait;
+        return Task.FromResult(OperationResult.Success(Current));
+    }
+
+    public Task<int> SeedAsync(IReadOnlyList<(string Name, string? Medium)> roster, string actor, CancellationToken cancellationToken) =>
+        Task.FromResult(0);
+
+    public Task<OperationResult<ArtistServiceModel>> TransitionAsync(
+        Guid id, PublishCommand command, string? ifMatch, ArtistPortraitCheck? portrait, string actorUserId, CancellationToken cancellationToken)
+    {
+        Calls.Add($"transition:{command}");
+        LastTransition = (command, portrait);
+        return Task.FromResult(OperationResult.Success(Current));
+    }
+}
+
+/// <summary>Media as far as Artists uses it: the attachability question. Everything else is out of scope here.</summary>
+internal sealed class FakeMediaFacade : IMediaFacade
+{
+    public HashSet<Guid> Missing { get; } = [];
+
+    public HashSet<Guid> MissingAltText { get; } = [];
+
+    public int Checks { get; private set; }
+
+    public Task<MediaAttachabilityServiceModel> CheckAttachableAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        Checks++;
+        return Task.FromResult(new MediaAttachabilityServiceModel(
+            [.. ids.Where(Missing.Contains)], [.. ids.Where(MissingAltText.Contains)]));
+    }
+
+    public Task<OperationResult<MediaAssetServiceModel>> UploadAsync(MediaUploadViewModel upload, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<CursorPage<MediaAssetSummaryServiceModel>>> ListAsync(MediaListViewModel request, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<MediaAssetServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<MediaAssetServiceModel>> UpdateAsync(
+        Guid id, MediaAssetUpdateViewModel update, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult> DeleteAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<MediaContentServiceModel>> OpenAsync(
+        MediaDeliveryViewModel request, MediaViewer viewer, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult> ProduceRenditionsAsync(Guid assetId, int attempt, bool lastAttempt, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task PurgeAsync(Guid assetId, int attempt, bool lastAttempt, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+}

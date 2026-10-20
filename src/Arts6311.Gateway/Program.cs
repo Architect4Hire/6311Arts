@@ -15,6 +15,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
+// Kestrel:Limits from appsettings.json: 1 MiB for every request body, raised only where a route says so (YARP's
+// MaxRequestBodySize, [RequestSizeLimit]). Kestrel does not bind its limits from configuration by itself (ADR 0030).
+builder.WebHost.ConfigureKestrel(kestrel => builder.Configuration.GetSection("Kestrel:Limits").Bind(kestrel.Limits));
+
 // Bound eagerly, so a missing rate-limit policy or signing key stops the host at startup rather than failing one
 // route at request time (the pattern 1.7 set for InternalTokenOptions).
 var gatewayOptions = new GatewayOptions();
@@ -31,10 +35,10 @@ builder.Configuration.GetSection(BrowserSessionOptions.SectionName).Bind(session
 sessionOptions.Validate();
 builder.Services.AddSingleton(sessionOptions);
 
-var passwordResetOptions = new PasswordResetOptions();
-builder.Configuration.GetSection(PasswordResetOptions.SectionName).Bind(passwordResetOptions);
-passwordResetOptions.Validate();
-builder.Services.AddSingleton(passwordResetOptions);
+var accountEmailOptions = new AccountEmailOptions();
+builder.Configuration.GetSection(AccountEmailOptions.SectionName).Bind(accountEmailOptions);
+accountEmailOptions.Validate();
+builder.Services.AddSingleton(accountEmailOptions);
 
 // The clock. The Domain's AddArtsTime would normally register this, but the gateway holds no domain code and so
 // does not reference it; DateTime.UtcNow is banned repo-wide (src/BannedSymbols.txt).
@@ -57,11 +61,12 @@ builder.Services.AddScoped<ISessionManager, SessionManager>();
 builder.Services.AddHttpClient<IIdentityApiClient, IdentityApiClient>(
     client => client.BaseAddress = new Uri("https+http://api"));
 
-// /bff/forgot-password answers before the API is called, so its timing cannot say whether an address is registered
-// (ADR 0028): the endpoint applies the cooldown and queues, and the dispatcher makes the call afterwards.
-builder.Services.AddSingleton<PasswordResetQueue>();
-builder.Services.AddSingleton<IPasswordResetRequests, PasswordResetRequests>();
-builder.Services.AddHostedService<PasswordResetDispatcher>();
+// /bff/forgot-password and /bff/resend-confirmation answer before the API is called, so their timing cannot say
+// whether an address is registered (ADR 0028, 0029): the endpoint applies the cooldown and queues, and the
+// dispatcher makes the call afterwards.
+builder.Services.AddSingleton<AccountEmailQueue>();
+builder.Services.AddSingleton<IAccountEmailRequests, AccountEmailRequests>();
+builder.Services.AddHostedService<AccountEmailDispatcher>();
 
 // Antiforgery keys have to outlive the process and be the same in every replica, or a token minted by one
 // gateway is refused by the next (ADR 0024). Redis, not the blob ring the API and Worker share: that ring is

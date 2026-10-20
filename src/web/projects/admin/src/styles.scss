@@ -31,3 +31,11 @@ body {
   margin: 0 auto;
   padding: var(--space-7) var(--pad);
 }
+
+/*
+ * Small buttons meet the CMS's 40px target size here, at its compact density, without changing the shared rule
+ * the site matches spike0 with (design-system.md, rule 6).
+ */
+.btn-sm {
+  min-block-size: 40px;
+}

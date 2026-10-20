@@ -1,0 +1,122 @@
+using Arts6311.Api.Authentication;
+using Arts6311.Api.Conventions;
+using Arts6311.Domain.Managers.Paging;
+using Arts6311.Domain.Managers.Publishing;
+using Arts6311.Domain.Managers.Results;
+using Arts6311.Domain.Modules.Artists.Facade;
+using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Artists.Managers.ViewModels;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Arts6311.Api.Controllers.Cms;
+
+/// <summary>
+/// The artist roster (content.md): list, read, create, edit, and the publish / unpublish / archive commands.
+/// </summary>
+/// <remarks>
+/// Every write after the create carries the <c>ETag</c> it read as <c>If-Match</c> — the status commands too, so
+/// nobody publishes a version they have not seen. Archive is Admin-only (auth.md "Sensitive operations") and audited.
+/// </remarks>
+[ApiController]
+[Route("api/v1/cms/artists")]
+[Authorize(Policy = ApiPolicies.CmsEditor)]
+public sealed class CmsArtistsController(IArtistsFacade facade) : ControllerBase
+{
+    /// <summary>The roster by name, cursor-paged, optionally by status or part of a name.</summary>
+    [HttpGet]
+    [ProducesResponseType<CursorPage<ArtistSummaryServiceModel>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ListAsync(
+        [FromQuery(Name = "cursor")] string? cursor,
+        [FromQuery(Name = "limit")] int? limit,
+        [FromQuery(Name = "status")] PublishStatus? status,
+        [FromQuery(Name = "search")] string? search,
+        CancellationToken cancellationToken) =>
+        this.ToActionResult(await facade.ListAsync(new ArtistListViewModel(cursor, limit, status, search), cancellationToken));
+
+    /// <summary>One artist. The <c>ETag</c> header is what a write sends back as <c>If-Match</c>.</summary>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType<ArtistServiceModel>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        WithETag(await facade.GetAsync(id, cancellationToken));
+
+    /// <summary>A new Draft. The slug is made from the name when none is sent.</summary>
+    [HttpPost]
+    [ProducesResponseType<ArtistServiceModel>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateAsync([FromBody] ArtistCreateViewModel create, CancellationToken cancellationToken)
+    {
+        var result = await facade.CreateAsync(create, User.UserId(), cancellationToken);
+        if (!result.Succeeded)
+        {
+            return this.ToActionResult(result);
+        }
+
+        Response.Headers.ETag = result.Value!.ETag;
+        return Created($"/api/v1/cms/artists/{result.Value.Id}", result.Value);
+    }
+
+    /// <summary>
+    /// An edit. A field left out is unchanged; an empty string clears <c>medium</c> or <c>bio</c>. Status changes only
+    /// through the commands below.
+    /// </summary>
+    [HttpPatch("{id:guid}")]
+    [ProducesResponseType<ArtistServiceModel>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status428PreconditionRequired)]
+    public async Task<IActionResult> UpdateAsync(
+        Guid id,
+        [FromBody] ArtistUpdateViewModel update,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken cancellationToken) =>
+        WithETag(await facade.UpdateAsync(id, update, ifMatch, User.UserId(), cancellationToken));
+
+    /// <summary>Draft → Published. Refused while the portrait has no alt text.</summary>
+    [HttpPost("{id:guid}/publish")]
+    [ProducesResponseType<ArtistServiceModel>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status428PreconditionRequired)]
+    public async Task<IActionResult> PublishAsync(
+        Guid id, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken cancellationToken) =>
+        WithETag(await facade.PublishAsync(id, ifMatch, User.UserId(), cancellationToken));
+
+    /// <summary>Published → Draft. The slug stays as it is.</summary>
+    [HttpPost("{id:guid}/unpublish")]
+    [ProducesResponseType<ArtistServiceModel>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status428PreconditionRequired)]
+    public async Task<IActionResult> UnpublishAsync(
+        Guid id, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken cancellationToken) =>
+        WithETag(await facade.UnpublishAsync(id, ifMatch, User.UserId(), cancellationToken));
+
+    /// <summary>Draft or Published → Archived. Admin only; audited.</summary>
+    [HttpPost("{id:guid}/archive")]
+    [Authorize(Policy = ApiPolicies.CmsAdmin)]
+    [ProducesResponseType<ArtistServiceModel>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status428PreconditionRequired)]
+    public async Task<IActionResult> ArchiveAsync(
+        Guid id, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken cancellationToken) =>
+        WithETag(await facade.ArchiveAsync(id, ifMatch, User.UserId(), cancellationToken));
+
+    private IActionResult WithETag(OperationResult<ArtistServiceModel> result)
+    {
+        if (result.Succeeded)
+        {
+            Response.Headers.ETag = result.Value!.ETag;
+        }
+
+        return this.ToActionResult(result);
+    }
+}

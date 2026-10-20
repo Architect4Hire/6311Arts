@@ -21,6 +21,7 @@ public sealed class InternalIdentityEndpointTests
     private const string Request = "/api/v1/internal/identity/password-reset";
     private const string Complete = "/api/v1/internal/identity/password-reset/complete";
     private const string Confirm = "/api/v1/internal/identity/email-confirmation/complete";
+    private const string Resend = "/api/v1/internal/identity/email-confirmation";
 
     private const string LinkToken = "CfDJ8-a-reset-token-that-must-never-be-logged";
     private const string NewPhrase = "a-new-passphrase-that-must-never-be-logged";
@@ -56,6 +57,20 @@ public sealed class InternalIdentityEndpointTests
     }
 
     [Fact]
+    public async Task AServiceTokenRequestsANewConfirmationAndIsAnswered202WithNoBody()
+    {
+        var facade = new FakeIdentityFacade();
+        using var api = Factory(facade);
+        using var client = api.CreateJsonClient();
+
+        var response = await SendAsync(client, Resend, api.Tokens.ServiceToken(), new { email = "m@6311arts.test" });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Empty(await response.Content.ReadAsStringAsync(Ct));
+        Assert.Equal("m@6311arts.test", facade.ConfirmationRequest!.Email);
+    }
+
+    [Fact]
     public async Task AServiceTokenConfirmsAnAddress()
     {
         var facade = new FakeIdentityFacade();
@@ -73,6 +88,7 @@ public sealed class InternalIdentityEndpointTests
     [InlineData(Request, "Admin")]
     [InlineData(Complete, "Admin")]
     [InlineData(Confirm, "Admin")]
+    [InlineData(Resend, "Admin")]
     [InlineData(Complete, "Member")]
     public async Task AUserTokenIs403EvenForAnAdmin(string route, string role)
     {
@@ -87,6 +103,7 @@ public sealed class InternalIdentityEndpointTests
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Null(facade.ResetRequest);
+        Assert.Null(facade.ConfirmationRequest);
         Assert.Null(facade.ResetCompletion);
         Assert.Null(facade.Confirmation);
     }

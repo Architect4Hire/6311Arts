@@ -1,6 +1,8 @@
 using System.Reflection;
 using Arts6311.Api.Conventions;
+using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
+using Arts6311.Domain.Modules.Media.Managers;
 
 namespace Arts6311.Tests.Api;
 
@@ -90,6 +92,58 @@ public sealed class ErrorCodeMapTests
         // (`paging.cursor.invalid`). They are part of the contract, so the shape is checked rather than trusted.
         Assert.All(SharedErrorCodes(), code =>
             Assert.Matches("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$", code.Value));
+    }
+
+    [Theory]
+    [InlineData(MediaErrorCodes.TypeUnsupported, 415)]
+    [InlineData(MediaErrorCodes.ExtensionMismatch, 415)]
+    [InlineData(MediaErrorCodes.TooLarge, 413)]
+    [InlineData(MediaErrorCodes.DimensionsOutOfRange, 400)]
+    [InlineData(MediaErrorCodes.Undecodable, 400)]
+    [InlineData(MediaErrorCodes.Duplicate, 409)]
+    [InlineData(MediaErrorCodes.InUse, 409)]
+    [InlineData(ErrorCodes.PreconditionRequired, 428)]
+    public void TheMediaCodesHaveTheirDeclaredStatus(string code, int status)
+    {
+        Assert.Equal(status, ApiProblemDetails.StatusFor(code));
+    }
+
+    [Fact]
+    public void EveryMediaCodeIsInTheTableAbove()
+    {
+        // A new media code without a row above would ship answering 400 by fallback.
+        var codes = typeof(MediaErrorCodes)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .Order(StringComparer.Ordinal);
+
+        Assert.Equal(
+            [
+                MediaErrorCodes.DimensionsOutOfRange, MediaErrorCodes.Duplicate, MediaErrorCodes.ExtensionMismatch,
+                MediaErrorCodes.InUse, MediaErrorCodes.TooLarge, MediaErrorCodes.TypeUnsupported, MediaErrorCodes.Undecodable,
+            ],
+            codes);
+        Assert.All(codes, code => Assert.Matches("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$", code));
+    }
+
+    [Fact]
+    public void EveryContentCodeIsAConflict()
+    {
+        // ADR 0031: a taken or locked slug, or a command that does not apply, is a state the editor resolves.
+        var codes = typeof(ContentErrorCodes)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal(
+            [ContentErrorCodes.SlugLocked, ContentErrorCodes.SlugTaken, ContentErrorCodes.StatusTransitionInvalid],
+            codes);
+        Assert.All(codes, code =>
+        {
+            Assert.Equal(409, ApiProblemDetails.StatusFor(code));
+            Assert.Matches("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$", code);
+        });
     }
 
     [Fact]

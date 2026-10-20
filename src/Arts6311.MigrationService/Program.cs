@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers;
 using Arts6311.Domain.Managers.Persistence;
+using Arts6311.Domain.Modules.Artists;
 using Arts6311.Domain.Modules.Identity;
 using Arts6311.MigrationService;
 
@@ -18,6 +19,13 @@ builder.Services.AddDbContextMigration<ArtsDbContext>();
 builder.Services.AddArtsKernel();
 builder.Services.AddIdentityModule(builder.Configuration);
 builder.Services.AddIdentitySeeder();
+
+// The spike's artist roster, for a clean clone to show. Development only: elsewhere artists come from the WordPress
+// import (4.x), whose slugs these would collide with.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddArtistsDevelopmentSeeder();
+}
 
 var host = builder.Build();
 

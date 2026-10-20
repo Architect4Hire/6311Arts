@@ -26,6 +26,12 @@ internal interface IIdentityApiClient
     /// </summary>
     Task RequestPasswordResetAsync(string email, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Asks the API to email a new confirmation link if the address is registered and not yet confirmed. Called from
+    /// the background dispatcher, never from the request, for the same reason (ADR 0029).
+    /// </summary>
+    Task RequestEmailConfirmationAsync(string email, CancellationToken cancellationToken);
+
     /// <summary>Sets a new password with an emailed link's user id and token.</summary>
     Task<AccountLinkResult> CompletePasswordResetAsync(
         string userId, string token, string newPassword, CancellationToken cancellationToken);

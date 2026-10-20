@@ -18,7 +18,8 @@ internal sealed class IdentityFacade(
     IValidator<SessionRevocationViewModel> revocationValidator,
     IValidator<PasswordResetRequestViewModel> resetRequestValidator,
     IValidator<PasswordResetCompletionViewModel> resetValidator,
-    IValidator<EmailConfirmationCompletionViewModel> confirmationValidator) : IIdentityFacade
+    IValidator<EmailConfirmationCompletionViewModel> confirmationValidator,
+    IValidator<EmailConfirmationRequestViewModel> confirmationRequestValidator) : IIdentityFacade
 {
     public async Task<OperationResult<UserSummaryServiceModel>> CheckCredentialsAsync(
         CredentialCheckViewModel request, CancellationToken cancellationToken)
@@ -93,6 +94,20 @@ internal sealed class IdentityFacade(
         string userId, CancellationToken cancellationToken)
     {
         await business.RequestEmailConfirmationAsync(userId, cancellationToken);
+        return OperationResult.Success();
+    }
+
+    public async Task<OperationResult> ResendEmailConfirmationAsync(
+        EmailConfirmationRequestViewModel request, CancellationToken cancellationToken)
+    {
+        if (await confirmationRequestValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure(error);
+        }
+
+        await business.ResendEmailConfirmationAsync(request.Email, cancellationToken);
+
+        // Always success, as for a reset request: registered, unknown and already confirmed all look the same.
         return OperationResult.Success();
     }
 

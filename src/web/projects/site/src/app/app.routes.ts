@@ -36,5 +36,18 @@ export const routes: Routes = [
   },
   // Staff sign-in. Here rather than in the CMS because /admin/** is behind the session gate (ADR 0024).
   { path: 'signin', loadComponent: () => import('./pages/signin').then((m) => m.Signin) },
+  // Where the emailed links land (ADR 0028, 0029). main.ts takes their credentials out of the fragment first.
+  {
+    path: 'account/forgot-password',
+    loadComponent: () => import('./pages/forgot-password').then((m) => m.ForgotPassword),
+  },
+  {
+    path: 'account/reset-password',
+    loadComponent: () => import('./pages/reset-password').then((m) => m.ResetPassword),
+  },
+  {
+    path: 'account/confirm-email',
+    loadComponent: () => import('./pages/confirm-email').then((m) => m.ConfirmEmail),
+  },
   { path: '**', loadComponent: () => import('./pages/not-found').then((m) => m.NotFound) },
 ];

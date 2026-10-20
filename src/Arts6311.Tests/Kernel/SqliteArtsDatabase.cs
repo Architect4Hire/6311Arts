@@ -20,14 +20,22 @@ internal sealed class SqliteArtsDatabase : IAsyncDisposable
 {
     private readonly SqliteConnection? connection;
     private readonly string? path;
+    private readonly Action<DbContextOptionsBuilder<ArtsDbContext>>? configure;
 
-    private SqliteArtsDatabase(SqliteConnection? connection, string? path) => (this.connection, this.path) = (connection, path);
+    private SqliteArtsDatabase(
+        SqliteConnection? connection, string? path, Action<DbContextOptionsBuilder<ArtsDbContext>>? configure = null) =>
+        (this.connection, this.path, this.configure) = (connection, path, configure);
 
-    public static async Task<SqliteArtsDatabase> CreateAsync(CancellationToken cancellationToken)
+    /// <param name="configure">
+    /// Applied to every context after the harness's own options, for a test that needs a different model — for
+    /// example a table that references a module's entity (a later <c>ReplaceService</c> wins).
+    /// </param>
+    public static async Task<SqliteArtsDatabase> CreateAsync(
+        CancellationToken cancellationToken, Action<DbContextOptionsBuilder<ArtsDbContext>>? configure = null)
     {
         var connection = new SqliteConnection("DataSource=:memory:");
         await connection.OpenAsync(cancellationToken);
-        return await EnsureCreatedAsync(new SqliteArtsDatabase(connection, path: null), cancellationToken);
+        return await EnsureCreatedAsync(new SqliteArtsDatabase(connection, path: null, configure), cancellationToken);
     }
 
     public static Task<SqliteArtsDatabase> CreateFileAsync(CancellationToken cancellationToken) =>
@@ -49,6 +57,7 @@ internal sealed class SqliteArtsDatabase : IAsyncDisposable
         }
 
         builder.ReplaceService<IModelCustomizer, SqliteModelCustomizer>();
+        configure?.Invoke(builder);
         ArtsDbContextOptions.Configure(builder);
         builder.AddInterceptors(interceptors);
         return new ArtsDbContext(builder.Options);

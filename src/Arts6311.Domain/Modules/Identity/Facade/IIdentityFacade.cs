@@ -59,6 +59,15 @@ public interface IIdentityFacade
     Task<OperationResult> RequestEmailConfirmationAsync(string userId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Stages a new confirmation email for an address someone typed, when a link has expired or gone missing.
+    /// Succeeds whether the address is registered, unknown or already confirmed, so it cannot be used to test for
+    /// an account; only a malformed request fails. The timing difference is closed at the gateway, as for
+    /// <see cref="RequestPasswordResetAsync"/> (ADR 0028, 0029).
+    /// </summary>
+    Task<OperationResult> ResendEmailConfirmationAsync(
+        EmailConfirmationRequestViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
     /// The recipient and a freshly minted reset token, for the composer. <c>null</c> when there is nothing to
     /// send. Minted at send time: a token must never sit in an outbox payload.
     /// </summary>
