@@ -10,22 +10,16 @@ import {
   model,
   signal,
 } from '@angular/core';
-import { UiButton, UiNotice, UiStatusChip } from '@6311/ui';
+import { UiButton } from '@6311/ui';
 import { GALLERY_TIME_ZONE, instantOf, wallClockOf } from '../../core/time/gallery-time';
-import {
-  CLASS_LIMITS,
-  ClassSession,
-  ClassSessionInput,
-  normalizeSku,
-  suggestedSku,
-} from '../../models/class';
+import { CLASS_LIMITS, ClassSession, ClassSessionInput } from '../../models/class';
 
 /**
- * One row of the sessions editor: the sitting on the gallery's clock, plus what Square reports about it.
+ * One row of a run's sessions editor: the sitting on the run's clock.
  *
  * The times are a date and two times as staff read them, converted to the instants the API stores only when the
- * form is sent (`gallery-time`). `priceCents`, `seatsRemaining` and `soldOut` are Square's record and are never
- * sent back (square.md, ADR 0032).
+ * form is sent (`gallery-time`). Nothing is sold by the sitting — the seats, the SKU and the price are the run's
+ * (ADR 0044) — so a row is only a time.
  */
 export interface SessionDraft {
   /** A stable key for this row, so re-ordering never re-creates an input the person is typing in. */
@@ -35,23 +29,13 @@ export interface SessionDraft {
   readonly date: string;
   readonly starts: string;
   readonly ends: string;
-  readonly sku: string;
-  /** As typed, so a half-finished number is not rounded under the person's hands. */
-  readonly capacity: string;
-  readonly displayTimeZone: string;
-  readonly priceCents: number | null;
-  readonly seatsRemaining: number | null;
-  readonly soldOut: boolean;
-  /** Square has reported money or seats: the row cannot be removed, and its price is Square's (ADR 0037). */
-  readonly squareHasRecord: boolean;
 }
 
 let nextKey = 0;
 
-/** The saved sittings as rows, in start order. */
-export function sessionDraftsOf(sessions: readonly ClassSession[]): SessionDraft[] {
+/** The saved sittings as rows, in start order, on the clock of `zone`. */
+export function sessionDraftsOf(sessions: readonly ClassSession[], zone: string): SessionDraft[] {
   return sessions.map((session) => {
-    const zone = session.displayTimeZone || GALLERY_TIME_ZONE;
     const starts = wallClockOf(session.startsAt, zone);
     const ends = wallClockOf(session.endsAt, zone);
     return {
@@ -60,60 +44,36 @@ export function sessionDraftsOf(sessions: readonly ClassSession[]): SessionDraft
       date: starts?.date ?? '',
       starts: starts?.time ?? '',
       ends: ends?.time ?? '',
-      sku: session.sku,
-      capacity: String(session.capacity),
-      displayTimeZone: zone,
-      priceCents: session.priceCents,
-      seatsRemaining: session.seatsRemaining,
-      soldOut: session.soldOut,
-      squareHasRecord: session.squareHasRecord,
     };
   });
 }
 
-/** An empty row, ready to be filled: a week after the last sitting, at the same time, with the same seats. */
-export function newSessionDraft(
-  rows: readonly SessionDraft[],
-  offeringNumber: number | null,
-): SessionDraft {
+/** An empty row, ready to be filled: a week after the last sitting, at the same time. */
+export function newSessionDraft(rows: readonly SessionDraft[]): SessionDraft {
   const last = rows[rows.length - 1];
-  const date = last?.date ? addWeek(last.date) : '';
   return {
     key: `new-${++nextKey}`,
     id: null,
-    date,
+    date: last?.date ? addWeek(last.date) : '',
     starts: last?.starts ?? '',
     ends: last?.ends ?? '',
-    sku: offeringNumber === null ? '' : nextFreeSku(rows, offeringNumber),
-    capacity: last?.capacity ?? '',
-    displayTimeZone: last?.displayTimeZone ?? GALLERY_TIME_ZONE,
-    priceCents: null,
-    seatsRemaining: null,
-    soldOut: false,
-    squareHasRecord: false,
   };
 }
 
 /**
- * The rows as the API takes them. `null` when a row is incomplete or its date and time are not a real instant, so
- * the form says so rather than sending a sitting nobody meant.
+ * The rows as the API takes them. `null` when a row is incomplete or its date and time are not a real instant on
+ * `zone`'s clock, so the form says so rather than sending a sitting nobody meant.
  */
-export function sessionInputsOf(rows: readonly SessionDraft[]): ClassSessionInput[] | null {
+export function sessionInputsOf(
+  rows: readonly SessionDraft[],
+  zone: string,
+): ClassSessionInput[] | null {
   const inputs: ClassSessionInput[] = [];
   for (const row of rows) {
-    const startsAt = instantOf(row.date, row.starts, row.displayTimeZone);
-    const endsAt = instantOf(row.date, row.ends, row.displayTimeZone);
-    const capacity = Number(row.capacity);
-    if (startsAt === null || endsAt === null || !Number.isSafeInteger(capacity)) return null;
-
-    inputs.push({
-      startsAt,
-      endsAt,
-      capacity,
-      ...(row.id ? { id: row.id } : {}),
-      ...(row.sku.trim() ? { sku: normalizeSku(row.sku) } : {}),
-      displayTimeZone: row.displayTimeZone,
-    });
+    const startsAt = instantOf(row.date, row.starts, zone);
+    const endsAt = instantOf(row.date, row.ends, zone);
+    if (startsAt === null || endsAt === null) return null;
+    inputs.push({ startsAt, endsAt, ...(row.id ? { id: row.id } : {}) });
   }
   return inputs;
 }
@@ -127,17 +87,23 @@ export function sessionsEqual(a: readonly SessionDraft[], b: readonly SessionDra
       row.id === other.id &&
       row.date === other.date &&
       row.starts === other.starts &&
-      row.ends === other.ends &&
-      normalizeSku(row.sku) === normalizeSku(other.sku) &&
-      row.capacity.trim() === other.capacity.trim() &&
-      row.displayTimeZone === other.displayTimeZone
+      row.ends === other.ends
     );
   });
 }
 
-/** Amounts are integer cents with a currency (api-contract.md). */
-export function formatMoney(cents: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100);
+/** What the grid can say before the API does: a row half filled in, or one that ends before it starts. */
+export function sessionErrorOf(rows: readonly SessionDraft[], run: string): string | null {
+  if (rows.length > CLASS_LIMITS.sessionsMaxCount) {
+    return `${run} has more than ${CLASS_LIMITS.sessionsMaxCount} sessions.`;
+  }
+  for (const [index, row] of rows.entries()) {
+    const which = `${run}, session ${index + 1}`;
+    if (!row.date || !row.starts || !row.ends)
+      return `${which} needs a date, a start time and an end time.`;
+    if (row.ends <= row.starts) return `${which} can’t end before it starts.`;
+  }
+  return null;
 }
 
 function addWeek(date: string): string {
@@ -146,51 +112,41 @@ function addWeek(date: string): string {
   return new Date(ms + 7 * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** The first `CLS-<offering>-<n>` no row in the grid is using. The API has the last word on whether it is free. */
-function nextFreeSku(rows: readonly SessionDraft[], offeringNumber: number): string {
-  const taken = new Set(rows.map((row) => normalizeSku(row.sku)));
-  for (let number = 1; number <= rows.length + 1; number++) {
-    const candidate = suggestedSku(offeringNumber, number);
-    if (!taken.has(candidate)) return candidate;
-  }
-  return suggestedSku(offeringNumber, rows.length + 1);
-}
-
 /**
- * A class's sittings (`<cms-session-grid [(sessions)]>`): when each one meets, the SKU it is sold under and how many
- * seats it has — all of which the CMS owns — beside what Square reports about it.
- *
- * What Square holds the record of is shown, never edited (square.md, ADR 0032): a session's price appears with a
- * **Change price** action that arrives in 5.4a, and the seats left are read-only. A session Square already knows
- * can't be removed here, because it may have sales.
+ * One run's sittings (`<cms-session-grid [(sessions)] [run]>`): when each one meets. A seat in the run is a seat in
+ * every sitting, so there is nothing per row but the date and the times (ADR 0044).
  */
 @Component({
   selector: 'cms-session-grid',
-  imports: [UiButton, UiNotice, UiStatusChip],
+  imports: [UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="panel" aria-labelledby="sessions-heading">
-      <h2 id="sessions-heading" class="panel__title">Sessions</h2>
+    <fieldset class="sessions" [disabled]="disabled()">
+      <legend class="sessions__title">Sessions</legend>
 
       <!-- Exists from the start, so what is written into it later is read out. -->
       <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
 
       @if (sessions().length === 0) {
-        <p class="panel__empty">No sessions yet. A class needs at least one to be published.</p>
+        <p class="sessions__empty">No sessions yet. A run needs at least one to be published.</p>
       } @else {
-        <div class="scroll" role="region" aria-label="Sessions" tabindex="0">
+        <div class="scroll" role="region" [attr.aria-label]="run() + ' sessions'" tabindex="0">
           <table class="grid">
             <caption class="sr-only">
-              Sessions, in the order they meet. Times are {{ zone }} time.
+              {{
+                run()
+              }}
+              sessions, in the order they meet. Times are
+              {{
+                zone()
+              }}
+              time.
             </caption>
             <thead>
               <tr>
                 <th scope="col">Date</th>
                 <th scope="col">Starts</th>
                 <th scope="col">Ends</th>
-                <th scope="col">SKU</th>
-                <th scope="col">Seats</th>
-                <th scope="col">In Square</th>
                 <th scope="col"><span class="sr-only">Actions</span></th>
               </tr>
             </thead>
@@ -201,12 +157,11 @@ function nextFreeSku(rows: readonly SessionDraft[], offeringNumber: number): str
                     <input
                       class="field__control"
                       type="date"
-                      [attr.name]="'sessionDate' + index"
-                      [attr.aria-label]="'Date of session ' + (index + 1)"
+                      [attr.name]="prefix() + 'Date' + index"
+                      [attr.aria-label]="run() + ', date of session ' + (index + 1)"
                       aria-required="true"
-                      [attr.aria-invalid]="error() ? 'true' : null"
-                      [attr.aria-describedby]="error() ? errorId : null"
-                      [disabled]="disabled()"
+                      [attr.aria-invalid]="invalid() ? 'true' : null"
+                      [attr.aria-describedby]="describedBy()"
                       [value]="row.date"
                       (input)="patch(index, { date: value($event) })"
                     />
@@ -215,12 +170,11 @@ function nextFreeSku(rows: readonly SessionDraft[], offeringNumber: number): str
                     <input
                       class="field__control"
                       type="time"
-                      [attr.name]="'sessionStarts' + index"
-                      [attr.aria-label]="'Start time of session ' + (index + 1)"
+                      [attr.name]="prefix() + 'Starts' + index"
+                      [attr.aria-label]="run() + ', start time of session ' + (index + 1)"
                       aria-required="true"
-                      [attr.aria-invalid]="error() ? 'true' : null"
-                      [attr.aria-describedby]="error() ? errorId : null"
-                      [disabled]="disabled()"
+                      [attr.aria-invalid]="invalid() ? 'true' : null"
+                      [attr.aria-describedby]="describedBy()"
                       [value]="row.starts"
                       (input)="patch(index, { starts: value($event) })"
                     />
@@ -229,84 +183,22 @@ function nextFreeSku(rows: readonly SessionDraft[], offeringNumber: number): str
                     <input
                       class="field__control"
                       type="time"
-                      [attr.name]="'sessionEnds' + index"
-                      [attr.aria-label]="'End time of session ' + (index + 1)"
+                      [attr.name]="prefix() + 'Ends' + index"
+                      [attr.aria-label]="run() + ', end time of session ' + (index + 1)"
                       aria-required="true"
-                      [attr.aria-invalid]="error() ? 'true' : null"
-                      [attr.aria-describedby]="error() ? errorId : null"
-                      [disabled]="disabled()"
+                      [attr.aria-invalid]="invalid() ? 'true' : null"
+                      [attr.aria-describedby]="describedBy()"
                       [value]="row.ends"
                       (input)="patch(index, { ends: value($event) })"
                     />
-                  </td>
-                  <td>
-                    <input
-                      class="field__control"
-                      [attr.name]="'sessionSku' + index"
-                      [attr.aria-label]="'SKU of session ' + (index + 1)"
-                      [attr.aria-invalid]="error() ? 'true' : null"
-                      [attr.aria-describedby]="error() ? errorId : null"
-                      autocomplete="off"
-                      spellcheck="false"
-                      [attr.maxlength]="limits.skuMaxLength"
-                      [disabled]="disabled()"
-                      [value]="row.sku"
-                      (input)="patch(index, { sku: value($event) })"
-                    />
-                  </td>
-                  <td>
-                    <input
-                      class="field__control seats"
-                      type="number"
-                      inputmode="numeric"
-                      min="1"
-                      [attr.max]="limits.capacityMaxSeats"
-                      [attr.name]="'sessionCapacity' + index"
-                      [attr.aria-label]="'Seats in session ' + (index + 1)"
-                      aria-required="true"
-                      [attr.aria-invalid]="error() ? 'true' : null"
-                      [attr.aria-describedby]="error() ? errorId : null"
-                      [disabled]="disabled()"
-                      [value]="row.capacity"
-                      (input)="patch(index, { capacity: value($event) })"
-                    />
-                  </td>
-                  <td class="square">
-                    @if (row.squareHasRecord) {
-                      @if (row.priceCents !== null) {
-                        <span class="square__price">{{ money(row.priceCents) }}</span>
-                      }
-                      @if (row.seatsRemaining !== null) {
-                        <span class="square__seats"
-                          >{{ row.seatsRemaining }} of {{ row.capacity }} seats left</span
-                        >
-                      }
-                      @if (row.soldOut) {
-                        <ui-status-chip tone="attention" icon="stop">Sold out</ui-status-chip>
-                      }
-                      <!-- 5.4a sends the change as an audited command; until then the figure is Square's to say. -->
-                      <button
-                        uiButton
-                        type="button"
-                        size="sm"
-                        [disabled]="true"
-                        [attr.aria-label]="'Change price for session ' + (index + 1)"
-                        [attr.aria-describedby]="squareNoticeId"
-                      >
-                        Change price
-                      </button>
-                    } @else {
-                      <span class="square__none">Not in Square yet</span>
-                    }
                   </td>
                   <td class="row-actions">
                     <button
                       uiButton
                       type="button"
                       size="sm"
-                      data-action="remove"
-                      [disabled]="disabled() || row.squareHasRecord"
-                      [attr.aria-label]="'Remove session ' + (index + 1)"
+                      data-action="remove-session"
+                      [attr.aria-label]="'Remove ' + run() + ' session ' + (index + 1)"
                       (click)="remove(index)"
                     >
                       Remove
@@ -319,20 +211,9 @@ function nextFreeSku(rows: readonly SessionDraft[], offeringNumber: number): str
         </div>
       }
 
-      @if (anySynced()) {
-        <ui-notice [id]="squareNoticeId" tone="info">
-          A session Square already holds can’t be removed here, and its price is Square’s record.
-          Archive the class instead of removing the session.
-        </ui-notice>
-      }
-
-      @if (error(); as message) {
-        <p class="error" role="alert" [id]="errorId">{{ message }}</p>
-      }
-
       @if (full()) {
-        <p class="panel__hint">
-          A class has at most {{ limits.sessionsMaxCount }} sessions. Remove one to add another.
+        <p class="sessions__hint">
+          A run has at most {{ limits.sessionsMaxCount }} sessions. Remove one to add another.
         </p>
       } @else {
         <div class="actions">
@@ -340,35 +221,35 @@ function nextFreeSku(rows: readonly SessionDraft[], offeringNumber: number): str
             uiButton
             type="button"
             size="sm"
-            data-action="add"
-            [disabled]="disabled()"
+            data-action="add-session"
+            [attr.aria-label]="'Add session to ' + run()"
             (click)="add()"
           >
             Add session
           </button>
-          <p class="panel__hint">
-            Times are {{ zone }} time. A SKU is suggested; change it if the front desk uses another.
-          </p>
+          <p class="sessions__hint">Times are {{ zone() }} time.</p>
         </div>
       }
-    </section>
+    </fieldset>
   `,
   styles: `
-    .panel {
+    .sessions {
       display: grid;
-      gap: var(--space-3);
-      padding: var(--space-4);
-      border: var(--border-thin) solid var(--line);
-    }
-    .panel__title {
+      gap: var(--space-2);
+      min-width: 0;
       margin: 0;
+      padding: 0;
+      border: 0;
+    }
+    .sessions__title {
+      padding: 0;
       font-size: var(--fs-label);
       font-weight: var(--fw-heavy);
       letter-spacing: var(--track-label);
       text-transform: uppercase;
     }
-    .panel__empty,
-    .panel__hint {
+    .sessions__empty,
+    .sessions__hint {
       margin: 0;
       font-size: var(--fs-small);
       color: var(--text-soft);
@@ -394,33 +275,13 @@ function nextFreeSku(rows: readonly SessionDraft[], offeringNumber: number): str
       text-transform: uppercase;
       white-space: nowrap;
     }
-    .square {
-      display: grid;
-      gap: var(--space-1);
-      font-size: var(--fs-small);
-    }
-    .square__price {
-      font-weight: var(--fw-bold);
-    }
-    .square__seats,
-    .square__none {
-      color: var(--text-soft);
-    }
     .row-actions {
       white-space: nowrap;
-    }
-    .seats {
-      width: 6rem;
     }
     .actions {
       display: grid;
       gap: var(--space-2);
       justify-items: start;
-    }
-    .error {
-      margin: 0;
-      color: var(--danger);
-      font-weight: var(--fw-bold);
     }
   `,
 })
@@ -428,37 +289,34 @@ export class SessionGrid {
   /** The sittings, in the order they meet. Two-way: every change is the editor's draft. */
   readonly sessions = model.required<readonly SessionDraft[]>();
 
-  /** The class's number, which a new row's suggested SKU is built from; `null` before it is created. */
-  readonly offeringNumber = input<number | null>(null);
+  /** How the run is named to a screen reader ("Run 2"), so each grid's controls say whose they are. */
+  readonly run = input('Run 1');
 
-  /** The currency the API returns amounts in. */
-  readonly currency = input('USD');
+  /** The prefix of each input's name, unique per run, so a spec or the browser can tell the grids apart. */
+  readonly prefix = input('session');
+
+  /** The zone the times are typed in: the run's. */
+  readonly zone = input(GALLERY_TIME_ZONE);
 
   readonly disabled = input(false);
 
-  /** The API's or the form's word on the sessions, shown under the grid. */
-  readonly error = input<string | null>(null);
+  /** Whether the run's error is about these sessions, so the cells are marked and described by it. */
+  readonly invalid = input(false);
+
+  /** The id of the run's error message, which marked cells point at. */
+  readonly errorId = input<string | null>(null);
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
   protected readonly limits = CLASS_LIMITS;
-  protected readonly zone = GALLERY_TIME_ZONE;
   protected readonly liveMessage = signal('');
-  /** Ids the cells point at, so a row's inputs are described by the grid's own error and notice. */
-  protected readonly errorId = `session-grid-error-${++nextKey}`;
-  protected readonly squareNoticeId = `session-grid-square-${nextKey}`;
 
   protected readonly full = computed(() => this.sessions().length >= CLASS_LIMITS.sessionsMaxCount);
-
-  protected readonly anySynced = computed(() => this.sessions().some((row) => row.squareHasRecord));
+  protected readonly describedBy = computed(() => (this.invalid() ? this.errorId() : null));
 
   protected value(event: Event): string {
     return (event.target as HTMLInputElement).value;
-  }
-
-  protected money(cents: number): string {
-    return formatMoney(cents, this.currency());
   }
 
   protected patch(index: number, change: Partial<SessionDraft>): void {
@@ -469,24 +327,24 @@ export class SessionGrid {
 
   protected add(): void {
     const rows = this.sessions();
-    this.sessions.set([...rows, newSessionDraft(rows, this.offeringNumber())]);
-    this.announce(`Session ${rows.length + 1} added.`);
+    this.sessions.set([...rows, newSessionDraft(rows)]);
+    this.announce(`${this.run()}: session ${rows.length + 1} added.`);
   }
 
   protected remove(index: number): void {
-    const row = this.sessions()[index];
-    if (!row || row.squareHasRecord) return;
     this.sessions.update((rows) => rows.filter((_, position) => position !== index));
-    this.announce(`Session ${index + 1} removed.`);
+    this.announce(`${this.run()}: session ${index + 1} removed.`);
 
     // The button that was clicked is gone with its row, so focus moves to the one that took its place — or to
     // "Add session" when the last row went, rather than dropping to the top of the document.
     afterNextRender(
       () => {
         const rows = this.sessions().length;
-        const target = rows === 0 ? index : Math.min(index, rows - 1);
+        const target = Math.min(index, rows - 1);
         const next = this.host.nativeElement.querySelector<HTMLElement>(
-          rows === 0 ? '[data-action="add"]' : `[data-session="${target}"] [data-action="remove"]`,
+          rows === 0
+            ? '[data-action="add-session"]'
+            : `[data-session="${target}"] [data-action="remove-session"]`,
         );
         next?.focus();
       },

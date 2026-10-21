@@ -14,6 +14,9 @@ public static class SitePaths
 {
     public const string Artists = "/artists/";
 
+    /// <summary>Someone who teaches here: <c>/instructors/gwen-schilling</c> (ADR 0043).</summary>
+    public const string Instructors = "/instructors/";
+
     public const string Exhibitions = "/exhibitions/";
 
     /// <summary>A class offering: <c>/classes/intro-to-screen-printing</c>.</summary>

@@ -1,6 +1,7 @@
 ---
 paths:
   - src/Arts6311.Domain/Modules/Artists/**
+  - src/Arts6311.Domain/Modules/Instructors/**
   - src/Arts6311.Domain/Modules/Exhibitions/**
   - src/Arts6311.Domain/Modules/Classes/**
   - src/Arts6311.Domain/Modules/Shop/**
@@ -18,8 +19,9 @@ The CMS is closed by design. Every content type is code we own: there are no plu
 | Type | Notes |
 |---|---|
 | `Artist` | Name, slug, bio, medium, portrait, active |
+| `Instructor` | Name, slug, bio, medium (what they teach), portrait, active, website (`https:` only), Instagram handle (no `@`), optional linked artist (via the Artists facade). Not an artist flag: a separate roster (ADR 0043) |
 | `Exhibition` | Title, slug, summary, body, start/end, reception start/end/note, hero, artists (M:N) |
-| `ClassOffering` | Title, slug, sanitized HTML body, summary, type, level, instructor, hero, cadence, starting price; has `ClassSession` rows (start, end, display zone, SKU, capacity). **Square-synced** (ADR 0032, 0037). |
+| `ClassOffering` | Title, slug, sanitized HTML body, summary, type, level, hero; has `ClassRun` rows — the same class over different terms — each with label, **instructor** (via the Instructors facade), cadence, display zone, SKU, capacity, starting price, and `ClassSession` rows (start, end only). The run is what is sold. **Square-synced** (ADR 0032, 0037, 0044). |
 | `ShopItem` | Artwork only (merch is POS-only, ADR 0032). Title, slug, sanitized HTML description, artist (optional, via the Artists facade), categories, ordered gallery, SKU, one-of-a-kind flag, starting price, starting quantity. **Square-synced** (ADR 0038). |
 | `MembershipPlan` | Name, slug, perks (ordered rows), class discount %, featured, order, starting price and starting cadence. **No page of its own:** every published tier is shown on `/memberships` (ADR 0040). **Square-synced** (ADR 0005, 0040). |
 | `Page` | Slug, title, sanitized HTML body (privacy, terms, about copy blocks) |
@@ -50,10 +52,19 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
 - **Every status command stages `site.revalidate-requested {entityType, entityId, paths}`** in the same save
   (ADR 0036), so the cache stops serving what the change affects. **So does an ordinary edit to a record whose
   status is `Published`** (2.13): the content is what the site is showing, so changing it has to clear what shows
-  it. An edit to a Draft, Scheduled or Archived record stages nothing, because nothing public renders one.
+  it. An edit to a Draft, Scheduled or Archived record stages nothing, because nothing public renders one — **except
+  an artist or an instructor**, whose every edit stages it: an unpublished artist is still credited by name on
+  published exhibitions and artwork, and an unpublished instructor is still named on published classes (ADR 0042,
+  0043).
   The Worker's kernel handler clears the `type:`, `entity:` and `site:` tags; nothing invalidates inline after a
   save, and nothing calls the site over HTTP. The API's own in-memory copy lives at most `HybridAppCache.MaxLocalLifetime` (one minute), which is the
   worst case for a change appearing on the site.
+- **The site reads** (`/api/v1/site/*`, ADR 0042) show Published records only, as the site's own models, cached in
+  each module's facade. **Every site cache entry carries the type tag of every content type it shows** — a shop item
+  is tagged `shop-item` and `artist`, because it credits one — never an entity or path tag alone: a read by slug cannot
+  know the id to tag with, and a rename's revalidation names only the new address. A new read that embeds another
+  type's records adds that type's tag (`SiteContentTypes` spells them), or it serves the old name until it expires.
+  Not-found answers and shop pages after the first are not cached.
 - **Slugs** are unique per type. A slug change on a record that has ever been published redirects its old address to the new one (ADR 0035): the content module's DataLayer stages `redirects.slug-changed` in the rename's own save, and the Redirects module applies it.
   - **A membership plan is the exception** (ADR 0040): it has no address of its own, so its slug is a stable key, a
     rename owes no redirect whatever its status, and its status changes revalidate the one page every tier shares.
@@ -79,6 +90,8 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
   - Staff mint one with `POST /api/v1/cms/preview` (`{entityType, entityId}`); the site reads it back from
     `GET /api/v1/site/preview/{token}`. The token is a 30-minute Data Protection token over `type:id` and is the
     whole credential, so it is never logged, stored in the browser or accepted for a write (ADR 0036).
+  - The answer carries the record as the site's own model — the one its published page renders — read through the
+    module's `GetForPreviewAsync` whatever its status, and never cached (ADR 0042).
   - Everything unusable — expired, tampered with, or a record since deleted — is one `resource.not_found`, so a
     holder learns nothing from the answer. The answer is `no-store` and `X-Robots-Tag: noindex, nofollow`.
   - A new publishable type joins `PreviewPolicy.EntityTypes` and `SitePaths` when it lands.
@@ -97,12 +110,16 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
     the `Cadence` projection is a string of Square's own word, because Square has cadences the CMS does not offer.
     A plan has no change-price command at all: after the first push, price and cadence are changed in Square.
 - **SKUs are unique across the CMS**, not per type: the shared kernel's `CatalogSkus` registry (`Managers/Catalog/`,
-  ADR 0037) holds one row per SKU with its owner's type and id, so one unique key covers class sessions and (from
-  2.10) shop items. A content module's DataLayer reserves and releases through `ISkuRegistry` in the **same save** as
+  ADR 0037) holds one row per SKU with its owner's type and id, so one unique key covers class runs (ADR 0044) and
+  shop items. A content module's DataLayer reserves and releases through `ISkuRegistry` in the **same save** as
   the row that carries the SKU, and a clash is `cms.sku_taken`. The CMS suggests one on create
   (`CLS-<offering>-<n>`, `ART-<n>`) and staff may edit it.
-- **A class session stores its display time zone** (the gallery's unless staff change it) and returns it as
-  `displayTimeZone`, because its times are stored UTC and read as a wall clock (backend.md).
+- **A class run stores its display time zone** (the gallery's unless staff change it) and returns it as
+  `displayTimeZone`, because its sessions' times are stored UTC and read as a wall clock (backend.md).
+- **A class run names its instructor by id** (ADR 0044): the facade asks the Instructors facade which exist and which
+  are archived, and Business refuses an unknown one, and an archived one for a run that did not already have them.
+  Publishing needs every run to have an instructor, a session and a starting price. A run Square holds can't be
+  removed and its starting price can't change in place (5.4a).
 - **Shop categories are a fixed allow-list** (`ShopPolicy.Categories`, ADR 0038): the six the site filters on, each
   with its label. A write is validated against it, and widening it is a line of code plus an ADR note — not a field
   staff type. The admin mirrors the labels (`SHOP_CATEGORIES`) as it mirrors every policy's numbers.

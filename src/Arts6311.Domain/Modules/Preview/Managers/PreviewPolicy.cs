@@ -35,6 +35,7 @@ public static class PreviewPolicy
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["artist"] = SitePaths.Artists,
+            ["instructor"] = SitePaths.Instructors,
             ["exhibition"] = SitePaths.Exhibitions,
             ["page"] = SitePaths.Pages,
             ["class-offering"] = SitePaths.Classes,

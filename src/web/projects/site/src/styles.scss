@@ -14,7 +14,8 @@
 .band--photo,
 .tier--featured,
 .strip,
-.footer {
+.footer,
+.class-card--show {
   --focus: var(--focus-on-dark);
 }
 
@@ -619,6 +620,32 @@
       border-color: var(--white);
       color: var(--black);
     }
+    /* .linkish hovers to ink, which would vanish into the dark card. */
+    .linkish:hover {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+  }
+}
+
+/*
+ * An exhibition date among the classes: charcoal like the exhibitions page's "now on view" bands, with the hot rule
+ * and the "Exhibition" label. At rest it wears the class card's hover colours; hovered, it deepens to ink.
+ */
+.class-card--show {
+  background: var(--strip);
+  color: var(--white);
+  box-shadow: inset 6px 0 0 var(--hot);
+  .class-card__date {
+    border-color: var(--white-40);
+  }
+  .class-card__meta {
+    color: var(--white-70);
+  }
+  .btn-dark {
+    background: var(--white);
+    border-color: var(--white);
+    color: var(--black);
   }
 }
 
@@ -926,12 +953,37 @@
     background 0.25s,
     color 0.25s;
   &:hover,
-  &:focus-visible {
+  &:focus-visible,
+  &:focus-within {
     background: var(--ink);
     color: var(--white);
-    .cal__time {
+    .cal__time,
+    .cal__by {
       color: var(--white-70);
     }
+    .linkish {
+      color: var(--white);
+    }
+    .linkish:hover {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+  }
+}
+
+/* A class entry holds two links (the class, its instructor), so the entry is a box and the class link fills it. */
+.cal__event-link {
+  display: block;
+}
+
+.cal__by {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  .linkish {
+    color: var(--text);
   }
 }
 
@@ -941,6 +993,77 @@
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+/* Exhibitions: the gallery's shows, set apart from classes by the charcoal fill, the hot rule and a labelled kicker. */
+.cal__event--show {
+  border-left-color: var(--hot);
+  background: var(--strip);
+  color: var(--white);
+  .cal__time {
+    color: var(--white-70);
+  }
+}
+
+.cal__key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cal__key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  &::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border-left: 3px solid var(--ink);
+    background: var(--white);
+    box-shadow: inset 0 0 0 1px var(--light);
+  }
+}
+
+.cal__key-item--show::before {
+  border-left-color: var(--hot);
+  background: var(--strip);
+}
+
+/* The shows hanging this month, above the grid: they run for weeks, so they don't fill every day. */
+.cal__onview {
+  margin: 0 0 20px;
+}
+
+.cal__onview-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cal__onview-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  .cal__event {
+    height: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
 }
 
 .cal__none {

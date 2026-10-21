@@ -28,6 +28,12 @@ internal interface IExhibitionsRepository
     /// </summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Published exhibitions with their credits, untracked, newest opening first — every one, or only the one with
+    /// <paramref name="slug"/> (ADR 0042).
+    /// </summary>
+    Task<List<Exhibition>> ListPublishedAsync(string? slug, CancellationToken cancellationToken);
+
     /// <summary>Throws away every unsaved change, after a save that failed, so the next save starts clean.</summary>
     void DiscardChanges();
 

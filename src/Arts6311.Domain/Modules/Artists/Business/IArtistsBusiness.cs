@@ -22,6 +22,25 @@ internal interface IArtistsBusiness
     Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(
         IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
 
+    /// <summary>Every published artist, by name, for the site (ADR 0042).</summary>
+    Task<IReadOnlyList<ArtistSiteRow>> ListForSiteAsync(CancellationToken cancellationToken);
+
+    /// <summary>The published artist at <paramref name="slug"/>, or <c>null</c>: a draft is not there to the site.</summary>
+    Task<ArtistSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>One artist as the site would show them, whatever the status, for a preview link.</summary>
+    Task<OperationResult<PreviewRecord<ArtistSiteRow>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The credits for <paramref name="ids"/>, as another record shows them: the name always, the page only when the
+    /// artist is published.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, SiteArtistCreditServiceModel>> DescribeCreditsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
+    /// <summary>Every published artist's address and last change, for the sitemap.</summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
+
     Task<OperationResult<ArtistServiceModel>> CreateAsync(
         ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken);
 

@@ -28,6 +28,12 @@ internal interface IPagesRepository
     /// </summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
+    /// <summary>The published page at <paramref name="slug"/>, projected straight to the site's model (ADR 0042).</summary>
+    Task<SitePageServiceModel?> FindPublishedAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>Every published page's slug and last change, by slug, for the sitemap. No bodies.</summary>
+    Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken);
+
     /// <summary>Throws away every unsaved change, after a save that failed, so the next save starts clean.</summary>
     void DiscardChanges();
 

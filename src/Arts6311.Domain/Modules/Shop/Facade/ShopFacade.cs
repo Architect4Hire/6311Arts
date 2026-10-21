@@ -1,3 +1,5 @@
+using System.Globalization;
+using Arts6311.Domain.Managers.Caching;
 using Arts6311.Domain.Managers.Concurrency;
 using Arts6311.Domain.Managers.Html;
 using Arts6311.Domain.Managers.Paging;
@@ -5,7 +7,9 @@ using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Managers.Validation;
 using Arts6311.Domain.Modules.Artists.Facade;
+using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Media.Facade;
+using Arts6311.Domain.Modules.Media.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Shop.Business;
 using Arts6311.Domain.Modules.Shop.Managers;
 using Arts6311.Domain.Modules.Shop.Managers.ServiceModels;
@@ -16,8 +20,9 @@ namespace Arts6311.Domain.Modules.Shop.Facade;
 
 /// <summary>
 /// Validates shape, asks Media about the photographs and the description's pictures and Artists about the credit,
-/// then calls Business, and finishes each answer with the artist as Artists describes them now. Nothing is cached:
-/// these are CMS reads; the site's cached reads arrive in Phase 3.
+/// then calls Business, and finishes each answer with the artist as Artists describes them now. The CMS reads are never
+/// cached; the site's are, under the <c>shop-item</c> and <c>artist</c> type tags, so a renamed artist's credit is
+/// cleared too (ADR 0042).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -43,9 +48,15 @@ internal sealed class ShopFacade(
     IValidator<ShopItemCreateViewModel> createValidator,
     IValidator<ShopItemUpdateViewModel> updateValidator,
     IValidator<ShopItemListViewModel> listValidator,
-    IValidator<ContentScheduleViewModel> scheduleValidator) : IShopFacade
+    IValidator<ContentScheduleViewModel> scheduleValidator,
+    IValidator<SiteShopListViewModel> siteListValidator,
+    IAppCache cache) : IShopFacade
 {
     private const string What = "this item";
+
+    /// <summary>A site read shows artwork and credits artists, so a change to either type clears it (ADR 0042).</summary>
+    internal static readonly string[] SiteTags =
+        [CacheTags.Type(ShopAudit.ResourceType), CacheTags.Type(SiteContentTypes.Artist)];
 
     public async Task<OperationResult<CursorPage<ShopItemSummaryServiceModel>>> ListAsync(
         ShopItemListViewModel request, CancellationToken cancellationToken)
@@ -220,6 +231,137 @@ internal sealed class ShopFacade(
             : throw new InvalidOperationException(
                 $"Reading shop item {id} for its scheduled publish failed ({gallery.Error.Code}).");
     }
+
+    public async Task<OperationResult<CursorPage<SiteShopItemSummaryServiceModel>>> ListForSiteAsync(
+        SiteShopListViewModel request, CancellationToken cancellationToken)
+    {
+        if (await siteListValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<CursorPage<SiteShopItemSummaryServiceModel>>(error);
+        }
+
+        // An artist is filtered by their page's slug, so only a published artist has work to show: a draft artist's
+        // slug is an empty shop, the same as one that names nobody, and neither is cached.
+        Guid? artistId = null;
+        if (request.Artist is { } artistSlug)
+        {
+            var found = await artists.FindBySlugsAsync([artistSlug], cancellationToken);
+            if (found is not [{ Status: PublishStatus.Published } artist])
+            {
+                return OperationResult.Success(new CursorPage<SiteShopItemSummaryServiceModel>([], null));
+            }
+
+            artistId = artist.Id;
+        }
+
+        // Only a first page is cached: a later page's key would be the visitor's cursor, which they can vary at will.
+        if (request.Cursor is not null)
+        {
+            return await ReadSitePageAsync(request, artistId, cancellationToken);
+        }
+
+        var limit = new PageRequest(null, request.Limit).EffectiveLimit;
+        var key = CacheKeys.List(
+            ShopAudit.ResourceType,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"site|{request.Category ?? "*"}|{request.Artist ?? "*"}|{request.Sort ?? ShopPolicy.SiteSorts[0]}|{limit}"));
+
+        return OperationResult.Success(await cache.GetOrCreateAsync(
+            key,
+            async token => (await ReadSitePageAsync(request, artistId, token)).Value!,
+            SiteTags,
+            SiteCachePolicy.Lifetime,
+            cancellationToken));
+    }
+
+    public async Task<OperationResult<SiteShopItemServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken)
+    {
+        // A malformed slug can't name a piece, and must not become a cache key (CacheKeys refuses a ':').
+        if (!Slugs.IsValid(slug))
+        {
+            return SiteNotFound();
+        }
+
+        var item = await cache.GetOrCreateFoundAsync(
+            CacheKeys.Item(ShopAudit.ResourceType, slug),
+            async token =>
+            {
+                if (await business.GetForSiteAsync(slug, token) is not { } row)
+                {
+                    return null;
+                }
+
+                var (credits, images) = await DescribeSiteAsync([row], token);
+                return row.ToServiceModel(credits, images);
+            },
+            SiteTags,
+            SiteCachePolicy.Lifetime,
+            cancellationToken);
+
+        return item is null ? SiteNotFound() : OperationResult.Success(item);
+    }
+
+    public async Task<OperationResult<PreviewRecord<SiteShopItemServiceModel>>> GetForPreviewAsync(
+        Guid id, CancellationToken cancellationToken)
+    {
+        var found = await business.GetForPreviewAsync(id, cancellationToken);
+        if (!found.Succeeded)
+        {
+            return OperationResult.Failure<PreviewRecord<SiteShopItemServiceModel>>(found.Error!);
+        }
+
+        var row = found.Value!.Record;
+        var (credits, images) = await DescribeSiteAsync([row], cancellationToken);
+        return OperationResult.Success(
+            new PreviewRecord<SiteShopItemServiceModel>(row.ToServiceModel(credits, images), found.Value.Status));
+    }
+
+    public async Task<CursorPage<SiteShopItemSummaryServiceModel>> ListWorksForSiteAsync(
+        string artistSlug, CancellationToken cancellationToken)
+    {
+        // Another module's request with a slug it has already read from Artists, so anything malformed is its bug;
+        // an artist with no work is an empty page, never a failure.
+        var page = await ListForSiteAsync(new SiteShopListViewModel(Artist: artistSlug), cancellationToken);
+        return page.Succeeded
+            ? page.Value!
+            : throw new ArgumentException($"Not a site list request ({page.Error!.Code}).", nameof(artistSlug));
+    }
+
+    public Task<IReadOnlyDictionary<Guid, int>> CountForSiteByArtistAsync(CancellationToken cancellationToken) =>
+        business.CountForSiteByArtistAsync(cancellationToken);
+
+    public Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
+        business.ListSitemapAsync(cancellationToken);
+
+    private async Task<OperationResult<CursorPage<SiteShopItemSummaryServiceModel>>> ReadSitePageAsync(
+        SiteShopListViewModel request, Guid? artistId, CancellationToken cancellationToken)
+    {
+        var page = await business.ListForSiteAsync(request, artistId, cancellationToken);
+        if (!page.Succeeded)
+        {
+            return OperationResult.Failure<CursorPage<SiteShopItemSummaryServiceModel>>(page.Error!);
+        }
+
+        var (credits, images) = await DescribeSiteAsync(page.Value!.Items, cancellationToken);
+        return OperationResult.Success(new CursorPage<SiteShopItemSummaryServiceModel>(
+            [.. page.Value.Items.Select(row => row.ToSummary(credits, images))], page.Value.NextCursor));
+    }
+
+    /// <summary>
+    /// One question each to Artists and Media for every row at once. The whole gallery is asked about even for a
+    /// card, so a card leads with the same photograph as the piece's page: the first that has renditions.
+    /// </summary>
+    private async Task<(IReadOnlyDictionary<Guid, SiteArtistCreditServiceModel> Credits, IReadOnlyDictionary<Guid, SiteImageServiceModel> Images)>
+        DescribeSiteAsync(IReadOnlyList<ShopItemSiteRow> rows, CancellationToken cancellationToken)
+    {
+        var credits = await artists.DescribeCreditsAsync([.. rows.Select(row => row.ArtistId).OfType<Guid>()], cancellationToken);
+        var images = await media.DescribeForSiteAsync([.. rows.SelectMany(row => row.ImageMediaIds)], cancellationToken);
+        return (credits, images);
+    }
+
+    private static OperationResult<SiteShopItemServiceModel> SiteNotFound() =>
+        OperationResult.Failure<SiteShopItemServiceModel>(OperationError.Of(ErrorCodes.NotFound, "There is no such piece."));
 
     /// <summary>A command that asks no other module. Without <c>If-Match</c> it is a 428 before anything is read.</summary>
     private async Task<OperationResult<ShopItemServiceModel>> TransitionAsync(

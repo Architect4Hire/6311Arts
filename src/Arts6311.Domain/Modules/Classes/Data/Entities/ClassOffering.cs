@@ -3,9 +3,10 @@ using Arts6311.Domain.Managers.Publishing;
 namespace Arts6311.Domain.Modules.Classes.Data.Entities;
 
 /// <summary>
-/// One class or workshop the centre teaches (content.md "Content types"): what it is, who teaches it, how often it
-/// meets, and the sittings staff can book. <strong>Square-synced</strong> (ADR 0032): the CMS owns this content and
-/// each session's SKU and capacity; Square owns the record of money and seats.
+/// One class or workshop the centre teaches (content.md "Content types"): what it is, and the runs it is offered in —
+/// the same class over different terms, each with its own instructor, dates and seats (ADR 0044).
+/// <strong>Square-synced</strong> (ADR 0032): the CMS owns this content and each run's SKU and capacity; Square owns
+/// the record of money and seats.
 /// </summary>
 public sealed class ClassOffering
 {
@@ -28,23 +29,9 @@ public sealed class ClassOffering
     /// <summary>Who it is for: "Beginner", "All levels".</summary>
     public string? Level { get; set; }
 
-    /// <summary>Who teaches it, as the site prints it. A name, not a link to the artist roster.</summary>
-    public string? Instructor { get; set; }
-
-    /// <summary>How a multi-session course meets: "Saturdays", "Wednesdays, 5 weeks".</summary>
-    public string? Cadence { get; set; }
-
     /// <summary>
-    /// What one seat costs when the first push creates the Square objects (ADR 0032). A draft field until then, and
-    /// frozen once Square has reported money or seats for any session: from that point price changes are commands
-    /// (5.4a).
-    /// Never written by an inbound pull — <see cref="ClassSession.PriceCents"/> is what Square's record lands in.
-    /// </summary>
-    public long? StartingPriceCents { get; set; }
-
-    /// <summary>
-    /// The offering's number, assigned on create, which its sessions' suggested SKUs are built from
-    /// (<c>CLS-&lt;offering&gt;-&lt;session&gt;</c>, ADR 0037). A suggestion aid, not an identity.
+    /// The offering's number, assigned on create, which its runs' suggested SKUs are built from
+    /// (<c>CLS-&lt;offering&gt;-&lt;run&gt;</c>, ADR 0037, 0044). A suggestion aid, not an identity.
     /// </summary>
     public int OfferingNumber { get; set; }
 
@@ -57,8 +44,11 @@ public sealed class ClassOffering
     /// <summary>The library images the body shows, kept in step with it on every write so Media's delete guard sees them.</summary>
     public List<ClassOfferingMediaReference> Images { get; set; } = [];
 
-    /// <summary>The sittings, in start order. Part of this offering's aggregate: one <c>ETag</c> covers both.</summary>
-    public List<ClassSession> Sessions { get; set; } = [];
+    /// <summary>
+    /// The runs, each with its sittings. Part of this offering's aggregate: one <c>ETag</c> covers the offering, its
+    /// runs and their sessions.
+    /// </summary>
+    public List<ClassRun> Runs { get; set; } = [];
 
     /// <summary>The WordPress event id this offering was imported from (prompt 4.x). Set by the importer only.</summary>
     public long? LegacyWordPressId { get; set; }
@@ -79,7 +69,7 @@ public sealed class ClassOffering
     public string UpdatedBy { get; set; } = string.Empty;
 
     /// <summary>
-    /// The optimistic-concurrency token, rotated by every staff write (a change to the sessions too) and carried as
+    /// The optimistic-concurrency token, rotated by every staff write (a change to a run or a session too) and carried as
     /// the <c>ETag</c>. A <see cref="Guid"/> the application sets, as on <c>Exhibition</c>.
     /// </summary>
     public Guid RowVersion { get; set; }

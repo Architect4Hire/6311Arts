@@ -10,8 +10,8 @@ public static class PreviewServiceCollectionExtensions
     /// <summary>
     /// Registers the Preview module (ADR 0036). Requires <c>AddArtsKernel</c>, Data Protection
     /// (<c>AddArtsDataProtection</c>) and the content modules it reads through:
-    /// <c>AddArtistsModule</c>, <c>AddExhibitionsModule</c>, <c>AddPagesModule</c>, <c>AddClassesModule</c> and
-    /// <c>AddShopModule</c>, so it comes after them.
+    /// <c>AddArtistsModule</c>, <c>AddInstructorsModule</c>, <c>AddExhibitionsModule</c>, <c>AddPagesModule</c>,
+    /// <c>AddClassesModule</c>, <c>AddShopModule</c> and <c>AddMembershipsModule</c>, so it comes after them.
     /// </summary>
     /// <remarks>
     /// The API only: it mints the links and serves them. No handler, nothing persisted, so the Worker has no use

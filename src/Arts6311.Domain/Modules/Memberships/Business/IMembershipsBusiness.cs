@@ -44,6 +44,19 @@ internal interface IMembershipsBusiness
     /// <summary>The plans due at <paramref name="asOf"/>, oldest first: the Worker's pass (ADR 0036).</summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
+    /// <summary>Every published tier, in display order, as <c>/memberships</c> shows it (ADR 0042).</summary>
+    Task<IReadOnlyList<SiteMembershipPlanServiceModel>> ListForSiteAsync(CancellationToken cancellationToken);
+
+    /// <summary>One tier as the site would show it, whatever the status, for a preview link.</summary>
+    Task<OperationResult<PreviewRecord<SiteMembershipPlanServiceModel>>> GetForPreviewAsync(
+        Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <c>/memberships</c>, once, when any tier is published — a plan has no address of its own (ADR 0040) — dated
+    /// by the latest change among them.
+    /// </summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
+
     /// <summary>Publishes one due plan, read again inside this scope and claimed by its row version (ADR 0036).</summary>
     Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken);
 

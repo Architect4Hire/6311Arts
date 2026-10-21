@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Arts6311.Domain.Managers;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
@@ -7,6 +8,7 @@ using Arts6311.Domain.Modules.Artists.Data.Entities;
 using Arts6311.Domain.Modules.Artists.Facade;
 using Arts6311.Domain.Modules.Artists.Managers.ViewModels;
 using Arts6311.Domain.Modules.Classes;
+using Arts6311.Domain.Modules.Instructors;
 using Arts6311.Domain.Modules.Classes.Facade;
 using Arts6311.Domain.Modules.Classes.Managers.ViewModels;
 using Arts6311.Domain.Modules.Memberships;
@@ -51,6 +53,8 @@ public sealed class PreviewTests : IAsyncLifetime
 
     private static readonly DateTimeOffset Now = new(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
 
+    private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
+
     private readonly FakeTimeProvider time = new(Now);
     private SqliteArtsDatabase database = null!;
     private ServiceProvider services = null!;
@@ -76,6 +80,7 @@ public sealed class PreviewTests : IAsyncLifetime
         collection.AddArtistsModule();
         collection.AddExhibitionsModule();
         collection.AddPagesModule();
+        collection.AddInstructorsModule();
         collection.AddClassesModule();
         collection.AddShopModule();
         collection.AddMembershipsModule();
@@ -235,19 +240,21 @@ public sealed class PreviewTests : IAsyncLifetime
     [Fact]
     public async Task APreviewNamesNoStaffMemberAndCarriesNoRowVersion()
     {
-        // ADR 0036: whoever holds the link reads the draft, so the CMS's own bookkeeping is emptied — the editor's
-        // user id above all.
+        // ADR 0036, 0042: whoever holds the link reads the draft, so a preview is the site's own model — which has no
+        // CMS bookkeeping to empty, the editor's user id above all — rather than the CMS's.
         var artist = await NewArtistAsync();
 
         var preview = await Ok(ReadLinkAsync("artist", artist));
+        var json = JsonSerializer.Serialize(preview, Web);
 
-        Assert.Equal(string.Empty, preview.Artist!.UpdatedBy);
-        Assert.Equal(string.Empty, preview.Artist.ETag);
-        Assert.Null(preview.Artist.LegacyWordPressId);
+        Assert.DoesNotContain("\"updatedBy\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"etag\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"legacyWordPressId\"", json, StringComparison.Ordinal);
 
-        // What the page is made of is all still there.
-        Assert.Equal("Jane Doe", preview.Artist.Name);
+        // What the page is made of is all still there, and the status rides beside it.
+        Assert.Equal("Jane Doe", preview.Artist!.Name);
         Assert.Equal("jane-doe", preview.Artist.Slug);
+        Assert.Equal(PublishStatus.Draft, preview.Status);
     }
 
     [Fact]
@@ -302,7 +309,7 @@ public sealed class PreviewTests : IAsyncLifetime
     {
         using var scope = services.CreateScope();
         var created = await scope.ServiceProvider.GetRequiredService<IClassesFacade>().CreateAsync(
-            new ClassCreateViewModel("Scratchboard", Summary: "A class.", StartingPriceCents: 7500),
+            new ClassCreateViewModel("Scratchboard", Summary: "A class.", Runs: [new ClassRunViewModel(12, StartingPriceCents: 7500)]),
             Editor,
             Ct);
         Assert.True(created.Succeeded);

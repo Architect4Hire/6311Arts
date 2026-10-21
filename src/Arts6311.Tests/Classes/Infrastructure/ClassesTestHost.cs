@@ -6,6 +6,9 @@ using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Classes;
 using Arts6311.Domain.Modules.Classes.Data.Entities;
 using Arts6311.Domain.Modules.Classes.Facade;
+using Arts6311.Domain.Modules.Instructors;
+using Arts6311.Domain.Modules.Instructors.Data.Entities;
+using Arts6311.Domain.Modules.Artists;
 using Arts6311.Domain.Modules.Media;
 using Arts6311.Domain.Modules.Media.Data.Entities;
 using Arts6311.Domain.Modules.Media.Gateways;
@@ -23,7 +26,8 @@ namespace Arts6311.Tests.Classes.Infrastructure;
 
 /// <summary>
 /// The Classes module as the API composes it — kernel (sanitizer and SKU registry), Media (asked about the hero and
-/// the body's pictures) and Classes — over a SQLite <see cref="ArtsDbContext"/>, with only the blob container faked.
+/// the body's pictures), Artists and Instructors (asked about each run's instructor) and Classes — over a SQLite
+/// <see cref="ArtsDbContext"/>, with only the blob container faked.
 /// </summary>
 internal sealed class ClassesTestHost : IAsyncDisposable
 {
@@ -43,7 +47,7 @@ internal sealed class ClassesTestHost : IAsyncDisposable
 
     public FakeTimeProvider Time { get; }
 
-    /// <param name="withSeeders">Registers the classes development seeder, as MigrationService does.</param>
+    /// <param name="withSeeders">Registers the instructors and classes development seeders, in MigrationService's order.</param>
     public static async Task<ClassesTestHost> CreateAsync(
         CancellationToken cancellationToken, IInterceptor? interceptor = null, bool withSeeders = false)
     {
@@ -56,9 +60,12 @@ internal sealed class ClassesTestHost : IAsyncDisposable
         collection.AddScoped(_ => interceptor is null ? database.NewContext() : database.NewContext(interceptor));
         collection.AddArtsKernel();
         collection.AddMediaModule();
+        collection.AddArtistsModule();
+        collection.AddInstructorsModule();
         collection.AddClassesModule();
         if (withSeeders)
         {
+            collection.AddInstructorsDevelopmentSeeder();
             collection.AddClassesDevelopmentSeeder();
         }
 
@@ -114,9 +121,33 @@ internal sealed class ClassesTestHost : IAsyncDisposable
         return id;
     }
 
+    /// <summary>An instructor written straight to the table, for a run to name.</summary>
+    public async Task<Guid> AddInstructorAsync(string name, PublishStatus status = PublishStatus.Published)
+    {
+        var id = Guid.NewGuid();
+        await ExecuteAsync(async context =>
+        {
+            context.Add(new Instructor
+            {
+                Id = id,
+                Name = name,
+                Slug = Slugs.FromName(name),
+                Active = true,
+                Status = status,
+                PublishedAt = status == PublishStatus.Published ? Time.GetUtcNow() : null,
+                CreatedAt = Time.GetUtcNow(),
+                UpdatedAt = Time.GetUtcNow(),
+                UpdatedBy = EditorId,
+                RowVersion = Guid.NewGuid(),
+            });
+            await context.SaveChangesAsync();
+        });
+        return id;
+    }
+
     /// <summary>
-    /// An offering row straight into the table, with one session per SKU, for repository tests that need a
-    /// particular shape. The SKUs are reserved too, as a real write would.
+    /// An offering row straight into the table, with one run per SKU (each with one session, a week after the last),
+    /// for repository tests that need a particular shape. The SKUs are reserved too, as a real write would.
     /// </summary>
     public async Task<Guid> AddOfferingAsync(
         string title,
@@ -135,7 +166,6 @@ internal sealed class ClassesTestHost : IAsyncDisposable
                 Title = title,
                 Slug = Slugs.FromName(title) + "-" + Guid.NewGuid().ToString("N")[..6],
                 Summary = "A class.",
-                StartingPriceCents = 3000,
                 OfferingNumber = offeringNumber,
                 Status = status,
                 CreatedAt = Time.GetUtcNow(),
@@ -146,22 +176,28 @@ internal sealed class ClassesTestHost : IAsyncDisposable
 
             for (var index = 0; index < skus.Length; index++)
             {
-                var session = new ClassSession
+                var run = new ClassRun
                 {
                     Id = Guid.NewGuid(),
                     ClassOfferingId = id,
-                    StartsAt = starts.AddDays(7 * index),
-                    EndsAt = starts.AddDays(7 * index).AddHours(3),
                     DisplayTimeZone = GalleryTimeZone.Id,
                     Sku = skus[index],
                     Capacity = 10,
+                    StartingPriceCents = 3000,
                 };
-                offering.Sessions.Add(session);
+                run.Sessions.Add(new ClassSession
+                {
+                    Id = Guid.NewGuid(),
+                    ClassRunId = run.Id,
+                    StartsAt = starts.AddDays(7 * index),
+                    EndsAt = starts.AddDays(7 * index).AddHours(3),
+                });
+                offering.Runs.Add(run);
                 context.Add(new CatalogSku
                 {
                     Sku = skus[index],
-                    OwnerType = CatalogOwnerTypes.ClassSession,
-                    OwnerId = session.Id,
+                    OwnerType = CatalogOwnerTypes.ClassRun,
+                    OwnerId = run.Id,
                     CreatedAt = Time.GetUtcNow(),
                 });
             }
@@ -186,7 +222,7 @@ internal sealed class ClassesTestHost : IAsyncDisposable
 
     public Task<ClassOffering?> StoredAsync(Guid id) =>
         QueryAsync(context => context.Set<ClassOffering>().AsNoTracking()
-            .Include(offering => offering.Sessions)
+            .Include(offering => offering.Runs).ThenInclude(run => run.Sessions)
             .Include(offering => offering.Images)
             .SingleOrDefaultAsync(offering => offering.Id == id));
 

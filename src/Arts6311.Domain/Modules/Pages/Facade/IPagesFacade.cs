@@ -70,4 +70,16 @@ public interface IPagesFacade
     /// Never throws for a page that moved on — it reports what happened instead.
     /// </summary>
     Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <c>GET /site/pages/{slug}</c>: the published page there, cached under the <c>page</c> type tag (ADR 0042).
+    /// Anything else — a draft, an unknown or malformed slug — is <c>resource.not_found</c>, and is not cached.
+    /// </summary>
+    Task<OperationResult<SitePageServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>For a preview link: the page as the site would show it, whatever the status. Never cached.</summary>
+    Task<OperationResult<PreviewRecord<SitePageServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>For the sitemap: every published page's address. Not cached here; the Site module caches the sitemap.</summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
 }

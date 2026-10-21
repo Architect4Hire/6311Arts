@@ -330,6 +330,58 @@ internal sealed class MediaBusiness(IMediaDataLayer dataLayer, IClock clock) : I
             [.. found.Where(row => !row.HasAltText).Select(row => row.Id)]);
     }
 
+    /// <remarks>
+    /// Only renditions are described, never the master, which stays staff-only (media.md). An original with no
+    /// rendition yet — its Worker pass has not run, or failed — is left out, so the site shows no picture rather
+    /// than a broken one; the next read after the site cache's lifetime picks it up (ADR 0042). Visibility is not
+    /// consulted: whether a visitor may fetch a URL is delivery's rule (ADR 0030).
+    /// </remarks>
+    public async Task<IReadOnlyDictionary<Guid, SiteImageServiceModel>> DescribeForSiteAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        if (ids.Count == 0)
+        {
+            return new Dictionary<Guid, SiteImageServiceModel>();
+        }
+
+        var rows = await dataLayer.FindWithRenditionsAsync([.. ids.Distinct()], cancellationToken);
+        var renditions = rows.Where(row => row.Kind == MediaAssetKind.Derived).ToLookup(row => row.ParentAssetId!.Value);
+
+        var described = new Dictionary<Guid, SiteImageServiceModel>();
+        foreach (var original in rows.Where(row => row.Kind != MediaAssetKind.Derived))
+        {
+            var sources = renditions[original.Id]
+                .Select(row => (Row: row, Name: MediaRenditionName.TryParse(row.RenditionName)))
+                .Where(pair => pair.Name is not null)
+                .OrderBy(pair => pair.Name!.Format)
+                .ThenBy(pair => pair.Name!.Width)
+                .Select(pair => new SiteImageSourceServiceModel(
+                    MediaUrls.For(original.Id, pair.Row.RenditionName!, pair.Row.Checksum), pair.Row.Width, pair.Row.MimeType))
+                .ToList();
+
+            var fallback = renditions[original.Id]
+                .Where(row => MediaRenditionName.TryParse(row.RenditionName)?.Format == MediaImageFormat.Jpeg)
+                .OrderByDescending(row => row.Width)
+                .FirstOrDefault();
+
+            if (fallback is null)
+            {
+                continue;
+            }
+
+            described[original.Id] = new SiteImageServiceModel(
+                MediaUrls.For(original.Id, fallback.RenditionName!, fallback.Checksum),
+                original.AltText ?? string.Empty,
+                original.Width,
+                original.Height,
+                sources);
+        }
+
+        return described;
+    }
+
     public async Task<OperationResult> ProduceRenditionsAsync(
         Guid assetId, int attempt, bool lastAttempt, CancellationToken cancellationToken)
     {

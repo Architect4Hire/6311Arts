@@ -67,6 +67,9 @@ internal interface IMembershipsDataLayer
     /// <summary>The ids of plans Scheduled for <paramref name="asOf"/> or earlier, oldest first.</summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
+    /// <summary>Every published plan with its perks, untracked, in display order.</summary>
+    Task<List<MembershipPlan>> ListPublishedAsync(CancellationToken cancellationToken);
+
     /// <summary>Every slug in use, for the development seed.</summary>
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);
 

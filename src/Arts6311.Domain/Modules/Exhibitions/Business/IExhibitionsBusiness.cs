@@ -61,6 +61,18 @@ internal interface IExhibitionsBusiness
     /// <summary>The exhibitions due to be published at <paramref name="asOf"/>, for the Worker's scheduled publisher.</summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
+    /// <summary>Every published exhibition, newest opening first, for the site (ADR 0042).</summary>
+    Task<IReadOnlyList<ExhibitionSiteRow>> ListForSiteAsync(CancellationToken cancellationToken);
+
+    /// <summary>The published exhibition at <paramref name="slug"/>, or <c>null</c>: a draft is not there to the site.</summary>
+    Task<ExhibitionSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>One exhibition as the site would show it, whatever the status, for a preview link.</summary>
+    Task<OperationResult<PreviewRecord<ExhibitionSiteRow>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>Every published exhibition's address and last change, for the sitemap.</summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
+
     /// <summary>
     /// Publishes one due exhibition on the scheduled publisher's behalf, re-reading it first: the row version is
     /// the claim, so two Workers acting on one record produce one publish and one

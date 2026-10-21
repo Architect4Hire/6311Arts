@@ -65,3 +65,14 @@ public sealed record ShopItemListViewModel(
     PublishStatus? Status = null,
     string? Search = null,
     string? Category = null);
+
+/// <summary>A page of the site's shop (ADR 0042): published artwork only, filtered and ordered as the visitor chose.</summary>
+/// <param name="Category">One category slug, to show only what is filed under it.</param>
+/// <param name="Artist">An artist's slug, to show only their work. An artist who is not published shows nothing.</param>
+/// <param name="Sort"><c>newest</c> (the default), <c>price-asc</c>, <c>price-desc</c> or <c>title</c>.</param>
+public sealed record SiteShopListViewModel(
+    string? Category = null,
+    string? Artist = null,
+    string? Sort = null,
+    string? Cursor = null,
+    int? Limit = null);

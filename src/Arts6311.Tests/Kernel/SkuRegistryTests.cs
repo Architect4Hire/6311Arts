@@ -22,7 +22,7 @@ public sealed class SkuRegistryTests
         await using var context = database.NewContext();
         var registry = Registry(context);
 
-        registry.Reserve("CLS-1-1", CatalogOwnerTypes.ClassSession, Guid.NewGuid());
+        registry.Reserve("CLS-1-1", CatalogOwnerTypes.ClassRun, Guid.NewGuid());
         Assert.Empty(await Stored(database));
 
         await context.SaveChangesAsync(Ct);
@@ -40,7 +40,7 @@ public sealed class SkuRegistryTests
         await context.SaveChangesAsync(Ct);
 
         await using var second = database.NewContext();
-        Registry(second).Reserve("ART-1", CatalogOwnerTypes.ClassSession, Guid.NewGuid());
+        Registry(second).Reserve("ART-1", CatalogOwnerTypes.ClassRun, Guid.NewGuid());
 
         await Assert.ThrowsAnyAsync<DbUpdateException>(() => second.SaveChangesAsync(Ct));
     }
@@ -53,8 +53,8 @@ public sealed class SkuRegistryTests
         var owner = Guid.NewGuid();
         var registry = Registry(context);
 
-        registry.Reserve("CLS-1-1", CatalogOwnerTypes.ClassSession, owner);
-        registry.Reserve("CLS-1-2", CatalogOwnerTypes.ClassSession, owner);
+        registry.Reserve("CLS-1-1", CatalogOwnerTypes.ClassRun, owner);
+        registry.Reserve("CLS-1-2", CatalogOwnerTypes.ClassRun, owner);
 
         await Assert.ThrowsAnyAsync<DbUpdateException>(() => context.SaveChangesAsync(Ct));
     }
@@ -68,15 +68,15 @@ public sealed class SkuRegistryTests
 
         await using (var setup = database.NewContext())
         {
-            Registry(setup).Reserve("CLS-1-1", CatalogOwnerTypes.ClassSession, moving);
+            Registry(setup).Reserve("CLS-1-1", CatalogOwnerTypes.ClassRun, moving);
             await setup.SaveChangesAsync(Ct);
         }
 
         await using (var context = database.NewContext())
         {
             var registry = Registry(context);
-            await registry.ReleaseAsync("CLS-1-1", new SkuOwner(CatalogOwnerTypes.ClassSession, moving), Ct);
-            registry.Reserve("CLS-1-1", CatalogOwnerTypes.ClassSession, taking);
+            await registry.ReleaseAsync("CLS-1-1", new SkuOwner(CatalogOwnerTypes.ClassRun, moving), Ct);
+            registry.Reserve("CLS-1-1", CatalogOwnerTypes.ClassRun, taking);
             await context.SaveChangesAsync(Ct);
         }
 
@@ -91,7 +91,7 @@ public sealed class SkuRegistryTests
         await using var context = database.NewContext();
         var registry = Registry(context);
 
-        var owner = new SkuOwner(CatalogOwnerTypes.ClassSession, Guid.NewGuid());
+        var owner = new SkuOwner(CatalogOwnerTypes.ClassRun, Guid.NewGuid());
         registry.Reserve("CLS-1-1", owner.OwnerType, owner.OwnerId);
         await registry.ReleaseAsync("CLS-1-1", owner, Ct);
         await context.SaveChangesAsync(Ct);
@@ -107,7 +107,7 @@ public sealed class SkuRegistryTests
 
         await using (var setup = database.NewContext())
         {
-            Registry(setup).Reserve("CLS-1-1", CatalogOwnerTypes.ClassSession, mine);
+            Registry(setup).Reserve("CLS-1-1", CatalogOwnerTypes.ClassRun, mine);
             await setup.SaveChangesAsync(Ct);
         }
 
@@ -115,11 +115,11 @@ public sealed class SkuRegistryTests
         var registry = Registry(context);
         var owners = await registry.OwnersAsync(["CLS-1-1", "CLS-9-9"], Ct);
 
-        Assert.Equal([new SkuOwner(CatalogOwnerTypes.ClassSession, mine)], owners.Values);
+        Assert.Equal([new SkuOwner(CatalogOwnerTypes.ClassRun, mine)], owners.Values);
         Assert.Equal(["CLS-1-1"], owners.Keys);
-        Assert.False(await registry.IsTakenAsync("CLS-1-1", new SkuOwner(CatalogOwnerTypes.ClassSession, mine), Ct));
-        Assert.True(await registry.IsTakenAsync("CLS-1-1", new SkuOwner(CatalogOwnerTypes.ClassSession, Guid.NewGuid()), Ct));
-        Assert.False(await registry.IsTakenAsync("CLS-9-9", new SkuOwner(CatalogOwnerTypes.ClassSession, mine), Ct));
+        Assert.False(await registry.IsTakenAsync("CLS-1-1", new SkuOwner(CatalogOwnerTypes.ClassRun, mine), Ct));
+        Assert.True(await registry.IsTakenAsync("CLS-1-1", new SkuOwner(CatalogOwnerTypes.ClassRun, Guid.NewGuid()), Ct));
+        Assert.False(await registry.IsTakenAsync("CLS-9-9", new SkuOwner(CatalogOwnerTypes.ClassRun, mine), Ct));
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class SkuRegistryTests
 
         await using var context = database.NewContext();
         var registry = Registry(context);
-        var mine = new SkuOwner(CatalogOwnerTypes.ClassSession, Guid.NewGuid());
+        var mine = new SkuOwner(CatalogOwnerTypes.ClassRun, Guid.NewGuid());
 
         await registry.ReleaseAsync("CLS-9-9", mine, Ct);
         await registry.ReleaseAsync("ART-1", mine, Ct);
@@ -155,7 +155,7 @@ public sealed class SkuRegistryTests
         var registry = Registry(context);
 
         Assert.Throws<ArgumentException>(() =>
-            registry.Reserve("cls 1 1", CatalogOwnerTypes.ClassSession, Guid.NewGuid()));
+            registry.Reserve("cls 1 1", CatalogOwnerTypes.ClassRun, Guid.NewGuid()));
         Assert.Empty(await Stored(database));
     }
 
@@ -169,9 +169,9 @@ public sealed class SkuRegistryTests
     [Fact]
     public void ASuggestionIsThePrefixTheOfferingAndTheSessionNumber()
     {
-        Assert.Equal("CLS-4-2", SkuPolicy.ForClassSession(4, 2));
-        Assert.Throws<ArgumentOutOfRangeException>(() => SkuPolicy.ForClassSession(0, 1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => SkuPolicy.ForClassSession(1, 0));
+        Assert.Equal("CLS-4-2", SkuPolicy.ForClassRun(4, 2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SkuPolicy.ForClassRun(0, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SkuPolicy.ForClassRun(1, 0));
     }
 
     private static SkuRegistry Registry(ArtsDbContext context) => new(context, new FixedSkuClock());

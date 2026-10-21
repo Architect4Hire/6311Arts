@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Media.Managers.ServiceModels;
 using Arts6311.Domain.Managers.Publishing;
 
 namespace Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels;
@@ -55,3 +57,38 @@ public sealed record ExhibitionSummaryServiceModel(
     Guid? HeroMediaId,
     int ArtistCount,
     DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// One published exhibition in the site's list (ADR 0042): no body, status or staff bookkeeping.
+/// </summary>
+/// <param name="StartDate">The first day it hangs, as a calendar date in <paramref name="DisplayTimeZone"/>.</param>
+/// <param name="EndDate">The last day it hangs, inclusive.</param>
+/// <param name="Artists">The credited artists, in the order staff set.</param>
+/// <param name="Image">The hero's renditions, or <c>null</c> when there is none yet.</param>
+public sealed record SiteExhibitionSummaryServiceModel(
+    Guid Id,
+    string Slug,
+    string Title,
+    string? Summary,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    ExhibitionReceptionServiceModel? Reception,
+    string DisplayTimeZone,
+    IReadOnlyList<SiteArtistCreditServiceModel> Artists,
+    SiteImageServiceModel? Image);
+
+/// <summary>One published exhibition's page (ADR 0042): the list's fields and the body.</summary>
+/// <param name="BodyText">Plain text; blank lines separate paragraphs. Not HTML: a sanitized body would be a new
+/// <c>bodyHtml</c> field, as classes and pages have.</param>
+public sealed record SiteExhibitionServiceModel(
+    Guid Id,
+    string Slug,
+    string Title,
+    string? Summary,
+    string? BodyText,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    ExhibitionReceptionServiceModel? Reception,
+    string DisplayTimeZone,
+    IReadOnlyList<SiteArtistCreditServiceModel> Artists,
+    SiteImageServiceModel? Image);

@@ -13,6 +13,7 @@ using Arts6311.Domain.Modules.Pages.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Pages.Managers.Validation;
 using Arts6311.Domain.Modules.Pages.Managers.ViewModels;
 using Arts6311.Tests.Artists.Infrastructure;
+using Arts6311.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace Arts6311.Tests.Pages;
@@ -116,21 +117,20 @@ public sealed class PagesLayerTests
     }
 
     [Fact]
-    public async Task BusinessRefusesAPictureMediaWasNotAskedAboutOrDoesNotHave()
+    public async Task BusinessDropsAPictureAndReferencesNothingWhateverMediaSaid()
     {
+        // ADR 0045: the sanitizer takes the picture out, so there is nothing left for Media's answer to vouch for.
         var (business, dataLayer) = Business();
-        var body = $"<p>{Img}</p>";
+        var body = $"<p>Window.{Img}</p>";
 
         var notAsked = await business.CreateAsync(new PageCreateViewModel("About", Body: body), PageImageCheck.None, "e", Ct);
-        var missing = await business.CreateAsync(
-            new PageCreateViewModel("About", Body: body), new PageImageCheck(new HashSet<Guid> { ImageId }, new HashSet<Guid> { ImageId }), "e", Ct);
         var held = await business.CreateAsync(
             new PageCreateViewModel("About", Body: body), new PageImageCheck(new HashSet<Guid> { ImageId }, new HashSet<Guid>()), "e", Ct);
 
-        Assert.Contains("body", notAsked.Error!.FieldErrors.Keys);
-        Assert.Contains("body", missing.Error!.FieldErrors.Keys);
-        Assert.Equal([ImageId], held.Value!.ImageMediaIds);
-        Assert.Equal(["create"], dataLayer.Writes);
+        Assert.Equal("<p>Window.</p>", notAsked.Value!.Body);
+        Assert.Empty(notAsked.Value.ImageMediaIds);
+        Assert.Empty(held.Value!.ImageMediaIds);
+        Assert.Equal(["create", "create"], dataLayer.Writes);
     }
 
     [Fact]
@@ -179,20 +179,18 @@ public sealed class PagesLayerTests
     // ---- Facade ----
 
     [Fact]
-    public async Task TheFacadeAsksMediaOnlyAboutTheLibraryPicturesASanitizedBodyShows()
+    public async Task TheFacadeAsksMediaNothingBecauseASanitizedBodyShowsNoPictures()
     {
         var (facade, business, media) = Facade();
 
-        await facade.CreateAsync(new PageCreateViewModel("About", Body: "<p>No pictures.</p><img src=\"https://x.example/a.jpg\">"), "e", Ct);
-        Assert.Equal(0, media.Checks);
+        await facade.CreateAsync(new PageCreateViewModel("About", Body: "<p>Other.</p><img src=\"https://x.example/a.jpg\">"), "e", Ct);
         Assert.Equal(PageImageCheck.None, business.LastImages);
 
-        media.Missing.Add(ImageId);
-        await facade.CreateAsync(new PageCreateViewModel("About", Body: $"<p>{Img}</p>"), "e", Ct);
+        // ADR 0045: even a library picture leaves the body, so Media has nothing to answer for.
+        await facade.CreateAsync(new PageCreateViewModel("About", Body: $"<p>Window.{Img}</p>"), "e", Ct);
 
-        Assert.Equal(1, media.Checks);
-        Assert.Equal([ImageId], business.LastImages!.Asked);
-        Assert.Equal([ImageId], business.LastImages.Missing);
+        Assert.Equal(0, media.Checks);
+        Assert.Equal(PageImageCheck.None, business.LastImages);
     }
 
     [Fact]
@@ -267,12 +265,16 @@ public sealed class PagesLayerTests
         var media = new FakeMediaFacade();
         var facade = new PagesFacade(
             business, media, new AllowListHtmlSanitizer(), new PageCreateValidator(), new PageUpdateValidator(),
-            new PageListValidator(), new ContentScheduleValidator());
+            new PageListValidator(), new ContentScheduleValidator(), TestAppCache.Create());
         return (facade, business, media);
     }
 
     private sealed class FakePagesRepository(CallLog log) : IPagesRepository
     {
+        public Task<global::Arts6311.Domain.Modules.Pages.Managers.ServiceModels.SitePageServiceModel?> FindPublishedAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public List<Page> Rows { get; } = [];
 
         public Exception? SaveFailure { get; set; }
@@ -325,6 +327,10 @@ public sealed class PagesLayerTests
 
     private sealed class FakePagesDataLayer : IPagesDataLayer
     {
+        public Task<global::Arts6311.Domain.Modules.Pages.Managers.ServiceModels.SitePageServiceModel?> FindPublishedAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         private readonly Dictionary<Guid, Page> rows = [];
 
         public List<string> Writes { get; } = [];
@@ -402,6 +408,12 @@ public sealed class PagesLayerTests
 
     private sealed class RecordingPagesBusiness : IPagesBusiness
     {
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Modules.Pages.Managers.ServiceModels.SitePageServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Pages.Managers.ServiceModels.SitePageServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         private static readonly PageServiceModel Page = new(
             Guid.NewGuid(), "About", "about", "<p>x</p>", [], PublishStatus.Draft, null, null, false, null,
             DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "editor-1", AnyTag);

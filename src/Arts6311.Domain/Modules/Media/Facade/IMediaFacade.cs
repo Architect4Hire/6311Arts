@@ -39,6 +39,13 @@ public interface IMediaFacade
     Task<MediaAttachabilityServiceModel> CheckAttachableAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// For content modules' site reads (3.1): each of these images that has renditions, as the site shows it. An id
+    /// with no original, or no rendition yet, is simply absent (ADR 0042).
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, SiteImageServiceModel>> DescribeForSiteAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
     /// <summary>Worker: produces an original's renditions as it stands now. Fails only with <c>media.undecodable</c>.</summary>
     Task<OperationResult> ProduceRenditionsAsync(
         Guid assetId, int attempt, bool lastAttempt, CancellationToken cancellationToken);

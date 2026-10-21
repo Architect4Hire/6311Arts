@@ -32,6 +32,29 @@ public interface IArtistsFacade
     Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(
         IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Every published artist, by name, as the site shows them. Not cached here: the one caller, the Site module,
+    /// caches what it composes from this (ADR 0042).
+    /// </summary>
+    Task<IReadOnlyList<SiteArtistServiceModel>> ListForSiteAsync(CancellationToken cancellationToken);
+
+    /// <summary>The published artist at <paramref name="slug"/>, or <c>null</c>. Not cached here, as above.</summary>
+    Task<SiteArtistServiceModel?> GetForSiteAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>One artist as the site would show them, whatever the status, for a preview link. Never cached.</summary>
+    Task<OperationResult<PreviewRecord<SiteArtistServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For another module's site reads (exhibitions, artwork): how each of these artists is credited. An id with no
+    /// artist is simply absent. Any number of ids: a whole list's credits are asked
+    /// <see cref="Managers.ArtistPolicy.LookupMaxCount"/> at a time.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, SiteArtistCreditServiceModel>> DescribeCreditsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
+    /// <summary>Every published artist's address, for <c>/sitemap.xml</c>.</summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
+
     /// <summary>A new Draft. Refusals: <c>validation.failed</c> (including a portrait not in the library), <c>cms.slug_taken</c>.</summary>
     Task<OperationResult<ArtistServiceModel>> CreateAsync(
         ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken);

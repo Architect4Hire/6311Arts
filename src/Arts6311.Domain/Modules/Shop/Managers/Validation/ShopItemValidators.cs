@@ -166,3 +166,21 @@ internal static class ShopItemRules
             .When(model => stock(model) is not null);
     }
 }
+
+internal sealed class SiteShopListValidator : AbstractValidator<SiteShopListViewModel>
+{
+    public SiteShopListValidator()
+    {
+        RuleFor(list => list.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(list => list.Limit is not null);
+        RuleFor(list => list.Category!)
+            .Must(ShopPolicy.IsCategory).When(list => list.Category is not null)
+            .WithMessage(ShopItemRules.CategoryMessage);
+        RuleFor(list => list.Artist!)
+            .Must(Slugs.IsValid).When(list => list.Artist is not null)
+            .WithMessage(ShopItemRules.SlugMessage);
+        RuleFor(list => list.Sort!)
+            .Must(sort => ShopPolicy.SiteSorts.Contains(sort, StringComparer.Ordinal)).When(list => list.Sort is not null)
+            .WithMessage($"Choose from: {string.Join(", ", ShopPolicy.SiteSorts)}.");
+        RuleFor(list => list.Cursor).MaximumLength(ShopPolicy.SiteCursorMaxLength);
+    }
+}

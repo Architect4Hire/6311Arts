@@ -10,6 +10,7 @@ using Arts6311.Domain.Modules.Exhibitions;
 using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
+using Arts6311.Domain.Modules.Instructors;
 using Arts6311.Domain.Modules.Media;
 using Arts6311.Domain.Modules.Pages;
 using Arts6311.Domain.Modules.Redirects;
@@ -61,8 +62,10 @@ builder.Services.AddArtsRevalidation();
 
 // The content modules, for the scheduled publisher: it publishes what is due through each module's facade, and
 // those facades ask Media about images, so they come after AddMediaModule. Artists before Exhibitions, whose
-// facade asks Artists about credits (ADR 0033).
+// facade asks Artists about credits (ADR 0033). Instructors after Artists, whose facade it asks about an
+// instructor's artist link, and before Classes, whose facade asks it about each run's instructor (ADR 0043).
 builder.Services.AddArtistsModule();
+builder.Services.AddInstructorsModule();
 builder.Services.AddExhibitionsModule();
 builder.Services.AddPagesModule();
 builder.Services.AddClassesModule();

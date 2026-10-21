@@ -46,6 +46,7 @@ export interface ContentSchedule {
 /** The content types a preview link can be made for (`PreviewPolicy.EntityTypes`). */
 export const PREVIEW_TYPES = [
   'artist',
+  'instructor',
   'exhibition',
   'page',
   'class-offering',

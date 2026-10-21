@@ -17,6 +17,8 @@ namespace Arts6311.Tests.Memberships.Infrastructure;
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeMembershipsRepository(CallLog log) : IMembershipsRepository
 {
+    public Task<List<global::Arts6311.Domain.Modules.Memberships.Data.Entities.MembershipPlan>> ListPublishedAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public List<MembershipPlan> Rows { get; } = [];
 
     /// <summary>Thrown by the next save, then cleared.</summary>
@@ -86,6 +88,8 @@ internal sealed class FakeMembershipsRepository(CallLog log) : IMembershipsRepos
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeMembershipsDataLayer : IMembershipsDataLayer
 {
+    public Task<List<global::Arts6311.Domain.Modules.Memberships.Data.Entities.MembershipPlan>> ListPublishedAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Dictionary<Guid, MembershipPlan> Rows { get; } = [];
 
     public MembershipWriteOutcome Outcome { get; set; } = MembershipWriteOutcome.Saved;
@@ -216,6 +220,12 @@ internal sealed class FakeMembershipsDataLayer : IMembershipsDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingMembershipsBusiness : IMembershipsBusiness
 {
+    public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Memberships.Managers.ServiceModels.SiteMembershipPlanServiceModel>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Memberships.Managers.ServiceModels.SiteMembershipPlanServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public static readonly MembershipPlanServiceModel Plan = new(
         Guid.Parse("66666666-6666-6666-6666-666666666666"),
         "Gray",

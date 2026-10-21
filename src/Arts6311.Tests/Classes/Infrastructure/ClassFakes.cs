@@ -19,6 +19,8 @@ namespace Arts6311.Tests.Classes.Infrastructure;
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeClassesRepository(CallLog log) : IClassesRepository
 {
+    public Task<List<global::Arts6311.Domain.Modules.Classes.Data.Entities.ClassOffering>> ListPublishedAsync(string? slug, DateTimeOffset? endingAfter, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public List<ClassOffering> Rows { get; } = [];
 
     /// <summary>Thrown by the next save, then cleared.</summary>
@@ -50,14 +52,14 @@ internal sealed class FakeClassesRepository(CallLog log) : IClassesRepository
     public Task<int> NextOfferingNumberAsync(CancellationToken cancellationToken) =>
         Task.FromResult(NextOfferingNumber);
 
-    public Task<List<ClassSummaryServiceModel>> ListAsync(
+    public Task<List<ClassListRow>> ListAsync(
         ClassListPosition? after,
         int take,
         PublishStatus? status,
         string? search,
         DateTimeOffset asOf,
         CancellationToken cancellationToken) =>
-        Task.FromResult(new List<ClassSummaryServiceModel>());
+        Task.FromResult(new List<ClassListRow>());
 
     public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
     {
@@ -90,6 +92,8 @@ internal sealed class FakeClassesRepository(CallLog log) : IClassesRepository
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeClassesDataLayer : IClassesDataLayer
 {
+    public Task<List<global::Arts6311.Domain.Modules.Classes.Data.Entities.ClassOffering>> ListPublishedAsync(string? slug, DateTimeOffset? endingAfter, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Dictionary<Guid, ClassOffering> Rows { get; } = [];
 
     public Dictionary<string, SkuOwner> SkuOwners { get; } = new(StringComparer.Ordinal);
@@ -125,14 +129,14 @@ internal sealed class FakeClassesDataLayer : IClassesDataLayer
     public Task<int> NextOfferingNumberAsync(CancellationToken cancellationToken) =>
         Task.FromResult(NextOfferingNumber);
 
-    public Task<List<ClassSummaryServiceModel>> ListAsync(
+    public Task<List<ClassListRow>> ListAsync(
         ClassListPosition? after,
         int take,
         PublishStatus? status,
         string? search,
         DateTimeOffset asOf,
         CancellationToken cancellationToken) =>
-        Task.FromResult(new List<ClassSummaryServiceModel>());
+        Task.FromResult(new List<ClassListRow>());
 
     public Task<ClassWriteOutcome> CreateAsync(
         ClassOffering offering, SkuChanges skus, string actorUserId, string summary, CancellationToken cancellationToken)
@@ -198,7 +202,13 @@ internal sealed class FakeClassesDataLayer : IClassesDataLayer
         return Task.FromResult(offerings.Count);
     }
 
-    /// <summary>One offering in the store, with one session per SKU given.</summary>
+    /// <summary>The instructor <see cref="Add"/> gives every run it makes.</summary>
+    public static readonly Guid InstructorId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+
+    /// <summary>
+    /// One offering in the store, with one run per SKU given, each taught by <see cref="InstructorId"/>, priced at
+    /// <paramref name="startingPriceCents"/>, with one session a week apart from the last.
+    /// </summary>
     public ClassOffering Add(
         PublishStatus status = PublishStatus.Draft,
         Guid? hero = null,
@@ -213,7 +223,6 @@ internal sealed class FakeClassesDataLayer : IClassesDataLayer
             Title = "Intro to Screen Printing",
             Slug = "intro-to-screen-printing",
             Summary = summary,
-            StartingPriceCents = startingPriceCents,
             OfferingNumber = 3,
             Status = status,
             HeroMediaId = hero,
@@ -224,18 +233,25 @@ internal sealed class FakeClassesDataLayer : IClassesDataLayer
 
         for (var index = 0; index < skus.Length; index++)
         {
-            var session = new ClassSession
+            var run = new ClassRun
             {
                 Id = Guid.NewGuid(),
                 ClassOfferingId = offering.Id,
-                StartsAt = new DateTimeOffset(2026, 10, 24, 19, 0, 0, TimeSpan.Zero).AddDays(7 * index),
-                EndsAt = new DateTimeOffset(2026, 10, 24, 22, 0, 0, TimeSpan.Zero).AddDays(7 * index),
+                InstructorId = InstructorId,
                 DisplayTimeZone = GalleryTimeZone.Id,
                 Sku = skus[index],
                 Capacity = 10,
+                StartingPriceCents = startingPriceCents,
             };
-            offering.Sessions.Add(session);
-            SkuOwners[session.Sku] = new SkuOwner(CatalogOwnerTypes.ClassSession, session.Id);
+            run.Sessions.Add(new ClassSession
+            {
+                Id = Guid.NewGuid(),
+                ClassRunId = run.Id,
+                StartsAt = new DateTimeOffset(2026, 10, 24, 19, 0, 0, TimeSpan.Zero).AddDays(7 * index),
+                EndsAt = new DateTimeOffset(2026, 10, 24, 22, 0, 0, TimeSpan.Zero).AddDays(7 * index),
+            });
+            offering.Runs.Add(run);
+            SkuOwners[run.Sku] = new SkuOwner(CatalogOwnerTypes.ClassRun, run.Id);
         }
 
         Rows[offering.Id] = offering;
@@ -246,6 +262,14 @@ internal sealed class FakeClassesDataLayer : IClassesDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingClassesBusiness : IClassesBusiness
 {
+    public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Classes.Managers.ClassSiteRow>> ListForSiteAsync(Guid? instructorId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Modules.Classes.Managers.ClassSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Classes.Managers.ClassSiteRow>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public static readonly ClassServiceModel Offering = new(
         Guid.Parse("66666666-6666-6666-6666-666666666666"),
         "Intro to Screen Printing",
@@ -254,15 +278,10 @@ internal sealed class RecordingClassesBusiness : IClassesBusiness
         null,
         "Printmaking",
         "Beginner",
-        "Gwen Schilling",
-        "Saturdays",
-        30000,
-        CatalogPolicy.Currency,
-        StartingPriceEditable: true,
         OfferingNumber: 3,
         HeroMediaId: null,
         ImageMediaIds: [],
-        Sessions: [],
+        Runs: [],
         PublishStatus.Draft,
         null,
         null,
@@ -277,9 +296,21 @@ internal sealed class RecordingClassesBusiness : IClassesBusiness
 
     public ClassServiceModel Current { get; set; } = Offering;
 
+    /// <summary>Which instructor each of <see cref="Current"/>'s runs names, handed back for the facade to describe.</summary>
+    public Dictionary<Guid, Guid> RunInstructors { get; } = [];
+
+    private ClassDetail Detail => new(Current, RunInstructors);
+
     public ClassMediaCheck? CreateMedia { get; private set; }
 
     public ClassMediaCheck? UpdateMedia { get; private set; }
+
+    public ClassInstructorCheck? CreateInstructors { get; private set; }
+
+    public ClassInstructorCheck? UpdateInstructors { get; private set; }
+
+    /// <summary>The rows <see cref="ListAsync"/> answers with.</summary>
+    public List<ClassListRow> ListRows { get; } = [];
 
     public (PublishCommand Command, ClassMediaCheck? Media)? LastTransition { get; private set; }
 
@@ -293,43 +324,50 @@ internal sealed class RecordingClassesBusiness : IClassesBusiness
 
     public ScheduledPublishOutcome ScheduledOutcome { get; set; } = ScheduledPublishOutcome.Published;
 
-    public Task<OperationResult<CursorPage<ClassSummaryServiceModel>>> ListAsync(
+    public Task<OperationResult<CursorPage<ClassListRow>>> ListAsync(
         ClassListViewModel request, CancellationToken cancellationToken)
     {
         Calls.Add("list");
-        return Task.FromResult(OperationResult.Success(new CursorPage<ClassSummaryServiceModel>([], null)));
+        return Task.FromResult(OperationResult.Success(new CursorPage<ClassListRow>([.. ListRows], null)));
     }
 
-    public Task<OperationResult<ClassServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken)
+    public Task<OperationResult<ClassDetail>> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         Calls.Add("get");
         return Task.FromResult(id == Current.Id
-            ? OperationResult.Success(Current)
-            : OperationResult.Failure<ClassServiceModel>(OperationError.Of(ErrorCodes.NotFound, "No.")));
+            ? OperationResult.Success(Detail)
+            : OperationResult.Failure<ClassDetail>(OperationError.Of(ErrorCodes.NotFound, "No.")));
     }
 
-    public Task<OperationResult<ClassServiceModel>> CreateAsync(
-        ClassCreateViewModel create, ClassMediaCheck media, string actorUserId, CancellationToken cancellationToken)
+    public Task<OperationResult<ClassDetail>> CreateAsync(
+        ClassCreateViewModel create,
+        ClassMediaCheck media,
+        ClassInstructorCheck instructors,
+        string actorUserId,
+        CancellationToken cancellationToken)
     {
         Calls.Add("create");
         CreateMedia = media;
-        return Task.FromResult(OperationResult.Success(Current));
+        CreateInstructors = instructors;
+        return Task.FromResult(OperationResult.Success(Detail));
     }
 
-    public Task<OperationResult<ClassServiceModel>> UpdateAsync(
+    public Task<OperationResult<ClassDetail>> UpdateAsync(
         Guid id,
         ClassUpdateViewModel update,
         string? ifMatch,
         ClassMediaCheck? media,
+        ClassInstructorCheck? instructors,
         string actorUserId,
         CancellationToken cancellationToken)
     {
         Calls.Add("update");
         UpdateMedia = media;
-        return Task.FromResult(OperationResult.Success(Current));
+        UpdateInstructors = instructors;
+        return Task.FromResult(OperationResult.Success(Detail));
     }
 
-    public Task<OperationResult<ClassServiceModel>> TransitionAsync(
+    public Task<OperationResult<ClassDetail>> TransitionAsync(
         Guid id,
         PublishCommand command,
         string? ifMatch,
@@ -339,10 +377,10 @@ internal sealed class RecordingClassesBusiness : IClassesBusiness
     {
         Calls.Add($"transition:{command}");
         LastTransition = (command, media);
-        return Task.FromResult(OperationResult.Success(Current));
+        return Task.FromResult(OperationResult.Success(Detail));
     }
 
-    public Task<OperationResult<ClassServiceModel>> ScheduleAsync(
+    public Task<OperationResult<ClassDetail>> ScheduleAsync(
         Guid id,
         DateTimeOffset scheduledFor,
         string? ifMatch,
@@ -353,14 +391,14 @@ internal sealed class RecordingClassesBusiness : IClassesBusiness
         Calls.Add("schedule");
         LastScheduledFor = scheduledFor;
         ScheduleMedia = media;
-        return Task.FromResult(OperationResult.Success(Current));
+        return Task.FromResult(OperationResult.Success(Detail));
     }
 
-    public Task<OperationResult<ClassServiceModel>> UnscheduleAsync(
+    public Task<OperationResult<ClassDetail>> UnscheduleAsync(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
     {
         Calls.Add("unschedule");
-        return Task.FromResult(OperationResult.Success(Current));
+        return Task.FromResult(OperationResult.Success(Detail));
     }
 
     public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)

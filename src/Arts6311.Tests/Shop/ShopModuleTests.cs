@@ -74,16 +74,13 @@ public sealed class ShopModuleTests
     }
 
     [Fact]
-    public async Task AShopItemCannotTakeTheSkuAClassSessionHolds()
+    public async Task AShopItemCannotTakeTheSkuAClassRunHolds()
     {
         // ADR 0037's cross-type claim, with two real owners rather than two rows written by hand.
         await using var host = await ShopTestHost.CreateAsync(Ct);
-        var session = new ClassSessionViewModel(
-            new DateTimeOffset(2026, 10, 24, 19, 0, 0, TimeSpan.Zero),
-            new DateTimeOffset(2026, 10, 24, 22, 0, 0, TimeSpan.Zero),
-            10);
+        var run = new ClassRunViewModel(10);
         var offering = await host.WithClassesFacadeAsync(facade => facade.CreateAsync(
-            new ClassCreateViewModel("Intro to Screen Printing", Sessions: [session]), Editor, Ct));
+            new ClassCreateViewModel("Intro to Screen Printing", Runs: [run]), Editor, Ct));
         Assert.True(offering.Succeeded, offering.Error?.Message);
 
         var refused = await host.WithFacadeAsync(facade => facade.CreateAsync(
@@ -96,7 +93,7 @@ public sealed class ShopModuleTests
     }
 
     [Fact]
-    public async Task AClassSessionCannotTakeTheSkuAShopItemHolds()
+    public async Task AClassRunCannotTakeTheSkuAShopItemHolds()
     {
         await using var host = await ShopTestHost.CreateAsync(Ct);
         await CreateAsync(host, new ShopItemCreateViewModel("Copper Cuff"));
@@ -104,14 +101,7 @@ public sealed class ShopModuleTests
         var refused = await host.WithClassesFacadeAsync(facade => facade.CreateAsync(
             new ClassCreateViewModel(
                 "Intro to Screen Printing",
-                Sessions:
-                [
-                    new ClassSessionViewModel(
-                        new DateTimeOffset(2026, 10, 24, 19, 0, 0, TimeSpan.Zero),
-                        new DateTimeOffset(2026, 10, 24, 22, 0, 0, TimeSpan.Zero),
-                        10,
-                        Sku: "ART-1"),
-                ]),
+                Runs: [new ClassRunViewModel(10, Sku: "ART-1")]),
             Editor,
             Ct));
 
@@ -300,19 +290,19 @@ public sealed class ShopModuleTests
     }
 
     [Fact]
-    public async Task TheDescriptionIsStoredSanitizedWithItsPicturesReferenced()
+    public async Task TheDescriptionIsStoredSanitizedWithoutItsPicturesOrLinks()
     {
+        // ADR 0045: an item's pictures are its gallery, so the description keeps its words and drops the rest.
         await using var host = await ShopTestHost.CreateAsync(Ct);
         var image = await host.AddImageAsync("The maker's bench.");
 
         var item = await CreateAsync(host, new ShopItemCreateViewModel(
             "Copper Cuff",
-            Description: $"""<p onclick="steal()">Forged by hand.<script>alert(1)</script></p><img src="/media/{image}/800.webp" alt="A bench">"""));
+            Description: $"""<p onclick="steal()">Forged by <a href="/artists/jo">hand</a>.<script>alert(1)</script></p><img src="/media/{image}/800.webp" alt="A bench">"""));
 
-        Assert.DoesNotContain("script", item.Description, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("onclick", item.Description, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal([image], item.DescriptionImageMediaIds);
-        Assert.Equal([image], (await host.StoredAsync(item.Id))!.DescriptionImages.Select(reference => reference.MediaAssetId));
+        Assert.Equal("<p>Forged by hand.</p>", item.Description);
+        Assert.Empty(item.DescriptionImageMediaIds);
+        Assert.Empty((await host.StoredAsync(item.Id))!.DescriptionImages);
     }
 
     [Fact]

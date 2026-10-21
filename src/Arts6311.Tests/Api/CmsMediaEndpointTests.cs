@@ -307,6 +307,8 @@ public sealed class CmsMediaEndpointTests
 
     private sealed class RecordingMediaFacade : IMediaFacade
     {
+        public Task<IReadOnlyDictionary<Guid, global::Arts6311.Domain.Modules.Media.Managers.ServiceModels.SiteImageServiceModel>> DescribeForSiteAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public static readonly MediaAssetServiceModel Asset = new(
             Guid.Parse("33333333-3333-3333-3333-333333333333"), "photo.jpg", "image/jpeg", 100, 200, 10, 10, new string('a', 64),
             MediaProcessingStatus.Pending, MediaVisibility.Draft, MediaCompressionPreset.Balanced, null, null, "user",

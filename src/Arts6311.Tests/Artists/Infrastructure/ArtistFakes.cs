@@ -62,6 +62,8 @@ internal sealed class RecordingAuditWriter(CallLog log) : IAuditWriter
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeArtistsRepository(CallLog log) : IArtistsRepository
 {
+    public Task<List<global::Arts6311.Domain.Modules.Artists.Managers.ArtistSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public List<Artist> Rows { get; } = [];
 
     /// <summary>Thrown by the next save, then cleared.</summary>
@@ -132,6 +134,8 @@ internal sealed class FakeArtistsRepository(CallLog log) : IArtistsRepository
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeArtistsDataLayer : IArtistsDataLayer
 {
+    public Task<List<global::Arts6311.Domain.Modules.Artists.Managers.ArtistSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Dictionary<Guid, Artist> Rows { get; } = [];
 
     public ArtistWriteOutcome Outcome { get; set; } = ArtistWriteOutcome.Saved;
@@ -245,6 +249,16 @@ internal sealed class FakeArtistsDataLayer : IArtistsDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingArtistsBusiness : IArtistsBusiness
 {
+    public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Artists.Managers.ArtistSiteRow>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Modules.Artists.Managers.ArtistSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Artists.Managers.ArtistSiteRow>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyDictionary<Guid, global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistCreditServiceModel>> DescribeCreditsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public static readonly ArtistServiceModel Artist = new(
         Guid.Parse("44444444-4444-4444-4444-444444444444"), "Jane Doe", "jane-doe", null, null, true, null,
         PublishStatus.Draft, null, null, false, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "editor-1",
@@ -363,6 +377,9 @@ internal sealed class RecordingArtistsBusiness : IArtistsBusiness
 /// <summary>Media as far as Artists uses it: the attachability question. Everything else is out of scope here.</summary>
 internal sealed class FakeMediaFacade : IMediaFacade
 {
+    public Task<IReadOnlyDictionary<Guid, global::Arts6311.Domain.Modules.Media.Managers.ServiceModels.SiteImageServiceModel>> DescribeForSiteAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, global::Arts6311.Domain.Modules.Media.Managers.ServiceModels.SiteImageServiceModel>>(new Dictionary<Guid, global::Arts6311.Domain.Modules.Media.Managers.ServiceModels.SiteImageServiceModel>());
+
     public HashSet<Guid> Missing { get; } = [];
 
     public HashSet<Guid> MissingAltText { get; } = [];
@@ -409,6 +426,26 @@ internal sealed class FakeMediaFacade : IMediaFacade
 /// </summary>
 internal sealed class FakeArtistsFacade : IArtistsFacade
 {
+    public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistServiceModel>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistServiceModel?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyDictionary<Guid, global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistCreditServiceModel>> DescribeCreditsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        Lookups++;
+        return Task.FromResult<IReadOnlyDictionary<Guid, global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistCreditServiceModel>>(ids
+            .Distinct()
+            .Where(Roster.ContainsKey)
+            .ToDictionary(
+                id => id,
+                id => new global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistCreditServiceModel(
+                    Roster[id].Name, Roster[id].Status == PublishStatus.Published ? Roster[id].Slug : null)));
+    }
+
+    public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Dictionary<Guid, ArtistSummaryServiceModel> Roster { get; } = [];
 
     public int Lookups { get; private set; }

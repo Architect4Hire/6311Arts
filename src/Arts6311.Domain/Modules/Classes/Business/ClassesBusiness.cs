@@ -18,17 +18,17 @@ namespace Arts6311.Domain.Modules.Classes.Business;
 /// <summary>
 /// The class rules: the body is sanitized on write and only the sanitizer's output is kept (ADR 0034); every picture
 /// in it is a library original with its own alt text; slugs are unique and a published one's change owes a redirect;
-/// each session holds a SKU no other record in the CMS has (ADR 0037); and Square's record of price, seats and
-/// sold-out is never written from here (square.md, ADR 0032).
+/// each run holds a SKU no other record in the CMS has and names an instructor who is not retired (ADR 0037, 0044);
+/// and Square's record of price, seats and sold-out is never written from here (square.md, ADR 0032).
 /// </summary>
 internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitizer sanitizer, IClock clock) : IClassesBusiness
 {
     private const string What = "this class";
 
-    /// <summary>What one session's resolution came to: the row to keep (if any) and the SKU it ends up with.</summary>
-    private sealed record SessionPlan(ClassSessionViewModel Sent, ClassSession? Kept, string Sku);
+    /// <summary>What one run's resolution came to: the row to keep (if any) and the SKU it ends up with.</summary>
+    private sealed record RunPlan(ClassRunViewModel Sent, ClassRun? Kept, string Sku);
 
-    public async Task<OperationResult<CursorPage<ClassSummaryServiceModel>>> ListAsync(
+    public async Task<OperationResult<CursorPage<ClassListRow>>> ListAsync(
         ClassListViewModel request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -42,7 +42,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             var decoded = PageCursor.Decode(request.Cursor, scope);
             if (!decoded.Succeeded || !Guid.TryParseExact(decoded.Value!.TieBreaker, "N", out var afterId))
             {
-                return OperationResult.Failure<CursorPage<ClassSummaryServiceModel>>(
+                return OperationResult.Failure<CursorPage<ClassListRow>>(
                     OperationError.Of(ErrorCodes.CursorInvalid, "The cursor is not valid for this list."));
             }
 
@@ -60,20 +60,25 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             next = new PageCursor(last.Title, last.Id.ToString("N")).Encode(scope);
         }
 
-        return OperationResult.Success(new CursorPage<ClassSummaryServiceModel>(rows, next));
+        return OperationResult.Success(new CursorPage<ClassListRow>(rows, next));
     }
 
-    public async Task<OperationResult<ClassServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<OperationResult<ClassDetail>> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         var offering = await dataLayer.FindAsync(id, cancellationToken);
-        return offering is null ? NotFound() : OperationResult.Success(ToServiceModel(offering));
+        return offering is null ? NotFound() : OperationResult.Success(ToDetail(offering));
     }
 
-    public async Task<OperationResult<ClassServiceModel>> CreateAsync(
-        ClassCreateViewModel create, ClassMediaCheck media, string actorUserId, CancellationToken cancellationToken)
+    public async Task<OperationResult<ClassDetail>> CreateAsync(
+        ClassCreateViewModel create,
+        ClassMediaCheck media,
+        ClassInstructorCheck instructors,
+        string actorUserId,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(create);
         ArgumentNullException.ThrowIfNull(media);
+        ArgumentNullException.ThrowIfNull(instructors);
 
         var title = create.Title.Trim();
         var slug = create.Slug ?? Slugs.FromName(title);
@@ -81,12 +86,12 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         var (body, bodyError) = PrepareBody(create.Body, media);
         if (bodyError is not null)
         {
-            return OperationResult.Failure<ClassServiceModel>(bodyError);
+            return OperationResult.Failure<ClassDetail>(bodyError);
         }
 
         if (await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
         {
-            return OperationResult.Failure<ClassServiceModel>(SlugTaken(slug));
+            return OperationResult.Failure<ClassDetail>(SlugTaken(slug));
         }
 
         var now = clock.UtcNow;
@@ -98,36 +103,34 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             Summary = Clean(create.Summary),
             ClassType = Clean(create.ClassType),
             Level = Clean(create.Level),
-            Instructor = Clean(create.Instructor),
-            Cadence = Clean(create.Cadence),
-            StartingPriceCents = create.StartingPriceCents,
             HeroMediaId = create.HeroMediaId,
             OfferingNumber = await dataLayer.NextOfferingNumberAsync(cancellationToken),
             Status = PublishStatus.Draft,
         };
         SetBody(offering, body);
 
-        var sessions = await ApplySessionsAsync(offering, create.Sessions ?? [], now, cancellationToken);
-        if (!sessions.Succeeded)
+        var runs = await ApplyRunsAsync(offering, create.Runs ?? [], instructors, now, cancellationToken);
+        if (!runs.Succeeded)
         {
-            return OperationResult.Failure<ClassServiceModel>(sessions.Error!);
+            return OperationResult.Failure<ClassDetail>(runs.Error!);
         }
 
         var summary = AuditSummary("Created as Draft", [], body);
-        return await dataLayer.CreateAsync(offering, sessions.Value!, actorUserId, summary, cancellationToken) switch
+        return await dataLayer.CreateAsync(offering, runs.Value!, actorUserId, summary, cancellationToken) switch
         {
-            ClassWriteOutcome.Saved => OperationResult.Success(ToServiceModel(offering)),
-            ClassWriteOutcome.SlugTaken => OperationResult.Failure<ClassServiceModel>(SlugTaken(slug)),
-            ClassWriteOutcome.SkuTaken => OperationResult.Failure<ClassServiceModel>(await SkuRaceAsync(offering, cancellationToken)),
+            ClassWriteOutcome.Saved => OperationResult.Success(ToDetail(offering)),
+            ClassWriteOutcome.SlugTaken => OperationResult.Failure<ClassDetail>(SlugTaken(slug)),
+            ClassWriteOutcome.SkuTaken => OperationResult.Failure<ClassDetail>(await SkuRaceAsync(offering, cancellationToken)),
             _ => Conflict(),
         };
     }
 
-    public async Task<OperationResult<ClassServiceModel>> UpdateAsync(
+    public async Task<OperationResult<ClassDetail>> UpdateAsync(
         Guid id,
         ClassUpdateViewModel update,
         string? ifMatch,
         ClassMediaCheck? media,
+        ClassInstructorCheck? instructors,
         string actorUserId,
         CancellationToken cancellationToken)
     {
@@ -141,7 +144,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         if (EntityTag.Verify(offering.RowVersion, ifMatch, What) is { } versionError)
         {
-            return OperationResult.Failure<ClassServiceModel>(versionError);
+            return OperationResult.Failure<ClassDetail>(versionError);
         }
 
         var isPublic = offering.Status is PublishStatus.Published or PublishStatus.Scheduled;
@@ -158,7 +161,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         {
             if (await dataLayer.SlugExistsAsync(update.Slug, offering.Id, cancellationToken))
             {
-                return OperationResult.Failure<ClassServiceModel>(SlugTaken(update.Slug));
+                return OperationResult.Failure<ClassDetail>(SlugTaken(update.Slug));
             }
 
             // A slug that has ever been public is someone's bookmark: the old address is redirected to the new one,
@@ -173,7 +176,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             // content.md: what the site needs is checked at publish, and published content keeps it.
             if (summaryText is null && isPublic)
             {
-                return OperationResult.Failure<ClassServiceModel>(OperationError.Validation(
+                return OperationResult.Failure<ClassDetail>(OperationError.Validation(
                     "This class is published, so it keeps a summary.",
                     [("summary", "The site's card and search results show the summary. Edit it rather than clearing it.")]));
             }
@@ -188,7 +191,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             (body, var bodyError) = PrepareBody(update.Body, media ?? ClassMediaCheck.None);
             if (bodyError is not null)
             {
-                return OperationResult.Failure<ClassServiceModel>(bodyError);
+                return OperationResult.Failure<ClassDetail>(bodyError);
             }
 
             var stored = body!.IsEmpty ? null : body.Html;
@@ -214,32 +217,13 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             }
         }
 
-        if (update.StartingPriceCents is { } price || update.RemoveStartingPrice == true)
-        {
-            var wanted = update.RemoveStartingPrice == true ? (long?)null : update.StartingPriceCents;
-            if (wanted != offering.StartingPriceCents)
-            {
-                // ADR 0032: the starting price is a draft field only until Square holds the record. From then on a
-                // change is the change-price command (5.4a), never a field write.
-                if (!StartingPriceEditable(offering))
-                {
-                    return OperationResult.Failure<ClassServiceModel>(OperationError.Validation(
-                        "Square holds this class's price now.",
-                        [("startingPriceCents", "Use the change-price action instead: the starting price only applies before the class reaches Square.")]));
-                }
-
-                offering.StartingPriceCents = wanted;
-                changes.Add(wanted is null ? "starting price cleared" : "starting price");
-            }
-        }
-
         if (update.HeroMediaId is { } heroId && heroId != offering.HeroMediaId)
         {
             // media.md: an image on published content has alt text. A draft may wait for it until publish; content
             // that is (or is about to be) public may not take an image without it.
             if (isPublic && HeroError(heroId, media, "This class is published, so a new hero image needs alt text first.") is { } heroError)
             {
-                return OperationResult.Failure<ClassServiceModel>(heroError);
+                return OperationResult.Failure<ClassDetail>(heroError);
             }
 
             offering.HeroMediaId = heroId;
@@ -252,38 +236,39 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         }
 
         var skuChanges = SkuChanges.None;
-        if (update.Sessions is { } sentSessions)
+        if (update.Runs is { } sentRuns)
         {
             var before = Fingerprint(offering);
-            var plan = await ApplySessionsAsync(offering, sentSessions, clock.UtcNow, cancellationToken);
+            var plan = await ApplyRunsAsync(
+                offering, sentRuns, instructors ?? ClassInstructorCheck.None, clock.UtcNow, cancellationToken);
             if (!plan.Succeeded)
             {
-                return OperationResult.Failure<ClassServiceModel>(plan.Error!);
+                return OperationResult.Failure<ClassDetail>(plan.Error!);
             }
 
             skuChanges = plan.Value!;
             if (!string.Equals(before, Fingerprint(offering), StringComparison.Ordinal))
             {
-                changes.Add(offering.Sessions.Count == 0 ? "sessions cleared" : "sessions");
+                changes.Add(offering.Runs.Count == 0 ? "runs cleared" : "runs");
             }
         }
 
         if (changes.Count == 0)
         {
-            return OperationResult.Success(ToServiceModel(offering));
+            return OperationResult.Success(ToDetail(offering));
         }
 
         var auditLine = AuditSummary("Updated", changes, body);
         return await dataLayer.UpdateAsync(offering, skuChanges, actorUserId, auditLine, pathChange, cancellationToken) switch
         {
-            ClassWriteOutcome.Saved => OperationResult.Success(ToServiceModel(offering)),
-            ClassWriteOutcome.SlugTaken => OperationResult.Failure<ClassServiceModel>(SlugTaken(offering.Slug)),
-            ClassWriteOutcome.SkuTaken => OperationResult.Failure<ClassServiceModel>(await SkuRaceAsync(offering, cancellationToken)),
+            ClassWriteOutcome.Saved => OperationResult.Success(ToDetail(offering)),
+            ClassWriteOutcome.SlugTaken => OperationResult.Failure<ClassDetail>(SlugTaken(offering.Slug)),
+            ClassWriteOutcome.SkuTaken => OperationResult.Failure<ClassDetail>(await SkuRaceAsync(offering, cancellationToken)),
             _ => Conflict(),
         };
     }
 
-    public async Task<OperationResult<ClassServiceModel>> TransitionAsync(
+    public async Task<OperationResult<ClassDetail>> TransitionAsync(
         Guid id,
         PublishCommand command,
         string? ifMatch,
@@ -299,20 +284,20 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         if (EntityTag.Verify(offering.RowVersion, ifMatch, What) is { } versionError)
         {
-            return OperationResult.Failure<ClassServiceModel>(versionError);
+            return OperationResult.Failure<ClassDetail>(versionError);
         }
 
         var from = offering.Status;
         if (PublishLifecycle.Next(from, command) is not { } to)
         {
-            return OperationResult.Failure<ClassServiceModel>(TransitionInvalid(from, command));
+            return OperationResult.Failure<ClassDetail>(TransitionInvalid(from, command));
         }
 
         if (command == PublishCommand.Publish)
         {
             if (PublishRequirementError(offering, media) is { } requirementError)
             {
-                return OperationResult.Failure<ClassServiceModel>(requirementError);
+                return OperationResult.Failure<ClassDetail>(requirementError);
             }
 
             offering.PublishedAt ??= clock.UtcNow;
@@ -329,12 +314,12 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         return await dataLayer.TransitionAsync(offering, command, from, actorUserId, cancellationToken) switch
         {
-            ClassWriteOutcome.Saved => OperationResult.Success(ToServiceModel(offering)),
+            ClassWriteOutcome.Saved => OperationResult.Success(ToDetail(offering)),
             _ => Conflict(),
         };
     }
 
-    public async Task<OperationResult<ClassServiceModel>> ScheduleAsync(
+    public async Task<OperationResult<ClassDetail>> ScheduleAsync(
         Guid id,
         DateTimeOffset scheduledFor,
         string? ifMatch,
@@ -350,29 +335,29 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         if (EntityTag.Verify(offering.RowVersion, ifMatch, What) is { } versionError)
         {
-            return OperationResult.Failure<ClassServiceModel>(versionError);
+            return OperationResult.Failure<ClassDetail>(versionError);
         }
 
         var from = offering.Status;
         if (PublishLifecycle.Next(from, PublishCommand.Schedule) is not { } to)
         {
-            return OperationResult.Failure<ClassServiceModel>(TransitionInvalid(from, PublishCommand.Schedule));
+            return OperationResult.Failure<ClassDetail>(TransitionInvalid(from, PublishCommand.Schedule));
         }
 
         // A time already past would be published by the next pass, a minute later, which is not what "schedule"
         // means: staff who want it out now have the publish command for that.
         if (scheduledFor <= clock.UtcNow)
         {
-            return OperationResult.Failure<ClassServiceModel>(OperationError.Validation(
+            return OperationResult.Failure<ClassDetail>(OperationError.Validation(
                 "Choose a time in the future.",
                 [("scheduledFor", "This time has passed. Publish the class now instead, or pick a later time.")]));
         }
 
-        // Checked now as well as at publish, so staff hear about a missing summary, price or session while they are
-        // looking at the screen rather than at midnight, when only the audit trail is watching (ADR 0036).
+        // Checked now as well as at publish, so staff hear about a missing summary, instructor or session while they
+        // are looking at the screen rather than at midnight, when only the audit trail is watching (ADR 0036).
         if (PublishRequirementError(offering, media) is { } requirementError)
         {
-            return OperationResult.Failure<ClassServiceModel>(requirementError);
+            return OperationResult.Failure<ClassDetail>(requirementError);
         }
 
         offering.ScheduledFor = scheduledFor;
@@ -380,12 +365,12 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         return await dataLayer.TransitionAsync(offering, PublishCommand.Schedule, from, actorUserId, cancellationToken) switch
         {
-            ClassWriteOutcome.Saved => OperationResult.Success(ToServiceModel(offering)),
+            ClassWriteOutcome.Saved => OperationResult.Success(ToDetail(offering)),
             _ => Conflict(),
         };
     }
 
-    public async Task<OperationResult<ClassServiceModel>> UnscheduleAsync(
+    public async Task<OperationResult<ClassDetail>> UnscheduleAsync(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
     {
         var offering = await dataLayer.FindAsync(id, cancellationToken);
@@ -396,13 +381,13 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         if (EntityTag.Verify(offering.RowVersion, ifMatch, What) is { } versionError)
         {
-            return OperationResult.Failure<ClassServiceModel>(versionError);
+            return OperationResult.Failure<ClassDetail>(versionError);
         }
 
         var from = offering.Status;
         if (PublishLifecycle.Next(from, PublishCommand.Unschedule) is not { } to)
         {
-            return OperationResult.Failure<ClassServiceModel>(TransitionInvalid(from, PublishCommand.Unschedule));
+            return OperationResult.Failure<ClassDetail>(TransitionInvalid(from, PublishCommand.Unschedule));
         }
 
         offering.ScheduledFor = null;
@@ -410,7 +395,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         return await dataLayer.TransitionAsync(offering, PublishCommand.Unschedule, from, actorUserId, cancellationToken) switch
         {
-            ClassWriteOutcome.Saved => OperationResult.Success(ToServiceModel(offering)),
+            ClassWriteOutcome.Saved => OperationResult.Success(ToDetail(offering)),
             _ => Conflict(),
         };
     }
@@ -483,12 +468,10 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         // Every SKU the seed could suggest, asked once: a seed is not worth failing the whole migration over, so an
         // offering whose suggestions someone has taken is skipped like one whose slug is taken. Which seed takes
         // which number depends on the slugs already in use, so the question covers the whole range of numbers.
-        var mostSessions = seeds.Count == 0 ? 0 : seeds.Max(seed => seed.Sessions.Count);
+        var mostRuns = seeds.Count == 0 ? 0 : seeds.Max(seed => seed.Runs.Count);
         var candidates = Enumerable
             .Range(number, seeds.Count)
-            .SelectMany(offering => Enumerable
-                .Range(1, mostSessions)
-                .Select(session => SkuPolicy.ForClassSession(offering, session)))
+            .SelectMany(offering => Enumerable.Range(1, mostRuns).Select(run => SkuPolicy.ForClassRun(offering, run)))
             .ToList();
         var owned = await dataLayer.SkuOwnersAsync(candidates, cancellationToken);
 
@@ -500,16 +483,16 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
                 continue;
             }
 
-            var wanted = Enumerable
-                .Range(1, seed.Sessions.Count)
-                .Select(session => SkuPolicy.ForClassSession(number, session))
-                .ToList();
+            var wanted = Enumerable.Range(1, seed.Runs.Count).Select(run => SkuPolicy.ForClassRun(number, run)).ToList();
             if (wanted.Any(owned.ContainsKey))
             {
                 number++;
                 continue;
             }
 
+            // Published, as the spike lists it — unless a run's instructor could not be found, because publishing
+            // needs every run to have one (content.md). Such a class is seeded as a Draft for staff to finish.
+            var publishable = seed.Runs.All(run => run.InstructorId is not null);
             var offering = new ClassOffering
             {
                 Id = Guid.CreateVersion7(now),
@@ -518,32 +501,40 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
                 Summary = seed.Summary,
                 ClassType = seed.ClassType,
                 Level = seed.Level,
-                Instructor = seed.Instructor,
-                Cadence = seed.Cadence,
-                StartingPriceCents = seed.StartingPriceCents,
                 OfferingNumber = number++,
-                Status = PublishStatus.Published,
-                PublishedAt = now,
+                Status = publishable ? PublishStatus.Published : PublishStatus.Draft,
+                PublishedAt = publishable ? now : null,
             };
 
             // Seeds go through the same sanitizer as anything staff write: no write path skips it (content.md).
             SetBody(offering, seed.Body is null ? null : sanitizer.Sanitize(seed.Body));
 
-            for (var index = 0; index < seed.Sessions.Count; index++)
+            for (var index = 0; index < seed.Runs.Count; index++)
             {
-                var session = seed.Sessions[index];
-                var sku = SkuPolicy.ForClassSession(offering.OfferingNumber, index + 1);
-                offering.Sessions.Add(new ClassSession
+                var spec = seed.Runs[index];
+                var run = new ClassRun
                 {
                     Id = Guid.CreateVersion7(now),
                     ClassOfferingId = offering.Id,
+                    Label = spec.Label,
+                    InstructorId = spec.InstructorId,
+                    Cadence = spec.Cadence,
+                    DisplayTimeZone = GalleryTimeZone.Id,
+                    Sku = SkuPolicy.ForClassRun(offering.OfferingNumber, index + 1),
+                    Capacity = spec.Capacity,
+                    StartingPriceCents = spec.StartingPriceCents,
+                };
+
+                run.Sessions.AddRange(spec.Sessions.Select(session => new ClassSession
+                {
+                    Id = Guid.CreateVersion7(now),
+                    ClassRunId = run.Id,
                     StartsAt = session.StartsAt.ToUniversalTime(),
                     EndsAt = session.EndsAt.ToUniversalTime(),
-                    DisplayTimeZone = GalleryTimeZone.Id,
-                    Sku = sku,
-                    Capacity = session.Capacity,
-                });
-                reservations.Add(new SkuReservation(sku, offering.Sessions[^1].Id));
+                }));
+
+                offering.Runs.Add(run);
+                reservations.Add(new SkuReservation(run.Sku, run.Id));
             }
 
             offerings.Add(offering);
@@ -555,53 +546,102 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
     }
 
     /// <summary>
-    /// Makes <paramref name="offering"/>'s sessions exactly <paramref name="sent"/>, and returns the SKU
-    /// reservations and releases the save owes the shared registry (ADR 0037).
+    /// Makes <paramref name="offering"/>'s runs exactly <paramref name="sent"/>, each with exactly its sent sessions,
+    /// and returns the SKU reservations and releases the save owes the shared registry (ADR 0037, 0044).
     /// </summary>
     /// <remarks>
-    /// A session that stays is updated in place, keeping its id — and so its Square link and its projections. A
-    /// session Square already holds money or seats for cannot be dropped: it exists in Square and may have sales.
+    /// A run that stays is updated in place, keeping its id — and so its Square link and its projections. A run Square
+    /// already holds money or seats for cannot be dropped: it exists in Square and may have sales. Every refusal is
+    /// decided before anything is mutated, so a refused write leaves the tracked aggregate as it was found.
     /// </remarks>
-    private async Task<OperationResult<SkuChanges>> ApplySessionsAsync(
+    private async Task<OperationResult<SkuChanges>> ApplyRunsAsync(
         ClassOffering offering,
-        IReadOnlyList<ClassSessionViewModel> sent,
+        IReadOnlyList<ClassRunViewModel> sent,
+        ClassInstructorCheck instructors,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var existing = offering.Sessions.ToDictionary(session => session.Id);
+        var existing = offering.Runs.ToDictionary(run => run.Id);
         var keptIds = new HashSet<Guid>();
 
         foreach (var row in sent)
         {
             if (row.Id is not { } id)
             {
+                if (row.Sessions?.Any(session => session.Id is not null) == true)
+                {
+                    return Invalid("A new run can't keep another run's sessions. Reload the class and try again.");
+                }
+
                 continue;
             }
 
-            if (!existing.ContainsKey(id) || !keptIds.Add(id))
+            if (!existing.TryGetValue(id, out var kept) || !keptIds.Add(id))
             {
-                return OperationResult.Failure<SkuChanges>(OperationError.Validation(
-                    "A session in the list is not this class's.",
-                    [("sessions", "Reload the class and try again: one of these sessions is no longer part of it, or is listed twice.")]));
+                return Invalid("Reload the class and try again: one of these runs is no longer part of it, or is listed twice.");
+            }
+
+            var ownSessions = kept.Sessions.Select(session => session.Id).ToHashSet();
+            if (row.Sessions?.Any(session => session.Id is { } sessionId && !ownSessions.Contains(sessionId)) == true)
+            {
+                return Invalid("Reload the class and try again: a session in the list is not that run's.");
             }
         }
 
-        var dropped = offering.Sessions.Where(session => !keptIds.Contains(session.Id)).ToList();
-        if (dropped.Find(session => session.HasSquareRecord) is { } sold)
+        var dropped = offering.Runs.Where(run => !keptIds.Contains(run.Id)).ToList();
+        if (dropped.Find(run => run.HasSquareRecord) is { } sold)
         {
             return OperationResult.Failure<SkuChanges>(OperationError.Validation(
-                "A session Square already holds can't be removed here.",
-                [("sessions", $"Session {sold.Sku} is in Square, so it may have sales. Archive the class instead of removing the session.")]));
+                "A run Square already holds can't be removed here.",
+                [("runs", $"Run {sold.Sku} is in Square, so it may have sales. Archive the class instead of removing the run.")]));
         }
 
-        // Ordered by start, so a suggested SKU's number follows the order staff read the sessions in.
-        var ordered = sent.OrderBy(row => row.StartsAt!.Value).ToList();
-        var plans = new List<SessionPlan?>(ordered.Count);
+        foreach (var row in sent)
+        {
+            var kept = row.Id is { } id ? existing[id] : null;
+            if (InstructorError(row, kept, instructors) is { } instructorError)
+            {
+                return OperationResult.Failure<SkuChanges>(instructorError);
+            }
+
+            // ADR 0032: the starting price is a draft field only until Square holds the run. From then on a change is
+            // the change-price command (5.4a), never a field write; sending it unchanged, or not at all, is fine.
+            if (kept is { HasSquareRecord: true }
+                && row.StartingPriceCents is { } price
+                && price != kept.StartingPriceCents)
+            {
+                return OperationResult.Failure<SkuChanges>(OperationError.Validation(
+                    "Square holds this run's price now.",
+                    [("runs", $"Run {kept.Sku}: use the change-price action instead. The starting price only applies before the run reaches Square.")]));
+            }
+
+            if (kept is { SeatsRemaining: { } remaining } && row.Capacity!.Value < kept.Capacity - remaining)
+            {
+                // square.md: seats are Square's record and are never recomputed here, so a capacity below the seats
+                // already taken is refused rather than driving Square's count negative (ADR 0032). 5.9 moves this to
+                // the seat-adjustment command.
+                return OperationResult.Failure<SkuChanges>(OperationError.Validation(
+                    "That run has more seats taken than that.",
+                    [("runs", string.Create(CultureInfo.InvariantCulture,
+                        $"Run {kept.Sku} has {kept.Capacity - remaining} of {kept.Capacity} seats taken, so its capacity can't go below that."))]));
+            }
+        }
+
+        // Ordered by first session, so a suggested SKU's number follows the order staff read the runs in; a run with
+        // no sessions yet comes last, in the order it was sent.
+        var ordered = sent
+            .Select((row, index) => (Row: row, Index: index))
+            .OrderBy(entry => entry.Row.Sessions is { Count: > 0 } sessions ? sessions.Min(session => session.StartsAt!.Value) : DateTimeOffset.MaxValue)
+            .ThenBy(entry => entry.Index)
+            .Select(entry => entry.Row)
+            .ToList();
+
+        var plans = new List<RunPlan?>(ordered.Count);
         foreach (var row in ordered)
         {
             var kept = row.Id is { } id ? existing[id] : null;
             var sku = SkuPolicy.Normalize(row.Sku) ?? kept?.Sku;
-            plans.Add(sku is null ? null : new SessionPlan(row, kept, sku));
+            plans.Add(sku is null ? null : new RunPlan(row, kept, sku));
         }
 
         var suggestions = await SuggestSkusAsync(
@@ -610,24 +650,19 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         var queue = new Queue<string>(suggestions);
         for (var index = 0; index < plans.Count; index++)
         {
-            if (plans[index] is null)
-            {
-                plans[index] = new SessionPlan(ordered[index], Kept: null, queue.Dequeue());
-            }
+            plans[index] ??= new RunPlan(ordered[index], Kept: null, queue.Dequeue());
         }
 
         var resolved = plans.Select(plan => plan!).ToList();
         var skus = resolved.Select(plan => plan.Sku).ToList();
         if (skus.Distinct(StringComparer.Ordinal).Count() != skus.Count)
         {
-            return OperationResult.Failure<SkuChanges>(OperationError.Validation(
-                "Two sessions have the same SKU.",
-                [("sessions", "Each session is sold under its own SKU. Give every session a different one.")]));
+            return Invalid("Each run is sold under its own SKU. Give every run a different one.", "Two runs have the same SKU.");
         }
 
-        // A SKU this offering's own sessions are letting go in this very save is free to take: the DataLayer stages
-        // the releases before the reservations (ADR 0037).
-        var releasing = dropped.Select(session => session.Id)
+        // A SKU this offering's own runs are letting go in this very save is free to take: the DataLayer stages the
+        // releases before the reservations (ADR 0037).
+        var releasing = dropped.Select(run => run.Id)
             .Concat(resolved
                 .Where(plan => plan.Kept is not null && !string.Equals(plan.Kept.Sku, plan.Sku, StringComparison.Ordinal))
                 .Select(plan => plan.Kept!.Id))
@@ -636,7 +671,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         var owners = await dataLayer.SkuOwnersAsync(skus, cancellationToken);
         var clashes = resolved
             .Where(plan => owners.TryGetValue(plan.Sku, out var owner)
-                && !(owner.OwnerType == CatalogOwnerTypes.ClassSession
+                && !(owner.OwnerType == CatalogOwnerTypes.ClassRun
                     && (owner.OwnerId == plan.Kept?.Id || releasing.Contains(owner.OwnerId))))
             .Select(plan => plan.Sku)
             .ToList();
@@ -646,65 +681,88 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             return OperationResult.Failure<SkuChanges>(SkuTaken(clashes));
         }
 
-        // Checked before anything is mutated: a refusal must leave the tracked aggregate as it was found.
-        foreach (var plan in resolved)
-        {
-            if (plan.Kept is { SeatsRemaining: { } remaining } session
-                && plan.Sent.Capacity!.Value < session.Capacity - remaining)
-            {
-                // square.md: seats are Square's record and are never recomputed here, so a capacity below the seats
-                // already taken is refused rather than driving Square's count negative (ADR 0032). 5.4a moves this
-                // to the seat-adjustment command.
-                return OperationResult.Failure<SkuChanges>(OperationError.Validation(
-                    "That session has more seats taken than that.",
-                    [("sessions", string.Create(CultureInfo.InvariantCulture,
-                        $"Session {session.Sku} has {session.Capacity - remaining} of {session.Capacity} seats taken, so its capacity can't go below that."))]));
-            }
-        }
-
+        // Nothing below refuses: from here the aggregate is changed.
         var reserve = new List<SkuReservation>();
-        var release = dropped.Select(session => new SkuReservation(session.Sku, session.Id)).ToList();
-        offering.Sessions.RemoveAll(session => !keptIds.Contains(session.Id));
+        var release = dropped.Select(run => new SkuReservation(run.Sku, run.Id)).ToList();
+        offering.Runs.RemoveAll(run => !keptIds.Contains(run.Id));
 
         foreach (var plan in resolved)
         {
-            var startsAt = plan.Sent.StartsAt!.Value.ToUniversalTime();
-            var endsAt = plan.Sent.EndsAt!.Value.ToUniversalTime();
-            var zone = Clean(plan.Sent.DisplayTimeZone) ?? plan.Kept?.DisplayTimeZone ?? GalleryTimeZone.Id;
-            var capacity = plan.Sent.Capacity!.Value;
-
-            if (plan.Kept is { } session)
+            var row = plan.Sent;
+            var run = plan.Kept;
+            if (run is null)
             {
-                if (!string.Equals(session.Sku, plan.Sku, StringComparison.Ordinal))
-                {
-                    release.Add(new SkuReservation(session.Sku, session.Id));
-                    reserve.Add(new SkuReservation(plan.Sku, session.Id));
-                }
-
-                session.StartsAt = startsAt;
-                session.EndsAt = endsAt;
-                session.DisplayTimeZone = zone;
-                session.Sku = plan.Sku;
-                session.Capacity = capacity;
-                continue;
+                // A new run carries no projection: price, seats and sold-out are Square's to report (ADR 0032).
+                run = new ClassRun { Id = Guid.CreateVersion7(now), ClassOfferingId = offering.Id };
+                offering.Runs.Add(run);
+                reserve.Add(new SkuReservation(plan.Sku, run.Id));
+            }
+            else if (!string.Equals(run.Sku, plan.Sku, StringComparison.Ordinal))
+            {
+                release.Add(new SkuReservation(run.Sku, run.Id));
+                reserve.Add(new SkuReservation(plan.Sku, run.Id));
             }
 
-            // A new session carries no projection: price, seats and sold-out are Square's to report (ADR 0032).
-            var added = new ClassSession
+            run.Label = Clean(row.Label);
+            run.InstructorId = row.InstructorId;
+            run.Cadence = Clean(row.Cadence);
+            run.DisplayTimeZone = Clean(row.DisplayTimeZone) ?? (plan.Kept?.DisplayTimeZone is { Length: > 0 } zone ? zone : GalleryTimeZone.Id);
+            run.Sku = plan.Sku;
+            run.Capacity = row.Capacity!.Value;
+            if (!run.HasSquareRecord)
             {
-                Id = Guid.CreateVersion7(now),
-                ClassOfferingId = offering.Id,
-                StartsAt = startsAt,
-                EndsAt = endsAt,
-                DisplayTimeZone = zone,
-                Sku = plan.Sku,
-                Capacity = capacity,
-            };
-            offering.Sessions.Add(added);
-            reserve.Add(new SkuReservation(plan.Sku, added.Id));
+                run.StartingPriceCents = row.StartingPriceCents;
+            }
+
+            ApplySessions(run, row.Sessions ?? [], now);
         }
 
         return OperationResult.Success(new SkuChanges(reserve, release));
+    }
+
+    /// <summary>Makes a run's sittings exactly <paramref name="sent"/>: kept ones by id, new ones added, the rest gone.</summary>
+    private static void ApplySessions(ClassRun run, IReadOnlyList<ClassSessionViewModel> sent, DateTimeOffset now)
+    {
+        var keep = sent.Where(row => row.Id is not null).Select(row => row.Id!.Value).ToHashSet();
+        run.Sessions.RemoveAll(session => !keep.Contains(session.Id));
+
+        foreach (var row in sent)
+        {
+            var session = row.Id is { } id ? run.Sessions.First(existing => existing.Id == id) : null;
+            if (session is null)
+            {
+                session = new ClassSession { Id = Guid.CreateVersion7(now), ClassRunId = run.Id };
+                run.Sessions.Add(session);
+            }
+
+            session.StartsAt = row.StartsAt!.Value.ToUniversalTime();
+            session.EndsAt = row.EndsAt!.Value.ToUniversalTime();
+        }
+    }
+
+    /// <summary>
+    /// The instructor a run names must be one the Instructors module has, and not one it has retired — unless the run
+    /// already had them, so a class whose teacher has since retired can still be edited (ADR 0033, 0044).
+    /// </summary>
+    private static OperationError? InstructorError(ClassRunViewModel row, ClassRun? kept, ClassInstructorCheck instructors)
+    {
+        if (row.InstructorId is not { } instructorId)
+        {
+            return null;
+        }
+
+        if (!instructors.Known.TryGetValue(instructorId, out var instructor))
+        {
+            return OperationError.Validation(
+                "An instructor in the list is not one the centre has.",
+                [("runs", "Reload the instructors and choose again: one of them is no longer on the list.")]);
+        }
+
+        return instructor.Status == PublishStatus.Archived && kept?.InstructorId != instructorId
+            ? OperationError.Validation(
+                "An archived instructor can't be given a run.",
+                [("runs", $"{instructor.Name} is archived, so they can't be given a new run.")])
+            : null;
     }
 
     /// <summary>
@@ -721,11 +779,11 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         var used = alreadyUsed.ToHashSet(StringComparer.Ordinal);
 
-        // Enough candidates that even if every one of this offering's sessions and every suggestion collided, there
-        // is still a free number in the batch — asked in one query rather than one per session.
+        // Enough candidates that even if every one of this offering's runs and every suggestion collided, there is
+        // still a free number in the batch — asked in one query rather than one per run.
         var candidates = Enumerable
-            .Range(1, wanted + offering.Sessions.Count + used.Count + 1)
-            .Select(number => SkuPolicy.ForClassSession(offering.OfferingNumber, number))
+            .Range(1, wanted + offering.Runs.Count + used.Count + 1)
+            .Select(number => SkuPolicy.ForClassRun(offering.OfferingNumber, number))
             .Where(candidate => !used.Contains(candidate))
             .ToList();
 
@@ -743,24 +801,24 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         return free;
     }
 
-    /// <summary>Who holds the SKUs this offering's sessions now carry, for a clash the save discovered.</summary>
+    /// <summary>Who holds the SKUs this offering's runs now carry, for a clash the save discovered.</summary>
     private async Task<OperationError> SkuRaceAsync(ClassOffering offering, CancellationToken cancellationToken)
     {
-        var skus = offering.Sessions.Select(session => session.Sku).ToList();
+        var skus = offering.Runs.Select(run => run.Sku).ToList();
         var owners = await dataLayer.SkuOwnersAsync(skus, cancellationToken);
         var clashes = skus
             .Where(sku => owners.TryGetValue(sku, out var owner)
-                && !(owner.OwnerType == CatalogOwnerTypes.ClassSession
-                    && offering.Sessions.Any(session => session.Id == owner.OwnerId)))
+                && !(owner.OwnerType == CatalogOwnerTypes.ClassRun && offering.Runs.Any(run => run.Id == owner.OwnerId)))
             .ToList();
 
         return SkuTaken(clashes.Count > 0 ? clashes : skus);
     }
 
     /// <summary>
-    /// content.md: what the site needs is checked at publish, not at draft. The title, slug and sessions' shape are
-    /// guaranteed by every write; the summary, the starting price, having a session at all and the hero's alt text
-    /// are what a draft may leave unfinished. All are reported at once, so the editor fixes everything in one pass.
+    /// content.md: what the site needs is checked at publish, not at draft. The title, slug and runs' shape are
+    /// guaranteed by every write; the summary, having a run at all, and each run's instructor, sessions and starting
+    /// price, and the hero's alt text, are what a draft may leave unfinished. All are reported at once, so the editor
+    /// fixes everything in one pass.
     /// </summary>
     private static OperationError? PublishRequirementError(ClassOffering offering, ClassMediaCheck? media)
     {
@@ -771,14 +829,29 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             problems.Add(("summary", "Write a summary first: the site's card and search results show it."));
         }
 
-        if (offering.Sessions.Count == 0)
+        if (offering.Runs.Count == 0)
         {
-            problems.Add(("sessions", "Add at least one session: a class with no dates can't be booked."));
+            problems.Add(("runs", "Add at least one run: a class with no dates can't be booked."));
         }
 
-        if (offering.StartingPriceCents is null)
+        foreach (var run in offering.Runs.OrderBy(run => run.Sku, StringComparer.Ordinal))
         {
-            problems.Add(("startingPriceCents", "Set what a seat costs. Enter 0 for a free class."));
+            var name = run.Label is null ? $"Run {run.Sku}" : $"Run {run.Sku} ({run.Label})";
+
+            if (run.InstructorId is null)
+            {
+                problems.Add(("runs", $"{name} needs an instructor."));
+            }
+
+            if (run.Sessions.Count == 0)
+            {
+                problems.Add(("runs", $"{name} needs at least one session."));
+            }
+
+            if (run.StartingPriceCents is null && !run.HasSquareRecord)
+            {
+                problems.Add(("runs", $"{name} needs a price. Enter 0 for a free class."));
+            }
         }
 
         if (offering.HeroMediaId is { } heroId)
@@ -889,25 +962,96 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
     [
         ("type", update.ClassType, offering.ClassType, value => offering.ClassType = value),
         ("level", update.Level, offering.Level, value => offering.Level = value),
-        ("instructor", update.Instructor, offering.Instructor, value => offering.Instructor = value),
-        ("cadence", update.Cadence, offering.Cadence, value => offering.Cadence = value),
     ];
 
-    /// <summary>The sessions as one comparable string, to tell an edit that changed them from one that did not.</summary>
+    /// <summary>The runs and their sessions as one comparable string, to tell an edit that changed them from one that did not.</summary>
     private static string Fingerprint(ClassOffering offering) => string.Join(
         "|",
-        offering.Sessions
-            .OrderBy(session => session.StartsAt)
-            .Select(session => string.Create(
+        offering.Runs
+            .OrderBy(run => run.Id)
+            .Select(run => string.Create(
                 CultureInfo.InvariantCulture,
-                $"{session.Id:N}:{session.StartsAt:O}:{session.EndsAt:O}:{session.DisplayTimeZone}:{session.Sku}:{session.Capacity}")));
+                $"{run.Id:N}:{run.Label}:{run.InstructorId:N}:{run.Cadence}:{run.DisplayTimeZone}:{run.Sku}:{run.Capacity}:{run.StartingPriceCents}:")
+                + string.Join(",", run.Sessions
+                    .OrderBy(session => session.Id)
+                    .Select(session => string.Create(CultureInfo.InvariantCulture, $"{session.Id:N}@{session.StartsAt:O}-{session.EndsAt:O}")))));
+
+    public async Task<IReadOnlyList<ClassSiteRow>> ListForSiteAsync(Guid? instructorId, CancellationToken cancellationToken)
+    {
+        var now = clock.UtcNow;
+        var offerings = await dataLayer.ListPublishedAsync(slug: null, endingAfter: now, cancellationToken);
+
+        return
+        [
+            .. offerings
+                .Select(offering => ToSiteRow(offering, now, instructorId))
+                .Where(row => row.Runs.Count > 0)
+                .OrderBy(row => row.Runs[0].StartsAt)
+                .ThenBy(row => row.Title, StringComparer.Ordinal)
+                .ThenBy(row => row.Id),
+        ];
+    }
+
+    public async Task<ClassSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(slug);
+
+        var offering = (await dataLayer.ListPublishedAsync(slug, endingAfter: null, cancellationToken)).SingleOrDefault();
+        return offering is null ? null : ToSiteRow(offering, clock.UtcNow, instructorId: null);
+    }
+
+    public async Task<OperationResult<PreviewRecord<ClassSiteRow>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var offering = await dataLayer.FindAsync(id, cancellationToken);
+        return offering is null
+            ? OperationResult.Failure<PreviewRecord<ClassSiteRow>>(OperationError.Of(ErrorCodes.NotFound, "There is no such class."))
+            : OperationResult.Success(new PreviewRecord<ClassSiteRow>(
+                ToSiteRow(offering, clock.UtcNow, instructorId: null), offering.Status));
+    }
+
+    public async Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
+        [.. (await dataLayer.ListPublishedAsync(slug: null, endingAfter: null, cancellationToken))
+            .OrderBy(offering => offering.Slug, StringComparer.Ordinal)
+            .Select(offering => new SitemapEntryServiceModel(
+                SitePaths.AddressOf(ClassPolicy.SitePathPrefix, offering.Slug), offering.UpdatedAt))];
 
     /// <summary>
-    /// Whether the CMS may still set the starting price: only until Square has reported money or seats for a
-    /// session, after which price is Square's record and a change is a command (ADR 0032, 0037).
+    /// The site's view at <paramref name="now"/>: a run is shown until its last session ends, so one in progress still
+    /// is, with its whole schedule — a seat buys every sitting. Given <paramref name="instructorId"/>, only that
+    /// instructor's runs.
     /// </summary>
-    private static bool StartingPriceEditable(ClassOffering offering) =>
-        !offering.Sessions.Any(session => session.HasSquareRecord);
+    private static ClassSiteRow ToSiteRow(ClassOffering offering, DateTimeOffset now, Guid? instructorId) => new(
+        offering.Id,
+        offering.Slug,
+        offering.Title,
+        offering.Summary,
+        offering.Body,
+        offering.ClassType,
+        offering.Level,
+        offering.HeroMediaId,
+        [.. offering.Runs
+            .Where(run => run.Sessions.Any(session => session.EndsAt > now))
+            .Where(run => instructorId is null || run.InstructorId == instructorId)
+            .Select(run => new ClassSiteRunRow(
+                run.Id,
+                run.Label,
+                run.InstructorId,
+                run.Cadence,
+                run.DisplayTimeZone,
+                run.Capacity,
+                run.PriceCents,
+                run.SeatsRemaining,
+                run.SoldOut,
+                SessionsOf(run)))
+            .OrderBy(run => run.StartsAt)
+            .ThenBy(run => run.Id)],
+        offering.UpdatedAt);
+
+    private static IReadOnlyList<ClassSessionServiceModel> SessionsOf(ClassRun run) =>
+        [.. run.Sessions
+            .OrderBy(session => session.StartsAt)
+            .ThenBy(session => session.Id)
+            .Select(session => new ClassSessionServiceModel(session.Id, session.StartsAt, session.EndsAt))];
 
     /// <summary>The audit line, with what the sanitizer removed (in words) when it removed anything.</summary>
     private static string AuditSummary(string action, List<string> changes, SanitizedHtml? body)
@@ -921,57 +1065,75 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         return summary.Length <= AuditPolicy.SummaryMaxLength ? summary : summary[..(AuditPolicy.SummaryMaxLength - 1)] + "…";
     }
 
-    private static ClassServiceModel ToServiceModel(ClassOffering offering) => new(
-        offering.Id,
-        offering.Title,
-        offering.Slug,
-        offering.Summary,
-        offering.Body,
-        offering.ClassType,
-        offering.Level,
-        offering.Instructor,
-        offering.Cadence,
-        offering.StartingPriceCents,
-        CatalogPolicy.Currency,
-        StartingPriceEditable(offering),
-        offering.OfferingNumber,
-        offering.HeroMediaId,
-        [.. offering.Images.Select(reference => reference.MediaAssetId)],
-        [.. offering.Sessions
-            .OrderBy(session => session.StartsAt)
-            .Select(session => new ClassSessionServiceModel(
-                session.Id,
-                session.StartsAt,
-                session.EndsAt,
-                session.DisplayTimeZone,
-                session.Sku,
-                session.Capacity,
-                session.PriceCents,
-                session.SeatsRemaining,
-                session.SoldOut,
-                session.HasSquareRecord))],
-        offering.Status,
-        offering.PublishedAt,
-        offering.ScheduledFor,
-        SlugLocked: offering.PublishedAt is not null,
-        offering.LegacyWordPressId,
-        offering.CreatedAt,
-        offering.UpdatedAt,
-        offering.UpdatedBy,
-        EntityTag.Format(offering.RowVersion));
+    /// <summary>
+    /// The CMS model, runs by their first session (a run with none yet last), with each run's instructor left for the
+    /// facade to describe. A run's starting price is editable only until Square has reported money or seats for it,
+    /// after which price is Square's record and a change is a command (ADR 0032, 0037).
+    /// </summary>
+    private static ClassDetail ToDetail(ClassOffering offering)
+    {
+        var runs = offering.Runs
+            .OrderBy(run => run.Sessions.Count == 0 ? DateTimeOffset.MaxValue : run.Sessions.Min(session => session.StartsAt))
+            .ThenBy(run => run.Id)
+            .ToList();
+
+        var model = new ClassServiceModel(
+            offering.Id,
+            offering.Title,
+            offering.Slug,
+            offering.Summary,
+            offering.Body,
+            offering.ClassType,
+            offering.Level,
+            offering.OfferingNumber,
+            offering.HeroMediaId,
+            [.. offering.Images.Select(reference => reference.MediaAssetId)],
+            [.. runs.Select(run => new ClassRunServiceModel(
+                run.Id,
+                run.Label,
+                Instructor: null,
+                run.Cadence,
+                run.DisplayTimeZone,
+                run.Sku,
+                run.Capacity,
+                run.StartingPriceCents,
+                CatalogPolicy.Currency,
+                StartingPriceEditable: !run.HasSquareRecord,
+                run.PriceCents,
+                run.SeatsRemaining,
+                run.SoldOut,
+                run.HasSquareRecord,
+                SessionsOf(run)))],
+            offering.Status,
+            offering.PublishedAt,
+            offering.ScheduledFor,
+            SlugLocked: offering.PublishedAt is not null,
+            offering.LegacyWordPressId,
+            offering.CreatedAt,
+            offering.UpdatedAt,
+            offering.UpdatedBy,
+            EntityTag.Format(offering.RowVersion));
+
+        return new ClassDetail(
+            model,
+            runs.Where(run => run.InstructorId is not null).ToDictionary(run => run.Id, run => run.InstructorId!.Value));
+    }
 
     /// <summary>Trimmed, and <c>null</c> when nothing is left: an empty string clears the field.</summary>
     private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    private static OperationResult<SkuChanges> Invalid(string detail, string message = "A run in the list is not this class's.") =>
+        OperationResult.Failure<SkuChanges>(OperationError.Validation(message, [("runs", detail)]));
 
     private static OperationError TransitionInvalid(PublishStatus from, PublishCommand command) => OperationError.Of(
         ContentErrorCodes.StatusTransitionInvalid,
         $"This class is {from.ToString().ToLowerInvariant()}, so “{command.Verb()}” doesn't apply. Reload it to see its current status.");
 
-    private static OperationResult<ClassServiceModel> NotFound() =>
-        OperationResult.Failure<ClassServiceModel>(OperationError.Of(ErrorCodes.NotFound, "There is no such class."));
+    private static OperationResult<ClassDetail> NotFound() =>
+        OperationResult.Failure<ClassDetail>(OperationError.Of(ErrorCodes.NotFound, "There is no such class."));
 
-    private static OperationResult<ClassServiceModel> Conflict() =>
-        OperationResult.Failure<ClassServiceModel>(EntityTag.Conflict(What));
+    private static OperationResult<ClassDetail> Conflict() =>
+        OperationResult.Failure<ClassDetail>(EntityTag.Conflict(What));
 
     private static OperationError SlugTaken(string slug) => new(
         ContentErrorCodes.SlugTaken,
@@ -985,7 +1147,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             : "Some of those SKUs are already in use.",
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["sessions"] = [.. skus.Distinct(StringComparer.Ordinal).Select(sku =>
-                $"“{sku}” belongs to another class session or shop item. Choose another.")],
+            ["runs"] = [.. skus.Distinct(StringComparer.Ordinal).Select(sku =>
+                $"“{sku}” belongs to another class run or shop item. Choose another.")],
         });
 }

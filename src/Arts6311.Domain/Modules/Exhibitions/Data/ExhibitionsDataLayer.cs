@@ -126,6 +126,9 @@ internal sealed class ExhibitionsDataLayer(
     public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
         repository.ListDueAsync(asOf, take, cancellationToken);
 
+    public Task<List<Exhibition>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) =>
+        repository.ListPublishedAsync(slug, cancellationToken);
+
     public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         repository.GetSlugsAsync(cancellationToken);
 

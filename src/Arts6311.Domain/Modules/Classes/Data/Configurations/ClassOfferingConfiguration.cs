@@ -25,8 +25,6 @@ internal sealed class ClassOfferingConfiguration : IEntityTypeConfiguration<Clas
         builder.Property(offering => offering.Body).HasMaxLength(ClassPolicy.BodyMaxLength);
         builder.Property(offering => offering.ClassType).HasMaxLength(ClassPolicy.ClassTypeMaxLength);
         builder.Property(offering => offering.Level).HasMaxLength(ClassPolicy.LevelMaxLength);
-        builder.Property(offering => offering.Instructor).HasMaxLength(ClassPolicy.InstructorMaxLength);
-        builder.Property(offering => offering.Cadence).HasMaxLength(ClassPolicy.CadenceMaxLength);
         builder.Property(offering => offering.UpdatedBy).IsRequired().HasMaxLength(ClassPolicy.UserIdMaxLength);
         builder.Property(offering => offering.RowVersion).IsConcurrencyToken();
 
@@ -37,10 +35,10 @@ internal sealed class ClassOfferingConfiguration : IEntityTypeConfiguration<Clas
             .HasForeignKey(offering => offering.HeroMediaId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // The sessions and the body's images belong to the offering: they go with it, and are read and written with it.
-        builder.HasMany(offering => offering.Sessions)
+        // The runs and the body's images belong to the offering: they go with it, and are read and written with it.
+        builder.HasMany(offering => offering.Runs)
             .WithOne()
-            .HasForeignKey(session => session.ClassOfferingId)
+            .HasForeignKey(run => run.ClassOfferingId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasMany(offering => offering.Images)

@@ -85,7 +85,7 @@ public sealed class ShopLayerTests
 
         repository.SaveFailure = new DbUpdateException("unique");
         repository.SlugExists = false;
-        skus.Owners["ART-9"] = new SkuOwner(CatalogOwnerTypes.ClassSession, Guid.NewGuid());
+        skus.Owners["ART-9"] = new SkuOwner(CatalogOwnerTypes.ClassRun, Guid.NewGuid());
         var skuTaken = await dataLayer.UpdateAsync(item, reservation, "editor-1", "Updated.", null, Ct);
 
         repository.SaveFailure = new DbUpdateException("something else");
@@ -105,7 +105,7 @@ public sealed class ShopLayerTests
     {
         var (business, dataLayer) = Business();
         dataLayer.NextItemNumber = 17;
-        dataLayer.SkuOwners["ART-17"] = new SkuOwner(CatalogOwnerTypes.ClassSession, Guid.NewGuid());
+        dataLayer.SkuOwners["ART-17"] = new SkuOwner(CatalogOwnerTypes.ClassRun, Guid.NewGuid());
 
         var created = await business.CreateAsync(
             new ShopItemCreateViewModel("A Piece"), ShopItemMediaCheck.None, "editor-1", Ct);
@@ -119,7 +119,7 @@ public sealed class ShopLayerTests
     public async Task BusinessRefusesASkuAnotherRecordHolds()
     {
         var (business, dataLayer) = Business();
-        dataLayer.SkuOwners["CLS-4-1"] = new SkuOwner(CatalogOwnerTypes.ClassSession, Guid.NewGuid());
+        dataLayer.SkuOwners["CLS-4-1"] = new SkuOwner(CatalogOwnerTypes.ClassRun, Guid.NewGuid());
 
         var taken = await business.CreateAsync(
             new ShopItemCreateViewModel("A Piece", Sku: "cls-4-1"), ShopItemMediaCheck.None, "editor-1", Ct);
@@ -218,8 +218,9 @@ public sealed class ShopLayerTests
     }
 
     [Fact]
-    public async Task TheFacadeAsksMediaOnceAboutThePhotographsAndTheDescriptionsPictures()
+    public async Task TheFacadeAsksMediaOnceAboutThePhotographsAndNotADescriptionPictureTheSanitizerDrops()
     {
+        // ADR 0045: no pictures in a description at this time, so only the gallery is asked about.
         var (facade, business, media, _) = Facade();
         var photograph = Guid.NewGuid();
         var inDescription = Guid.NewGuid();
@@ -237,7 +238,7 @@ public sealed class ShopLayerTests
         Assert.Equal(1, media.Checks);
         Assert.Equal([photograph], business.CreateMedia!.AskedGallery);
         Assert.Equal([photograph], business.CreateMedia.GalleryWithoutAltText);
-        Assert.Equal([inDescription], business.CreateMedia.AskedDescription);
+        Assert.Empty(business.CreateMedia.AskedDescription);
         Assert.Empty(business.CreateMedia.MissingGallery);
     }
 
@@ -352,7 +353,9 @@ public sealed class ShopLayerTests
             new ShopItemCreateValidator(),
             new ShopItemUpdateValidator(),
             new ShopItemListValidator(),
-            new ContentScheduleValidator());
+            new ContentScheduleValidator(),
+            new SiteShopListValidator(),
+            TestAppCache.Create());
         return (facade, business, media, artists);
     }
 }

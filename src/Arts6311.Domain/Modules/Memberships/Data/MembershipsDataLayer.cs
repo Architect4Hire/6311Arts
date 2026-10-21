@@ -129,6 +129,9 @@ internal sealed class MembershipsDataLayer(
     public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
         repository.ListDueAsync(asOf, take, cancellationToken);
 
+    public Task<List<MembershipPlan>> ListPublishedAsync(CancellationToken cancellationToken) =>
+        repository.ListPublishedAsync(cancellationToken);
+
     public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         repository.GetSlugsAsync(cancellationToken);
 

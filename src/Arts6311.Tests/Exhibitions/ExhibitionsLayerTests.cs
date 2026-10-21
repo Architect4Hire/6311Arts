@@ -9,6 +9,7 @@ using Arts6311.Domain.Modules.Exhibitions.Managers.Validation;
 using Arts6311.Domain.Modules.Exhibitions.Managers.ViewModels;
 using Arts6311.Tests.Artists.Infrastructure;
 using Arts6311.Tests.Exhibitions.Infrastructure;
+using Arts6311.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace Arts6311.Tests.Exhibitions;
@@ -437,7 +438,7 @@ public sealed class ExhibitionsLayerTests
         var artists = new FakeArtistsFacade();
         var facade = new ExhibitionsFacade(
             business, media, artists, new ExhibitionCreateValidator(), new ExhibitionUpdateValidator(),
-            new ExhibitionListValidator(), new ContentScheduleValidator());
+            new ExhibitionListValidator(), new ContentScheduleValidator(), TestAppCache.Create());
         return (facade, business, media, artists);
     }
 }

@@ -14,6 +14,15 @@ internal interface IPagesBusiness
 
     Task<OperationResult<PageServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The published page at <paramref name="slug"/>, or <c>resource.not_found</c>: a draft is not there to the site.</summary>
+    Task<OperationResult<SitePageServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>One page as the site would show it, whatever the status, for a preview link.</summary>
+    Task<OperationResult<PreviewRecord<SitePageServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>Every published page's address and last change, for the sitemap.</summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
+
     /// <param name="images">What Media said about the library images in <c>create.Body</c>.</param>
     Task<OperationResult<PageServiceModel>> CreateAsync(
         PageCreateViewModel create, PageImageCheck images, string actorUserId, CancellationToken cancellationToken);

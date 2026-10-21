@@ -15,7 +15,7 @@ Square is the system of record for money. The CMS is the system of record for co
 
 ## Website catalog (ADR 0032)
 
-- **Artwork (`ShopItem`) and classes (`ClassOffering` / `ClassSession`)** are created in the CMS and pushed to Square. Staff never manage them in Square.
+- **Artwork (`ShopItem`) and classes (`ClassOffering` / `ClassRun`, ADR 0044)** are created in the CMS and pushed to Square. Staff never manage them in Square.
 - **Merch is POS-only.** It has no CMS type, no site page and no import mapping.
 - **Square objects with no CMS id custom attribute are POS-only.** Inbound handlers and the reconciler ignore them (no drafts, no audit noise).
 - **Taxes are Square's.** Never send tax ids or tax settings.
@@ -24,9 +24,9 @@ Square is the system of record for money. The CMS is the system of record for co
 
 | CMS-owned → pushed on every content push | Square holds the record → pulled into projections | CMS *requests* a change (command → outbox) |
 |---|---|---|
-| Name, description, artist, categories, images, publish/archive state | Price | Artwork and class session price: **change price** (compare-and-set) |
-| **SKU** (per `ShopItem`, per `ClassSession`; unique across the CMS through the kernel's `CatalogSkus` registry, ADR 0037) | Stock, seats remaining, sold-out | Artwork quantity: **set quantity** (`PHYSICAL_COUNT` dated to the request) |
-| Class details, session dates/times, **session capacity** | Orders, payments, refunds, taxes, customers, cards, subscriptions, member status | Capacity change → seat `ADJUSTMENT` by the difference |
+| Name, description, artist, categories, images, publish/archive state | Price | Artwork and class run price: **change price** (compare-and-set) |
+| **SKU** (per `ShopItem`, per `ClassRun`; unique across the CMS through the kernel's `CatalogSkus` registry, ADR 0037) | Stock, seats remaining, sold-out | Artwork quantity: **set quantity** (`PHYSICAL_COUNT` dated to the request) |
+| Class details, run instructor, session dates/times, **run capacity** | Orders, payments, refunds, taxes, customers, cards, subscriptions, member status | Capacity change → seat `ADJUSTMENT` by the difference |
 | Membership plan name, perks, class discount, featured flag, order, **and the starting price and cadence the first push creates the plan with** | Plan pricing and billing cadence after creation | — (ADR 0005 still applies to plans: there is no change-price command for a plan) |
 
 - **Before the first sync,** the starting price, quantity, capacity and (for a membership plan) billing cadence are draft fields, and the first push creates the Square objects with them. After the item is linked, they're frozen. Until `SquareCatalogLink` exists (5.1), "linked" is read from the projections themselves: a record whose price Square has reported is past its first sync (`startingPriceEditable`, ADR 0037, 0040).

@@ -8,20 +8,19 @@ using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Classes.Data.Entities;
 using Arts6311.Domain.Modules.Classes.Data.Repositories;
 using Arts6311.Domain.Modules.Classes.Managers;
-using Arts6311.Domain.Modules.Classes.Managers.ServiceModels;
 using Microsoft.EntityFrameworkCore;
 
 namespace Arts6311.Domain.Modules.Classes.Data;
 
 /// <summary>
-/// The Classes module's DataLayer: every write is one <c>SaveChangesAsync</c> — the offering, its sessions, its body
-/// images, its SKU registry rows and its audit row together. It stamps the bookkeeping (who, when, a new row
+/// The Classes module's DataLayer: every write is one <c>SaveChangesAsync</c> — the offering, its runs and their
+/// sessions, its body images, its SKU registry rows and its audit row together. It stamps the bookkeeping (who, when, a new row
 /// version) and decides nothing itself.
 /// </summary>
 /// <remarks>
 /// A slug change on a published record stages <c>redirects.slug-changed</c> in its save (ADR 0035), and every status
 /// change stages <c>site.revalidate-requested</c> in its own (ADR 0036). The SKU reservations go in the same save as
-/// the sessions that carry them, so a write that fails claims no SKU (ADR 0037). Everything is staged before the
+/// the runs that carry them, so a write that fails claims no SKU (ADR 0037, 0044). Everything is staged before the
 /// single save, so each pair commits together or neither does (outbox.md).
 /// </remarks>
 internal sealed class ClassesDataLayer(
@@ -45,7 +44,7 @@ internal sealed class ClassesDataLayer(
     public Task<int> NextOfferingNumberAsync(CancellationToken cancellationToken) =>
         repository.NextOfferingNumberAsync(cancellationToken);
 
-    public Task<List<ClassSummaryServiceModel>> ListAsync(
+    public Task<List<ClassListRow>> ListAsync(
         ClassListPosition? after,
         int take,
         PublishStatus? status,
@@ -149,6 +148,10 @@ internal sealed class ClassesDataLayer(
     public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
         repository.ListDueAsync(asOf, take, cancellationToken);
 
+    public Task<List<ClassOffering>> ListPublishedAsync(
+        string? slug, DateTimeOffset? endingAfter, CancellationToken cancellationToken) =>
+        repository.ListPublishedAsync(slug, endingAfter, cancellationToken);
+
     public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         repository.GetSlugsAsync(cancellationToken);
 
@@ -178,8 +181,8 @@ internal sealed class ClassesDataLayer(
     }
 
     /// <summary>
-    /// The registry rows for the SKUs this write hands over: releases first, so a SKU moving from one session to
-    /// another inside the same offering is free by the time it is reserved again (ADR 0037).
+    /// The registry rows for the SKUs this write hands over: releases first, so a SKU moving from one run to another
+    /// inside the same offering is free by the time it is reserved again (ADR 0037).
     /// </summary>
     private async Task StageSkusAsync(SkuChanges changes, CancellationToken cancellationToken)
     {
@@ -189,13 +192,13 @@ internal sealed class ClassesDataLayer(
         {
             await skus.ReleaseAsync(
                 released.Sku,
-                new SkuOwner(CatalogOwnerTypes.ClassSession, released.OwnerId),
+                new SkuOwner(CatalogOwnerTypes.ClassRun, released.OwnerId),
                 cancellationToken);
         }
 
         foreach (var reservation in changes.Reserve)
         {
-            skus.Reserve(reservation.Sku, CatalogOwnerTypes.ClassSession, reservation.OwnerId);
+            skus.Reserve(reservation.Sku, CatalogOwnerTypes.ClassRun, reservation.OwnerId);
         }
     }
 
@@ -214,7 +217,7 @@ internal sealed class ClassesDataLayer(
 
     /// <summary>
     /// Who and when, and a new row version so every other open form's <c>If-Match</c> goes stale — a change to the
-    /// sessions alone included. EF still compares against the version the row was read with.
+    /// runs or sessions alone included. EF still compares against the version the row was read with.
     /// </summary>
     private static void Stamp(ClassOffering offering, string actorUserId, DateTimeOffset now)
     {
@@ -251,7 +254,7 @@ internal sealed class ClassesDataLayer(
             {
                 if (await skus.IsTakenAsync(
                     reservation.Sku,
-                    new SkuOwner(CatalogOwnerTypes.ClassSession, reservation.OwnerId),
+                    new SkuOwner(CatalogOwnerTypes.ClassRun, reservation.OwnerId),
                     cancellationToken))
                 {
                     return ClassWriteOutcome.SkuTaken;

@@ -228,78 +228,79 @@ import { ScheduleControl } from '../../shared/schedule-control';
             <!-- Disabled while a save or command is in flight, so nothing typed then is overwritten by its answer. -->
             <fieldset class="fields" [disabled]="busy()">
               <legend class="sr-only">Artist details</legend>
-            <ui-field label="Name" [required]="true" [error]="errors().name ?? null">
-              <input
-                uiControl
-                name="name"
-                autocomplete="off"
-                [attr.maxlength]="limits.nameMaxLength"
-                [ngModel]="draft().name"
-                (ngModelChange)="setName($event)"
-              />
-            </ui-field>
+              <ui-field label="Name" [required]="true" [error]="errors().name ?? null">
+                <input
+                  uiControl
+                  name="name"
+                  autocomplete="off"
+                  [attr.maxlength]="limits.nameMaxLength"
+                  [ngModel]="draft().name"
+                  (ngModelChange)="setName($event)"
+                />
+              </ui-field>
 
-            <ui-field
-              label="Web address"
-              [required]="true"
-              [hint]="slugHint()"
-              [error]="errors().slug ?? null"
-            >
-              <input
-                uiControl
-                name="slug"
-                autocomplete="off"
-                spellcheck="false"
-                [attr.maxlength]="limits.slugMaxLength"
-                [ngModel]="draft().slug"
-                (ngModelChange)="setSlug($event)"
-              />
-            </ui-field>
+              <ui-field
+                label="Web address"
+                [required]="true"
+                [hint]="slugHint()"
+                [error]="errors().slug ?? null"
+              >
+                <input
+                  uiControl
+                  name="slug"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [attr.maxlength]="limits.slugMaxLength"
+                  [ngModel]="draft().slug"
+                  (ngModelChange)="setSlug($event)"
+                />
+              </ui-field>
 
-            <ui-field
-              label="Medium"
-              hint="What they make, as the site shows it under their name — “Ceramics”, “Illustration & prints”."
-              [error]="errors().medium ?? null"
-            >
-              <input
-                uiControl
-                name="medium"
-                [attr.maxlength]="limits.mediumMaxLength"
-                [ngModel]="draft().medium"
-                (ngModelChange)="patch({ medium: $event })"
-              />
-            </ui-field>
+              <ui-field
+                label="Medium"
+                hint="What they make, as the site shows it under their name — “Ceramics”, “Illustration & prints”."
+                [error]="errors().medium ?? null"
+              >
+                <input
+                  uiControl
+                  name="medium"
+                  [attr.maxlength]="limits.mediumMaxLength"
+                  [ngModel]="draft().medium"
+                  (ngModelChange)="patch({ medium: $event })"
+                />
+              </ui-field>
 
-            <ui-field
-              label="Bio"
-              hint="Plain text. Leave a blank line between paragraphs."
-              [error]="errors().bio ?? null"
-            >
-              <textarea
-                uiControl
-                name="bio"
-                rows="8"
-                [attr.maxlength]="limits.bioMaxLength"
-                [ngModel]="draft().bio"
-                (ngModelChange)="patch({ bio: $event })"
-              ></textarea>
-            </ui-field>
+              <ui-field
+                label="Bio"
+                hint="Plain text. Leave a blank line between paragraphs."
+                [error]="errors().bio ?? null"
+              >
+                <textarea
+                  uiControl
+                  name="bio"
+                  rows="8"
+                  [attr.maxlength]="limits.bioMaxLength"
+                  [ngModel]="draft().bio"
+                  (ngModelChange)="patch({ bio: $event })"
+                ></textarea>
+              </ui-field>
 
-            <label class="check">
-              <input
-                type="checkbox"
-                name="active"
-                [checked]="draft().active"
-                (change)="patch({ active: activeBox.checked })"
-                #activeBox
-              />
-              <span>
-                <span class="check__label">Shows at 6311arts now</span>
-                <span class="check__hint"
-                  >Turn off for artists who no longer show here. This doesn’t unpublish them.</span
-                >
-              </span>
-            </label>
+              <label class="check">
+                <input
+                  type="checkbox"
+                  name="active"
+                  [checked]="draft().active"
+                  (change)="patch({ active: activeBox.checked })"
+                  #activeBox
+                />
+                <span>
+                  <span class="check__label">Shows at 6311arts now</span>
+                  <span class="check__hint"
+                    >Turn off for artists who no longer show here. This doesn’t unpublish
+                    them.</span
+                  >
+                </span>
+              </label>
             </fieldset>
 
             <div class="actions">
@@ -326,7 +327,9 @@ import { ScheduleControl } from '../../shared/schedule-control';
               @if (portrait()?.unavailable) {
                 <ui-notice tone="error">
                   This image’s details couldn’t be loaded.
-                  <button uiButton type="button" size="sm" (click)="retryPortrait()">Try again</button>
+                  <button uiButton type="button" size="sm" (click)="retryPortrait()">
+                    Try again
+                  </button>
                 </ui-notice>
               } @else if (portrait(); as portrait) {
                 @if (portrait.url) {
@@ -516,7 +519,7 @@ import { ScheduleControl } from '../../shared/schedule-control';
     }
     .portrait {
       width: 100%;
-      aspect-ratio: 4 / 5;
+      aspect-ratio: 3 / 2;
       object-fit: cover;
       background: var(--light);
     }
@@ -635,7 +638,8 @@ export class ArtistEditor implements HasUnsavedChanges {
   protected readonly slugHint = computed(() => {
     const saved = this.artist();
     const slug = this.draft().slug;
-    if (!this.slugLocked() || !saved) return `6311arts.com/artists/${this.draft().slug || '…'} — lower-case letters, digits and hyphens.`;
+    if (!this.slugLocked() || !saved)
+      return `6311arts.com/artists/${this.draft().slug || '…'} — lower-case letters, digits and hyphens.`;
     return slug === saved.slug
       ? `6311arts.com/artists/${slug} — published, so changing it sends visitors from this address to the new one.`
       : `6311arts.com/artists/${slug || '…'} — on saving, visitors to /artists/${saved.slug} are sent here.`;
@@ -973,7 +977,8 @@ export class ArtistEditor implements HasUnsavedChanges {
     afterNextRender(
       () => {
         const invalid = this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]');
-        const target = invalid ?? (errors.portraitMediaId ? this.portraitButton()?.nativeElement : null);
+        const target =
+          invalid ?? (errors.portraitMediaId ? this.portraitButton()?.nativeElement : null);
         target?.focus();
       },
       { injector: this.injector },
@@ -1022,6 +1027,7 @@ function draftOf(artist: Artist): Draft {
 
 function portraitOf(asset: MediaAsset): Portrait {
   const url =
+    asset.renditions.find((rendition) => rendition.name === '800.webp')?.url ??
     asset.renditions.find((rendition) => rendition.name === '400.webp')?.url ??
     [...asset.renditions].sort((a, b) => a.width - b.width)[0]?.url ??
     null;

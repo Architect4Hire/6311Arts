@@ -8,6 +8,31 @@ namespace Arts6311.Domain.Modules.Shop.Data;
 /// <summary>Where a page of shop items resumes: after this row in (Title, Id) order.</summary>
 internal sealed record ShopItemListPosition(string Title, Guid Id);
 
+/// <summary>The orders the site's shop offers (<c>ShopPolicy.SiteSorts</c>, ADR 0042).</summary>
+internal enum ShopSiteSort
+{
+    /// <summary>First publish, latest first, then id descending.</summary>
+    Newest = 0,
+
+    /// <summary>Square's price, lowest first, unpriced last, then id.</summary>
+    PriceAscending = 10,
+
+    /// <summary>Square's price, highest first, unpriced last, then id.</summary>
+    PriceDescending = 20,
+
+    /// <summary>Title, then id.</summary>
+    Title = 30,
+}
+
+/// <summary>
+/// One page of the site's shop: which published items, in which order, after which row. Only the field
+/// <see cref="Sort"/> orders by is set in <see cref="After"/>'s keyset.
+/// </summary>
+internal sealed record ShopSiteQuery(string? Category, Guid? ArtistId, ShopSiteSort Sort, ShopSitePosition? After, int Take);
+
+/// <summary>Where a page of the site's shop resumes: after the row with these values in the query's order.</summary>
+internal sealed record ShopSitePosition(Guid Id, DateTimeOffset? PublishedAt = null, long? PriceCents = null, string? Title = null);
+
 internal enum ShopWriteOutcome
 {
     Saved = 0,
@@ -80,6 +105,18 @@ internal interface IShopDataLayer
 
     /// <summary>The ids of items Scheduled for <paramref name="asOf"/> or earlier, oldest first.</summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
+
+    /// <summary>One page of published items for the site, as site rows.</summary>
+    Task<List<ShopItemSiteRow>> ListPublishedAsync(ShopSiteQuery query, CancellationToken cancellationToken);
+
+    /// <summary>The published item at <paramref name="slug"/>, as a site row.</summary>
+    Task<ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>How many published items each credited artist has.</summary>
+    Task<Dictionary<Guid, int>> CountPublishedByArtistAsync(CancellationToken cancellationToken);
+
+    /// <summary>Every published item's slug and last change, for the sitemap.</summary>
+    Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken);
 
     /// <summary>Every slug in use, for the development seed.</summary>
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);

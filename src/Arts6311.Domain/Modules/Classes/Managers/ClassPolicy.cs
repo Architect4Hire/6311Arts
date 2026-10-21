@@ -26,17 +26,24 @@ public static class ClassPolicy
 
     public const int LevelMaxLength = 60;
 
-    public const int InstructorMaxLength = 200;
-
     public const int CadenceMaxLength = 100;
 
+    /// <summary>A run's label: "Fall 2026", "Sunday mornings".</summary>
+    public const int RunLabelMaxLength = 100;
+
     /// <summary>
-    /// The most sittings one offering has. The spike's longest course runs eight weeks; a year of a weekly drop-in
-    /// is still within this.
+    /// The most runs one offering has at once (ADR 0044). Past runs stay on the offering until staff remove them, so
+    /// this is a few years of terms, not a guess at one season's.
+    /// </summary>
+    public const int RunsMaxCount = 30;
+
+    /// <summary>
+    /// The most sittings one run has. The spike's longest course runs eight weeks; a year of a weekly drop-in is
+    /// still within this.
     /// </summary>
     public const int SessionsMaxCount = 60;
 
-    /// <summary>The most seats one session has. The main gallery seats fewer than this with easels.</summary>
+    /// <summary>The most seats one run has. The main gallery seats fewer than this with easels.</summary>
     public const int CapacityMaxSeats = 500;
 
     /// <summary>
@@ -53,6 +60,9 @@ public static class ClassPolicy
 
     /// <summary>The longest search text the list accepts.</summary>
     public const int SearchMaxLength = 100;
+
+    /// <summary>The most instructors a page of the CMS list names: every run's, at most a page's worth of offerings.</summary>
+    internal const int ListInstructorsMaxCount = 200;
 
     /// <summary>
     /// Where a published offering lives on the site: its address is this plus its slug. A slug change after publish

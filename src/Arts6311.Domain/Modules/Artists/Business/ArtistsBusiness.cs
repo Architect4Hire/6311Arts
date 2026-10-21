@@ -77,6 +77,53 @@ internal sealed class ArtistsBusiness(IArtistsDataLayer dataLayer, IClock clock)
             : await dataLayer.FindBySlugsAsync([.. slugs.Distinct(StringComparer.Ordinal)], cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ArtistSiteRow>> ListForSiteAsync(CancellationToken cancellationToken) =>
+        await dataLayer.ListPublishedAsync(null, cancellationToken);
+
+    public async Task<ArtistSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(slug);
+        return (await dataLayer.ListPublishedAsync(slug, cancellationToken)).SingleOrDefault();
+    }
+
+    public async Task<OperationResult<PreviewRecord<ArtistSiteRow>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var artist = await dataLayer.FindAsync(id, cancellationToken);
+        return artist is null
+            ? OperationResult.Failure<PreviewRecord<ArtistSiteRow>>(OperationError.Of(ErrorCodes.NotFound, "There is no such artist."))
+            : OperationResult.Success(new PreviewRecord<ArtistSiteRow>(
+                new ArtistSiteRow(
+                    artist.Id, artist.Slug, artist.Name, artist.Medium, artist.Active, artist.PortraitMediaId, artist.Bio,
+                    artist.UpdatedAt),
+                artist.Status));
+    }
+
+    /// <remarks>
+    /// An unpublished artist is still credited by name — the exhibition or the piece is theirs whatever their page's
+    /// status — but given no slug, because the site has no page to link to (ADR 0042).
+    /// </remarks>
+    public async Task<IReadOnlyDictionary<Guid, SiteArtistCreditServiceModel>> DescribeCreditsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        var artists = new List<ArtistSummaryServiceModel>();
+        foreach (var chunk in ids.Distinct().Chunk(ArtistPolicy.LookupMaxCount))
+        {
+            artists.AddRange(await dataLayer.GetSummariesAsync(chunk, cancellationToken));
+        }
+
+        return artists.ToDictionary(
+            artist => artist.Id,
+            artist => new SiteArtistCreditServiceModel(
+                artist.Name, artist.Status == PublishStatus.Published ? artist.Slug : null));
+    }
+
+    public async Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
+        [.. (await dataLayer.ListPublishedAsync(null, cancellationToken))
+            .Select(row => new SitemapEntryServiceModel(
+                SitePaths.AddressOf(ArtistPolicy.SitePathPrefix, row.Slug), row.UpdatedAt))];
+
     public async Task<OperationResult<ArtistServiceModel>> CreateAsync(
         ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken)
     {

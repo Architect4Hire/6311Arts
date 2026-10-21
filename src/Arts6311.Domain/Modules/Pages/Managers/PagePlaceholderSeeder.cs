@@ -27,13 +27,13 @@ internal sealed partial class PagePlaceholderSeeder(
             "privacy",
             "<h2>Placeholder</h2><p>This privacy policy has not been written yet. Replace this text with "
             + "6311arts’ privacy policy, then publish the page.</p>"
-            + "<p>Questions in the meantime: <a href=\"mailto:info@6311arts.com\">info@6311arts.com</a>.</p>"),
+            + "<p>Questions in the meantime: info@6311arts.com.</p>"),
         new(
             "Terms and Conditions",
             "terms",
             "<h2>Placeholder</h2><p>These terms have not been written yet. Replace this text with 6311arts’ terms "
             + "and conditions, then publish the page.</p>"
-            + "<p>Questions in the meantime: <a href=\"mailto:info@6311arts.com\">info@6311arts.com</a>.</p>"),
+            + "<p>Questions in the meantime: info@6311arts.com.</p>"),
     ];
 
     public string Name => "Placeholder pages";

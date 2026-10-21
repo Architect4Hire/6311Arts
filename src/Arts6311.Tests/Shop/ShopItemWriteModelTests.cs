@@ -26,6 +26,7 @@ public sealed class ShopItemWriteModelTests
         typeof(ShopItemCreateViewModel),
         typeof(ShopItemUpdateViewModel),
         typeof(ShopItemListViewModel),
+        typeof(SiteShopListViewModel),
     ];
 
     public static TheoryData<Type> WriteModels => [.. Covered];

@@ -1,6 +1,7 @@
 # 0030 — Media library: SkiaSharp, compressed masters, metadata allow-list and content-addressed renditions
 
-- **Status:** Accepted — except "Publishing an image", which is **DECIDE** (below)
+- **Status:** Accepted. "Publishing an image" (below) was left **DECIDE** and is decided by
+  [0042](0042-site-read-api-and-its-cache.md): option 1, one-way, built in 3.1b
 - **Date:** 2026-10-20
 - **Rules affected:** `.claude/rules/media.md`, `.claude/rules/outbox.md`, `.claude/rules/gateway.md`,
   `.claude/rules/api-contract.md`, `.claude/rules/frontend.md`
@@ -181,7 +182,7 @@ Media enums serialize as their names. The row version is a `Guid` concurrency to
 `withFetch()` is removed from the admin app because fetch cannot report upload progress. The admin is
 client-rendered only, so fetch's SSR advantages never applied there.
 
-### Publishing an image — **DECIDE**
+### Publishing an image — decided in [0042](0042-site-read-api-and-its-cache.md) (option 1, one-way; built in 3.1b)
 
 Every asset is `Visibility = Draft` until content publishing marks it `Published`. Until the first content type
 exists, an anonymous visitor gets 404 for every image. **Still open: 2.8 declined it and ADR 0036 moved ownership

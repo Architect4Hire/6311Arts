@@ -1,0 +1,32 @@
+namespace Arts6311.Domain.Managers.Caching;
+
+/// <summary>
+/// How long the site's reads are kept, in the API's cache and by anything in front of it (ADR 0042).
+/// </summary>
+/// <remarks>
+/// <para>
+/// <strong>Every site entry carries the type tag of every content type it shows</strong>, never an entity or path
+/// tag alone: HybridCache takes the tags before the factory runs, and a read by slug does not know the record's id
+/// yet; a rename's revalidation names only the new address, so an entry for the old slug would outlive it. "Any
+/// change to a type clears every site entry built from it" is right for renames, for embedded credits (an artist's
+/// new name on a shop item) and for unpublishing alike, and staff write rarely enough that clearing a whole type
+/// costs nothing (ADR 0042).
+/// </para>
+/// <para>
+/// The revalidation handler reaches the shared L2 at once and another replica's L1 within
+/// <see cref="HybridAppCache.MaxLocalLifetime"/>; <see cref="Lifetime"/> bounds a change nothing announced (a
+/// rendition finishing, a session's start passing).
+/// </para>
+/// </remarks>
+public static class SiteCachePolicy
+{
+    /// <summary>How long a site read stays in HybridCache when nothing invalidates it first.</summary>
+    public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// <c>Cache-Control: public, max-age</c> on a site read: the minute a published change takes to reach another
+    /// replica's memory. The worst case is <see cref="Lifetime"/>, when a read racing a commit stores what it read
+    /// after the revalidation cleared its tags (ADR 0042).
+    /// </summary>
+    public static readonly TimeSpan HttpMaxAge = TimeSpan.FromMinutes(1);
+}

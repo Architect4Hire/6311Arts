@@ -34,3 +34,8 @@ public sealed record PageSummaryServiceModel(
     string Slug,
     PublishStatus Status,
     DateTimeOffset UpdatedAt);
+
+/// <summary>One published page as the public site shows it (ADR 0042): no status, no staff bookkeeping.</summary>
+/// <param name="BodyHtml">Sanitized HTML (ADR 0034): exactly what is stored, which is all the site renders.</param>
+/// <param name="UpdatedAt">When it last changed (UTC), for a "last updated" line on a policy.</param>
+public sealed record SitePageServiceModel(Guid Id, string Slug, string Title, string? BodyHtml, DateTimeOffset UpdatedAt);

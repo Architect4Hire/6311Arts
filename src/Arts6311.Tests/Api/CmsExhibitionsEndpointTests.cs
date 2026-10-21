@@ -268,6 +268,14 @@ public sealed class CmsExhibitionsEndpointTests
 
     private sealed class RecordingExhibitionsFacade : IExhibitionsFacade
     {
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<IReadOnlyList<global::Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels.SiteExhibitionSummaryServiceModel>>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels.SiteExhibitionServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels.SiteExhibitionServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public static readonly ExhibitionServiceModel Exhibition = new(
             Guid.Parse("55555555-5555-5555-5555-555555555555"), "Boats & Pianos", "boats-pianos", "New work.", null,
             new DateOnly(2026, 10, 24), new DateOnly(2026, 12, 5),

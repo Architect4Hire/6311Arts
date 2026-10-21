@@ -65,3 +65,22 @@ public sealed record MembershipPlanSummaryServiceModel(
     string? Cadence,
     string Currency,
     DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// One published tier as <c>/memberships</c> shows it (ADR 0040, 0042): the CMS's copy and Square's record of the
+/// money, with no starting figures, status or staff bookkeeping.
+/// </summary>
+/// <param name="Perks">In the order staff set.</param>
+/// <param name="DiscountPercent">The class discount members get.</param>
+/// <param name="PriceCents">Square's record of the price; <c>null</c> until Square has reported one.</param>
+/// <param name="Cadence">Square's word for how often it bills; <c>null</c> until Square has reported one.</param>
+public sealed record SiteMembershipPlanServiceModel(
+    Guid Id,
+    string Slug,
+    string Name,
+    IReadOnlyList<string> Perks,
+    int DiscountPercent,
+    bool Featured,
+    long? PriceCents,
+    string Currency,
+    string? Cadence);

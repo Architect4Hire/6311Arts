@@ -5,6 +5,7 @@ using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Artists;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
 using Arts6311.Domain.Modules.Classes;
+using Arts6311.Domain.Modules.Instructors;
 using Arts6311.Domain.Modules.Classes.Facade;
 using Arts6311.Domain.Modules.Media;
 using Arts6311.Domain.Modules.Media.Data.Entities;
@@ -65,6 +66,7 @@ internal sealed class ShopTestHost : IAsyncDisposable
         collection.AddArtsKernel();
         collection.AddMediaModule();
         collection.AddArtistsModule();
+        collection.AddInstructorsModule();
         collection.AddClassesModule();
         collection.AddShopModule();
         if (withSeeders)

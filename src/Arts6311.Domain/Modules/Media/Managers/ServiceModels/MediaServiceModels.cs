@@ -83,3 +83,17 @@ public sealed record MediaContentServiceModel(
     string ETag,
     MediaCacheability Cacheability,
     bool NotModified);
+
+/// <summary>
+/// One picture as the public site shows it: its renditions, never the master (ADR 0030, 0042).
+/// </summary>
+/// <param name="Src">The widest JPEG rendition, for an <c>&lt;img src&gt;</c> every browser can show.</param>
+/// <param name="Alt">The alt text staff wrote. Empty only for an image the content check let through without it.</param>
+/// <param name="Width">The original's displayed width, so the page can reserve the picture's shape.</param>
+/// <param name="Height">The original's displayed height.</param>
+/// <param name="Sources">Every rendition, narrowest first within each format, for <c>srcset</c>.</param>
+public sealed record SiteImageServiceModel(
+    string Src, string Alt, int Width, int Height, IReadOnlyList<SiteImageSourceServiceModel> Sources);
+
+/// <param name="Url">Versioned (<c>?v=</c>), so it may be cached as immutable.</param>
+public sealed record SiteImageSourceServiceModel(string Url, int Width, string MimeType);

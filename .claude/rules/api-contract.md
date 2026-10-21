@@ -13,9 +13,9 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
 
 | Family | Example | Auth |
 |---|---|---|
-| Public site reads | `GET /api/v1/site/classes`, `/site/classes/{slug}`, `/site/artists`, `/site/exhibitions`, `/site/shop`, `/site/memberships`, `/site/pages/{slug}`, `/site/redirects` | `[AllowAnonymous]` |
+| Public site reads | `GET /api/v1/site/classes` (`?instructor=`), `/site/classes/{slug}`, `/site/instructors`, `/site/instructors/{slug}`, `/site/exhibitions`, `/site/exhibitions/{slug}`, `/site/artists`, `/site/artists/{slug}`, `/site/shop` (`?category=&artist=&sort=&cursor=&limit=`), `/site/shop/{slug}`, `/site/memberships`, `/site/pages/{slug}`, `/site/sitemap`, `/site/redirects` | `[AllowAnonymous]`; Published records only, except that a credit names its artist whatever their status (`slug` is `null` unless they are published); the site's own `Site*ServiceModel`s (no status, bookkeeping, SKU or stock count); `Cache-Control: public, max-age=60`, a 404 `no-store` (ADR 0042) |
 | Preview | `GET /api/v1/site/preview/{token}` | `[AllowAnonymous]`; the signed, expiring token is the credential (ADR 0036). `no-store`, `X-Robots-Tag: noindex`, read-only; anything unusable is 404 |
-| CMS | `GET/POST /api/v1/cms/classes`, `PATCH /cms/classes/{id}`, `POST /cms/classes/{id}/publish`; the same shape for `/cms/artists`, `/cms/exhibitions`, `/cms/pages`, `/cms/shop` (artwork; `?category=` filters it), `/cms/memberships` (tiers, in display order) and `/cms/media` | `CmsEditor` (deletes `CmsAdmin`) |
+| CMS | `GET/POST /api/v1/cms/classes`, `PATCH /cms/classes/{id}`, `POST /cms/classes/{id}/publish`; the same shape for `/cms/artists`, `/cms/instructors`, `/cms/exhibitions`, `/cms/pages`, `/cms/shop` (artwork; `?category=` filters it), `/cms/memberships` (tiers, in display order) and `/cms/media` | `CmsEditor` (deletes `CmsAdmin`) |
 | CMS status commands | `POST /api/v1/cms/{type}/{id}/publish`, `/unpublish`, `/schedule` (body `ContentScheduleViewModel`), `/unschedule`, `/archive` (`CmsAdmin`) | `CmsEditor`; every one carries `If-Match` |
 | CMS previews | `POST /api/v1/cms/preview` → `{ token, path, expiresAt }` | `CmsEditor`; mints a link for one record, changes nothing |
 | Commerce | `POST /api/v1/cart/items`, `POST /checkout/quote`, `POST /checkout/pay` | anonymous cart; pay is idempotent |
@@ -30,7 +30,7 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
 ## Shapes
 
 - **Models.** Input is ViewModels and output is ServiceModels. Never return EF entities, Square DTOs or anonymous objects.
-- **Times and money.** ISO 8601 UTC timestamps, written with an explicit `+00:00` offset (not `Z`); `format: date-time` can't tell the two apart, so the spelling is asserted in tests. Class sessions also return `displayTimeZone`. Money is integer cents with `currency`.
+- **Times and money.** ISO 8601 UTC timestamps, written with an explicit `+00:00` offset (not `Z`); `format: date-time` can't tell the two apart, so the spelling is asserted in tests. Class runs also return `displayTimeZone`, the zone their sessions are shown in. Money is integer cents with `currency`.
 - **Paging.** Collections that change often use a cursor (`?cursor=`). Small fixed lists may return everything.
 - **Errors.** `ProblemDetails` with a stable `code` (for example `cms.slug_taken`, `checkout.item_sold_out`, `square.unavailable`) and `correlationId`. The status follows the code, mapped in one place (`Arts6311.Api/Conventions/ApiProblemDetails.cs`, ADR 0021):
 

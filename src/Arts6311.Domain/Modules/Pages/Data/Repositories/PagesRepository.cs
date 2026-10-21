@@ -67,6 +67,23 @@ internal sealed class PagesRepository(ArtsDbContext context) : IPagesRepository
             .Select(page => page.Id)
             .ToListAsync(cancellationToken);
 
+    public Task<SitePageServiceModel?> FindPublishedAsync(string slug, CancellationToken cancellationToken) =>
+        Pages.AsNoTracking()
+            .Where(page => page.Slug == slug && page.Status == PublishStatus.Published)
+            .Select(page => new SitePageServiceModel(page.Id, page.Slug, page.Title, page.Body, page.UpdatedAt))
+            .SingleOrDefaultAsync(cancellationToken);
+
+    public async Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken)
+    {
+        var rows = await Pages.AsNoTracking()
+            .Where(page => page.Status == PublishStatus.Published)
+            .OrderBy(page => page.Slug)
+            .Select(page => new { page.Slug, page.UpdatedAt })
+            .ToListAsync(cancellationToken);
+
+        return [.. rows.Select(row => (row.Slug, row.UpdatedAt))];
+    }
+
     public void DiscardChanges() => context.ChangeTracker.Clear();
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);

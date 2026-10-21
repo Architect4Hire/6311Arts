@@ -63,6 +63,19 @@ public static class ShopPolicy
     /// </summary>
     public const string SitePathPrefix = SitePaths.Shop;
 
+    /// <summary>
+    /// The orders the site's shop offers (ADR 0042), the first the default: newest first, price either way (an item
+    /// Square has not priced yet last in both), and by title.
+    /// </summary>
+    public static IReadOnlyList<string> SiteSorts { get; } = ["newest", "price-asc", "price-desc", "title"];
+
+    /// <summary>
+    /// The longest cursor the site's shop accepts: a keyset is at most a title (<see cref="TitleMaxLength"/>
+    /// characters, up to four UTF-8 bytes each) and an id, base64url-encoded — about 1,130 characters — with room to
+    /// spare.
+    /// </summary>
+    public const int SiteCursorMaxLength = 2_048;
+
     /// <summary>Identity's user id column length, so <c>UpdatedBy</c> can hold any user id.</summary>
     internal const int UserIdMaxLength = 450;
 }

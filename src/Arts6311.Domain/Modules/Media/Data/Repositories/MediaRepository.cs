@@ -110,6 +110,12 @@ internal sealed class MediaRepository(ArtsDbContext context) : IMediaRepository
         return [.. rows.Select(row => (row.Id, row.HasAltText))];
     }
 
+    public Task<List<MediaAsset>> FindWithRenditionsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+        Assets.AsNoTracking()
+            .Where(asset => (ids.Contains(asset.Id) && asset.Kind != MediaAssetKind.Derived)
+                || (asset.ParentAssetId != null && ids.Contains(asset.ParentAssetId.Value)))
+            .ToListAsync(cancellationToken);
+
     /// <remarks>
     /// Read from the model rather than a list of modules, so Media never names the content types that use it: a
     /// module that adds a foreign key to <see cref="MediaAsset"/> is covered by declaring it (ADR 0030). The

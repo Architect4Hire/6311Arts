@@ -222,6 +222,12 @@ public sealed class CmsPagesEndpointTests
 
     private sealed class RecordingPagesFacade : IPagesFacade
     {
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Modules.Pages.Managers.ServiceModels.SitePageServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Pages.Managers.ServiceModels.SitePageServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public static readonly PageServiceModel Page = new(
             Guid.Parse("77777777-7777-7777-7777-777777777777"), "Privacy Policy", "privacy", "<p>Hi</p>", [],
             PublishStatus.Draft, null, null, false, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, Subject,

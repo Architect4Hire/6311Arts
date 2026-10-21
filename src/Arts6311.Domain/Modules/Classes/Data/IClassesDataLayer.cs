@@ -1,7 +1,7 @@
 using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Classes.Data.Entities;
-using Arts6311.Domain.Modules.Classes.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Classes.Managers;
 
 namespace Arts6311.Domain.Modules.Classes.Data;
 
@@ -24,7 +24,7 @@ internal enum ClassWriteOutcome
 
 internal interface IClassesDataLayer
 {
-    /// <summary>One offering with its sessions and body images, tracked.</summary>
+    /// <summary>One offering with its runs, their sessions and its body images, tracked.</summary>
     Task<ClassOffering?> FindAsync(Guid id, CancellationToken cancellationToken);
 
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
@@ -33,10 +33,10 @@ internal interface IClassesDataLayer
     Task<IReadOnlyDictionary<string, SkuOwner>> SkuOwnersAsync(
         IReadOnlyCollection<string> skus, CancellationToken cancellationToken);
 
-    /// <summary>The number a new offering takes, for its sessions' suggested SKUs (ADR 0037).</summary>
+    /// <summary>The number a new offering takes, for its runs' suggested SKUs (ADR 0037).</summary>
     Task<int> NextOfferingNumberAsync(CancellationToken cancellationToken);
 
-    Task<List<ClassSummaryServiceModel>> ListAsync(
+    Task<List<ClassListRow>> ListAsync(
         ClassListPosition? after,
         int take,
         PublishStatus? status,
@@ -45,8 +45,8 @@ internal interface IClassesDataLayer
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Adds the offering Business built — sessions, body images, SKU reservations, bookkeeping and audit entry — in
-    /// one save.
+    /// Adds the offering Business built — runs, sessions, body images, SKU reservations, bookkeeping and audit entry —
+    /// in one save.
     /// </summary>
     Task<ClassWriteOutcome> CreateAsync(
         ClassOffering offering, SkuChanges skus, string actorUserId, string summary, CancellationToken cancellationToken);
@@ -81,6 +81,12 @@ internal interface IClassesDataLayer
 
     /// <summary>The ids of offerings Scheduled for <paramref name="asOf"/> or earlier, oldest first.</summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Published offerings with their runs and sessions, untracked: all of them or the one at <paramref name="slug"/>, and
+    /// only those with a session ending after <paramref name="endingAfter"/> when it is given.
+    /// </summary>
+    Task<List<ClassOffering>> ListPublishedAsync(string? slug, DateTimeOffset? endingAfter, CancellationToken cancellationToken);
 
     /// <summary>Every slug in use, for the development seed.</summary>
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);

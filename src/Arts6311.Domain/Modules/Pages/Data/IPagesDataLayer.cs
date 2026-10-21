@@ -56,6 +56,12 @@ internal interface IPagesDataLayer
     /// <summary>The ids of pages Scheduled for <paramref name="asOf"/> or earlier, oldest first.</summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
+    /// <summary>The published page at <paramref name="slug"/>, as the site shows it.</summary>
+    Task<SitePageServiceModel?> FindPublishedAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>Every published page's slug and last change, for the sitemap.</summary>
+    Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken);
+
     /// <summary>Every slug in use, for the placeholder seed.</summary>
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);
 

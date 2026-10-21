@@ -1,9 +1,11 @@
+using Arts6311.Domain.Managers.Caching;
 using Arts6311.Domain.Managers.Concurrency;
 using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Managers.Validation;
 using Arts6311.Domain.Modules.Memberships.Business;
+using Arts6311.Domain.Modules.Memberships.Managers;
 using Arts6311.Domain.Modules.Memberships.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Memberships.Managers.ViewModels;
 using FluentValidation;
@@ -11,8 +13,8 @@ using FluentValidation;
 namespace Arts6311.Domain.Modules.Memberships.Facade;
 
 /// <summary>
-/// Validates shape, then calls Business. Nothing is cached: these are CMS reads; the site's cached reads arrive in
-/// Phase 3.
+/// Validates shape, then calls Business. The CMS reads are never cached; the site's list is, under the
+/// <c>membership-plan</c> type tag that every plan's revalidation clears (ADR 0042).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -30,9 +32,14 @@ internal sealed class MembershipsFacade(
     IValidator<MembershipPlanCreateViewModel> createValidator,
     IValidator<MembershipPlanUpdateViewModel> updateValidator,
     IValidator<MembershipPlanListViewModel> listValidator,
-    IValidator<ContentScheduleViewModel> scheduleValidator) : IMembershipsFacade
+    IValidator<ContentScheduleViewModel> scheduleValidator,
+    IAppCache cache) : IMembershipsFacade
 {
     private const string What = "this plan";
+
+    internal static readonly string SiteListKey = CacheKeys.List(MembershipAudit.ResourceType, "site");
+
+    internal static readonly string[] SiteTags = [CacheTags.Type(MembershipAudit.ResourceType)];
 
     public async Task<OperationResult<CursorPage<MembershipPlanSummaryServiceModel>>> ListAsync(
         MembershipPlanListViewModel request, CancellationToken cancellationToken)
@@ -131,6 +138,22 @@ internal sealed class MembershipsFacade(
     public Task<ScheduledPublishOutcome> PublishScheduledAsync(
         Guid id, DateTimeOffset asOf, CancellationToken cancellationToken) =>
         business.PublishScheduledAsync(id, asOf, cancellationToken);
+
+    public async Task<OperationResult<IReadOnlyList<SiteMembershipPlanServiceModel>>> ListForSiteAsync(
+        CancellationToken cancellationToken) =>
+        OperationResult.Success(await cache.GetOrCreateAsync(
+            SiteListKey,
+            async token => await business.ListForSiteAsync(token),
+            SiteTags,
+            SiteCachePolicy.Lifetime,
+            cancellationToken));
+
+    public Task<OperationResult<PreviewRecord<SiteMembershipPlanServiceModel>>> GetForPreviewAsync(
+        Guid id, CancellationToken cancellationToken) =>
+        business.GetForPreviewAsync(id, cancellationToken);
+
+    public Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
+        business.ListSitemapAsync(cancellationToken);
 
     /// <summary>A status command. Without <c>If-Match</c> it is a 428 before anything is read.</summary>
     private async Task<OperationResult<MembershipPlanServiceModel>> TransitionAsync(

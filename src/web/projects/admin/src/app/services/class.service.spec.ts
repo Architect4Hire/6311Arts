@@ -93,18 +93,29 @@ describe('class models', () => {
     expect(decodeClassOffering(CLASS_OFFERING)).toEqual(CLASS_OFFERING);
     expect(decodeClassOffering(SYNCED_CLASS)).toEqual(SYNCED_CLASS);
     expect(decodeClassOffering({ ...CLASS_OFFERING, body: null })?.body).toBeNull();
-    expect(decodeClassOffering({ ...CLASS_OFFERING, startingPriceCents: null })).not.toBeNull();
-    expect(decodeClassOffering({ ...CLASS_OFFERING, currency: undefined })).toBeNull();
-    expect(decodeClassOffering({ ...CLASS_OFFERING, sessions: [{}] })).toBeNull();
+    const run = CLASS_OFFERING.runs[0];
+    const withRun = (change: Record<string, unknown>) => ({
+      ...CLASS_OFFERING,
+      runs: [{ ...run, ...change }],
+    });
+    expect(decodeClassOffering(withRun({ startingPriceCents: null }))).not.toBeNull();
+    expect(decodeClassOffering(withRun({ instructor: null }))?.runs[0].instructor).toBeNull();
+    expect(decodeClassOffering(withRun({ currency: undefined }))).toBeNull();
+    expect(decodeClassOffering(withRun({ sessions: [{}] }))).toBeNull();
+    expect(decodeClassOffering(withRun({ instructor: { id: 'x' } }))).toBeNull();
+    expect(decodeClassOffering(withRun({ startingPriceEditable: 'yes' }))).toBeNull();
+    expect(decodeClassOffering({ ...CLASS_OFFERING, runs: undefined })).toBeNull();
     expect(decodeClassOffering({ ...CLASS_OFFERING, imageMediaIds: [1] })).toBeNull();
-    expect(decodeClassOffering({ ...CLASS_OFFERING, startingPriceEditable: 'yes' })).toBeNull();
   });
 
   it('takes an integer the schema allows as a string, and refuses a half one', () => {
     expect(decodeClassOffering({ ...CLASS_OFFERING, offeringNumber: '4' })?.offeringNumber).toBe(4);
     expect(decodeClassOffering({ ...CLASS_OFFERING, offeringNumber: '4.5' })).toBeNull();
-    expect(decodeClassSummary({ ...toClassSummary(CLASS_OFFERING), sessionCount: '2' })?.sessionCount).toBe(2);
-    expect(decodeClassSummary({ ...toClassSummary(CLASS_OFFERING), sessionCount: null })).toBeNull();
+    expect(decodeClassSummary({ ...toClassSummary(CLASS_OFFERING), runCount: '2' })?.runCount).toBe(
+      2,
+    );
+    expect(decodeClassSummary({ ...toClassSummary(CLASS_OFFERING), runCount: null })).toBeNull();
+    expect(decodeClassSummary({ ...toClassSummary(CLASS_OFFERING), instructors: [1] })).toBeNull();
   });
 
   it('decodes a page and refuses one whose rows are not summaries', () => {

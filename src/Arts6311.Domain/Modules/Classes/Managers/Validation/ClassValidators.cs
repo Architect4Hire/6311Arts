@@ -8,8 +8,8 @@ using FluentValidation;
 namespace Arts6311.Domain.Modules.Classes.Managers.Validation;
 
 /// <summary>
-/// Shape only. Whether the slug is free, a SKU is already in use, the hero exists or the capacity is above the seats
-/// already taken is answered by Business and the facade.
+/// Shape only. Whether the slug is free, a SKU is already in use, the hero or an instructor exists, or a capacity is
+/// above the seats already taken is answered by Business and the facade.
 /// </summary>
 internal sealed class ClassCreateValidator : AbstractValidator<ClassCreateViewModel>
 {
@@ -33,12 +33,9 @@ internal sealed class ClassCreateValidator : AbstractValidator<ClassCreateViewMo
         RuleFor(create => create.Body).MaximumLength(ClassPolicy.BodyInputMaxLength);
         RuleFor(create => create.ClassType).MaximumLength(ClassPolicy.ClassTypeMaxLength);
         RuleFor(create => create.Level).MaximumLength(ClassPolicy.LevelMaxLength);
-        RuleFor(create => create.Instructor).MaximumLength(ClassPolicy.InstructorMaxLength);
-        RuleFor(create => create.Cadence).MaximumLength(ClassPolicy.CadenceMaxLength);
         RuleFor(create => create.HeroMediaId).NotEqual(Guid.Empty).When(create => create.HeroMediaId is not null);
 
-        this.StartingPriceRules(create => create.StartingPriceCents);
-        this.SessionRules(create => create.Sessions);
+        this.RunRules(create => create.Runs);
     }
 }
 
@@ -59,30 +56,21 @@ internal sealed class ClassUpdateValidator : AbstractValidator<ClassUpdateViewMo
         RuleFor(update => update.Body).MaximumLength(ClassPolicy.BodyInputMaxLength);
         RuleFor(update => update.ClassType).MaximumLength(ClassPolicy.ClassTypeMaxLength);
         RuleFor(update => update.Level).MaximumLength(ClassPolicy.LevelMaxLength);
-        RuleFor(update => update.Instructor).MaximumLength(ClassPolicy.InstructorMaxLength);
-        RuleFor(update => update.Cadence).MaximumLength(ClassPolicy.CadenceMaxLength);
         RuleFor(update => update.HeroMediaId).NotEqual(Guid.Empty).When(update => update.HeroMediaId is not null);
 
         RuleFor(update => update.RemoveHero)
             .Must(remove => remove != true).When(update => update.HeroMediaId is not null)
             .WithMessage("Send either heroMediaId or removeHero, not both.");
 
-        RuleFor(update => update.RemoveStartingPrice)
-            .Must(remove => remove != true).When(update => update.StartingPriceCents is not null)
-            .WithMessage("Send either startingPriceCents or removeStartingPrice, not both.");
-
-        this.StartingPriceRules(update => update.StartingPriceCents);
-        this.SessionRules(update => update.Sessions);
+        this.RunRules(update => update.Runs);
 
         RuleFor(update => update)
             .Must(update => update.Title is not null || update.Slug is not null || update.Summary is not null
                 || update.Body is not null || update.ClassType is not null || update.Level is not null
-                || update.Instructor is not null || update.Cadence is not null || update.StartingPriceCents is not null
-                || update.RemoveStartingPrice == true || update.HeroMediaId is not null || update.RemoveHero == true
-                || update.Sessions is not null)
+                || update.HeroMediaId is not null || update.RemoveHero == true || update.Runs is not null)
             .WithName("body")
             .WithMessage("Nothing to change: send at least one of title, slug, summary, body, classType, level, "
-                + "instructor, cadence, startingPriceCents, removeStartingPrice, heroMediaId, removeHero or sessions.");
+                + "heroMediaId, removeHero or runs.");
     }
 }
 
@@ -103,77 +91,84 @@ internal static class ClassRules
         "Use lower-case letters, digits and single hyphens, up to 120 characters (for example intro-to-screen-printing).";
 
     /// <summary>
-    /// The starting price is cents, never negative, and under the typo guard. Whether it may still be set at all is
-    /// Business's: once Square holds the record, a change is a command (ADR 0032).
+    /// The runs as a set (ADR 0044): at most <see cref="ClassPolicy.RunsMaxCount"/>, each with a capacity, any SKU,
+    /// zone, price, label and cadence sent in a shape we store, and sessions that each have both times in order.
+    /// Every message is keyed to <c>runs</c>, the field the admin's runs panel shows them under. Whether a starting
+    /// price may still be set at all is Business's: once Square holds the run, a change is a command (ADR 0032).
     /// </summary>
-    public static void StartingPriceRules<T>(this AbstractValidator<T> validator, Func<T, long?> price)
-    {
-        validator.RuleFor(model => price(model))
-            .InclusiveBetween(0, ClassPolicy.StartingPriceMaxCents)
-            .WithMessage(string.Create(
-                CultureInfo.InvariantCulture,
-                $"Enter the price in cents, from 0 to {ClassPolicy.StartingPriceMaxCents:N0} (${ClassPolicy.StartingPriceMaxCents / 100:N0})."))
-            .OverridePropertyName("startingPriceCents")
-            .When(model => price(model) is not null);
-    }
-
-    /// <summary>
-    /// The sessions as a set: at most <see cref="ClassPolicy.SessionsMaxCount"/>, each with both times and a
-    /// capacity, and any SKU or display zone sent in a shape we store. Every message is keyed to <c>sessions</c>,
-    /// which is the field the admin's grid shows them under.
-    /// </summary>
-    public static void SessionRules<T>(
-        this AbstractValidator<T> validator, Func<T, IReadOnlyList<ClassSessionViewModel>?> sessions)
+    public static void RunRules<T>(this AbstractValidator<T> validator, Func<T, IReadOnlyList<ClassRunViewModel>?> runs)
     {
         // Null-safe accessors: a rule's value may be read before its When is.
-        Func<T, IReadOnlyList<ClassSessionViewModel>> rows = model => sessions(model) ?? [];
+        Func<T, IReadOnlyList<ClassRunViewModel>> rows = model => runs(model) ?? [];
+        static IEnumerable<ClassSessionViewModel> Sessions(IReadOnlyList<ClassRunViewModel> list) =>
+            list.SelectMany(run => run.Sessions ?? []);
 
         validator.RuleFor(model => rows(model))
-            .Must(list => list.Count <= ClassPolicy.SessionsMaxCount)
-            .WithMessage($"A class has at most {ClassPolicy.SessionsMaxCount} sessions.")
+            .Must(list => list.Count <= ClassPolicy.RunsMaxCount)
+            .WithMessage($"A class has at most {ClassPolicy.RunsMaxCount} runs.")
 
-            .Must(list => list.All(session => session.StartsAt is not null && session.EndsAt is not null))
+            .Must(list => list.All(run => run.Capacity is not null))
+            .WithMessage("Every run needs a number of seats.")
+
+            .Must(list => list.All(run => run.Capacity is not { } capacity || capacity is >= 1 and <= ClassPolicy.CapacityMaxSeats))
+            .WithMessage($"Seats run from 1 to {ClassPolicy.CapacityMaxSeats}.")
+
+            .Must(list => list.All(run => run.StartingPriceCents is not { } price || price is >= 0 and <= ClassPolicy.StartingPriceMaxCents))
+            .WithMessage(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Enter a run's price in cents, from 0 to {ClassPolicy.StartingPriceMaxCents:N0} (${ClassPolicy.StartingPriceMaxCents / 100:N0})."))
+
+            .Must(list => list.All(run => run.Label is null || run.Label.Length <= ClassPolicy.RunLabelMaxLength))
+            .WithMessage($"A run's label is at most {ClassPolicy.RunLabelMaxLength} characters.")
+
+            .Must(list => list.All(run => run.Cadence is null || run.Cadence.Length <= ClassPolicy.CadenceMaxLength))
+            .WithMessage($"A run's cadence is at most {ClassPolicy.CadenceMaxLength} characters.")
+
+            .Must(list => list.All(run => run.InstructorId != Guid.Empty))
+            .WithMessage("Choose a run's instructor from the list.")
+
+            .Must(list => list.All(run => run.Sku is null || SkuPolicy.IsValid(SkuPolicy.Normalize(run.Sku))))
+            .WithMessage($"A SKU is letters, digits, hyphens and dots, up to {SkuPolicy.MaxLength} characters (for example CLS-4-1).")
+
+            .Must(list => list.All(run =>
+                run.DisplayTimeZone is null || TimeZoneInfo.TryFindSystemTimeZoneById(run.DisplayTimeZone, out _)))
+            .WithMessage("A run's display time zone must be an IANA zone id, for example America/Chicago.")
+
+            .Must(list => list.All(run => (run.Sessions?.Count ?? 0) <= ClassPolicy.SessionsMaxCount))
+            .WithMessage($"A run has at most {ClassPolicy.SessionsMaxCount} sessions.")
+
+            .Must(list => Sessions(list).All(session => session.StartsAt is not null && session.EndsAt is not null))
             .WithMessage("Every session needs a start and an end time.")
 
-            .Must(list => list.All(session =>
+            .Must(list => Sessions(list).All(session =>
                 session.StartsAt is not { } start || session.EndsAt is not { } end || end > start))
             .WithMessage("A session can't end before it starts.")
 
-            .Must(list => list.All(session =>
+            .Must(list => Sessions(list).All(session =>
                 session.StartsAt is not { } start || session.EndsAt is not { } end
                 || end - start <= ClassPolicy.SessionMaxDuration))
             .WithMessage($"A session runs at most {ClassPolicy.SessionMaxDuration.TotalDays:N0} days. Add one session per sitting.")
 
-            .Must(list => list.All(session => session.Capacity is not null))
-            .WithMessage("Every session needs a number of seats.")
+            .Must(list => Unique(list.Select(run => run.Id)))
+            .WithMessage("Each run appears once in the list.")
 
-            .Must(list => list.All(session =>
-                session.Capacity is not { } capacity || capacity is >= 1 and <= ClassPolicy.CapacityMaxSeats))
-            .WithMessage($"Seats run from 1 to {ClassPolicy.CapacityMaxSeats}.")
-
-            .Must(list => list.All(session => session.Sku is null || SkuPolicy.IsValid(SkuPolicy.Normalize(session.Sku))))
-            .WithMessage($"A SKU is letters, digits, hyphens and dots, up to {SkuPolicy.MaxLength} characters (for example CLS-4-1).")
-
-            .Must(list => list.All(session =>
-                session.DisplayTimeZone is null
-                || TimeZoneInfo.TryFindSystemTimeZoneById(session.DisplayTimeZone, out _)))
-            .WithMessage("A session's display time zone must be an IANA zone id, for example America/Chicago.")
-
-            .Must(list =>
-            {
-                var ids = list.Where(session => session.Id is not null).Select(session => session.Id!.Value).ToList();
-                return ids.Distinct().Count() == ids.Count;
-            })
+            .Must(list => Unique(Sessions(list).Select(session => session.Id)))
             .WithMessage("Each session appears once in the list.")
 
             .Must(list =>
             {
-                var skus = list.Select(session => SkuPolicy.Normalize(session.Sku)).Where(sku => sku is not null).ToList();
+                var skus = list.Select(run => SkuPolicy.Normalize(run.Sku)).Where(sku => sku is not null).ToList();
                 return skus.Distinct(StringComparer.Ordinal).Count() == skus.Count;
             })
-            .WithMessage("Each session is sold under its own SKU.")
+            .WithMessage("Each run is sold under its own SKU.")
 
-            .OverridePropertyName("sessions")
-            .When(model => sessions(model) is not null);
+            .OverridePropertyName("runs")
+            .When(model => runs(model) is not null);
+    }
+
+    private static bool Unique(IEnumerable<Guid?> ids)
+    {
+        var sent = ids.OfType<Guid>().ToList();
+        return sent.Distinct().Count() == sent.Count;
     }
 }

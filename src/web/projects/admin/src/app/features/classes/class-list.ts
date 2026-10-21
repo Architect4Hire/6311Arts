@@ -50,8 +50,8 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
 });
 
 /**
- * Every class and workshop (`/admin/classes`), by title, with what it is, who teaches it, how many sessions it has
- * and when it next meets. Filter by status, search by title, and open one to edit it.
+ * Every class and workshop (`/admin/classes`), by title, with what it is, who teaches its runs, how many runs it has
+ * and when it next meets (ADR 0044). Filter by status, search by title, and open one to edit it.
  */
 @Component({
   selector: 'cms-class-list',
@@ -62,8 +62,7 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
       <div>
         <h1 class="cms-title">Classes</h1>
         <p class="cms-lead">
-          Classes and workshops, their sessions and instructors. Seats and prices are Square’s
-          record.
+          Classes and workshops, their runs and instructors. Seats and prices are Square’s record.
         </p>
       </div>
       <a uiButton variant="dark" routerLink="/classes/new">New class</a>
@@ -130,8 +129,8 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
                   <th scope="col">Title</th>
                   <th scope="col">Next session</th>
                   <th scope="col">Status</th>
-                  <th scope="col" class="wide">Sessions</th>
-                  <th scope="col" class="wide">Instructor</th>
+                  <th scope="col" class="wide">Runs</th>
+                  <th scope="col" class="wide">Instructors</th>
                   <th scope="col" class="wide">Updated</th>
                 </tr>
               </thead>
@@ -155,8 +154,8 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
                         >{{ chips[offering.status].label }}</ui-status-chip
                       >
                     </td>
-                    <td class="wide">{{ offering.sessionCount }}</td>
-                    <td class="wide">{{ offering.instructor || '—' }}</td>
+                    <td class="wide">{{ offering.runCount }}</td>
+                    <td class="wide">{{ offering.instructors.join(', ') || '—' }}</td>
                     <td class="wide">
                       <time [attr.datetime]="offering.updatedAt">{{
                         updated(offering.updatedAt)

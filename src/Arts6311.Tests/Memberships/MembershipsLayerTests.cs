@@ -8,6 +8,7 @@ using Arts6311.Domain.Modules.Memberships.Managers;
 using Arts6311.Domain.Modules.Memberships.Managers.Validation;
 using Arts6311.Domain.Modules.Memberships.Managers.ViewModels;
 using Arts6311.Tests.Artists.Infrastructure;
+using Arts6311.Tests.Infrastructure;
 using Arts6311.Tests.Memberships.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -478,7 +479,8 @@ public sealed class MembershipsLayerTests
             new MembershipPlanCreateValidator(),
             new MembershipPlanUpdateValidator(),
             new MembershipPlanListValidator(),
-            new ContentScheduleValidator());
+            new ContentScheduleValidator(),
+            TestAppCache.Create());
         return (facade, business);
     }
 }

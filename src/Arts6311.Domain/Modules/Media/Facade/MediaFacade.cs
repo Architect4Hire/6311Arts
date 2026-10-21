@@ -65,6 +65,10 @@ internal sealed class MediaFacade(
         IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
         business.CheckAttachableAsync(ids, cancellationToken);
 
+    public Task<IReadOnlyDictionary<Guid, SiteImageServiceModel>> DescribeForSiteAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+        business.DescribeForSiteAsync(ids, cancellationToken);
+
     public Task<OperationResult> ProduceRenditionsAsync(
         Guid assetId, int attempt, bool lastAttempt, CancellationToken cancellationToken) =>
         business.ProduceRenditionsAsync(assetId, attempt, lastAttempt, cancellationToken);

@@ -40,10 +40,16 @@ public sealed class CmsClassesEndpointTests
             new
             {
                 title = "Intro to Screen Printing",
-                startingPriceCents = 30000,
-                sessions = new[]
+                runs = new[]
                 {
-                    new { startsAt = "2026-10-24T19:00:00+00:00", endsAt = "2026-10-24T22:00:00+00:00", capacity = 10, sku = "CLS-1-1" },
+                    new
+                    {
+                        capacity = 10,
+                        sku = "CLS-1-1",
+                        startingPriceCents = 30000,
+                        instructorId = "77777777-7777-7777-7777-777777777777",
+                        sessions = new[] { new { startsAt = "2026-10-24T19:00:00+00:00", endsAt = "2026-10-24T22:00:00+00:00" } },
+                    },
                 },
             },
             Ct);
@@ -52,8 +58,10 @@ public sealed class CmsClassesEndpointTests
         Assert.Equal($"{Base}/{RecordingClassesFacade.Offering.Id}", response.Headers.Location?.OriginalString);
         Assert.Equal(RecordingClassesFacade.Offering.ETag, response.Headers.ETag?.ToString());
         Assert.Equal("Intro to Screen Printing", facade.Created!.Title);
-        Assert.Equal(30000, facade.Created.StartingPriceCents);
-        Assert.Equal("CLS-1-1", facade.Created.Sessions!.Single().Sku);
+        var run = Assert.Single(facade.Created.Runs!);
+        Assert.Equal((30000L, "CLS-1-1", 10), (run.StartingPriceCents!.Value, run.Sku, run.Capacity!.Value));
+        Assert.Equal(Guid.Parse("77777777-7777-7777-7777-777777777777"), run.InstructorId);
+        Assert.Single(run.Sessions!);
         Assert.Equal(Subject, facade.Actor);
     }
 
@@ -222,6 +230,7 @@ public sealed class CmsClassesEndpointTests
         Assert.Contains("\"currency\":\"USD\"", body, StringComparison.Ordinal);
         Assert.Contains("\"displayTimeZone\":\"America/Chicago\"", body, StringComparison.Ordinal);
         Assert.Contains("\"squareHasRecord\":false", body, StringComparison.Ordinal);
+        Assert.Contains("\"instructor\":{\"id\":\"77777777-7777-7777-7777-777777777777\",\"name\":\"Gwen Schilling\"", body, StringComparison.Ordinal);
         Assert.Equal(RecordingClassesFacade.Offering.ETag, response.Headers.ETag?.ToString());
     }
 
@@ -280,6 +289,14 @@ public sealed class CmsClassesEndpointTests
     /// <summary>The facade as far as the controller is concerned: what it was handed, and one chosen answer.</summary>
     private sealed class RecordingClassesFacade : IClassesFacade
     {
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<IReadOnlyList<global::Arts6311.Domain.Modules.Classes.Managers.ServiceModels.SiteClassSummaryServiceModel>>> ListForSiteAsync(SiteClassListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Modules.Classes.Managers.ServiceModels.SiteClassServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Classes.Managers.ServiceModels.SiteClassServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public static readonly ClassServiceModel Offering = new(
             Guid.Parse("66666666-6666-6666-6666-666666666666"),
             "Intro to Screen Printing",
@@ -288,27 +305,34 @@ public sealed class CmsClassesEndpointTests
             null,
             "Printmaking",
             "Beginner",
-            "Gwen Schilling",
-            "Saturdays",
-            30000,
-            CatalogPolicy.Currency,
-            StartingPriceEditable: true,
             OfferingNumber: 1,
             HeroMediaId: null,
             ImageMediaIds: [],
-            Sessions:
+            Runs:
             [
-                new ClassSessionServiceModel(
-                    Guid.Parse("0199f0a0-0000-7000-8000-0000000000c2"),
-                    new DateTimeOffset(2026, 10, 24, 19, 0, 0, TimeSpan.Zero),
-                    new DateTimeOffset(2026, 10, 24, 22, 0, 0, TimeSpan.Zero),
+                new ClassRunServiceModel(
+                    Guid.Parse("0199f0a0-0000-7000-8000-0000000000c1"),
+                    "Fall 2026",
+                    new ClassInstructorServiceModel(
+                        Guid.Parse("77777777-7777-7777-7777-777777777777"), "Gwen Schilling", "gwen-schilling", PublishStatus.Published),
+                    "Saturdays",
                     "America/Chicago",
                     "CLS-1-1",
                     Capacity: 10,
+                    StartingPriceCents: 30000,
+                    CatalogPolicy.Currency,
+                    StartingPriceEditable: true,
                     PriceCents: null,
                     SeatsRemaining: null,
                     SoldOut: false,
-                    SquareHasRecord: false),
+                    SquareHasRecord: false,
+                    Sessions:
+                    [
+                        new ClassSessionServiceModel(
+                            Guid.Parse("0199f0a0-0000-7000-8000-0000000000c2"),
+                            new DateTimeOffset(2026, 10, 24, 19, 0, 0, TimeSpan.Zero),
+                            new DateTimeOffset(2026, 10, 24, 22, 0, 0, TimeSpan.Zero)),
+                    ]),
             ],
             PublishStatus.Draft,
             null,

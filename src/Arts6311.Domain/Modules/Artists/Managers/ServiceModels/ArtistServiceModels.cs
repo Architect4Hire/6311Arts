@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Arts6311.Domain.Modules.Media.Managers.ServiceModels;
 using Arts6311.Domain.Managers.Publishing;
 
 namespace Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
@@ -38,3 +39,24 @@ public sealed record ArtistSummaryServiceModel(
     PublishStatus Status,
     Guid? PortraitMediaId,
     DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// One published artist as the public site shows them (ADR 0042): no status, no staff bookkeeping, no legacy id.
+/// </summary>
+/// <param name="Active">Whether they currently show at the gallery, so the directory can group them.</param>
+/// <param name="Portrait">The portrait's renditions, or <c>null</c> when there is none yet.</param>
+/// <param name="BioText">Plain text; blank lines separate paragraphs. Not HTML (ADR 0031).</param>
+public sealed record SiteArtistServiceModel(
+    Guid Id,
+    string Slug,
+    string Name,
+    string? Medium,
+    bool Active,
+    SiteImageServiceModel? Portrait,
+    string? BioText);
+
+/// <summary>
+/// An artist credited on another record the site shows (an exhibition, a piece of artwork).
+/// </summary>
+/// <param name="Slug">Their page, or <c>null</c> when they are not published, so the site shows the name without a link.</param>
+public sealed record SiteArtistCreditServiceModel(string Name, string? Slug);

@@ -4,6 +4,7 @@ using Arts6311.Domain.Modules.Artists;
 using Arts6311.Domain.Modules.Classes;
 using Arts6311.Domain.Modules.Exhibitions;
 using Arts6311.Domain.Modules.Identity;
+using Arts6311.Domain.Modules.Instructors;
 using Arts6311.Domain.Modules.Media;
 using Arts6311.Domain.Modules.Pages;
 using Arts6311.Domain.Modules.Redirects;
@@ -35,15 +36,18 @@ builder.Services.AddPagesPlaceholderSeeder();
 builder.Services.AddLegacyRedirectSeeder();
 
 // The spike's artist roster, exhibitions, classes and shop, for a clean clone to show. Development only: elsewhere both come from
-// the WordPress import (4.x), whose slugs these would collide with. The exhibition seed credits artists through
-// IArtistsFacade (facade to facade), whose facade asks Media about portraits, so Development also composes Media on
-// the "blobs" client (ADR 0033). The roster's seeder is registered first: seeders run in registration order.
+// the WordPress import (4.x), whose slugs these would collide with. The exhibition and instructor seeds credit artists
+// through IArtistsFacade (facade to facade), whose facade asks Media about portraits, so Development also composes
+// Media on the "blobs" client (ADR 0033). The class seed names instructors through IInstructorsFacade (ADR 0043).
+// The roster's seeder is registered first, then the instructors': seeders run in registration order.
 if (builder.Environment.IsDevelopment())
 {
     builder.AddAzureBlobServiceClient("blobs");
     builder.Services.AddMediaModule();
     builder.Services.AddArtistsModule();
+    builder.Services.AddInstructorsModule();
     builder.Services.AddArtistsDevelopmentSeeder();
+    builder.Services.AddInstructorsDevelopmentSeeder();
     builder.Services.AddExhibitionsDevelopmentSeeder();
     builder.Services.AddClassesDevelopmentSeeder();
     builder.Services.AddShopDevelopmentSeeder();

@@ -61,6 +61,7 @@ describe('Shell', () => {
       'Classes',
       'Exhibitions',
       'Artists',
+      'Instructors',
       'Shop',
       'Memberships',
       'Pages',

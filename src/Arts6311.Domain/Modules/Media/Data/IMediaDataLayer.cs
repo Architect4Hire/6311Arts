@@ -92,6 +92,9 @@ internal interface IMediaDataLayer
 
     Task<List<(Guid Id, bool HasAltText)>> FindAttachabilityAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
 
+    /// <summary>The originals among <paramref name="ids"/> with every rendition of each, untracked.</summary>
+    Task<List<MediaAsset>> FindWithRenditionsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
     Task<MediaDeliveryRecord?> FindDeliveryAsync(Guid id, string? rendition, CancellationToken cancellationToken);
 
     Task<Stream?> OpenBlobAsync(string key, CancellationToken cancellationToken);

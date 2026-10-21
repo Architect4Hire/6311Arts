@@ -781,6 +781,130 @@ internal sealed class ShopBusiness(IShopDataLayer dataLayer, IHtmlSanitizer sani
                 [("startingStockQuantity", "There is only one of it. Untick “one of a kind” to stock more than one.")])
             : null;
 
+    public async Task<OperationResult<CursorPage<ShopItemSiteRow>>> ListForSiteAsync(
+        SiteShopListViewModel request, Guid? artistId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var sortName = request.Sort ?? ShopPolicy.SiteSorts[0];
+        var sort = sortName switch
+        {
+            "price-asc" => ShopSiteSort.PriceAscending,
+            "price-desc" => ShopSiteSort.PriceDescending,
+            "title" => ShopSiteSort.Title,
+            _ => ShopSiteSort.Newest,
+        };
+
+        // The cursor's fingerprint covers every filter and the order: a cursor from "jewelry, by price" replayed on
+        // "prints, newest" is refused rather than resuming at a row that means nothing there.
+        var scope = string.Create(
+            CultureInfo.InvariantCulture,
+            $"site-shop|category={request.Category}|artist={request.Artist}|sort={sortName}");
+
+        ShopSitePosition? after = null;
+        if (request.Cursor is not null)
+        {
+            var decoded = PageCursor.Decode(request.Cursor, scope);
+            if (!decoded.Succeeded
+                || !Guid.TryParseExact(decoded.Value!.TieBreaker, "N", out var afterId)
+                || PositionOf(sort, decoded.Value.SortValue, afterId) is not { } position)
+            {
+                return OperationResult.Failure<CursorPage<ShopItemSiteRow>>(
+                    OperationError.Of(ErrorCodes.CursorInvalid, "The cursor is not valid for this list."));
+            }
+
+            after = position;
+        }
+
+        var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
+        var rows = await dataLayer.ListPublishedAsync(
+            new ShopSiteQuery(request.Category, artistId, sort, after, limit + 1), cancellationToken);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            rows.RemoveAt(limit);
+            var last = rows[^1];
+            next = new PageCursor(SortValueOf(sort, last), last.Id.ToString("N")).Encode(scope);
+        }
+
+        return OperationResult.Success(new CursorPage<ShopItemSiteRow>(rows, next));
+    }
+
+    public Task<ShopItemSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(slug);
+        return dataLayer.FindPublishedAsync(slug, cancellationToken);
+    }
+
+    public async Task<OperationResult<PreviewRecord<ShopItemSiteRow>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var item = await dataLayer.FindAsync(id, cancellationToken);
+        return item is null
+            ? OperationResult.Failure<PreviewRecord<ShopItemSiteRow>>(OperationError.Of(ErrorCodes.NotFound, "There is no such item."))
+            : OperationResult.Success(new PreviewRecord<ShopItemSiteRow>(
+                new ShopItemSiteRow(
+                    item.Id,
+                    item.Slug,
+                    item.Title,
+                    item.Description,
+                    item.ArtistId,
+                    [.. CategoriesOf(item)],
+                    [.. GalleryOf(item)],
+                    item.PriceCents,
+                    item.OneOfAKind,
+                    item.SoldOut,
+                    item.PublishedAt,
+                    item.UpdatedAt),
+                item.Status));
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, int>> CountForSiteByArtistAsync(CancellationToken cancellationToken) =>
+        await dataLayer.CountPublishedByArtistAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
+        [.. (await dataLayer.ListPublishedAddressesAsync(cancellationToken))
+            .Select(row => new SitemapEntryServiceModel(SitePaths.AddressOf(ShopPolicy.SitePathPrefix, row.Slug), row.UpdatedAt))];
+
+    /// <summary>
+    /// The keyset value a cursor carries for <paramref name="sort"/>: the first publish (round-trip format), the price
+    /// in cents, or the title. An empty value is "unpriced" (or, for newest, never published — which a published row
+    /// is not).
+    /// </summary>
+    private static string SortValueOf(ShopSiteSort sort, ShopItemSiteRow row) => sort switch
+    {
+        ShopSiteSort.PriceAscending or ShopSiteSort.PriceDescending =>
+            row.PriceCents?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+        ShopSiteSort.Title => row.Title,
+        _ => row.PublishedAt?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty,
+    };
+
+    /// <summary>The position a cursor's keyset value names, or <c>null</c> when it does not parse for the order.</summary>
+    private static ShopSitePosition? PositionOf(ShopSiteSort sort, string sortValue, Guid id)
+    {
+        switch (sort)
+        {
+            case ShopSiteSort.PriceAscending or ShopSiteSort.PriceDescending:
+                if (sortValue.Length == 0)
+                {
+                    return new ShopSitePosition(id);
+                }
+
+                return long.TryParse(sortValue, NumberStyles.None, CultureInfo.InvariantCulture, out var price)
+                    ? new ShopSitePosition(id, PriceCents: price)
+                    : null;
+
+            case ShopSiteSort.Title:
+                return new ShopSitePosition(id, Title: sortValue);
+
+            default:
+                return DateTimeOffset.TryParseExact(
+                    sortValue, "O", CultureInfo.InvariantCulture, DateTimeStyles.None, out var publishedAt)
+                    ? new ShopSitePosition(id, PublishedAt: publishedAt)
+                    : null;
+        }
+    }
+
     private static IEnumerable<string> CategoriesOf(ShopItem item) =>
         item.Categories.Select(row => row.Category).Order(StringComparer.Ordinal);
 

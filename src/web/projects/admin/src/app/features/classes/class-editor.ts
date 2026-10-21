@@ -30,8 +30,6 @@ import {
   ClassProblem,
   ClassUpdate,
   decodeClassProblem,
-  isSku,
-  normalizeSku,
 } from '../../models/class';
 import { MediaAsset, MediaAssetSummary } from '../../models/media';
 import { ROLES } from '../../models/session';
@@ -42,14 +40,15 @@ import { RichTextEditor } from '../../shared/rich-text-editor';
 import { ScheduleControl } from '../../shared/schedule-control';
 import { MediaPicker } from '../media/media-picker';
 import {
-  SessionDraft,
-  SessionGrid,
-  formatMoney,
-  newSessionDraft,
-  sessionDraftsOf,
-  sessionInputsOf,
-  sessionsEqual,
-} from './session-grid';
+  ClassRuns,
+  RunDraft,
+  newRunDraft,
+  runDraftsOf,
+  runErrorOf,
+  runInputsOf,
+  runName,
+  runsEqual,
+} from './run-list';
 
 interface Draft {
   readonly title: string;
@@ -61,12 +60,9 @@ interface Draft {
   readonly body: string;
   readonly classType: string;
   readonly level: string;
-  readonly instructor: string;
-  readonly cadence: string;
-  /** The starting price in whole currency units, as typed; empty when there is none. */
-  readonly price: string;
   readonly heroMediaId: string | null;
-  readonly sessions: readonly SessionDraft[];
+  /** The terms it is offered in, each with its instructor, sessions, seats and price (ADR 0044). */
+  readonly runs: readonly RunDraft[];
 }
 
 /** What the editor shows of the hero: a thumbnail and whether it has the alt text publishing needs. */
@@ -88,17 +84,7 @@ type Status =
   | { readonly kind: 'conflict'; readonly theirs: ClassOffering };
 
 type FieldName =
-  | 'title'
-  | 'slug'
-  | 'summary'
-  | 'body'
-  | 'classType'
-  | 'level'
-  | 'instructor'
-  | 'cadence'
-  | 'startingPriceCents'
-  | 'heroMediaId'
-  | 'sessions';
+  'title' | 'slug' | 'summary' | 'body' | 'classType' | 'level' | 'heroMediaId' | 'runs';
 
 type FieldErrors = Partial<Record<FieldName, string>>;
 
@@ -110,11 +96,8 @@ const EMPTY: Draft = {
   body: '',
   classType: '',
   level: '',
-  instructor: '',
-  cadence: '',
-  price: '',
   heroMediaId: null,
-  sessions: [],
+  runs: [],
 };
 
 /** Router state set by "Create class", read by the editor it navigates to. */
@@ -131,13 +114,16 @@ const COMMAND_LABELS: Readonly<
 };
 
 /**
- * One class (`/admin/classes/new`, `/admin/classes/:id`): its copy, its hero image, its sessions, and then publish,
+ * One class (`/admin/classes/new`, `/admin/classes/:id`): its copy, its hero image, its runs, and then publish,
  * schedule, unpublish or (Admins) archive.
  *
- * **What the CMS owns and what Square does** (square.md, ADR 0032, 0037). The copy, each session's date, SKU and
- * seat count, and the starting price are the CMS's. The starting price is an ordinary field only until Square
- * reports a price: after that it is shown as Square's, with the change-price command arriving in 5.4a. The seats
- * left and sold-out come from Square and are never edited here.
+ * **Runs** (ADR 0044). A class is offered in runs — the same class over different terms, each with its own
+ * instructor (chosen from the Instructors list), sessions, seats, SKU and price. A seat is bought in a run.
+ *
+ * **What the CMS owns and what Square does** (square.md, ADR 0032, 0037). The copy, each run's instructor, sessions,
+ * SKU and seat count, and its starting price are the CMS's. A run's starting price is an ordinary field only until
+ * Square reports a price for it: after that it is shown as Square's, with the change-price command arriving in 5.4a.
+ * The seats left and sold-out come from Square and are never edited here.
  *
  * Unsaved edits survive every recoverable failure, and a 409 shows the saved version beside the editor's own
  * (frontend.md). Status commands act on the saved version, so they wait until the form is saved.
@@ -151,7 +137,7 @@ const COMMAND_LABELS: Readonly<
     PreviewLinkButton,
     RichTextEditor,
     ScheduleControl,
-    SessionGrid,
+    ClassRuns,
     UiButton,
     UiControl,
     UiField,
@@ -201,7 +187,10 @@ const COMMAND_LABELS: Readonly<
             aria-label="Your changes and the saved version"
             tabindex="-1"
           >
-            <ui-notice tone="warning" heading="Someone else saved this class while you were editing">
+            <ui-notice
+              tone="warning"
+              heading="Someone else saved this class while you were editing"
+            >
               <table class="compare">
                 <caption class="sr-only">
                   Your changes and the saved version
@@ -230,14 +219,9 @@ const COMMAND_LABELS: Readonly<
                     <td>{{ theirs.summary || '—' }}</td>
                   </tr>
                   <tr>
-                    <th scope="row">Price per seat</th>
-                    <td>{{ draft().price ? '$' + draft().price : '—' }}</td>
-                    <td>{{ savedPrice(theirs) }}</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Sessions</th>
-                    <td>{{ draftSessions() }}</td>
-                    <td>{{ savedSessions(theirs) }}</td>
+                    <th scope="row">Runs</th>
+                    <td>{{ describeRuns(draft().runs) }}</td>
+                    <td>{{ savedRuns(theirs) }}</td>
                   </tr>
                   <tr>
                     <th scope="row">Description</th>
@@ -253,16 +237,6 @@ const COMMAND_LABELS: Readonly<
                     <th scope="row">Level</th>
                     <td>{{ draft().level || '—' }}</td>
                     <td>{{ theirs.level || '—' }}</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Instructor</th>
-                    <td>{{ draft().instructor || '—' }}</td>
-                    <td>{{ theirs.instructor || '—' }}</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">How often it meets</th>
-                    <td>{{ draft().cadence || '—' }}</td>
-                    <td>{{ theirs.cadence || '—' }}</td>
                   </tr>
                   <tr>
                     <th scope="row">Lead photograph</th>
@@ -365,69 +339,7 @@ const COMMAND_LABELS: Readonly<
                   />
                 </ui-field>
               </div>
-
-              <div class="pair">
-                <ui-field label="Instructor" [error]="errors().instructor ?? null">
-                  <input
-                    uiControl
-                    name="instructor"
-                    autocomplete="off"
-                    [attr.maxlength]="limits.instructorMaxLength"
-                    [ngModel]="draft().instructor"
-                    (ngModelChange)="patch({ instructor: $event })"
-                  />
-                </ui-field>
-                <ui-field
-                  label="How often it meets"
-                  hint="Saturdays, Wednesdays for 5 weeks…"
-                  [error]="errors().cadence ?? null"
-                >
-                  <input
-                    uiControl
-                    name="cadence"
-                    autocomplete="off"
-                    [attr.maxlength]="limits.cadenceMaxLength"
-                    [ngModel]="draft().cadence"
-                    (ngModelChange)="patch({ cadence: $event })"
-                  />
-                </ui-field>
-              </div>
-
-              @if (priceEditable()) {
-                <ui-field
-                  label="Price per seat"
-                  [hint]="priceHint()"
-                  [error]="errors().startingPriceCents ?? null"
-                >
-                  <input
-                    uiControl
-                    name="price"
-                    type="number"
-                    inputmode="decimal"
-                    min="0"
-                    step="0.01"
-                    [attr.max]="limits.startingPriceMaxCents / 100"
-                    [ngModel]="draft().price"
-                    (ngModelChange)="setPrice($event)"
-                  />
-                </ui-field>
-              }
             </fieldset>
-
-            @if (!priceEditable() && offering(); as offering) {
-              <section class="panel" aria-labelledby="price-heading">
-                <h2 id="price-heading" class="panel__title">Price per seat</h2>
-                <p class="panel__text price">{{ savedPrice(offering) }}</p>
-                <p class="panel__hint">
-                  Square holds this class’s price now. Changing it is an audited request to Square,
-                  which arrives with the Square sync.
-                </p>
-                <!-- 5.4a sends the change as a command with the price staff last saw (ADR 0032). -->
-                <div class="actions">
-                  <button uiButton type="button" size="sm" [disabled]="true">Change price</button>
-                </div>
-              </section>
-            }
 
             <cms-rich-text
               label="Description"
@@ -438,13 +350,13 @@ const COMMAND_LABELS: Readonly<
               [error]="errors().body ?? null"
             />
 
-            <cms-session-grid
-              [sessions]="draft().sessions"
-              (sessionsChange)="setSessions($event)"
+            <cms-class-runs
+              [runs]="draft().runs"
+              (runsChange)="setRuns($event)"
               [offeringNumber]="offering()?.offeringNumber ?? null"
-              [currency]="offering()?.currency ?? 'USD'"
+              [currency]="currency()"
               [disabled]="busy()"
-              [error]="errors().sessions ?? null"
+              [error]="errors().runs ?? null"
             />
 
             <div class="actions">
@@ -668,9 +580,6 @@ const COMMAND_LABELS: Readonly<
       font-size: var(--fs-small);
       color: var(--text-soft);
     }
-    .price {
-      font-weight: var(--fw-bold);
-    }
     .hero {
       display: block;
       width: 100%;
@@ -764,18 +673,13 @@ export class ClassEditor implements HasUnsavedChanges {
     return this.isAdmin() && status !== undefined && status !== 'Archived';
   });
 
-  /** ADR 0032: the starting price is an ordinary field only until Square holds the record. */
-  protected readonly priceEditable = computed(() => this.offering()?.startingPriceEditable ?? true);
+  /** The currency the API returns amounts in: every run's is the same. */
+  protected readonly currency = computed(() => this.offering()?.runs[0]?.currency ?? 'USD');
 
   protected readonly saveLabel = computed(() => {
     if (this.status().kind === 'saving') return this.offering() ? 'Saving…' : 'Creating…';
     return this.offering() ? 'Save' : 'Create class';
   });
-
-  protected readonly priceHint = computed(
-    () =>
-      `What one seat costs, in ${this.offering()?.currency ?? 'USD'}. Enter 0 for a free class. Needed to publish; after the class reaches Square, price changes are requests to Square.`,
-  );
 
   /**
    * Once published, the address is someone's bookmark: changing it is allowed, and the old address is redirected to
@@ -797,20 +701,26 @@ export class ClassEditor implements HasUnsavedChanges {
     const draft = this.draft();
     const offering = this.offering();
     if (!offering) {
-      // A new class starts with one empty session row, which is not an edit until something is typed into it.
+      // A new class starts with one empty run, which is not an edit until something is typed into it.
       return (
         draft.title.trim() !== '' ||
         draft.summary.trim() !== '' ||
         draft.body !== '' ||
-        draft.sessions.some((row) => row.date || row.starts || row.ends || row.sku || row.capacity)
+        draft.runs.some(
+          (run) =>
+            run.label.trim() !== '' ||
+            run.instructor !== null ||
+            run.cadence.trim() !== '' ||
+            run.capacity.trim() !== '' ||
+            run.price.trim() !== '' ||
+            run.sessions.some((row) => row.date || row.starts || row.ends),
+        )
       );
     }
 
-    // Asked structurally rather than from what would be sent: a session row that is still half filled in is a
-    // change the person can lose, and it is `save` that refuses it with a message.
-    return (
-      sessionsChanged(offering, draft) || Object.keys(changesOf(offering, draft)).length > 0
-    );
+    // Asked structurally rather than from what would be sent: a run that is still half filled in is a change the
+    // person can lose, and it is `save` that refuses it with a message.
+    return runsChanged(offering, draft) || Object.keys(changesOf(offering, draft)).length > 0;
   });
 
   constructor() {
@@ -839,7 +749,7 @@ export class ClassEditor implements HasUnsavedChanges {
 
     if (!id) {
       this.offering.set(null);
-      this.draft.set({ ...EMPTY, sessions: [newSessionDraft([], null)] });
+      this.draft.set({ ...EMPTY, runs: [newRunDraft([], null)] });
       this.status.set({ kind: 'ready' });
       return;
     }
@@ -882,13 +792,8 @@ export class ClassEditor implements HasUnsavedChanges {
     this.patch({ slug, slugEdited: true });
   }
 
-  /** A number input's value accessor hands over a number, or `null` for something that is not one. */
-  protected setPrice(value: string | number | null): void {
-    this.patch({ price: value === null || value === undefined ? '' : String(value) });
-  }
-
-  protected setSessions(sessions: readonly SessionDraft[]): void {
-    this.patch({ sessions });
+  protected setRuns(runs: readonly RunDraft[]): void {
+    this.patch({ runs });
   }
 
   protected chooseHero(choice: MediaAssetSummary): void {
@@ -911,23 +816,20 @@ export class ClassEditor implements HasUnsavedChanges {
     this.formError.set(null);
   }
 
-  /** The draft's sittings, so two versions with the same number of them don't look identical. */
-  protected draftSessions(): string {
-    const rows = this.draft().sessions;
-    if (rows.length === 0) return 'None';
-    return rows.map((row) => `${row.date || '—'} ${row.starts || ''}`.trim()).join(', ');
+  /** The runs in a line each comparison cell can hold: who teaches each, from when, and for how many sittings. */
+  protected describeRuns(runs: readonly RunDraft[]): string {
+    if (runs.length === 0) return 'None';
+    return runs
+      .map((run, index) => {
+        const first = run.sessions[0];
+        const when = first?.date ? ` from ${first.date}` : '';
+        return `${runName(run, index)}: ${run.instructor?.name ?? 'no instructor'}${when}, ${run.sessions.length} session${run.sessions.length === 1 ? '' : 's'}`;
+      })
+      .join('; ');
   }
 
-  protected savedSessions(offering: ClassOffering): string {
-    const rows = sessionDraftsOf(offering.sessions);
-    if (rows.length === 0) return 'None';
-    return rows.map((row) => `${row.date} ${row.starts}`).join(', ');
-  }
-
-  protected savedPrice(offering: ClassOffering): string {
-    return offering.startingPriceCents === null
-      ? '—'
-      : formatMoney(offering.startingPriceCents, offering.currency);
+  protected savedRuns(offering: ClassOffering): string {
+    return this.describeRuns(runDraftsOf(offering.runs));
   }
 
   protected statusText(offering: ClassOffering): string {
@@ -941,7 +843,7 @@ export class ClassEditor implements HasUnsavedChanges {
       default:
         return offering.publishedAt
           ? 'A draft again, after being published. Its web address stays as it is.'
-          : 'A draft: only staff can see it. Publishing needs a summary, a price and a session.';
+          : 'A draft: only staff can see it. Publishing needs a summary and at least one run, each with an instructor, a price and a session.';
     }
   }
 
@@ -1191,16 +1093,12 @@ function draftOf(offering: ClassOffering): Draft {
     body: offering.body ?? '',
     classType: offering.classType ?? '',
     level: offering.level ?? '',
-    instructor: offering.instructor ?? '',
-    cadence: offering.cadence ?? '',
-    price: offering.startingPriceCents === null ? '' : centsToPrice(offering.startingPriceCents),
     heroMediaId: offering.heroMediaId,
-    sessions: sessionDraftsOf(offering.sessions),
+    runs: runDraftsOf(offering.runs),
   };
 }
 
 function createOf(draft: Draft): ClassCreate {
-  const cents = priceToCents(draft.price);
   return {
     title: draft.title.trim(),
     ...(draft.slug ? { slug: draft.slug } : {}),
@@ -1208,17 +1106,14 @@ function createOf(draft: Draft): ClassCreate {
     ...(draft.body ? { body: draft.body } : {}),
     ...(draft.classType.trim() ? { classType: draft.classType.trim() } : {}),
     ...(draft.level.trim() ? { level: draft.level.trim() } : {}),
-    ...(draft.instructor.trim() ? { instructor: draft.instructor.trim() } : {}),
-    ...(draft.cadence.trim() ? { cadence: draft.cadence.trim() } : {}),
-    ...(cents === null ? {} : { startingPriceCents: cents }),
     ...(draft.heroMediaId ? { heroMediaId: draft.heroMediaId } : {}),
-    // Unreachable with an incomplete row: `localErrors` refuses one before anything is sent.
-    ...(draft.sessions.length > 0 ? { sessions: sessionInputsOf(draft.sessions) ?? [] } : {}),
+    // Unreachable with an incomplete run: `localErrors` refuses one before anything is sent.
+    ...(draft.runs.length > 0 ? { runs: runInputsOf(draft.runs) ?? [] } : {}),
   };
 }
 
 /**
- * Only what changed; an emptied text field is sent as "" so the API clears it. A session's price, seats left and
+ * Only what changed; an emptied text field is sent as "" so the API clears it. A run's price, seats left and
  * sold-out are never here: they are Square's record (ADR 0032).
  */
 function changesOf(offering: ClassOffering, draft: Draft): ClassUpdate {
@@ -1226,10 +1121,7 @@ function changesOf(offering: ClassOffering, draft: Draft): ClassUpdate {
   const summary = draft.summary.trim();
   const classType = draft.classType.trim();
   const level = draft.level.trim();
-  const instructor = draft.instructor.trim();
-  const cadence = draft.cadence.trim();
-  const cents = priceToCents(draft.price);
-  const sessions = sessionInputsOf(draft.sessions);
+  const runs = runInputsOf(draft.runs);
 
   return {
     ...(title !== offering.title ? { title } : {}),
@@ -1238,25 +1130,18 @@ function changesOf(offering: ClassOffering, draft: Draft): ClassUpdate {
     ...(draft.body !== (offering.body ?? '') ? { body: draft.body } : {}),
     ...(classType !== (offering.classType ?? '') ? { classType } : {}),
     ...(level !== (offering.level ?? '') ? { level } : {}),
-    ...(instructor !== (offering.instructor ?? '') ? { instructor } : {}),
-    ...(cadence !== (offering.cadence ?? '') ? { cadence } : {}),
-    ...(offering.startingPriceEditable && cents !== offering.startingPriceCents
-      ? cents === null
-        ? { removeStartingPrice: true as const }
-        : { startingPriceCents: cents }
-      : {}),
     ...(draft.heroMediaId !== offering.heroMediaId
       ? draft.heroMediaId === null
         ? { removeHero: true as const }
         : { heroMediaId: draft.heroMediaId }
       : {}),
-    ...(sessions !== null && sessionsChanged(offering, draft) ? { sessions } : {}),
+    ...(runs !== null && runsChanged(offering, draft) ? { runs } : {}),
   };
 }
 
-/** Whether the grid says something different from the saved sittings, whether or not it can be sent yet. */
-function sessionsChanged(offering: ClassOffering, draft: Draft): boolean {
-  return !sessionsEqual(draft.sessions, sessionDraftsOf(offering.sessions));
+/** Whether the runs say something different from the saved ones, whether or not they can be sent yet. */
+function runsChanged(offering: ClassOffering, draft: Draft): boolean {
+  return !runsEqual(draft.runs, runDraftsOf(offering.runs));
 }
 
 function localErrors(draft: Draft): FieldErrors {
@@ -1267,59 +1152,9 @@ function localErrors(draft: Draft): FieldErrors {
       ? 'Use lower-case letters, digits and single hyphens (for example intro-to-screen-printing).'
       : 'Enter a web address, for example intro-to-screen-printing.';
   }
-  if (draft.price.trim() !== '' && priceToCents(draft.price) === null) {
-    errors.startingPriceCents = 'Enter the price as a number, for example 300 or 37.50.';
-  }
-  if (draft.sessions.length > CLASS_LIMITS.sessionsMaxCount) {
-    errors.sessions = `A class has at most ${CLASS_LIMITS.sessionsMaxCount} sessions.`;
-  } else {
-    const sessionError = sessionErrorOf(draft.sessions);
-    if (sessionError) errors.sessions = sessionError;
-  }
+  const runError = runErrorOf(draft.runs);
+  if (runError) errors.runs = runError;
   return errors;
-}
-
-/** What the grid can say before the API does: a row half filled in, an impossible time, a SKU twice. */
-function sessionErrorOf(rows: readonly SessionDraft[]): string | null {
-  const skus = new Set<string>();
-  for (const [index, row] of rows.entries()) {
-    const which = `Session ${index + 1}`;
-    if (!row.date || !row.starts || !row.ends) {
-      return `${which} needs a date, a start time and an end time.`;
-    }
-    if (row.ends <= row.starts) return `${which} can’t end before it starts.`;
-    const capacity = Number(row.capacity);
-    if (
-      row.capacity.trim() === '' ||
-      !Number.isSafeInteger(capacity) ||
-      capacity < 1 ||
-      capacity > CLASS_LIMITS.capacityMaxSeats
-    ) {
-      return `${which} needs a number of seats, from 1 to ${CLASS_LIMITS.capacityMaxSeats}.`;
-    }
-    if (row.sku.trim() !== '') {
-      const sku = normalizeSku(row.sku);
-      if (!isSku(sku)) {
-        return `${which}’s SKU is letters, digits, hyphens and dots, for example CLS-4-1.`;
-      }
-      if (skus.has(sku)) return `Two sessions have the SKU ${sku}. Each needs its own.`;
-      skus.add(sku);
-    }
-  }
-  return null;
-}
-
-/** Cents as the price field shows them: whole currency units, with cents only when there are any. */
-function centsToPrice(cents: number): string {
-  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
-}
-
-/** The price field as integer cents (api-contract.md), or `null` when it is empty or not a number. */
-function priceToCents(price: string): number | null {
-  const trimmed = price.trim();
-  if (trimmed === '') return null;
-  if (!/^\d+(?:\.\d{1,2})?$/.test(trimmed)) return null;
-  return Math.round(Number(trimmed) * 100);
 }
 
 function heroOf(asset: MediaAsset): Hero {
@@ -1344,11 +1179,8 @@ function fieldErrorsOf(problem: ClassProblem | null): FieldErrors {
     'body',
     'classType',
     'level',
-    'instructor',
-    'cadence',
-    'startingPriceCents',
     'heroMediaId',
-    'sessions',
+    'runs',
   ];
   for (const key of keys) {
     const message = problem?.fieldErrors[key]?.[0];

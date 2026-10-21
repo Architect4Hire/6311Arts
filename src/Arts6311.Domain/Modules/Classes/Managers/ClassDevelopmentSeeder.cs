@@ -1,6 +1,8 @@
 using Arts6311.Domain.Managers.Persistence;
+using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Classes.Business;
+using Arts6311.Domain.Modules.Instructors.Facade;
 using Microsoft.Extensions.Logging;
 
 namespace Arts6311.Domain.Modules.Classes.Managers;
@@ -17,14 +19,22 @@ namespace Arts6311.Domain.Modules.Classes.Managers;
 /// arrive with the WordPress import (4.x).
 /// </para>
 /// <para>
-/// A multi-week course is seeded as one sitting per week, at the same wall-clock time in the gallery's zone, so a
-/// course that runs across the end of daylight saving still meets at 2 p.m. Each session gets a suggested
-/// <c>CLS-&lt;offering&gt;-&lt;n&gt;</c> SKU reserved in the shared registry (ADR 0037); no price, seat count or
-/// sold-out value is seeded, because those are Square's record (ADR 0032).
+/// Each spike class is one run (ADR 0044) — except the two beginner screen-printing courses, which the spike lists as
+/// separate events but are the same class taught on Saturdays and on Sunday mornings by two instructors, so they are
+/// seeded as one offering with two runs. A multi-week run is seeded as one sitting per week, at the same wall-clock
+/// time in the gallery's zone, so a course that runs across the end of daylight saving still meets at 2 p.m. Each
+/// run gets a suggested <c>CLS-&lt;offering&gt;-&lt;n&gt;</c> SKU reserved in the shared registry (ADR 0037); no
+/// price, seat count or sold-out value is seeded, because those are Square's record (ADR 0032).
+/// </para>
+/// <para>
+/// Instructors are found through <see cref="IInstructorsFacade"/> by slug, after the instructors' own seeder has run
+/// (MigrationService registers it first). A run whose instructor is missing or archived is seeded without one, and
+/// its class as a Draft, because publishing needs every run to have an instructor (content.md).
 /// </para>
 /// </remarks>
 internal sealed partial class ClassDevelopmentSeeder(
     IClassesBusiness business,
+    IInstructorsFacade instructors,
     ILogger<ClassDevelopmentSeeder> logger) : IDataSeeder
 {
     /// <summary>
@@ -33,15 +43,15 @@ internal sealed partial class ClassDevelopmentSeeder(
     /// </summary>
     public const string SeedActor = "system:development-seed";
 
-    /// <summary>One spike class: its copy, its price in cents, and when and how often it meets.</summary>
+    /// <summary>One spike class: its copy and the runs it is offered in.</summary>
+    internal sealed record SpikeClass(string Title, string Summary, string ClassType, string Level, SpikeRun[] Runs);
+
+    /// <summary>One spike run: who teaches it, its price in cents and seats, and when and how often it meets.</summary>
     /// <param name="FirstSession">The first sitting's local date and time in the gallery's zone.</param>
     /// <param name="Hours">How long one sitting runs.</param>
     /// <param name="Sessions">How many weekly sittings it has.</param>
-    internal sealed record SpikeClass(
-        string Title,
-        string Summary,
-        string ClassType,
-        string Level,
+    internal sealed record SpikeRun(
+        string? Label,
         string Instructor,
         string? Cadence,
         long PriceCents,
@@ -54,34 +64,46 @@ internal sealed partial class ClassDevelopmentSeeder(
     [
         new("Day of the Dead Ofrenda & Altar Making",
             "Build a personal ofrenda to honor someone you love, just in time for Día de los Muertos.",
-            "Mixed media", "Beginner", "Candice Johnson", null, 3000, 14, new(2026, 10, 22, 18, 0, 0), 3, 1),
+            "Mixed media", "Beginner",
+            [new(null, "Candice Johnson", null, 3000, 14, new(2026, 10, 22, 18, 0, 0), 3, 1)]),
         new("Art & Activism: History and Context",
             "From protest posters to street murals: how artists have moved movements, and how print still does.",
-            "Talk", "All levels", "Luis Valenzuela Jr.", null, 5000, 20, new(2026, 10, 22, 18, 30, 0), 3, 1),
+            "Talk", "All levels",
+            [new(null, "Luis Valenzuela Jr.", null, 5000, 20, new(2026, 10, 22, 18, 30, 0), 3, 1)]),
         new("“Boats & Pianos” Opening Reception",
             "Free and open to all. Meet the artist behind the oversized reclaimed-wood constructions filling the gallery.",
-            "Event", "All levels", "Michelle Peterson-Albandoz", null, 0, 40, new(2026, 10, 24, 18, 0, 0), 3, 1),
+            "Event", "All levels",
+            [new(null, "Michelle Peterson-Albandoz", null, 0, 40, new(2026, 10, 24, 18, 0, 0), 3, 1)]),
         new("Intro to Screen Printing",
             "Burn your first screen and pull a full edition of prints in five weeks. No experience needed.",
-            "Printmaking", "Beginner", "Gwen Schilling", "Saturdays", 30000, 10, new(2026, 10, 24, 14, 0, 0), 3, 5),
+            "Printmaking", "Beginner",
+            [
+                new("Saturday afternoons", "Gwen Schilling", "Saturdays", 30000, 10, new(2026, 10, 24, 14, 0, 0), 3, 5),
+                new("Sunday mornings", "Nicholas Waguespack", "Sundays", 30000, 10, new(2026, 11, 8, 10, 0, 0), 3, 5),
+            ]),
         new("Intermediate Screen Printing with Diego from Rathaus",
             "Multi-color registration, halftones and shop tricks from a working Chicago print studio.",
-            "Printmaking", "Intermediate", "Diego Granath", "Wednesdays", 30000, 10, new(2026, 11, 4, 18, 30, 0), 3, 5),
+            "Printmaking", "Intermediate",
+            [new(null, "Diego Granath", "Wednesdays", 30000, 10, new(2026, 11, 4, 18, 30, 0), 3, 5)]),
         new("Intro to Scratchboard",
             "Draw with light. Scratch bold, high-contrast images out of black clay board in one Friday night.",
-            "Drawing", "Beginner", "Candice Johnson", null, 7500, 12, new(2026, 11, 6, 18, 30, 0), 3, 1),
-        new("Intro to Screen Printing (Sunday mornings)",
-            "The same beginner course, at a slower Sunday-morning pace.",
-            "Printmaking", "Beginner", "Nicholas Waguespack", "Sundays", 30000, 10, new(2026, 11, 8, 10, 0, 0), 3, 5),
+            "Drawing", "Beginner",
+            [new(null, "Candice Johnson", null, 7500, 12, new(2026, 11, 6, 18, 30, 0), 3, 1)]),
         new("Printmaking Playground",
             "Monotype, linocut, collagraph and gelli plates. Try a new technique every week and find your favorite.",
-            "Printmaking", "Beginner", "Nicholas Waguespack", "Sundays", 32500, 10, new(2026, 11, 8, 14, 0, 0), 3, 5),
+            "Printmaking", "Beginner",
+            [new(null, "Nicholas Waguespack", "Sundays", 32500, 10, new(2026, 11, 8, 14, 0, 0), 3, 5)]),
     ];
 
     public string Name => "Development classes";
 
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
+        var slugs = Classes.SelectMany(spike => spike.Runs).Select(run => Slugs.FromName(run.Instructor)).Distinct().ToList();
+        var teaching = (await instructors.FindBySlugsAsync(slugs, cancellationToken))
+            .Where(instructor => instructor.Status != PublishStatus.Archived)
+            .ToDictionary(instructor => instructor.Slug, instructor => instructor.Id, StringComparer.Ordinal);
+
         var seeds = Classes
             .Select(spike => new ClassSeed(
                 spike.Title,
@@ -89,10 +111,13 @@ internal sealed partial class ClassDevelopmentSeeder(
                 Body: null,
                 spike.ClassType,
                 spike.Level,
-                spike.Instructor,
-                spike.Cadence,
-                spike.PriceCents,
-                [.. Sittings(spike)]))
+                [.. spike.Runs.Select(run => new ClassSeedRun(
+                    run.Label,
+                    teaching.TryGetValue(Slugs.FromName(run.Instructor), out var instructorId) ? instructorId : null,
+                    run.Cadence,
+                    run.PriceCents,
+                    run.Capacity,
+                    [.. Sittings(run)]))]))
             .ToList();
 
         var added = await business.SeedAsync(seeds, SeedActor, cancellationToken);
@@ -100,13 +125,12 @@ internal sealed partial class ClassDevelopmentSeeder(
     }
 
     /// <summary>One sitting per week, each at the same wall-clock time in the gallery's zone.</summary>
-    private static IEnumerable<ClassSeedSession> Sittings(SpikeClass spike)
+    private static IEnumerable<ClassSeedSession> Sittings(SpikeRun run)
     {
-        for (var week = 0; week < spike.Sessions; week++)
+        for (var week = 0; week < run.Sessions; week++)
         {
-            var startsAt = spike.FirstSession.AddDays(7 * week);
-            yield return new ClassSeedSession(
-                GalleryTime(startsAt), GalleryTime(startsAt.AddHours(spike.Hours)), spike.Capacity);
+            var startsAt = run.FirstSession.AddDays(7 * week);
+            yield return new ClassSeedSession(GalleryTime(startsAt), GalleryTime(startsAt.AddHours(run.Hours)));
         }
     }
 

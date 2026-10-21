@@ -89,6 +89,15 @@ internal sealed class MembershipsRepository(ArtsDbContext context) : IMembership
             .Select(plan => plan.Id)
             .ToListAsync(cancellationToken);
 
+    public Task<List<MembershipPlan>> ListPublishedAsync(CancellationToken cancellationToken) =>
+        Plans.AsNoTracking()
+            .Include(plan => plan.Perks)
+            .Where(plan => plan.Status == PublishStatus.Published)
+            .OrderBy(plan => plan.DisplayOrder)
+            .ThenBy(plan => plan.Name)
+            .ThenBy(plan => plan.Id)
+            .ToListAsync(cancellationToken);
+
     public void DiscardChanges() => context.ChangeTracker.Clear();
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);

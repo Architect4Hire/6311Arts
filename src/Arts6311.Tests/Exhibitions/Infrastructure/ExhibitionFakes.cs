@@ -19,6 +19,8 @@ namespace Arts6311.Tests.Exhibitions.Infrastructure;
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeExhibitionsRepository(CallLog log) : IExhibitionsRepository
 {
+    public Task<List<global::Arts6311.Domain.Modules.Exhibitions.Data.Entities.Exhibition>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public List<Exhibition> Rows { get; } = [];
 
     /// <summary>Thrown by the next save, then cleared.</summary>
@@ -80,6 +82,8 @@ internal sealed class FakeExhibitionsRepository(CallLog log) : IExhibitionsRepos
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeExhibitionsDataLayer : IExhibitionsDataLayer
 {
+    public Task<List<global::Arts6311.Domain.Modules.Exhibitions.Data.Entities.Exhibition>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Dictionary<Guid, Exhibition> Rows { get; } = [];
 
     public ExhibitionWriteOutcome Outcome { get; set; } = ExhibitionWriteOutcome.Saved;
@@ -188,6 +192,14 @@ internal sealed class FakeExhibitionsDataLayer : IExhibitionsDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingExhibitionsBusiness : IExhibitionsBusiness
 {
+    public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Exhibitions.Managers.ExhibitionSiteRow>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Modules.Exhibitions.Managers.ExhibitionSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Exhibitions.Managers.ExhibitionSiteRow>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public static readonly ExhibitionDetail Exhibition = new(
         Guid.Parse("55555555-5555-5555-5555-555555555555"), "Boats & Pianos", "boats-pianos", "A show.", null,
         new DateOnly(2026, 10, 24), new DateOnly(2026, 12, 5), null, null, [], PublishStatus.Draft, null, null, null,

@@ -3,27 +3,29 @@ using System.Text.RegularExpressions;
 namespace Arts6311.Domain.Managers.Html;
 
 /// <summary>
-/// The allow-list (ADR 0034): the elements, attributes and URLs a stored HTML body may contain. Deliberately small —
-/// what the site's copy blocks need (privacy, terms, about) and what the admin's editor can produce, nothing more.
-/// Anything not listed is taken out; an element not listed keeps its text unless it is in <see cref="DroppedWithContents"/>.
+/// The allow-list (ADR 0034, narrowed by ADR 0045): the elements, attributes and URLs a stored HTML body may contain.
+/// Deliberately small — paragraphs, one heading level, bold, italic and lists, which is what the site's copy blocks
+/// and the admin's editor need, nothing more. Anything not listed is taken out; an element not listed keeps its text
+/// unless it is in <see cref="DroppedWithContents"/>.
 /// </summary>
+/// <remarks>
+/// Links and pictures are not allowed at this time (ADR 0045): a record's pictures are its hero or gallery. The rules
+/// for them (<see cref="AttributesOf"/>, <see cref="IsAllowedLink"/>, <see cref="TryParseMediaImage"/>) are kept, so
+/// allowing them again is adding <c>a</c>/<c>img</c> and their attributes back here, with an ADR.
+/// </remarks>
 public static partial class HtmlPolicy
 {
-    /// <summary>The elements kept. <c>h1</c> is the page's own title, so a body starts at <c>h2</c>.</summary>
+    /// <summary>The elements kept. <c>h1</c> is the page's own title, so a body's one heading level is <c>h2</c>.</summary>
     public static IReadOnlySet<string> AllowedTags { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "p", "h2", "h3", "h4", "ul", "ol", "li", "strong", "em", "a", "br", "blockquote", "img",
+        "p", "h2", "ul", "ol", "li", "strong", "em", "br",
     };
 
     /// <summary>
-    /// The attributes kept, anywhere: <c>href</c>, <c>src</c> and <c>alt</c>. No <c>style</c>, <c>class</c>, <c>id</c>,
-    /// <c>target</c>, <c>rel</c>, <c>data-*</c> or <c>on*</c>. Each is then kept only on its own element
-    /// (<see cref="AttributesOf"/>).
+    /// The attributes kept: none. No <c>href</c> or <c>src</c> while links and pictures are off (ADR 0045), and never
+    /// <c>style</c>, <c>class</c>, <c>id</c>, <c>target</c>, <c>rel</c>, <c>data-*</c> or <c>on*</c>.
     /// </summary>
-    public static IReadOnlySet<string> AllowedAttributes { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "href", "src", "alt",
-    };
+    public static IReadOnlySet<string> AllowedAttributes { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Which element each allowed attribute belongs on: <c>href</c> on links, <c>src</c> and <c>alt</c> on images.</summary>
     public static IReadOnlyDictionary<string, string> AttributesOf { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -64,11 +66,20 @@ public static partial class HtmlPolicy
         "map", "area", "dialog", "portal", "xmp", "plaintext", "listing",
     };
 
-    /// <summary>Presentational emphasis kept as its semantic equivalent, so imported copy keeps its weight.</summary>
+    /// <summary>
+    /// Presentational emphasis kept as its semantic equivalent, so imported copy keeps its weight; and every other
+    /// heading level made the one a body has, so an imported section break stays a heading rather than running into
+    /// the text around it.
+    /// </summary>
     public static IReadOnlyDictionary<string, string> Renamed { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         ["b"] = "strong",
         ["i"] = "em",
+        ["h1"] = "h2",
+        ["h3"] = "h2",
+        ["h4"] = "h2",
+        ["h5"] = "h2",
+        ["h6"] = "h2",
     };
 
     /// <summary>

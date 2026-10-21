@@ -17,6 +17,14 @@ namespace Arts6311.Tests.Shop.Infrastructure;
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeShopRepository(CallLog log) : IShopRepository
 {
+    public Task<List<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow>> ListPublishedAsync(global::Arts6311.Domain.Modules.Shop.Data.ShopSiteQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Dictionary<Guid, int>> CountPublishedByArtistAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public List<ShopItem> Rows { get; } = [];
 
     /// <summary>Thrown by the next save, then cleared.</summary>
@@ -87,6 +95,14 @@ internal sealed class FakeShopRepository(CallLog log) : IShopRepository
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeShopDataLayer : IShopDataLayer
 {
+    public Task<List<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow>> ListPublishedAsync(global::Arts6311.Domain.Modules.Shop.Data.ShopSiteQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Dictionary<Guid, int>> CountPublishedByArtistAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Dictionary<Guid, ShopItem> Rows { get; } = [];
 
     public Dictionary<string, SkuOwner> SkuOwners { get; } = new(StringComparer.Ordinal);
@@ -236,6 +252,16 @@ internal sealed class FakeShopDataLayer : IShopDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingShopBusiness : IShopBusiness
 {
+    public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Paging.CursorPage<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow>>> ListForSiteAsync(global::Arts6311.Domain.Modules.Shop.Managers.ViewModels.SiteShopListViewModel request, Guid? artistId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyDictionary<Guid, int>> CountForSiteByArtistAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public static readonly ShopItemDetail Item = new(
         Guid.Parse("77777777-7777-7777-7777-777777777777"),
         "Copper Cuff",

@@ -292,6 +292,8 @@ public sealed class MediaHardeningTests
 
     private sealed class RecordingRepository(List<string> calls) : IMediaRepository
     {
+        public Task<List<global::Arts6311.Domain.Modules.Media.Data.Entities.MediaAsset>> FindWithRenditionsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public void Add(MediaAsset asset) => calls.Add("add");
 
         public void Remove(MediaAsset asset) => calls.Add("remove");

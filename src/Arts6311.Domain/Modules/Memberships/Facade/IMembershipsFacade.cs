@@ -73,4 +73,17 @@ public interface IMembershipsFacade
     /// Never throws for a plan that moved on — it reports what happened instead.
     /// </summary>
     Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <c>GET /site/memberships</c>: every published tier, in display order, cached under the
+    /// <c>membership-plan</c> type tag (ADR 0042). A small fixed list, so not paged.
+    /// </summary>
+    Task<OperationResult<IReadOnlyList<SiteMembershipPlanServiceModel>>> ListForSiteAsync(CancellationToken cancellationToken);
+
+    /// <summary>For a preview link: the tier as the site would show it, whatever the status. Never cached.</summary>
+    Task<OperationResult<PreviewRecord<SiteMembershipPlanServiceModel>>> GetForPreviewAsync(
+        Guid id, CancellationToken cancellationToken);
+
+    /// <summary>For the sitemap. Not cached here; the Site module caches the sitemap.</summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
 }

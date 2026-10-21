@@ -12,7 +12,8 @@ namespace Arts6311.Domain.Managers.Html;
 /// <para>Three passes:</para>
 /// <list type="number">
 /// <item><strong>Before</strong>, on our own AngleSharp parse: elements in <see cref="HtmlPolicy.DroppedWithContents"/>
-/// go with everything inside them, and <c>b</c>/<c>i</c> become <c>strong</c>/<c>em</c>. HtmlSanitizer is told to keep
+/// go with everything inside them, <c>b</c>/<c>i</c> become <c>strong</c>/<c>em</c>, and every heading becomes
+/// <c>h2</c> (<see cref="HtmlPolicy.Renamed"/>). HtmlSanitizer is told to keep
 /// the children of what it removes (so a <c>&lt;div&gt;</c> or <c>&lt;span&gt;</c> from a paste or an import keeps its
 /// words); without this pass, a script's code would survive as text.</item>
 /// <item><strong>HtmlSanitizer</strong> applies the allow-list: tags, attributes, URL schemes, no CSS at all. Its own
@@ -23,13 +24,17 @@ namespace Arts6311.Domain.Managers.Html;
 /// blocks dropped. This is also where the library images are listed.</item>
 /// </list>
 /// <para>
+/// While the policy allows no links or pictures (ADR 0045), HtmlSanitizer takes every <c>a</c> and <c>img</c> out
+/// before the URL filter or the last pass sees one, so those checks wait for the policy to allow them again.
+/// </para>
+/// <para>
 /// A new HtmlSanitizer per call: its events carry this call's findings. Construction is cheap next to the parse, and a
 /// body is sanitized only when staff save one.
 /// </para>
 /// </remarks>
 internal sealed class AllowListHtmlSanitizer : IHtmlSanitizer
 {
-    private static readonly string[] Blocks = ["p", "h2", "h3", "h4", "li", "ul", "ol", "blockquote", "strong", "em", "a"];
+    private static readonly string[] Blocks = ["p", "h2", "li", "ul", "ol", "strong", "em", "a"];
 
     public SanitizedHtml Sanitize(string? html)
     {
@@ -115,7 +120,12 @@ internal sealed class AllowListHtmlSanitizer : IHtmlSanitizer
 
         var sanitizer = new HtmlSanitizer(options) { KeepChildNodes = true };
 
-        sanitizer.RemovingTag += (_, e) => removed.Add($"<{Name(e.Tag.LocalName)}> (its text kept)");
+        sanitizer.RemovingTag += (_, e) => removed.Add(e.Tag.LocalName switch
+        {
+            "a" => "a link (its text kept)",
+            "img" => "a picture",
+            var name => $"<{Name(name)}> (its text kept)",
+        });
         sanitizer.RemovingAttribute += (_, e) => removed.Add(e.Reason == RemoveReason.NotAllowedUrlValue
             ? $"a {(e.Tag.LocalName == "img" ? "picture" : "link")} address that isn't allowed"
             : $"the {Name(e.Attribute.Name)} attribute");

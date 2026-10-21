@@ -26,6 +26,9 @@ internal interface IMediaBusiness
     Task<MediaAttachabilityServiceModel> CheckAttachableAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
 
+    Task<IReadOnlyDictionary<Guid, SiteImageServiceModel>> DescribeForSiteAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
     Task<OperationResult> ProduceRenditionsAsync(
         Guid assetId, int attempt, bool lastAttempt, CancellationToken cancellationToken);
 

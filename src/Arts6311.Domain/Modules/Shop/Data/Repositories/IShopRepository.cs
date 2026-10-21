@@ -38,6 +38,21 @@ internal interface IShopRepository
     /// </summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// One page of published items in <paramref name="query"/>'s order, after its keyset, projected straight to site
+    /// rows (ADR 0042).
+    /// </summary>
+    Task<List<ShopItemSiteRow>> ListPublishedAsync(ShopSiteQuery query, CancellationToken cancellationToken);
+
+    /// <summary>The published item at <paramref name="slug"/>, projected straight to a site row.</summary>
+    Task<ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>How many published items each credited artist has. An artist with none is absent.</summary>
+    Task<Dictionary<Guid, int>> CountPublishedByArtistAsync(CancellationToken cancellationToken);
+
+    /// <summary>Every published item's slug and last change, by slug, for the sitemap. No descriptions.</summary>
+    Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken);
+
     /// <summary>Throws away every unsaved change, after a save that failed, so the next save starts clean.</summary>
     void DiscardChanges();
 

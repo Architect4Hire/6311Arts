@@ -20,23 +20,37 @@ import { MoneyPipe, WhenPipe, today } from './format';
     </a>
     <div class="class-card__body">
       <p class="class-card__meta">
-        <span>{{ c.type }}</span><span>{{ c.level }}</span>
-        @if (c.sessions > 1) { <span>{{ week() ? 'Week ' + week() + ' of ' + c.sessions : c.sessions + ' weeks' }}</span> }
+        <span>{{ c.type }}</span
+        ><span>{{ c.level }}</span>
+        @if (c.sessions > 1) {
+          <span>{{ week() ? 'Week ' + week() + ' of ' + c.sessions : c.sessions + ' weeks' }}</span>
+        }
       </p>
-      <h3 class="class-card__title"><a [routerLink]="['/classes', c.slug]">{{ c.title }}</a></h3>
+      <h3 class="class-card__title">
+        <a [routerLink]="['/classes', c.slug]">{{ c.title }}</a>
+      </h3>
       <p class="class-card__when">
         {{ c.cadence ? c.cadence + ' · ' : '' }}{{ c.start | when: 'time' : c.end }}
         @if (c.instructor) {
-          <span class="class-card__by">with <a class="linkish" [routerLink]="['/instructors', slug(c.instructor)]">{{ c.instructor }}</a></span>
+          <span class="class-card__by"
+            >with
+            <a class="linkish" [routerLink]="['/instructors', slug(c.instructor)]">{{
+              c.instructor
+            }}</a></span
+          >
         }
       </p>
     </div>
     <div class="class-card__cta">
       <span class="class-card__price">{{ c.price | money }}</span>
       @if (c.spotsLeft != null && c.spotsLeft <= 4) {
-        <span class="tag tag--hot">{{ c.spotsLeft === 0 ? 'Sold out' : 'Only ' + c.spotsLeft + ' spots left' }}</span>
+        <span class="tag tag--hot">{{
+          c.spotsLeft === 0 ? 'Sold out' : 'Only ' + c.spotsLeft + ' spots left'
+        }}</span>
       }
-      <a class="btn btn-dark btn-sm" [routerLink]="['/classes', c.slug]">{{ c.price === 0 ? 'RSVP' : 'Reserve' }}</a>
+      <a class="btn btn-dark btn-sm" [routerLink]="['/classes', c.slug]">{{
+        c.price === 0 ? 'RSVP' : 'Reserve'
+      }}</a>
     </div>
   `,
 })
@@ -49,6 +63,55 @@ export class ClassCard {
   protected slug = slugify;
 }
 
+/** A dated moment in an exhibition's run. */
+export type ShowMoment = 'opens' | 'reception' | 'closes';
+
+/**
+ * One of an exhibition's dates (opening, reception, last day) set among the classes. It shares the class card's
+ * layout so the list lines up, and is told apart by its charcoal fill, its rule and the word "Exhibition".
+ */
+@Component({
+  selector: 'app-show-card',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink, WhenPipe],
+  host: { class: 'class-card class-card--show' },
+  template: `
+    @let e = item();
+    <a class="class-card__date" routerLink="/exhibitions" [attr.aria-label]="e.title">
+      <span class="class-card__mon">{{ date() | when: 'mon' }}</span>
+      <span class="class-card__day">{{ date() | when: 'day' }}</span>
+      <span class="class-card__dow">{{ date() | when: 'dow' }}</span>
+    </a>
+    <div class="class-card__body">
+      <p class="class-card__meta">
+        <span>Exhibition</span><span>{{ label() }}</span>
+      </p>
+      <h3 class="class-card__title">
+        <a routerLink="/exhibitions">{{ e.title }}</a>
+      </h3>
+      <p class="class-card__when">
+        @if (kind() === 'reception' && e.reception) {
+          {{ e.reception.start | when: 'time' : e.reception.end }} ·
+        }
+        On view {{ e.start | when: 'range' : e.end }}
+      </p>
+    </div>
+    <div class="class-card__cta">
+      <span class="class-card__price">Free</span>
+      <a class="btn btn-dark btn-sm" routerLink="/exhibitions">See the show</a>
+    </div>
+  `,
+})
+export class ShowCard {
+  item = input.required<Exhibition>();
+  /** The moment's Chicago date (YYYY-MM-DD). */
+  date = input.required<string>();
+  kind = input.required<ShowMoment>();
+  protected label = computed(
+    () => ({ opens: 'Opens', reception: 'Opening reception', closes: 'Last day' })[this.kind()],
+  );
+}
+
 @Component({
   selector: 'app-product-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -58,7 +121,9 @@ export class ClassCard {
     @let p = item();
     <a [routerLink]="['/shop', p.slug]" class="product-card__link">
       <app-art-image [src]="p.image" [alt]="p.name" ratio="4 / 5" />
-      @if (!p.inStock) { <span class="tag tag--sold">Sold</span> }
+      @if (!p.inStock) {
+        <span class="tag tag--sold">Sold</span>
+      }
       <span class="product-card__name">{{ p.name }}</span>
     </a>
     <span class="product-card__foot">
@@ -99,4 +164,3 @@ export function exhibitionStatus(e: Exhibition): 'Now on view' | 'Coming up' | '
   if (e.start > t) return 'Coming up';
   return e.end >= t ? 'Now on view' : 'Past';
 }
-

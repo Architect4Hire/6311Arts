@@ -8,13 +8,15 @@ using Arts6311.Domain.Modules.Artists.Managers;
 using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Artists.Managers.ViewModels;
 using Arts6311.Domain.Modules.Media.Facade;
+using Arts6311.Domain.Modules.Media.Managers.ServiceModels;
 using FluentValidation;
 
 namespace Arts6311.Domain.Modules.Artists.Facade;
 
 /// <summary>
-/// Validates shape, asks Media about the portrait, then calls Business. Nothing is cached: these are CMS reads of
-/// one indexed row or one page; the site's cached reads arrive in 3.1.
+/// Validates shape, asks Media about the portrait, then calls Business. Nothing is cached here: the CMS reads are one
+/// indexed row or one page, and the site's artist reads are cached by the Site module, which composes them with the
+/// shop's work (ADR 0042).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -68,6 +70,58 @@ internal sealed class ArtistsFacade(
         ArgumentOutOfRangeException.ThrowIfGreaterThan(slugs.Count, ArtistPolicy.LookupMaxCount, nameof(slugs));
         return business.FindBySlugsAsync(slugs, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<SiteArtistServiceModel>> ListForSiteAsync(CancellationToken cancellationToken)
+    {
+        var rows = await business.ListForSiteAsync(cancellationToken);
+
+        // One question for the whole roster: which portraits have renditions, and where they are.
+        var portraits = await media.DescribeForSiteAsync(
+            [.. rows.Select(row => row.PortraitMediaId).OfType<Guid>()], cancellationToken);
+
+        return [.. rows.Select(row => row.ToServiceModel(Portrait(row, portraits)))];
+    }
+
+    public async Task<SiteArtistServiceModel?> GetForSiteAsync(string slug, CancellationToken cancellationToken)
+    {
+        if (!Slugs.IsValid(slug) || await business.GetForSiteAsync(slug, cancellationToken) is not { } row)
+        {
+            return null;
+        }
+
+        return row.ToServiceModel(Portrait(row, await DescribePortraitAsync(row, cancellationToken)));
+    }
+
+    public async Task<OperationResult<PreviewRecord<SiteArtistServiceModel>>> GetForPreviewAsync(
+        Guid id, CancellationToken cancellationToken)
+    {
+        var found = await business.GetForPreviewAsync(id, cancellationToken);
+        if (!found.Succeeded)
+        {
+            return OperationResult.Failure<PreviewRecord<SiteArtistServiceModel>>(found.Error!);
+        }
+
+        var row = found.Value!.Record;
+        return OperationResult.Success(new PreviewRecord<SiteArtistServiceModel>(
+            row.ToServiceModel(Portrait(row, await DescribePortraitAsync(row, cancellationToken))), found.Value.Status));
+    }
+
+    public Task<IReadOnlyDictionary<Guid, SiteArtistCreditServiceModel>> DescribeCreditsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        return business.DescribeCreditsAsync(ids, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
+        business.ListSitemapAsync(cancellationToken);
+
+    private Task<IReadOnlyDictionary<Guid, SiteImageServiceModel>> DescribePortraitAsync(
+        ArtistSiteRow row, CancellationToken cancellationToken) =>
+        media.DescribeForSiteAsync(row.PortraitMediaId is { } id ? [id] : [], cancellationToken);
+
+    private static SiteImageServiceModel? Portrait(ArtistSiteRow row, IReadOnlyDictionary<Guid, SiteImageServiceModel> portraits) =>
+        row.PortraitMediaId is { } id && portraits.TryGetValue(id, out var portrait) ? portrait : null;
 
     public async Task<OperationResult<ArtistServiceModel>> CreateAsync(
         ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken)

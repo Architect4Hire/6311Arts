@@ -15,7 +15,7 @@ public static partial class SkuPolicy
     /// </summary>
     public const int MaxLength = 64;
 
-    /// <summary>The prefix for a class session's suggestion: <c>CLS-4-2</c> is the second session of offering 4.</summary>
+    /// <summary>The prefix for a class run's suggestion: <c>CLS-4-2</c> is the second run of offering 4.</summary>
     public const string ClassPrefix = "CLS";
 
     /// <summary>The prefix for artwork's suggestion (2.10): <c>ART-17</c>.</summary>
@@ -36,14 +36,14 @@ public static partial class SkuPolicy
         sku is { Length: > 0 and <= MaxLength } && Shape().IsMatch(sku);
 
     /// <summary>
-    /// The suggestion for session <paramref name="sessionNumber"/> (from 1) of offering
-    /// <paramref name="offeringNumber"/>: <c>CLS-&lt;offering&gt;-&lt;session&gt;</c>.
+    /// The suggestion for run <paramref name="runNumber"/> (from 1) of offering <paramref name="offeringNumber"/>:
+    /// <c>CLS-&lt;offering&gt;-&lt;run&gt;</c>.
     /// </summary>
-    public static string ForClassSession(int offeringNumber, int sessionNumber)
+    public static string ForClassRun(int offeringNumber, int runNumber)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(offeringNumber);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sessionNumber);
-        return string.Create(CultureInfo.InvariantCulture, $"{ClassPrefix}-{offeringNumber}-{sessionNumber}");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(runNumber);
+        return string.Create(CultureInfo.InvariantCulture, $"{ClassPrefix}-{offeringNumber}-{runNumber}");
     }
 
     /// <summary>The suggestion for artwork number <paramref name="itemNumber"/>: <c>ART-&lt;item&gt;</c>.</summary>

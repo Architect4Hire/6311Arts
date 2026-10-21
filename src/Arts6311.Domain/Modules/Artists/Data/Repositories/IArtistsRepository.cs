@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
+using Arts6311.Domain.Modules.Artists.Managers;
 using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
 
 namespace Arts6311.Domain.Modules.Artists.Data.Repositories;
@@ -26,6 +27,12 @@ internal interface IArtistsRepository
 
     /// <summary>The artists with these slugs, projected to list rows, in no particular order.</summary>
     Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Published artists in (Name, Id) order, projected straight to site rows — every one, or only the one with
+    /// <paramref name="slug"/> (ADR 0042).
+    /// </summary>
+    Task<List<ArtistSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken);
 
     /// <summary>
     /// The ids of artists Scheduled for <paramref name="asOf"/> or earlier, oldest first, at most

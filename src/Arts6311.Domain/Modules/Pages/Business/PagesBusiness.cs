@@ -64,6 +64,30 @@ internal sealed class PagesBusiness(IPagesDataLayer dataLayer, IHtmlSanitizer sa
         return page is null ? NotFound() : OperationResult.Success(ToServiceModel(page));
     }
 
+    public async Task<OperationResult<SitePageServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(slug);
+
+        var page = await dataLayer.FindPublishedAsync(slug, cancellationToken);
+        return page is null
+            ? OperationResult.Failure<SitePageServiceModel>(OperationError.Of(ErrorCodes.NotFound, "There is no such page."))
+            : OperationResult.Success(page);
+    }
+
+    public async Task<OperationResult<PreviewRecord<SitePageServiceModel>>> GetForPreviewAsync(
+        Guid id, CancellationToken cancellationToken)
+    {
+        var page = await dataLayer.FindAsync(id, cancellationToken);
+        return page is null
+            ? OperationResult.Failure<PreviewRecord<SitePageServiceModel>>(OperationError.Of(ErrorCodes.NotFound, "There is no such page."))
+            : OperationResult.Success(new PreviewRecord<SitePageServiceModel>(
+                new SitePageServiceModel(page.Id, page.Slug, page.Title, page.Body, page.UpdatedAt), page.Status));
+    }
+
+    public async Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
+        [.. (await dataLayer.ListPublishedAddressesAsync(cancellationToken))
+            .Select(row => new SitemapEntryServiceModel(SitePaths.AddressOf(PagePolicy.SitePathPrefix, row.Slug), row.UpdatedAt))];
+
     public async Task<OperationResult<PageServiceModel>> CreateAsync(
         PageCreateViewModel create, PageImageCheck images, string actorUserId, CancellationToken cancellationToken)
     {
@@ -463,10 +487,17 @@ internal sealed class PagesBusiness(IPagesDataLayer dataLayer, IHtmlSanitizer sa
             : (null, OperationError.Validation("The page's text needs attention.", problems));
     }
 
-    /// <summary>Whether <paramref name="body"/> is still a seeded placeholder, untouched.</summary>
-    private bool IsPlaceholder(string body) =>
-        PagePlaceholderSeeder.Placeholders.Any(placeholder =>
-            string.Equals(sanitizer.Sanitize(placeholder.Body).Html, body, StringComparison.Ordinal));
+    /// <summary>
+    /// Whether <paramref name="body"/> is still a seeded placeholder, untouched. Both sides are compared as the
+    /// sanitizer has them now, so a placeholder seeded under a wider allow-list (its <c>mailto:</c> link, before
+    /// ADR 0045) still counts.
+    /// </summary>
+    private bool IsPlaceholder(string body)
+    {
+        var current = sanitizer.Sanitize(body).Html;
+        return PagePlaceholderSeeder.Placeholders.Any(placeholder =>
+            string.Equals(sanitizer.Sanitize(placeholder.Body).Html, current, StringComparison.Ordinal));
+    }
 
     /// <summary>Stores the sanitized body and makes the image references exactly the pictures it shows.</summary>
     private static void SetBody(Page page, SanitizedHtml? body)

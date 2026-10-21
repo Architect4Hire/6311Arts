@@ -18,7 +18,7 @@ namespace Arts6311.Tests.Pages;
 
 /// <summary>
 /// The module end to end through its facade, on a real (SQLite) database with the real sanitizer: what is stored is
-/// only ever sanitized HTML, the pictures it shows are held in the library, and the lifecycle, audit and atomic save
+/// only ever sanitized HTML, a picture in it is dropped (ADR 0045), and the lifecycle, audit and atomic save
 /// work as for every content type.
 /// </summary>
 public sealed class PagesModuleTests
@@ -68,7 +68,7 @@ public sealed class PagesModuleTests
     public async Task AWellFormedBodyIsKeptExactlyAndSendingItAgainIsNoChange()
     {
         await using var host = await PagesTestHost.CreateAsync(Ct);
-        const string copy = "<h2>Your privacy</h2><p>See <a href=\"/visit\">Visit</a>.</p><ul><li>One</li></ul>";
+        const string copy = "<h2>Your privacy</h2><p>See <strong>Visit</strong>.</p><ul><li>One</li></ul>";
         var page = await CreateAsync(host, new PageCreateViewModel("Privacy", Body: copy));
 
         var again = await Ok(host.WithFacadeAsync(facade => facade.UpdateAsync(
@@ -80,46 +80,21 @@ public sealed class PagesModuleTests
     }
 
     [Fact]
-    public async Task APictureMustBeALibraryOriginalWithItsOwnAltText()
+    public async Task APictureInTheBodyIsDroppedAndHoldsNothingInTheLibrary()
     {
+        // ADR 0045: no pictures in a body at this time, even a described library original.
         await using var host = await PagesTestHost.CreateAsync(Ct);
         var image = await host.AddImageAsync();
-        var rendition = await host.AddImageAsync(MediaAssetKind.Derived);
-
-        var noAlt = await host.WithFacadeAsync(facade => facade.CreateAsync(
-            new PageCreateViewModel("About", Body: $"<p>{PagesTestHost.Img(image, alt: null)}</p>"), Editor, Ct));
-        var unknown = await host.WithFacadeAsync(facade => facade.CreateAsync(
-            new PageCreateViewModel("About", Body: $"<p>{PagesTestHost.Img(Guid.NewGuid())}</p>"), Editor, Ct));
-        var derived = await host.WithFacadeAsync(facade => facade.CreateAsync(
-            new PageCreateViewModel("About", Body: $"<p>{PagesTestHost.Img(rendition)}</p>"), Editor, Ct));
-        var described = await CreateAsync(host, new PageCreateViewModel("About", Body: $"<p>{PagesTestHost.Img(image)}</p>"));
-
-        Assert.Equal(ErrorCodes.ValidationFailed, noAlt.Error!.Code);
-        Assert.Contains("alt text", noAlt.Error.FieldErrors["body"][0], StringComparison.Ordinal);
-        Assert.Contains("body", unknown.Error!.FieldErrors.Keys);
-        Assert.Contains("body", derived.Error!.FieldErrors.Keys);
-        Assert.Equal([image], described.ImageMediaIds);
-    }
-
-    [Fact]
-    public async Task ThePicturesABodyShowsAreHeldInTheLibraryUntilTheBodyStopsShowingThem()
-    {
-        await using var host = await PagesTestHost.CreateAsync(Ct);
-        var first = await host.AddImageAsync();
-        var second = await host.AddImageAsync();
         var page = await CreateAsync(host, new PageCreateViewModel(
-            "About", Body: $"<p>{PagesTestHost.Img(first)}{PagesTestHost.Img(first, "Again")}</p><p>{PagesTestHost.Img(second)}</p>"));
+            "About", Body: $"<p>Our window.{PagesTestHost.Img(image)}</p>"));
 
-        Assert.Equal([first, second], page.ImageMediaIds);
-        Assert.Equal(MediaErrorCodes.InUse, (await DeleteImageAsync(host, first)).Error!.Code);
+        Assert.Equal("<p>Our window.</p>", page.Body);
+        Assert.Empty(page.ImageMediaIds);
+        Assert.Empty((await host.StoredAsync(page.Id))!.Images);
+        Assert.True((await DeleteImageAsync(host, image)).Succeeded);
 
-        var edited = await Ok(host.WithFacadeAsync(facade => facade.UpdateAsync(
-            page.Id, new PageUpdateViewModel(Body: $"<p>{PagesTestHost.Img(second)}</p>"), page.ETag, Editor, Ct)));
-
-        Assert.Equal([second], edited.ImageMediaIds);
-        Assert.Equal([second], (await host.StoredAsync(page.Id))!.Images.Select(reference => reference.MediaAssetId));
-        Assert.True((await DeleteImageAsync(host, first)).Succeeded);
-        Assert.Equal(MediaErrorCodes.InUse, (await DeleteImageAsync(host, second)).Error!.Code);
+        var summary = await host.QueryAsync(context => context.AuditLogs.AsNoTracking().Select(entry => entry.Summary).SingleAsync(Ct));
+        Assert.Contains("a picture", summary, StringComparison.Ordinal);
     }
 
     [Fact]

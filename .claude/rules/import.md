@@ -44,9 +44,9 @@ VERIFY   counts, links, images, redirects, SEO parity ──> report + admin rev
   - Unchanged payload hash: skip.
   - Changed payload, and the target hasn't been edited by staff since import (`UpdatedBy` = importer): update it.
   - Changed payload, and the target *has* been edited by staff: `NeedsReview`. Never overwrite.
-- **Load in dependency order:** Media → Artists → Exhibitions → Classes (+ sessions) → Shop items → Membership plans → Pages → Redirects.
+- **Load in dependency order:** Media → Artists → Instructors → Exhibitions → Classes (+ runs and sessions) → Shop items → Membership plans → Pages → Redirects.
 - **Imported content lands as `Draft`.** Publishing is a deliberate staff step (or an approved bulk publish), so imports never flood Square pushes.
-- **Prices and stock.** WooCommerce price and stock import only into the **starting** fields (`StartingPriceCents`, starting quantity, session capacity). They're used once, when the item is first created in Square. They never touch Square-owned projections. The WooCommerce SKU, if there is one, imports into `Sku`.
+- **Prices and stock.** WooCommerce price and stock import only into the **starting** fields (`StartingPriceCents`, starting quantity, run capacity). They're used once, when the item is first created in Square. They never touch Square-owned projections. The WooCommerce SKU, if there is one, imports into `Sku`.
 - **Merch is never imported** (ADR 0032). Products identified as merch in the mapping table are reported as `Skipped (merch: POS-only)`.
 - **Body HTML** is rewritten and sanitized:
   - `wp-content/uploads/...` URLs become `/media/{assetId}/{rendition}` via `ImportMediaMap`.

@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
+using Arts6311.Domain.Modules.Artists.Managers;
 using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
 using Microsoft.EntityFrameworkCore;
 
@@ -77,6 +78,23 @@ internal sealed class ArtistsRepository(ArtsDbContext context) : IArtistsReposit
 
     public Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
         Artists.AsNoTracking().Where(artist => slugs.Contains(artist.Slug)).Select(ToSummary).ToListAsync(cancellationToken);
+
+    public Task<List<ArtistSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken)
+    {
+        var query = Artists.AsNoTracking().Where(artist => artist.Status == PublishStatus.Published);
+        if (slug is not null)
+        {
+            query = query.Where(artist => artist.Slug == slug);
+        }
+
+        return query
+            .OrderBy(artist => artist.Name)
+            .ThenBy(artist => artist.Id)
+            .Select(artist => new ArtistSiteRow(
+                artist.Id, artist.Slug, artist.Name, artist.Medium, artist.Active, artist.PortraitMediaId, artist.Bio,
+                artist.UpdatedAt))
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
         await Artists.AsNoTracking()

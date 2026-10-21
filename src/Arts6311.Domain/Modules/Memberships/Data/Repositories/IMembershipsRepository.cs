@@ -35,6 +35,9 @@ internal interface IMembershipsRepository
     /// </summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
+    /// <summary>Every published plan with its perks, untracked, in display order (ADR 0042).</summary>
+    Task<List<MembershipPlan>> ListPublishedAsync(CancellationToken cancellationToken);
+
     /// <summary>Throws away every unsaved change, after a save that failed, so the next save starts clean.</summary>
     void DiscardChanges();
 

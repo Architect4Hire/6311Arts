@@ -32,6 +32,7 @@ Managers/                # shared kernel: Persistence, Outbox, Idempotency, Cach
 **Modules:**
 
 - `Artists`
+- `Instructors` (the people who teach; class runs name them, ADR 0043)
 - `Exhibitions`
 - `Classes`
 - `Shop`
@@ -44,6 +45,7 @@ Managers/                # shared kernel: Persistence, Outbox, Idempotency, Cach
 - `SquareSync` (catalog links, webhook inbox, reconciliation)
 - `Redirects`
 - `Preview` (signed preview links; the one module that knows every content type, ADR 0036)
+- `Site` (facade-only: the site reads that span modules — the artist directory and pages, the sitemap; ADR 0042)
 - `Import` (WordPress import staging and runs)
 - `Identity` (internal session and credential operations)
 - `Operations` (outbox replay/discard and other ops tooling; today only the public health-info echo)
@@ -116,7 +118,7 @@ Ask what a reviewer would call it.
 - `CancellationToken` flows through every async call. Never use `.Result` or `.Wait()`.
 - Failures are `ProblemDetails` with a stable error code and the correlation id.
 - Use purpose-built repository methods. No generic repository.
-- Money is `long` cents. Times are UTC `DateTimeOffset`. Class sessions also store the display time zone id (`America/Chicago`).
+- Money is `long` cents. Times are UTC `DateTimeOffset`. Class runs also store the display time zone id (`America/Chicago`) their sessions are shown in.
 
 ## Validation and transactions
 

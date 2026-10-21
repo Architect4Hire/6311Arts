@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
+using Arts6311.Domain.Modules.Artists.Managers;
 using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
 
 namespace Arts6311.Domain.Modules.Artists.Data;
@@ -30,6 +31,9 @@ internal interface IArtistsDataLayer
     Task<List<ArtistSummaryServiceModel>> GetSummariesAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
 
     Task<List<ArtistSummaryServiceModel>> FindBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
+
+    /// <summary>Published artists as site rows: all of them, or the one with <paramref name="slug"/>.</summary>
+    Task<List<ArtistSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken);
 
     /// <summary>Adds the artist Business built, with its bookkeeping and audit entry, in one save.</summary>
     Task<ArtistWriteOutcome> CreateAsync(Artist artist, string actorUserId, CancellationToken cancellationToken);

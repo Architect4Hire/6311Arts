@@ -23,13 +23,12 @@ public sealed class ClassValidatorTests
     }
 
     [Fact]
-    public async Task ASessionNeedsBothTimesAndSeatsAndCannotEndBeforeItStarts()
+    public async Task ASessionNeedsBothTimesAndCannotEndBeforeItStartsOrRunForDays()
     {
-        Assert.Null(await FieldsAsync(With(new ClassSessionViewModel(Starts, Starts.AddHours(3), 10))));
-        Assert.Equal(["sessions"], await FieldsAsync(With(new ClassSessionViewModel(Starts, null, 10))));
-        Assert.Equal(["sessions"], await FieldsAsync(With(new ClassSessionViewModel(Starts, Starts.AddHours(3), null))));
-        Assert.Equal(["sessions"], await FieldsAsync(With(new ClassSessionViewModel(Starts, Starts.AddHours(-1), 10))));
-        Assert.Equal(["sessions"], await FieldsAsync(With(new ClassSessionViewModel(Starts, Starts.AddDays(8), 10))));
+        Assert.Null(await FieldsAsync(With(Run(new ClassSessionViewModel(Starts, Starts.AddHours(3))))));
+        Assert.Equal(["runs"], await FieldsAsync(With(Run(new ClassSessionViewModel(Starts, null)))));
+        Assert.Equal(["runs"], await FieldsAsync(With(Run(new ClassSessionViewModel(Starts, Starts.AddHours(-1))))));
+        Assert.Equal(["runs"], await FieldsAsync(With(Run(new ClassSessionViewModel(Starts, Starts.AddDays(8))))));
     }
 
     [Theory]
@@ -38,8 +37,14 @@ public sealed class ClassValidatorTests
     [InlineData(ClassPolicy.CapacityMaxSeats + 1)]
     public async Task SeatsRunFromOneToTheCeiling(int capacity)
     {
-        Assert.Equal(["sessions"], await FieldsAsync(With(new ClassSessionViewModel(Starts, Starts.AddHours(3), capacity))));
-        Assert.Null(await FieldsAsync(With(new ClassSessionViewModel(Starts, Starts.AddHours(3), 1))));
+        Assert.Equal(["runs"], await FieldsAsync(With(new ClassRunViewModel(capacity))));
+        Assert.Null(await FieldsAsync(With(new ClassRunViewModel(1))));
+    }
+
+    [Fact]
+    public async Task EveryRunNeedsSeats()
+    {
+        Assert.Equal(["runs"], await FieldsAsync(With(new ClassRunViewModel(null))));
     }
 
     [Theory]
@@ -51,47 +56,61 @@ public sealed class ClassValidatorTests
     [InlineData("", false)]
     public async Task ASkuIsLettersDigitsHyphensAndDots(string sku, bool valid)
     {
-        var fields = await FieldsAsync(With(new ClassSessionViewModel(Starts, Starts.AddHours(3), 10, Sku: sku)));
+        var fields = await FieldsAsync(With(new ClassRunViewModel(10, Sku: sku)));
 
-        Assert.Equal(valid ? null : ["sessions"], fields);
+        Assert.Equal(valid ? null : ["runs"], fields);
     }
 
     [Fact]
     public async Task ASkuLongerThanTheColumnIsRefused()
     {
-        var sku = new string('A', SkuPolicy.MaxLength + 1);
-
-        Assert.Equal(["sessions"], await FieldsAsync(With(new ClassSessionViewModel(Starts, Starts.AddHours(3), 10, Sku: sku))));
+        Assert.Equal(["runs"], await FieldsAsync(With(new ClassRunViewModel(10, Sku: new string('A', SkuPolicy.MaxLength + 1)))));
     }
 
     [Fact]
-    public async Task TwoSessionsCannotShareASkuOrAnId()
+    public async Task TwoRunsCannotShareASkuOrAnIdAndTwoSessionsCannotShareAnId()
     {
         var id = Guid.NewGuid();
-        var one = new ClassSessionViewModel(Starts, Starts.AddHours(3), 10, Sku: "CLS-4-1");
-        var two = new ClassSessionViewModel(Starts.AddDays(7), Starts.AddDays(7).AddHours(3), 10, Sku: "cls-4-1");
+        var one = new ClassRunViewModel(10, Sku: "CLS-4-1");
+        var two = new ClassRunViewModel(10, Sku: "cls-4-1");
+        var session = new ClassSessionViewModel(Starts, Starts.AddHours(3), Id: Guid.NewGuid());
 
-        Assert.Equal(["sessions"], await FieldsAsync(With(one, two)));
-        Assert.Equal(["sessions"], await FieldsAsync(With(one with { Id = id, Sku = null }, two with { Id = id, Sku = null })));
+        Assert.Equal(["runs"], await FieldsAsync(With(one, two)));
+        Assert.Equal(["runs"], await FieldsAsync(With(one with { Id = id, Sku = null }, two with { Id = id, Sku = null })));
+        Assert.Equal(["runs"], await FieldsAsync(With(Run(session), Run(session) with { Sku = "CLS-4-2" })));
     }
 
     [Fact]
     public async Task ADisplayZoneMustBeAnIanaZone()
     {
-        Assert.Null(await FieldsAsync(With(new ClassSessionViewModel(Starts, Starts.AddHours(3), 10, DisplayTimeZone: "America/New_York"))));
-        Assert.Equal(
-            ["sessions"],
-            await FieldsAsync(With(new ClassSessionViewModel(Starts, Starts.AddHours(3), 10, DisplayTimeZone: "Chicago"))));
+        Assert.Null(await FieldsAsync(With(new ClassRunViewModel(10, DisplayTimeZone: "America/New_York"))));
+        Assert.Equal(["runs"], await FieldsAsync(With(new ClassRunViewModel(10, DisplayTimeZone: "Chicago"))));
     }
 
     [Fact]
-    public async Task AClassHasAtMostTheSessionCeiling()
+    public async Task AnInstructorIdMayNotBeEmpty()
     {
-        var sessions = Enumerable.Range(0, ClassPolicy.SessionsMaxCount + 1)
-            .Select(week => new ClassSessionViewModel(Starts.AddDays(7 * week), Starts.AddDays(7 * week).AddHours(3), 10))
-            .ToList();
+        Assert.Equal(["runs"], await FieldsAsync(With(new ClassRunViewModel(10, InstructorId: Guid.Empty))));
+        Assert.Null(await FieldsAsync(With(new ClassRunViewModel(10, InstructorId: Guid.NewGuid()))));
+    }
 
-        Assert.Equal(["sessions"], await FieldsAsync(new ClassCreateViewModel("Course", Sessions: sessions)));
+    [Fact]
+    public async Task ARunsLabelAndCadenceStayWithinTheirColumns()
+    {
+        Assert.Equal(["runs"], await FieldsAsync(With(new ClassRunViewModel(10, Label: new string('x', ClassPolicy.RunLabelMaxLength + 1)))));
+        Assert.Equal(["runs"], await FieldsAsync(With(new ClassRunViewModel(10, Cadence: new string('x', ClassPolicy.CadenceMaxLength + 1)))));
+    }
+
+    [Fact]
+    public async Task AClassHasAtMostTheRunCeilingAndARunAtMostTheSessionCeiling()
+    {
+        var runs = Enumerable.Range(0, ClassPolicy.RunsMaxCount + 1).Select(_ => new ClassRunViewModel(10)).ToArray();
+        var sessions = Enumerable.Range(0, ClassPolicy.SessionsMaxCount + 1)
+            .Select(week => new ClassSessionViewModel(Starts.AddDays(7 * week), Starts.AddDays(7 * week).AddHours(3)))
+            .ToArray();
+
+        Assert.Equal(["runs"], await FieldsAsync(With(runs)));
+        Assert.Equal(["runs"], await FieldsAsync(With(Run(sessions))));
     }
 
     [Theory]
@@ -99,11 +118,11 @@ public sealed class ClassValidatorTests
     [InlineData(30000L, true)]
     [InlineData(-1L, false)]
     [InlineData(ClassPolicy.StartingPriceMaxCents + 1, false)]
-    public async Task TheStartingPriceIsCentsWithinTheTypoGuard(long cents, bool valid)
+    public async Task ARunsStartingPriceIsCentsWithinTheTypoGuard(long cents, bool valid)
     {
-        var fields = await FieldsAsync(new ClassCreateViewModel("Course", StartingPriceCents: cents));
+        var fields = await FieldsAsync(With(new ClassRunViewModel(10, StartingPriceCents: cents)));
 
-        Assert.Equal(valid ? null : ["startingPriceCents"], fields);
+        Assert.Equal(valid ? null : ["runs"], fields);
     }
 
     [Fact]
@@ -111,10 +130,7 @@ public sealed class ClassValidatorTests
     {
         Assert.Equal(["body"], await FieldsAsync(new ClassUpdateViewModel()));
         Assert.Equal(["removeHero"], await FieldsAsync(new ClassUpdateViewModel(HeroMediaId: Guid.NewGuid(), RemoveHero: true)));
-        Assert.Equal(
-            ["removeStartingPrice"],
-            await FieldsAsync(new ClassUpdateViewModel(StartingPriceCents: 1000, RemoveStartingPrice: true)));
-        Assert.Null(await FieldsAsync(new ClassUpdateViewModel(Sessions: [])));
+        Assert.Null(await FieldsAsync(new ClassUpdateViewModel(Runs: [])));
     }
 
     [Fact]
@@ -136,8 +152,9 @@ public sealed class ClassValidatorTests
         Assert.False((await validator.ValidateAsync(new ClassListViewModel(Search: new string('x', ClassPolicy.SearchMaxLength + 1)), Ct)).IsValid);
     }
 
-    private static ClassCreateViewModel With(params ClassSessionViewModel[] sessions) =>
-        new("Course", Sessions: sessions);
+    private static ClassRunViewModel Run(params ClassSessionViewModel[] sessions) => new(10, Sessions: sessions);
+
+    private static ClassCreateViewModel With(params ClassRunViewModel[] runs) => new("Course", Runs: runs);
 
     private static async Task<List<string>?> FieldsAsync(ClassCreateViewModel create) =>
         (await new ClassCreateValidator().ValidateOrErrorAsync(create, Ct))?.FieldErrors.Keys.ToList();

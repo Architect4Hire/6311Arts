@@ -74,4 +74,36 @@ public interface IShopFacade
     /// Never throws for a record that moved on — it reports what happened instead.
     /// </summary>
     Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <c>GET /site/shop</c>: one page of published artwork, cursor-paged (ADR 0042). A first page is cached under
+    /// the <c>shop-item</c> and <c>artist</c> type tags; a later page, whose key would be the visitor's cursor, is
+    /// read each time. Refusals: <c>validation.failed</c>, <c>paging.cursor.invalid</c>.
+    /// </summary>
+    Task<OperationResult<CursorPage<SiteShopItemSummaryServiceModel>>> ListForSiteAsync(
+        SiteShopListViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <c>GET /site/shop/{slug}</c>: the published piece there, cached as a first page is. Anything else is
+    /// <c>resource.not_found</c>, and is not cached.
+    /// </summary>
+    Task<OperationResult<SiteShopItemServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>For a preview link: the piece as the site would show it, whatever the status. Never cached.</summary>
+    Task<OperationResult<PreviewRecord<SiteShopItemServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For the Site module's artist page: the first page of <c>/site/shop?artist={artistSlug}</c>, newest first,
+    /// cached as that list is. Its next cursor continues on that route.
+    /// </summary>
+    Task<CursorPage<SiteShopItemSummaryServiceModel>> ListWorksForSiteAsync(string artistSlug, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For the Site module's artist directory: how many published pieces each artist has. Not cached here; the
+    /// Site module caches the directory.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, int>> CountForSiteByArtistAsync(CancellationToken cancellationToken);
+
+    /// <summary>For the sitemap. Not cached here; the Site module caches the sitemap.</summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
 }

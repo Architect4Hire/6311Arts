@@ -14,8 +14,8 @@ public static class ClassesServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the Classes module's seam. Requires <c>AddArtsKernel</c> (for the sanitizer and the shared SKU
-    /// registry), the <c>ArtsDbContext</c> and <c>AddMediaModule</c>: the facade asks Media about the hero and the
-    /// body's pictures.
+    /// registry), the <c>ArtsDbContext</c>, <c>AddMediaModule</c> and <c>AddInstructorsModule</c>: the facade asks
+    /// Media about the hero and the body's pictures, and Instructors about each run's instructor.
     /// </summary>
     public static IServiceCollection AddClassesModule(this IServiceCollection services)
     {
@@ -33,7 +33,8 @@ public static class ClassesServiceCollectionExtensions
 
     /// <summary>
     /// The development classes seed, for MigrationService in Development only: production classes come from the
-    /// WordPress import (4.x). Registers Business and below, which decide and add what is seeded.
+    /// WordPress import (4.x). Registers Business and below, which decide and add what is seeded; the seeder names
+    /// instructors through the host's own <c>AddInstructorsModule</c> (ADR 0044).
     /// </summary>
     public static IServiceCollection AddClassesDevelopmentSeeder(this IServiceCollection services)
     {

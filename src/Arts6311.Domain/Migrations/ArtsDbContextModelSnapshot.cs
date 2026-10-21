@@ -346,10 +346,6 @@ namespace Arts6311.Domain.Migrations
                         .HasMaxLength(100000)
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Cadence")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<string>("ClassType")
                         .HasMaxLength(60)
                         .HasColumnType("nvarchar(60)");
@@ -359,10 +355,6 @@ namespace Arts6311.Domain.Migrations
 
                     b.Property<Guid?>("HeroMediaId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Instructor")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
 
                     b.Property<long?>("LegacyWordPressId")
                         .HasColumnType("bigint");
@@ -387,9 +379,6 @@ namespace Arts6311.Domain.Migrations
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasColumnType("varchar(120)");
-
-                    b.Property<long?>("StartingPriceCents")
-                        .HasColumnType("bigint");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -456,10 +445,14 @@ namespace Arts6311.Domain.Migrations
                     b.ToTable("ClassOfferingMediaReferences", (string)null);
                 });
 
-            modelBuilder.Entity("Arts6311.Domain.Modules.Classes.Data.Entities.ClassSession", b =>
+            modelBuilder.Entity("Arts6311.Domain.Modules.Classes.Data.Entities.ClassRun", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Cadence")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("Capacity")
                         .HasColumnType("int");
@@ -471,8 +464,12 @@ namespace Arts6311.Domain.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(64)");
 
-                    b.Property<DateTimeOffset>("EndsAt")
-                        .HasColumnType("datetimeoffset");
+                    b.Property<Guid?>("InstructorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<long?>("PriceCents")
                         .HasColumnType("bigint");
@@ -487,19 +484,43 @@ namespace Arts6311.Domain.Migrations
                     b.Property<bool>("SoldOut")
                         .HasColumnType("bit");
 
+                    b.Property<long?>("StartingPriceCents")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClassOfferingId");
+
+                    b.HasIndex("InstructorId")
+                        .HasDatabaseName("IX_ClassRuns_InstructorId");
+
+                    b.HasIndex("Sku")
+                        .HasDatabaseName("IX_ClassRuns_Sku");
+
+                    b.ToTable("ClassRuns", (string)null);
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Classes.Data.Entities.ClassSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClassRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("EndsAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateTimeOffset>("StartsAt")
                         .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Sku")
-                        .HasDatabaseName("IX_ClassSessions_Sku");
-
                     b.HasIndex("StartsAt")
                         .HasDatabaseName("IX_ClassSessions_StartsAt");
 
-                    b.HasIndex("ClassOfferingId", "StartsAt")
-                        .HasDatabaseName("IX_ClassSessions_ClassOfferingId_StartsAt");
+                    b.HasIndex("ClassRunId", "StartsAt")
+                        .HasDatabaseName("IX_ClassSessions_ClassRunId_StartsAt");
 
                     b.ToTable("ClassSessions", (string)null);
                 });
@@ -716,6 +737,99 @@ namespace Arts6311.Domain.Migrations
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
                     b.ToTable("AspNetUsers", (string)null);
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Instructors.Data.Entities.Instructor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ArtistId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Bio")
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Instagram")
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<long?>("LegacyWordPressId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Medium")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("PortraitMediaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ScheduledFor")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("varchar(120)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArtistId")
+                        .HasDatabaseName("IX_Instructors_ArtistId");
+
+                    b.HasIndex("LegacyWordPressId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Instructors_LegacyWordPressId")
+                        .HasFilter("[LegacyWordPressId] IS NOT NULL");
+
+                    b.HasIndex("PortraitMediaId");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Instructors_Slug");
+
+                    b.HasIndex("Name", "Id")
+                        .HasDatabaseName("IX_Instructors_Name_Id");
+
+                    b.HasIndex("Status", "ScheduledFor")
+                        .HasDatabaseName("IX_Instructors_Status_ScheduledFor");
+
+                    b.HasIndex("Status", "Name", "Id")
+                        .HasDatabaseName("IX_Instructors_Status_Name_Id");
+
+                    b.ToTable("Instructors", (string)null);
                 });
 
             modelBuilder.Entity("Arts6311.Domain.Modules.Media.Data.Entities.MediaAsset", b =>
@@ -1359,11 +1473,25 @@ namespace Arts6311.Domain.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Arts6311.Domain.Modules.Classes.Data.Entities.ClassSession", b =>
+            modelBuilder.Entity("Arts6311.Domain.Modules.Classes.Data.Entities.ClassRun", b =>
                 {
                     b.HasOne("Arts6311.Domain.Modules.Classes.Data.Entities.ClassOffering", null)
-                        .WithMany("Sessions")
+                        .WithMany("Runs")
                         .HasForeignKey("ClassOfferingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Arts6311.Domain.Modules.Instructors.Data.Entities.Instructor", null)
+                        .WithMany()
+                        .HasForeignKey("InstructorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Classes.Data.Entities.ClassSession", b =>
+                {
+                    b.HasOne("Arts6311.Domain.Modules.Classes.Data.Entities.ClassRun", null)
+                        .WithMany("Sessions")
+                        .HasForeignKey("ClassRunId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -1389,6 +1517,19 @@ namespace Arts6311.Domain.Migrations
                         .HasForeignKey("ExhibitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Instructors.Data.Entities.Instructor", b =>
+                {
+                    b.HasOne("Arts6311.Domain.Modules.Artists.Data.Entities.Artist", null)
+                        .WithMany()
+                        .HasForeignKey("ArtistId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Arts6311.Domain.Modules.Media.Data.Entities.MediaAsset", null)
+                        .WithMany()
+                        .HasForeignKey("PortraitMediaId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Arts6311.Domain.Modules.Media.Data.Entities.MediaAsset", b =>
@@ -1525,6 +1666,11 @@ namespace Arts6311.Domain.Migrations
                 {
                     b.Navigation("Images");
 
+                    b.Navigation("Runs");
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Classes.Data.Entities.ClassRun", b =>
+                {
                     b.Navigation("Sessions");
                 });
 

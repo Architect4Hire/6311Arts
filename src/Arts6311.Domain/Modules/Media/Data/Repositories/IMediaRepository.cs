@@ -29,6 +29,12 @@ internal interface IMediaRepository
         IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The originals among <paramref name="ids"/> and every rendition of each, untracked, for the site's picture
+    /// descriptions (ADR 0042).
+    /// </summary>
+    Task<List<MediaAsset>> FindWithRenditionsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Whether anything references the asset: every foreign key in the model whose principal is
     /// <see cref="MediaAsset"/>, other than a rendition's own link to its original.
     /// </summary>

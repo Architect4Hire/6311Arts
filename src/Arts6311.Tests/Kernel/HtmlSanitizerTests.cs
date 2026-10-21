@@ -110,19 +110,47 @@ public sealed class HtmlSanitizerTests
     public void AllowedCopyComesThroughExactly()
     {
         const string copy =
-            "<h2>Your privacy</h2><p>We collect <strong>only</strong> what we <em>need</em>. See "
-            + "<a href=\"/visit\">Visit</a>, <a href=\"#cookies\">cookies</a>, "
-            + "<a href=\"https://squareup.com/legal\">Square</a>, <a href=\"mailto:hello@6311arts.com\">email us</a> "
-            + "or <a href=\"tel:+17735550100\">call</a>.<br>Thanks.</p>"
-            + "<h3>What we keep</h3><ul><li>Your name</li><li>Your email</li></ul>"
-            + "<h4>Order</h4><ol><li>One</li><li>Two</li></ol>"
-            + "<blockquote><p>Art for everyone.</p></blockquote>"
-            + "<p><img src=\"" + Image + "\" alt=\"The gallery's front window\"></p>";
+            "<h2>Your privacy</h2><p>We collect <strong>only</strong> what we <em>need</em>.<br>Thanks.</p>"
+            + "<h2>What we keep</h2><ul><li>Your name</li><li>Your email</li></ul>"
+            + "<ol><li>One</li><li>Two</li></ol>";
 
         var result = Sanitizer.Sanitize(copy);
 
         Assert.Equal(copy, result.Html);
         Assert.Empty(result.Removed);
+    }
+
+    [Theory]
+    [InlineData("/visit")]
+    [InlineData("#cookies")]
+    [InlineData("https://squareup.com/legal")]
+    [InlineData("mailto:hello@6311arts.com")]
+    [InlineData("tel:+17735550100")]
+    public void EveryLinkBecomesItsWordsWhileLinksAreOff(string href)
+    {
+        // ADR 0045: no links at this time, even to an address the link rule would allow.
+        var result = Sanitizer.Sanitize($"<p>See <a href=\"{href}\">this</a>.</p>");
+
+        Assert.Equal("<p>See this.</p>", result.Html);
+        Assert.Contains("a link (its text kept)", result.Removed);
+    }
+
+    [Fact]
+    public void EveryHeadingBecomesTheOneLevelABodyHas()
+    {
+        var result = Sanitizer.Sanitize("<h1>A</h1><h3>B</h3><h4>C</h4><h5>D</h5><h6>E</h6><h2>F</h2>");
+
+        Assert.Equal("<h2>A</h2><h2>B</h2><h2>C</h2><h2>D</h2><h2>E</h2><h2>F</h2>", result.Html);
+        Assert.Empty(result.Removed);
+    }
+
+    [Fact]
+    public void AQuoteLosesItsTagButKeepsItsParagraphs()
+    {
+        var result = Sanitizer.Sanitize("<blockquote><p>Art for everyone.</p></blockquote>");
+
+        Assert.Equal("<p>Art for everyone.</p>", result.Html);
+        Assert.Contains("<blockquote> (its text kept)", result.Removed);
     }
 
     [Fact]
@@ -143,12 +171,6 @@ public sealed class HtmlSanitizerTests
         Assert.Equal("<p>Before</p><p>After</p>", result.Html);
         Assert.DoesNotContain("steal", result.Html, StringComparison.Ordinal);
         Assert.Contains("<script> and its contents", result.Removed);
-    }
-
-    [Fact]
-    public void AnH1BecomesTextBecauseThePageTitleIsTheH1()
-    {
-        Assert.Equal("Heading<p>Body</p>", Sanitizer.Sanitize("<h1>Heading</h1><p>Body</p>").Html);
     }
 
     [Theory]
@@ -209,12 +231,12 @@ public sealed class HtmlSanitizerTests
     }
 
     [Fact]
-    public void AnAttributeIsKeptOnlyOnItsOwnElement()
+    public void NoAttributeIsKept()
     {
         var result = Sanitizer.Sanitize(
-            $"<p alt=\"x\" href=\"/visit\">P</p><a href=\"/visit\" alt=\"y\" src=\"{Image}\">A</a><img src=\"{Image}\" alt=\"ok\" href=\"/visit\">");
+            $"<p alt=\"x\" href=\"/visit\">P</p><h2 id=\"h\" src=\"{Image}\">H</h2><ul title=\"t\"><li value=\"2\">L</li></ul>");
 
-        Assert.Equal($"<p>P</p><a href=\"/visit\">A</a><img src=\"{Image}\" alt=\"ok\">", result.Html);
+        Assert.Equal("<p>P</p><h2>H</h2><ul><li>L</li></ul>", result.Html);
     }
 
     [Fact]
@@ -239,15 +261,9 @@ public sealed class HtmlSanitizerTests
         Assert.Equal("<p>Click here</p>", result.Html);
     }
 
-    [Fact]
-    public void TargetAndRelAreDroppedFromAnAllowedLink()
-    {
-        var result = Sanitizer.Sanitize("<p><a href=\"https://ok.example/\" target=\"_blank\" rel=\"noopener\">Ok</a></p>");
-
-        Assert.Equal("<p><a href=\"https://ok.example/\">Ok</a></p>", result.Html);
-    }
-
     [Theory]
+    [InlineData(Image)]
+    [InlineData("/media/0199f0a0-0000-7000-8000-0000000000aa/400.jpg?v=0123456789ab")]
     [InlineData("https://elsewhere.example/picture.jpg")]
     [InlineData("/media/not-a-guid/800.webp")]
     [InlineData("/media/0199f0a0-0000-7000-8000-0000000000aa/800.gif")]
@@ -256,32 +272,15 @@ public sealed class HtmlSanitizerTests
     [InlineData("//cdn.example/0199f0a0-0000-7000-8000-0000000000aa/800.webp")]
     [InlineData("/media/0199f0a0-0000-7000-8000-0000000000aa/1200.webp")]
     [InlineData("/media/0199f0a0-0000-7000-8000-0000000000aa/99.jpg")]
-    public void APictureFromOutsideTheLibraryIsRemoved(string src)
+    public void EveryPictureIsRemovedWhilePicturesAreOff(string src)
     {
+        // ADR 0045: a record's pictures are its hero or gallery, so even a library rendition leaves the body.
         var result = Sanitizer.Sanitize($"<p>Look<img src=\"{src}\" alt=\"x\"></p>");
 
         Assert.Equal("<p>Look</p>", result.Html);
         Assert.Empty(result.Images);
-        Assert.Contains("a picture that isn't from the media library", result.Removed);
-    }
-
-    [Fact]
-    public void LibraryPicturesAreListedWithTheirAltTextInOrder()
-    {
-        var first = Guid.Parse("0199f0a0-0000-7000-8000-0000000000aa");
-        var second = Guid.Parse("0199f0a0-0000-7000-8000-0000000000bb");
-
-        var result = Sanitizer.Sanitize(
-            $"<p><img src=\"/media/{first}/400.jpg?v=0123456789ab\" alt=\"  Front window \"></p>"
-            + $"<p><img src=\"/media/{second}/1600.webp\" alt=\" \"></p>"
-            + $"<p><img src=\"/media/{first}/800.webp\" alt=\"Again\"></p>");
-
-        Assert.Equal(
-            [new HtmlImage(first, "Front window"), new HtmlImage(second, null), new HtmlImage(first, "Again")],
-            result.Images);
-        Assert.Equal([first, second], result.MediaAssetIds);
-        Assert.Contains("alt=\"Front window\"", result.Html, StringComparison.Ordinal);
-        Assert.DoesNotContain("alt=\" \"", result.Html, StringComparison.Ordinal);
+        Assert.Empty(result.MediaAssetIds);
+        Assert.Contains("a picture", result.Removed);
     }
 
     [Theory]

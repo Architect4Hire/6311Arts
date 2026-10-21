@@ -1,7 +1,7 @@
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Classes.Data;
 using Arts6311.Domain.Modules.Classes.Data.Repositories;
-using Arts6311.Domain.Modules.Classes.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Classes.Managers;
 using Arts6311.Tests.Classes.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -49,7 +49,7 @@ public sealed class ClassesRepositoryTests
     }
 
     [Fact]
-    public async Task ARowCountsItsSessionsAndSaysWhenTheClassNextMeets()
+    public async Task ARowCountsItsRunsAndSaysWhenTheClassNextMeets()
     {
         await using var host = await ClassesTestHost.CreateAsync(Ct);
         var now = host.Time.GetUtcNow();
@@ -59,9 +59,9 @@ public sealed class ClassesRepositoryTests
         var rows = await ListAsync(host, null, 10, asOf: now);
 
         var course = rows.Single(row => row.Title == "Course");
-        Assert.Equal(3, course.SessionCount);
+        Assert.Equal(3, course.RunCount);
 
-        // Two of the three have passed; the third is a week out.
+        // Each run meets once: two have passed, and the third is a week out.
         Assert.Equal(now.AddDays(-14).AddDays(14), course.NextSessionStartsAt);
         Assert.Null(rows.Single(row => row.Title == "Finished").NextSessionStartsAt);
     }
@@ -88,7 +88,7 @@ public sealed class ClassesRepositoryTests
         await Assert.ThrowsAnyAsync<Exception>(() => host.AddOfferingAsync("Second", offeringNumber: 2, skus: "SHARED-1"));
     }
 
-    private static Task<List<ClassSummaryServiceModel>> ListAsync(
+    private static Task<List<ClassListRow>> ListAsync(
         ClassesTestHost host,
         ClassListPosition? after,
         int take,

@@ -261,6 +261,16 @@ public sealed class CmsArtistsEndpointTests
 
     private sealed class RecordingArtistsFacade : IArtistsFacade
     {
+        public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistServiceModel>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistServiceModel?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<Guid, global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistCreditServiceModel>> DescribeCreditsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public static readonly ArtistServiceModel Artist = new(
             Guid.Parse("44444444-4444-4444-4444-444444444444"), "Jane Doe", "jane-doe", null, null, true, null,
             PublishStatus.Draft, null, null, false, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, Subject,

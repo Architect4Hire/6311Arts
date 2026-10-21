@@ -56,6 +56,9 @@ internal interface IExhibitionsDataLayer
     /// <summary>The ids of exhibitions Scheduled for <paramref name="asOf"/> or earlier, oldest first.</summary>
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
+    /// <summary>Published exhibitions with their credits, untracked: all of them, or the one with <paramref name="slug"/>.</summary>
+    Task<List<Exhibition>> ListPublishedAsync(string? slug, CancellationToken cancellationToken);
+
     /// <summary>Every slug in use, for the development seed.</summary>
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);
 

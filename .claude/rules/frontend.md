@@ -65,10 +65,10 @@ paths:
   - **A membership plan's price and billing cadence** are plain fields before the first push and Square's figures
     afterwards, read-only with **no** Change action: a plan has no such command (ADR 0005, 0040). The editor says so
     and names Square as where they change.
-  - **A class session's capacity is the CMS's, not Square's** (ADR 0032), so it stays an ordinary field after the
+  - **A class run's capacity is the CMS's, not Square's** (ADR 0032, 0044), so it stays an ordinary field after the
     first sync; a change to it is what makes the seat adjustment. What is read-only beside it is the seats *remaining*.
   - The sync status chip needs a `SyncStatus` to show, which arrives with `SquareCatalogLink` in 5.1. Until then a
-    class session or shop item reads "Not in Square yet" or shows Square's own figures (ADR 0037, 0038).
+    class run or shop item reads "Not in Square yet" or shows Square's own figures (ADR 0037, 0038, 0044).
   - **A shop item's one-of-a-kind flag and starting count** are editable only before the first sync, and the count
     field is hidden while the flag is set: there is one of it, so there is nothing to type (ADR 0038).
 - **A 409 conflict** shows both versions and keeps the editor's changes.

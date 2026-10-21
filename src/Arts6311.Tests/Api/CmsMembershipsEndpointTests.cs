@@ -289,6 +289,12 @@ public sealed class CmsMembershipsEndpointTests
     /// <summary>The facade as far as the controller is concerned: what it was handed, and one chosen answer.</summary>
     private sealed class RecordingMembershipsFacade : IMembershipsFacade
     {
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<IReadOnlyList<global::Arts6311.Domain.Modules.Memberships.Managers.ServiceModels.SiteMembershipPlanServiceModel>>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Memberships.Managers.ServiceModels.SiteMembershipPlanServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public static readonly MembershipPlanServiceModel Plan = new(
             Guid.Parse("66666666-6666-6666-6666-666666666666"),
             "Gray",

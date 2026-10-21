@@ -1,3 +1,5 @@
+using System.Globalization;
+using Arts6311.Domain.Managers.Caching;
 using Arts6311.Domain.Managers.Results;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,6 +23,23 @@ internal static class ControllerResultExtensions
         return result.Succeeded
             ? controller.Ok(result.Value)
             : controller.ProblemFor(result.Error!);
+    }
+
+    /// <summary>
+    /// A public site read (ADR 0042): as <see cref="ToActionResult{T}"/>, with <c>Cache-Control: public, max-age</c>
+    /// of <see cref="SiteCachePolicy.HttpMaxAge"/> on success, and <c>no-store</c> on a failure, so a cache in front
+    /// never keeps a 404 for an address that is about to be published.
+    /// </summary>
+    public static IActionResult ToSiteReadResult<T>(this ControllerBase controller, OperationResult<T> result)
+    {
+        ArgumentNullException.ThrowIfNull(controller);
+        ArgumentNullException.ThrowIfNull(result);
+
+        controller.Response.Headers.CacheControl = result.Succeeded
+            ? string.Create(CultureInfo.InvariantCulture, $"public, max-age={(int)SiteCachePolicy.HttpMaxAge.TotalSeconds}")
+            : "no-store";
+
+        return controller.ToActionResult(result);
     }
 
     /// <summary>Success → <c>202</c> with the ServiceModel: accepted work the Worker will finish.</summary>

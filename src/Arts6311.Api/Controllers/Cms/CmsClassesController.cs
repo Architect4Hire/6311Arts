@@ -19,9 +19,10 @@ namespace Arts6311.Api.Controllers.Cms;
 /// Every write after the create carries the <c>ETag</c> it read as <c>If-Match</c> — the status commands too, so
 /// nobody publishes a version they have not seen. Archive is Admin-only (auth.md "Sensitive operations") and audited.
 /// <para>
-/// A session's SKU and capacity are edited here because the CMS owns them; its price, seats remaining and sold-out
-/// are Square's record and are read-only in every response (square.md, ADR 0032). The starting price is a CMS field
-/// only until Square reports a price, which <c>startingPriceEditable</c> says.
+/// A class is offered in runs (ADR 0044). A run's instructor, sessions, SKU and capacity are edited here because the
+/// CMS owns them; its price, seats remaining and sold-out are Square's record and are read-only in every response
+/// (square.md, ADR 0032). A run's starting price is a CMS field only until Square reports a price for it, which the
+/// run's <c>startingPriceEditable</c> says.
 /// </para>
 /// </remarks>
 [ApiController]
@@ -49,9 +50,9 @@ public sealed class CmsClassesController(IClassesFacade facade) : ControllerBase
         WithETag(await facade.GetAsync(id, cancellationToken));
 
     /// <summary>
-    /// A new Draft. The slug is made from the title when none is sent, and each session gets a suggested SKU
+    /// A new Draft. The slug is made from the title when none is sent, and each run gets a suggested SKU
     /// (<c>CLS-&lt;offering&gt;-&lt;n&gt;</c>) when none is sent. A SKU another record already uses is a 409
-    /// (<c>cms.sku_taken</c>).
+    /// (<c>cms.sku_taken</c>); a run's instructor who is not there, or is archived, is a 400.
     /// </summary>
     [HttpPost]
     [ProducesResponseType<ClassServiceModel>(StatusCodes.Status201Created)]
@@ -71,8 +72,8 @@ public sealed class CmsClassesController(IClassesFacade facade) : ControllerBase
     }
 
     /// <summary>
-    /// An edit. A field left out is unchanged; an empty string clears a text field; <c>sessions</c> replaces the
-    /// sittings. Status changes only through the commands below.
+    /// An edit. A field left out is unchanged; an empty string clears a text field; <c>runs</c> replaces the runs,
+    /// and each run's <c>sessions</c> replaces its sittings. Status changes only through the commands below.
     /// </summary>
     [HttpPatch("{id:guid}")]
     [ProducesResponseType<ClassServiceModel>(StatusCodes.Status200OK)]
@@ -88,7 +89,8 @@ public sealed class CmsClassesController(IClassesFacade facade) : ControllerBase
         WithETag(await facade.UpdateAsync(id, update, ifMatch, User.UserId(), cancellationToken));
 
     /// <summary>
-    /// Draft → Published. Refused without a summary, a starting price or a session, or while the hero has no alt text.
+    /// Draft → Published. Refused without a summary or a run, while any run lacks an instructor, a session or a
+    /// starting price, or while the hero has no alt text — every problem in one answer, keyed to <c>runs</c>.
     /// </summary>
     [HttpPost("{id:guid}/publish")]
     [ProducesResponseType<ClassServiceModel>(StatusCodes.Status200OK)]

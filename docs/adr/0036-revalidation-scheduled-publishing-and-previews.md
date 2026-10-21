@@ -1,6 +1,6 @@
 # 0036 — Revalidation by cache tag, the scheduled publisher, and preview links
 
-- **Status:** Accepted
+- **Status:** Accepted — the preview answer's shape amended by [0042](0042-site-read-api-and-its-cache.md)
 - **Date:** 2026-10-20
 - **Rules affected:** `.claude/rules/content.md`, `.claude/rules/outbox.md`, `.claude/rules/aspire.md`,
   `.claude/rules/backend.md`, `.claude/rules/api-contract.md`

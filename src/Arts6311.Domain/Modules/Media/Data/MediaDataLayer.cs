@@ -166,6 +166,9 @@ internal sealed partial class MediaDataLayer(
         IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
         repository.FindAttachabilityAsync(ids, cancellationToken);
 
+    public Task<List<MediaAsset>> FindWithRenditionsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+        repository.FindWithRenditionsAsync(ids, cancellationToken);
+
     public Task<MediaDeliveryRecord?> FindDeliveryAsync(Guid id, string? rendition, CancellationToken cancellationToken) =>
         repository.FindDeliveryAsync(id, rendition, cancellationToken);
 

@@ -7,6 +7,9 @@ import { CMS_SECTIONS } from './features/layout/sections';
 const artistEditor = () =>
   import('./features/artists/artist-editor').then((m) => m.ArtistEditor);
 
+const instructorEditor = () =>
+  import('./features/instructors/instructor-editor').then((m) => m.InstructorEditor);
+
 const exhibitionEditor = () =>
   import('./features/exhibitions/exhibition-editor').then((m) => m.ExhibitionEditor);
 
@@ -37,6 +40,10 @@ const SCREENS: Readonly<Record<string, Pick<Route, 'loadComponent' | 'canDeactiv
   artists: {
     loadComponent: () => import('./features/artists/artist-list').then((m) => m.ArtistList),
   },
+  instructors: {
+    loadComponent: () =>
+      import('./features/instructors/instructor-list').then((m) => m.InstructorList),
+  },
   classes: {
     loadComponent: () => import('./features/classes/class-list').then((m) => m.ClassList),
   },
@@ -66,6 +73,18 @@ const SCREENS: Readonly<Record<string, Pick<Route, 'loadComponent' | 'canDeactiv
 const DETAIL_ROUTES: Routes = [
   { path: 'artists/new', title: 'New artist', section: 'artists', loadComponent: artistEditor },
   { path: 'artists/:id', title: 'Artist', section: 'artists', loadComponent: artistEditor },
+  {
+    path: 'instructors/new',
+    title: 'New instructor',
+    section: 'instructors',
+    loadComponent: instructorEditor,
+  },
+  {
+    path: 'instructors/:id',
+    title: 'Instructor',
+    section: 'instructors',
+    loadComponent: instructorEditor,
+  },
   {
     path: 'exhibitions/new',
     title: 'New exhibition',

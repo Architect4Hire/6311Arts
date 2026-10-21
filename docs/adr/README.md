@@ -55,11 +55,14 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0034](0034-html-sanitizer-and-pages.md) | The shared HTML sanitizer (HtmlSanitizer 9.2, allow-list, library-only images) and Pages; Tiptap 3 in the admin; placeholder pages everywhere | Accepted |
 | [0035](0035-redirects-and-slug-changes.md) | Redirects: one hop, slug changes through the outbox (paths in the payload), a 5-minute site cache until 2.8, a SlugChange source | Accepted; the cache is now cleared by 0036 |
 | [0036](0036-revalidation-scheduled-publishing-and-previews.md) | Revalidation by cache tag through a shared Redis L2 (≤1 minute stale), the row-version-claimed scheduled publisher, Data Protection preview links, the Preview module | Accepted; media visibility still DECIDE, now owned by 3.1 |
-| [0037](0037-classes-and-the-shared-catalog-sku-registry.md) | Classes: the shared catalog SKU registry, session-level Square projections, sanitized class bodies | Accepted |
+| [0037](0037-classes-and-the-shared-catalog-sku-registry.md) | Classes: the shared catalog SKU registry, session-level Square projections, sanitized class bodies | Accepted (amended by 0044: the run, not the session, holds the SKU and projections) |
 | [0038](0038-shop-items-artwork-categories-and-one-of-a-kind.md) | Shop items: artwork only, a category allow-list, an ordered gallery, the one-of-a-kind freeze | Accepted |
 | [0039](0039-csp-hashes-for-the-sites-inline-scripts.md) | The site's three inline scripts are allowed by `sha256-` hash, never by nonce (cached HTML) or `'unsafe-inline'`; WordPress origins are development-only | Accepted |
 | [0040](0040-membership-plans-without-a-page-of-their-own.md) | Membership plans have no page of their own (slug as a key, `/memberships` revalidated, no rename redirect), ordered perk rows, a CMS starting cadence, and `featured` as a plain flag | Accepted |
 | [0041](0041-telemetry-does-not-export-log-scopes.md) | Log scopes are not exported (ASP.NET Core's hosting scope carries `RequestPath`, and a preview token is a path segment); YARP's forwarder is quietened to `Warning` | Accepted |
+| [0042](0042-site-read-api-and-its-cache.md) | The site read API: published-only `/site/*` reads, cache entries tagged by every type they show, the site's own read models (also the preview's), a facade-only `Site` module, and image publishing decided as ADR 0030 option 1 (built in 3.1b) | Accepted (images: 3.1b) |
+| [0043](0043-instructors-as-their-own-content-type.md) | Instructors are their own content type (not an artist flag): website and Instagram in one stored shape, an optional `Restrict` link to an artist, every edit revalidated, site reads cached under `instructor` and `artist` | Accepted |
+| [0044](0044-class-runs-with-their-own-instructor-and-seats.md) | Classes are offering → runs → sessions: the run is the Square variation (SKU `class-run`, capacity, starting price, projections) and names an instructor by id; sessions are times only; site reads list upcoming runs and filter by instructor. Amends 0037 | Accepted |
 
 ## Template
 

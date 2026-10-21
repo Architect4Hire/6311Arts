@@ -9,10 +9,12 @@ using Arts6311.Domain.Modules.Exhibitions;
 using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
+using Arts6311.Domain.Modules.Instructors;
 using Arts6311.Domain.Modules.Media;
 using Arts6311.Domain.Modules.Memberships;
 using Arts6311.Domain.Modules.Pages;
 using Arts6311.Domain.Modules.Preview;
+using Arts6311.Domain.Modules.Site;
 using Arts6311.Domain.Modules.Redirects;
 using Arts6311.Domain.Modules.Shop;
 using Arts6311.Domain.Modules.Operations;
@@ -49,14 +51,18 @@ builder.Services.AddMediaModule();
 // The artist roster (content.md). Its facade asks Media about portraits, so it comes after AddMediaModule.
 builder.Services.AddArtistsModule();
 
+// The people who teach (content.md, ADR 0043). Its facade asks Media about portraits and Artists about the artist an
+// instructor also is, so it comes after both; Classes asks it about each run's instructor, so it comes before Classes.
+builder.Services.AddInstructorsModule();
+
 // Exhibitions (content.md). Its facade asks Media about heroes and Artists about credits, so it comes after both.
 builder.Services.AddExhibitionsModule();
 
 // Pages (content.md): sanitized HTML bodies. Its facade asks Media about the pictures a body shows.
 builder.Services.AddPagesModule();
 
-// Classes (content.md, ADR 0037): offerings and their sessions. Its facade asks Media about the hero and the
-// pictures a description shows, so it comes after AddMediaModule.
+// Classes (content.md, ADR 0037, 0044): offerings, their runs and the runs' sessions. Its facade asks Media about the
+// hero and the pictures a description shows, and Instructors about each run's instructor, so it comes after both.
 builder.Services.AddClassesModule();
 
 // The shop's artwork (content.md, ADR 0038). Its facade asks Media about the photographs and Artists about the
@@ -73,6 +79,10 @@ builder.Services.AddRedirectsModule();
 // Previews (ADR 0036): staff mint a signed, expiring link here and the site reads it back. After the content
 // modules, whose facades it asks for the record, and after Data Protection, which signs the token.
 builder.Services.AddPreviewModule();
+
+// The site's reads that span modules (ADR 0042): the artist directory and pages, which need Shop's work, and the
+// sitemap, which needs every content type. After the content modules, whose facades it asks.
+builder.Services.AddSiteModule();
 
 // The credential store (ADR 0002). AddIdentityCore only: no cookie scheme and no SignInManager, because the
 // gateway owns the browser session and the API takes no cookies at all.

@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Caching;
 using Arts6311.Domain.Managers.Concurrency;
 using Arts6311.Domain.Managers.Html;
 using Arts6311.Domain.Managers.Paging;
@@ -14,8 +15,8 @@ using FluentValidation;
 namespace Arts6311.Domain.Modules.Pages.Facade;
 
 /// <summary>
-/// Validates shape, asks Media about the pictures a body shows, then calls Business. Nothing is cached: these are CMS
-/// reads; the site's cached reads arrive in Phase 3.
+/// Validates shape, asks Media about the pictures a body shows, then calls Business. The CMS reads are never cached;
+/// the site's read is, under the <c>page</c> type tag that every page's revalidation clears (ADR 0042).
 /// </summary>
 /// <remarks>
 /// Which pictures a body shows is only known once it is sanitized, so the facade runs the shared sanitizer to find
@@ -29,9 +30,13 @@ internal sealed class PagesFacade(
     IValidator<PageCreateViewModel> createValidator,
     IValidator<PageUpdateViewModel> updateValidator,
     IValidator<PageListViewModel> listValidator,
-    IValidator<ContentScheduleViewModel> scheduleValidator) : IPagesFacade
+    IValidator<ContentScheduleViewModel> scheduleValidator,
+    IAppCache cache) : IPagesFacade
 {
     private const string What = "this page";
+
+    /// <summary>Every site read of a page carries the type tag: any page change clears them all (ADR 0042).</summary>
+    internal static readonly string[] SiteTags = [CacheTags.Type(PageAudit.ResourceType)];
 
     public async Task<OperationResult<CursorPage<PageSummaryServiceModel>>> ListAsync(
         PageListViewModel request, CancellationToken cancellationToken)
@@ -129,6 +134,33 @@ internal sealed class PagesFacade(
 
     public Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken) =>
         business.PublishScheduledAsync(id, asOf, cancellationToken);
+
+    public async Task<OperationResult<SitePageServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken)
+    {
+        // A malformed slug can't name a page, and must not become a cache key (CacheKeys refuses a ':').
+        if (!Slugs.IsValid(slug))
+        {
+            return SiteNotFound();
+        }
+
+        var page = await cache.GetOrCreateFoundAsync(
+            CacheKeys.Item(PageAudit.ResourceType, slug),
+            async token => (await business.GetForSiteAsync(slug, token)).Value,
+            SiteTags,
+            SiteCachePolicy.Lifetime,
+            cancellationToken);
+
+        return page is null ? SiteNotFound() : OperationResult.Success(page);
+    }
+
+    public Task<OperationResult<PreviewRecord<SitePageServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) =>
+        business.GetForPreviewAsync(id, cancellationToken);
+
+    public Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
+        business.ListSitemapAsync(cancellationToken);
+
+    private static OperationResult<SitePageServiceModel> SiteNotFound() =>
+        OperationResult.Failure<SitePageServiceModel>(OperationError.Of(ErrorCodes.NotFound, "There is no such page."));
 
     /// <summary>A status command. Without If-Match it is a 428 before anything is read.</summary>
     private async Task<OperationResult<PageServiceModel>> TransitionAsync(

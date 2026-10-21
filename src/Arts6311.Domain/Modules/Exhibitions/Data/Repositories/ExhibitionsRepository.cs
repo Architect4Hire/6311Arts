@@ -76,6 +76,24 @@ internal sealed class ExhibitionsRepository(ArtsDbContext context) : IExhibition
             .Select(exhibition => exhibition.Id)
             .ToListAsync(cancellationToken);
 
+    public Task<List<Exhibition>> ListPublishedAsync(string? slug, CancellationToken cancellationToken)
+    {
+        var query = Exhibitions.AsNoTracking()
+            .Include(exhibition => exhibition.Artists)
+            .Where(exhibition => exhibition.Status == PublishStatus.Published);
+
+        if (slug is not null)
+        {
+            query = query.Where(exhibition => exhibition.Slug == slug);
+        }
+
+        return query
+            .OrderByDescending(exhibition => exhibition.StartDate)
+            .ThenBy(exhibition => exhibition.Title)
+            .ThenBy(exhibition => exhibition.Id)
+            .ToListAsync(cancellationToken);
+    }
+
     public void DiscardChanges() => context.ChangeTracker.Clear();
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);

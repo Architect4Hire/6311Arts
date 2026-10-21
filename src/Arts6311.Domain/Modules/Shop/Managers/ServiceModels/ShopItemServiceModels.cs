@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using Arts6311.Domain.Modules.Artists.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Media.Managers.ServiceModels;
 using Arts6311.Domain.Managers.Publishing;
 
 namespace Arts6311.Domain.Modules.Shop.Managers.ServiceModels;
@@ -88,3 +90,40 @@ public sealed record ShopItemSummaryServiceModel(
     bool SoldOut,
     string Currency,
     DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// One published piece in the site's shop (ADR 0042): the CMS's copy and Square's record of the money, with no SKU,
+/// stock count, starting figures, status or staff bookkeeping.
+/// </summary>
+/// <param name="Artist">Who made it, or <c>null</c> when nobody is credited.</param>
+/// <param name="Image">The lead photograph's renditions, or <c>null</c> when there are none yet.</param>
+/// <param name="PriceCents">Square's record of the price; <c>null</c> until Square has reported one, and then it can't be bought yet.</param>
+/// <param name="SoldOut">Square's record of whether it is sold out.</param>
+public sealed record SiteShopItemSummaryServiceModel(
+    Guid Id,
+    string Slug,
+    string Title,
+    SiteArtistCreditServiceModel? Artist,
+    IReadOnlyList<string> Categories,
+    SiteImageServiceModel? Image,
+    long? PriceCents,
+    string Currency,
+    bool OneOfAKind,
+    bool SoldOut);
+
+/// <summary>One published piece's page (ADR 0042): the shop's fields, the description and the whole gallery.</summary>
+/// <param name="DescriptionHtml">Sanitized HTML (ADR 0034): exactly what is stored, which is all the site renders.</param>
+/// <param name="Images">The gallery in the order staff set; the first leads. Photographs without renditions yet are left out.</param>
+public sealed record SiteShopItemServiceModel(
+    Guid Id,
+    string Slug,
+    string Title,
+    string? DescriptionHtml,
+    SiteArtistCreditServiceModel? Artist,
+    IReadOnlyList<string> Categories,
+    SiteImageServiceModel? Image,
+    IReadOnlyList<SiteImageServiceModel> Images,
+    long? PriceCents,
+    string Currency,
+    bool OneOfAKind,
+    bool SoldOut);

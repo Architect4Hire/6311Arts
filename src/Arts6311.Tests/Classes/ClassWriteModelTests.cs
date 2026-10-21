@@ -25,8 +25,10 @@ public sealed class ClassWriteModelTests
     [
         typeof(ClassCreateViewModel),
         typeof(ClassUpdateViewModel),
+        typeof(ClassRunViewModel),
         typeof(ClassSessionViewModel),
         typeof(ClassListViewModel),
+        typeof(SiteClassListViewModel),
     ];
 
     public static TheoryData<Type> WriteModels => [.. Covered];
@@ -57,10 +59,10 @@ public sealed class ClassWriteModelTests
     public void TheReadModelDoesCarryThemAsReadOnlyProjections()
     {
         // The other half of the rule: staff see what Square holds, they just cannot send it.
-        var session = typeof(ClassSessionServiceModel).GetProperties().Select(property => property.Name).ToList();
+        var run = typeof(ClassRunServiceModel).GetProperties().Select(property => property.Name).ToList();
 
-        Assert.Contains("PriceCents", session);
-        Assert.Contains("SeatsRemaining", session);
-        Assert.Contains("SoldOut", session);
+        Assert.Contains("PriceCents", run);
+        Assert.Contains("SeatsRemaining", run);
+        Assert.Contains("SoldOut", run);
     }
 }

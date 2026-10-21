@@ -35,7 +35,7 @@ public sealed class ArtistsLayerTests
         var outcome = await dataLayer.UpdateAsync(artist, "editor-2", "Updated: bio.", pathChange: null, Ct);
 
         Assert.Equal(ArtistWriteOutcome.Saved, outcome);
-        Assert.Equal(["audit:artist.updated", "save"], log.Calls);
+        Assert.Equal(["outbox:site.revalidate-requested", "audit:artist.updated", "save"], log.Calls);
         Assert.Equal("editor-2", artist.UpdatedBy);
         Assert.Equal(Now, artist.UpdatedAt);
         Assert.NotEqual(before, artist.RowVersion);
@@ -54,6 +54,20 @@ public sealed class ArtistsLayerTests
         Assert.Equal(
             ["outbox:redirects.slug-changed", "outbox:site.revalidate-requested", "audit:artist.updated", "save"],
             log.Calls);
+    }
+
+    [Fact]
+    public async Task ADraftArtistsEditIsRevalidatedTooBecauseCreditsShowTheirName()
+    {
+        // ADR 0042: an unpublished artist is still credited by name on published work, so their rename changes what
+        // the site shows, unlike a draft of any other type.
+        var (dataLayer, repository, _, log) = DataLayer();
+        var artist = new FakeArtistsDataLayer().Add(PublishStatus.Draft);
+        repository.Rows.Add(artist);
+
+        await dataLayer.UpdateAsync(artist, "editor-1", "Updated: name.", pathChange: null, Ct);
+
+        Assert.Equal(["outbox:site.revalidate-requested", "audit:artist.updated", "save"], log.Calls);
     }
 
     [Fact]

@@ -7,6 +7,8 @@ using Arts6311.Domain.Modules.Classes.Facade;
 using Arts6311.Domain.Modules.Classes.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Exhibitions.Facade;
 using Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Instructors.Facade;
+using Arts6311.Domain.Modules.Instructors.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Memberships.Facade;
 using Arts6311.Domain.Modules.Memberships.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Pages.Facade;
@@ -43,6 +45,7 @@ namespace Arts6311.Domain.Modules.Preview.Facade;
 internal sealed class PreviewFacade(
     IPreviewTokens tokens,
     IArtistsFacade artists,
+    IInstructorsFacade instructors,
     IExhibitionsFacade exhibitions,
     IPagesFacade pages,
     IClassesFacade classes,
@@ -97,73 +100,48 @@ internal sealed class PreviewFacade(
         switch (entityType)
         {
             case "artist":
-                var artist = await artists.GetAsync(entityId, cancellationToken);
-                return artist.Succeeded
-                    ? Preview(
-                        entityType,
-                        entityId,
-                        SitePaths.AddressOf(prefix, artist.Value!.Slug),
-                        artist.Value.Status,
-                        artist: ForPreview(artist.Value))
-                    : OperationResult.Failure<ContentPreviewServiceModel>(artist.Error!);
+                return Preview(
+                    await artists.GetForPreviewAsync(entityId, cancellationToken),
+                    entityType, entityId, record => SitePaths.AddressOf(prefix, record.Slug),
+                    record => new() { Artist = record });
+
+            case "instructor":
+                return Preview(
+                    await instructors.GetForPreviewAsync(entityId, cancellationToken),
+                    entityType, entityId, record => SitePaths.AddressOf(prefix, record.Slug),
+                    record => new() { Instructor = record });
 
             case "exhibition":
-                var exhibition = await exhibitions.GetAsync(entityId, cancellationToken);
-                return exhibition.Succeeded
-                    ? Preview(
-                        entityType,
-                        entityId,
-                        SitePaths.AddressOf(prefix, exhibition.Value!.Slug),
-                        exhibition.Value.Status,
-                        exhibition: ForPreview(exhibition.Value))
-                    : OperationResult.Failure<ContentPreviewServiceModel>(exhibition.Error!);
+                return Preview(
+                    await exhibitions.GetForPreviewAsync(entityId, cancellationToken),
+                    entityType, entityId, record => SitePaths.AddressOf(prefix, record.Slug),
+                    record => new() { Exhibition = record });
 
             case "page":
-                var page = await pages.GetAsync(entityId, cancellationToken);
-                return page.Succeeded
-                    ? Preview(
-                        entityType,
-                        entityId,
-                        SitePaths.AddressOf(prefix, page.Value!.Slug),
-                        page.Value.Status,
-                        page: ForPreview(page.Value))
-                    : OperationResult.Failure<ContentPreviewServiceModel>(page.Error!);
+                return Preview(
+                    await pages.GetForPreviewAsync(entityId, cancellationToken),
+                    entityType, entityId, record => SitePaths.AddressOf(prefix, record.Slug),
+                    record => new() { Page = record });
 
             case "class-offering":
-                var offering = await classes.GetAsync(entityId, cancellationToken);
-                return offering.Succeeded
-                    ? Preview(
-                        entityType,
-                        entityId,
-                        SitePaths.AddressOf(prefix, offering.Value!.Slug),
-                        offering.Value.Status,
-                        classOffering: ForPreview(offering.Value))
-                    : OperationResult.Failure<ContentPreviewServiceModel>(offering.Error!);
+                return Preview(
+                    await classes.GetForPreviewAsync(entityId, cancellationToken),
+                    entityType, entityId, record => SitePaths.AddressOf(prefix, record.Slug),
+                    record => new() { ClassOffering = record });
 
             case "shop-item":
-                var piece = await shop.GetAsync(entityId, cancellationToken);
-                return piece.Succeeded
-                    ? Preview(
-                        entityType,
-                        entityId,
-                        SitePaths.AddressOf(prefix, piece.Value!.Slug),
-                        piece.Value.Status,
-                        shopItem: ForPreview(piece.Value))
-                    : OperationResult.Failure<ContentPreviewServiceModel>(piece.Error!);
+                return Preview(
+                    await shop.GetForPreviewAsync(entityId, cancellationToken),
+                    entityType, entityId, record => SitePaths.AddressOf(prefix, record.Slug),
+                    record => new() { ShopItem = record });
 
             case "membership-plan":
-                var plan = await memberships.GetAsync(entityId, cancellationToken);
-
                 // The prefix is the whole address here: every tier is shown on the memberships page, so there is
                 // no slug to append (ADR 0040).
-                return plan.Succeeded
-                    ? Preview(
-                        entityType,
-                        entityId,
-                        prefix,
-                        plan.Value!.Status,
-                        membershipPlan: ForPreview(plan.Value))
-                    : OperationResult.Failure<ContentPreviewServiceModel>(plan.Error!);
+                return Preview(
+                    await memberships.GetForPreviewAsync(entityId, cancellationToken),
+                    entityType, entityId, _ => prefix,
+                    record => new() { MembershipPlan = record });
 
             default:
                 // As above: a type with a prefix but no branch here.
@@ -172,48 +150,58 @@ internal sealed class PreviewFacade(
     }
 
     /// <summary>
-    /// The CMS record with the CMS's own bookkeeping emptied (ADR 0036): a preview is read by whoever holds the
-    /// link, and <c>updatedBy</c> is a staff user id, while the <c>ETag</c> and the legacy id say nothing about
-    /// what the page looks like. The fields stay in the shape, because the shape is the CMS ServiceModel until
-    /// 3.1 defines the site's own.
+    /// The module's answer as a preview: the site's own model for the record (ADR 0042), so a preview shows exactly
+    /// what the published page would, and carries none of the CMS's bookkeeping — <c>updatedBy</c> is a staff user id,
+    /// and the <c>ETag</c> and the legacy id say nothing about what the page looks like (ADR 0036).
     /// </summary>
-    private static ArtistServiceModel ForPreview(ArtistServiceModel artist) =>
-        artist with { UpdatedBy = string.Empty, ETag = string.Empty, LegacyWordPressId = null };
-
-    /// <inheritdoc cref="ForPreview(ArtistServiceModel)"/>
-    private static ExhibitionServiceModel ForPreview(ExhibitionServiceModel exhibition) =>
-        exhibition with { UpdatedBy = string.Empty, ETag = string.Empty, LegacyWordPressId = null };
-
-    /// <inheritdoc cref="ForPreview(ArtistServiceModel)"/>
-    private static PageServiceModel ForPreview(PageServiceModel page) =>
-        page with { UpdatedBy = string.Empty, ETag = string.Empty, LegacyWordPressId = null };
-
-    /// <inheritdoc cref="ForPreview(ArtistServiceModel)"/>
-    private static ClassServiceModel ForPreview(ClassServiceModel offering) =>
-        offering with { UpdatedBy = string.Empty, ETag = string.Empty, LegacyWordPressId = null };
-
-    /// <inheritdoc cref="ForPreview(ArtistServiceModel)"/>
-    private static ShopItemServiceModel ForPreview(ShopItemServiceModel item) =>
-        item with { UpdatedBy = string.Empty, ETag = string.Empty, LegacyWordPressId = null };
-
-    /// <inheritdoc cref="ForPreview(ArtistServiceModel)"/>
-    private static MembershipPlanServiceModel ForPreview(MembershipPlanServiceModel plan) =>
-        plan with { UpdatedBy = string.Empty, ETag = string.Empty, LegacyWordPressId = null };
-
-    private static OperationResult<ContentPreviewServiceModel> Preview(
+    /// <param name="member">Which one of the preview's named members the record goes in.</param>
+    private static OperationResult<ContentPreviewServiceModel> Preview<T>(
+        OperationResult<PreviewRecord<T>> found,
         string entityType,
         Guid entityId,
-        string path,
-        PublishStatus status,
-        ArtistServiceModel? artist = null,
-        ExhibitionServiceModel? exhibition = null,
-        PageServiceModel? page = null,
-        ClassServiceModel? classOffering = null,
-        ShopItemServiceModel? shopItem = null,
-        MembershipPlanServiceModel? membershipPlan = null) =>
-        OperationResult.Success(new ContentPreviewServiceModel(
-            entityType, entityId, path, status, NoIndex: true, artist, exhibition, page, classOffering, shopItem,
-            membershipPlan));
+        Func<T, string> pathOf,
+        Func<T, PreviewMember> member)
+        where T : class
+    {
+        if (!found.Succeeded)
+        {
+            return OperationResult.Failure<ContentPreviewServiceModel>(found.Error!);
+        }
+
+        var (record, status) = found.Value!;
+        var set = member(record);
+        return OperationResult.Success(new ContentPreviewServiceModel(
+            entityType,
+            entityId,
+            pathOf(record),
+            status,
+            NoIndex: true,
+            set.Artist,
+            set.Exhibition,
+            set.Page,
+            set.ClassOffering,
+            set.ShopItem,
+            set.MembershipPlan,
+            set.Instructor));
+    }
+
+    /// <summary>The one member a preview sets, named so <see cref="Preview{T}"/> stays one method for every type.</summary>
+    private sealed record PreviewMember
+    {
+        public SiteArtistServiceModel? Artist { get; init; }
+
+        public SiteExhibitionServiceModel? Exhibition { get; init; }
+
+        public SitePageServiceModel? Page { get; init; }
+
+        public SiteClassServiceModel? ClassOffering { get; init; }
+
+        public SiteShopItemServiceModel? ShopItem { get; init; }
+
+        public SiteMembershipPlanServiceModel? MembershipPlan { get; init; }
+
+        public SiteInstructorServiceModel? Instructor { get; init; }
+    }
 
     private static OperationResult<ContentPreviewServiceModel> NotFound() =>
         OperationResult.Failure<ContentPreviewServiceModel>(

@@ -642,9 +642,9 @@ BEHAVIOR: Report findings grouped by reviewer; wait for my go before fixing; re-
 ## 3.1 — Site read API
 
 ```
-SCOPE: /api/v1/site/* read endpoints (anonymous, published only): classes (+ sessions with seats/sold
-out), exhibitions, artists (+ works), shop (filters, cursor), memberships, pages, redirects, sitemap
-entries. HybridCache with tags invalidated by the 2.8 revalidation handler.
+SCOPE: /api/v1/site/* read endpoints (anonymous, published only): classes (+ upcoming runs with their
+instructor, sessions and seats/sold out; ?instructor= filter, ADR 0044), instructors (ADR 0043), exhibitions,
+artists (+ works), shop (filters, cursor), memberships, pages, redirects, sitemap entries. HybridCache with tags invalidated by the 2.8 revalidation handler.
 
 CONSTRAINT: api-contract.md; add-endpoint.
 
@@ -654,6 +654,23 @@ UTILIZATION: add-endpoint; @api-contract-checker.
 
 BEHAVIOR: Plan route list + ServiceModels mapped to the spike's models, wait, implement, test cache
 hit/miss/invalidate. Report.
+```
+
+## 3.1b — Publishing an image
+
+```
+SCOPE: media.publish-requested (ADR 0042, ADR 0030 option 1): every publish, scheduled publish included,
+stages it in the same save with the image ids the record shows (hero, portrait, gallery, body images); a
+keyed Media handler marks those assets Published, one way. Backfill records published before this lands.
+
+CONSTRAINT: outbox.md; media.md; add-outbox-message.
+
+RESTRICTION: Payload is ids only. Never turn an image back to Draft. No cross-module read at delivery.
+
+UTILIZATION: add-outbox-message; @outbox-reviewer, @architecture-reviewer.
+
+BEHAVIOR: Plan, wait, implement; tests incl. failed save leaves neither row nor message, idempotent handler,
+malformed payload poisons, anonymous 200 for a published record's rendition and 404 for a draft's. Report.
 ```
 
 ## 3.2 — Replace WpApi with SiteApi
@@ -829,17 +846,17 @@ content update, SKU change, image change, no-op skip, version conflict, timeout-
 reconciliation, duplicate delivery. Demo against the fake.
 ```
 
-## 5.4a — Change price command (artwork + class sessions)
+## 5.4a — Change price command (artwork + class runs)
 
 ```
 SCOPE: POST /api/v1/cms/shop/{id}/price-changes and
-POST /api/v1/cms/classes/{id}/sessions/{sid}/price-changes {newPriceCents, expectedPriceCents}
+POST /api/v1/cms/classes/{id}/runs/{rid}/price-changes {newPriceCents, expectedPriceCents}
 (CmsEditor, Idempotency-Key, audited): only for linked items; writes a SquareChangeRequest (Price,
 Pending) and stages `square.price-change-requested {requestId}` in one save. Handler: retrieve the
 variation; current price ≠ expected → Rejected (reason price_changed_in_square); else full-object
 upsert with the last version (re-read once on conflict); timeout → read back. The inbound pull (5.7)
 marks it Applied when Square shows the value. Admin: price shows Square's figure + Change dialog +
-request state; for a class, "apply to all upcoming sessions" sends one request per session.
+request state; for a class, "apply to all upcoming runs" sends one request per run (ADR 0044).
 
 CONSTRAINT: ADR 0032; square.md; add-endpoint; add-outbox-message; add-square-sync §5. Verify catalog
 upsert/version behaviour on developer.squareup.com and cite it.
@@ -940,12 +957,12 @@ BEHAVIOR: tests: stock → 0 shows "Sold out" on the site; stale event can't res
 ## 5.9 — Classes sync + seat adjustment
 
 ```
-SCOPE: add-square-sync for ClassOffering (ITEM) / ClassSession (ITEM_VARIATION with SKU, starting price,
-inventory = capacity at create). After linking, editing a session's capacity in the class editor (the
-normal session save: CmsEditor, row version, audited) writes a SquareChangeRequest (Capacity) and
+SCOPE: add-square-sync for ClassOffering (ITEM) / ClassRun (ITEM_VARIATION with SKU, starting price,
+inventory = capacity at create; ADR 0044 — sessions are only times). After linking, editing a run's capacity
+in the class editor (the normal run save: CmsEditor, row version, audited) writes a SquareChangeRequest (Capacity) and
 stages `square.inventory-change-requested` as an ADJUSTMENT of newCapacity − oldCapacity in the same
 save. A reduction larger than SeatsRemaining → 409; the handler re-reads the count and sets
-NeedsAttention rather than go negative. Sessions added later are created as new variations by the push.
+NeedsAttention rather than go negative. Runs added later are created as new variations by the push.
 
 CONSTRAINT: ADR 0032; add-square-sync; add-endpoint; add-outbox-message. Verify the ADJUSTMENT
 from/to states for adding and removing seats on developer.squareup.com and cite them.
@@ -954,7 +971,7 @@ RESTRICTION: Never recompute seats locally from orders. Never write SeatsRemaini
 
 UTILIZATION: as 5.4.
 
-BEHAVIOR: tests: create with 3 sessions (SKUs, price, seats in the fake), sell out in the fake, raise
+BEHAVIOR: tests: create with 3 runs (SKUs, price, seats in the fake), sell out in the fake, raise
 capacity (seats reappear), lower below seats remaining refused, duplicate delivery replay-safe. Demo.
 ```
 
@@ -1047,7 +1064,7 @@ sold out between quote and pay, tampered amount. Demo on the fake; sandbox opt-i
 ## 5.15 — Class rosters
 
 ```
-SCOPE: Admin roster per class session: on-demand read of Square orders containing that variation via
+SCOPE: Admin roster per class run: on-demand read of Square orders containing that variation via
 ISquareOrdersGateway (cached briefly), CSV export.
 
 CONSTRAINT: square.md.
@@ -1129,7 +1146,7 @@ SCOPE: Sandbox mode with an Aspire dev tunnel exposing the gateway's /webhooks/s
 docs/runbooks/square-sandbox.md (sandbox app, webhook subscription URL = tunnel URL, user-secrets).
 Run the full flow: create artwork with SKU, price and quantity in the CMS → publish → appears in Square
 with that SKU/price/stock → change price and set quantity in the CMS → Square and site update → class
-with sessions: raise capacity in the CMS → seats in Square → buy with a sandbox card → stock drops →
+with runs (ADR 0044): raise a run's capacity in the CMS → seats in Square → buy with a sandbox card → stock drops →
 POS-only item created in the Square dashboard is ignored → membership signup → subscription webhook.
 The admin never opens the Square dashboard for website items.
 

@@ -6,8 +6,11 @@ namespace Arts6311.Domain.Managers.Catalog;
 /// </summary>
 public static class CatalogOwnerTypes
 {
-    /// <summary>One sitting of a class. Each is its own Square variation, with its own SKU.</summary>
-    public const string ClassSession = "class-session";
+    /// <summary>
+    /// One run of a class: a term with its own instructor, dates and seats. Each is its own Square variation, with its
+    /// own SKU (ADR 0044; before it, each sitting was).
+    /// </summary>
+    public const string ClassRun = "class-run";
 
     /// <summary>Artwork in the shop (2.10). Merch is POS-only and never reaches the CMS (ADR 0032).</summary>
     public const string ShopItem = "shop-item";

@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Caching;
 using Arts6311.Domain.Managers.Concurrency;
 using Arts6311.Domain.Managers.Html;
 using Arts6311.Domain.Managers.Paging;
@@ -8,21 +9,27 @@ using Arts6311.Domain.Modules.Classes.Business;
 using Arts6311.Domain.Modules.Classes.Managers;
 using Arts6311.Domain.Modules.Classes.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Classes.Managers.ViewModels;
+using Arts6311.Domain.Modules.Instructors.Facade;
+using Arts6311.Domain.Modules.Instructors.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Media.Facade;
+using Arts6311.Domain.Modules.Media.Managers.ServiceModels;
 using FluentValidation;
 
 namespace Arts6311.Domain.Modules.Classes.Facade;
 
 /// <summary>
-/// Validates shape, asks Media about the hero and the body's pictures, then calls Business. Nothing is cached:
-/// these are CMS reads; the site's cached reads arrive in Phase 3.
+/// Validates shape, asks Media about the hero and the body's pictures and Instructors about each run's instructor,
+/// then calls Business, and finishes each answer with the instructors as Instructors describes them now. The CMS reads
+/// are never cached; the site's are, under the <c>class-offering</c> and <c>instructor</c> type tags (ADR 0042, 0044).
 /// </summary>
 /// <remarks>
 /// <para>
-/// <strong>Media is asked here, never in Business</strong> — cross-module traffic is facade to facade (backend.md).
-/// It vouches for the hero, as it does for an artist's portrait (ADR 0031), and for each picture in the sanitized
-/// body, as it does for a page's (ADR 0034). The body is sanitized here only to learn which pictures it shows;
-/// Business sanitizes it again as the single writer of what is stored, and the sanitizer is idempotent.
+/// <strong>Media and Instructors are asked here, never in Business</strong> — cross-module traffic is facade to facade
+/// (backend.md). Media vouches for the hero, as it does for an artist's portrait (ADR 0031), and for each picture in
+/// the sanitized body, as it does for a page's (ADR 0034). The body is sanitized here only to learn which pictures it
+/// shows; Business sanitizes it again as the single writer of what is stored, and the sanitizer is idempotent.
+/// Instructors says which of the runs' instructors exist and whether they are archived; Business decides what that
+/// means for each run (ADR 0044).
 /// </para>
 /// <para>
 /// <strong>Publish calls Business twice</strong>: once to learn which hero the offering has, then to publish with
@@ -30,20 +37,31 @@ namespace Arts6311.Domain.Modules.Classes.Facade;
 /// between moves the row version and the publish is refused as a conflict (ADR 0031).
 /// </para>
 /// <para>
-/// <strong>No Square call happens here</strong> (ADR 0032): the SKU, the capacity and the starting price are CMS
+/// <strong>No Square call happens here</strong> (ADR 0032): each run's SKU, capacity and starting price are CMS
 /// fields, and the push that creates the Square objects from them arrives in 5.x as an outbox message.
 /// </para>
 /// </remarks>
 internal sealed class ClassesFacade(
     IClassesBusiness business,
     IMediaFacade media,
+    IInstructorsFacade instructors,
     IHtmlSanitizer sanitizer,
     IValidator<ClassCreateViewModel> createValidator,
     IValidator<ClassUpdateViewModel> updateValidator,
     IValidator<ClassListViewModel> listValidator,
-    IValidator<ContentScheduleViewModel> scheduleValidator) : IClassesFacade
+    IValidator<ContentScheduleViewModel> scheduleValidator,
+    IAppCache cache) : IClassesFacade
 {
     private const string What = "this class";
+
+    internal static readonly string SiteListKey = CacheKeys.List(ClassAudit.ResourceType, "site");
+
+    /// <summary>
+    /// Every site read of a class carries the type tags of what it shows: classes, and the instructors their runs name
+    /// (ADR 0042, 0044). Any change to either clears them all.
+    /// </summary>
+    internal static readonly string[] SiteTags =
+        [CacheTags.Type(ClassAudit.ResourceType), CacheTags.Type(SiteContentTypes.Instructor)];
 
     public async Task<OperationResult<CursorPage<ClassSummaryServiceModel>>> ListAsync(
         ClassListViewModel request, CancellationToken cancellationToken)
@@ -53,11 +71,29 @@ internal sealed class ClassesFacade(
             return OperationResult.Failure<CursorPage<ClassSummaryServiceModel>>(error);
         }
 
-        return await business.ListAsync(request, cancellationToken);
+        var page = await business.ListAsync(request, cancellationToken);
+        if (!page.Succeeded)
+        {
+            return OperationResult.Failure<CursorPage<ClassSummaryServiceModel>>(page.Error!);
+        }
+
+        // One question for the whole page: who teaches these classes, as Instructors names them now.
+        var ids = page.Value!.Items.SelectMany(row => row.InstructorIds).Distinct().ToList();
+        var names = new Dictionary<Guid, string>();
+        foreach (var chunk in ids.Chunk(ClassPolicy.ListInstructorsMaxCount))
+        {
+            foreach (var instructor in await instructors.GetSummariesAsync(chunk, cancellationToken))
+            {
+                names[instructor.Id] = instructor.Name;
+            }
+        }
+
+        return OperationResult.Success(new CursorPage<ClassSummaryServiceModel>(
+            [.. page.Value.Items.Select(row => row.ToServiceModel(names))], page.Value.NextCursor));
     }
 
-    public Task<OperationResult<ClassServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken) =>
-        business.GetAsync(id, cancellationToken);
+    public async Task<OperationResult<ClassServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        await CompleteAsync(await business.GetAsync(id, cancellationToken), cancellationToken);
 
     public async Task<OperationResult<ClassServiceModel>> CreateAsync(
         ClassCreateViewModel create, string actorUserId, CancellationToken cancellationToken)
@@ -74,7 +110,9 @@ internal sealed class ClassesFacade(
             return OperationResult.Failure<ClassServiceModel>(HeroMissing());
         }
 
-        return await business.CreateAsync(create, check, actorUserId, cancellationToken);
+        var named = await AskInstructorsAsync(create.Runs, cancellationToken);
+        return await CompleteAsync(
+            await business.CreateAsync(create, check, named, actorUserId, cancellationToken), cancellationToken);
     }
 
     public async Task<OperationResult<ClassServiceModel>> UpdateAsync(
@@ -101,7 +139,9 @@ internal sealed class ClassesFacade(
             }
         }
 
-        return await business.UpdateAsync(id, update, ifMatch, check, actorUserId, cancellationToken);
+        var named = update.Runs is null ? null : await AskInstructorsAsync(update.Runs, cancellationToken);
+        return await CompleteAsync(
+            await business.UpdateAsync(id, update, ifMatch, check, named, actorUserId, cancellationToken), cancellationToken);
     }
 
     public async Task<OperationResult<ClassServiceModel>> PublishAsync(
@@ -119,8 +159,9 @@ internal sealed class ClassesFacade(
             return OperationResult.Failure<ClassServiceModel>(hero.Error!);
         }
 
-        return await business.TransitionAsync(
-            id, PublishCommand.Publish, ifMatch, hero.Value, actorUserId, cancellationToken);
+        return await CompleteAsync(
+            await business.TransitionAsync(id, PublishCommand.Publish, ifMatch, hero.Value, actorUserId, cancellationToken),
+            cancellationToken);
     }
 
     public Task<OperationResult<ClassServiceModel>> UnpublishAsync(
@@ -156,8 +197,9 @@ internal sealed class ClassesFacade(
             return OperationResult.Failure<ClassServiceModel>(hero.Error!);
         }
 
-        return await business.ScheduleAsync(
-            id, schedule.ScheduledFor, ifMatch, hero.Value, actorUserId, cancellationToken);
+        return await CompleteAsync(
+            await business.ScheduleAsync(id, schedule.ScheduledFor, ifMatch, hero.Value, actorUserId, cancellationToken),
+            cancellationToken);
     }
 
     public async Task<OperationResult<ClassServiceModel>> UnscheduleAsync(
@@ -168,7 +210,7 @@ internal sealed class ClassesFacade(
             return OperationResult.Failure<ClassServiceModel>(preconditionError);
         }
 
-        return await business.UnscheduleAsync(id, ifMatch, actorUserId, cancellationToken);
+        return await CompleteAsync(await business.UnscheduleAsync(id, ifMatch, actorUserId, cancellationToken), cancellationToken);
     }
 
     public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
@@ -194,8 +236,101 @@ internal sealed class ClassesFacade(
                 $"Reading class {id} for its scheduled publish failed ({hero.Error.Code}).");
     }
 
+    public async Task<OperationResult<IReadOnlyList<SiteClassSummaryServiceModel>>> ListForSiteAsync(
+        SiteClassListViewModel request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.Instructor is not { } instructorSlug)
+        {
+            return OperationResult.Success(await ReadSiteListAsync(SiteListKey, instructorId: null, cancellationToken));
+        }
+
+        // An instructor is filtered by their page's slug, so only a published instructor has classes to show. Anything
+        // else — a draft, a typo, a slug that could never be one — is an empty list, never a failure, and not cached:
+        // a cache key per wrong guess would let anyone fill the cache.
+        if (!Slugs.IsValid(instructorSlug))
+        {
+            return OperationResult.Success<IReadOnlyList<SiteClassSummaryServiceModel>>([]);
+        }
+
+        var found = await instructors.FindBySlugsAsync([instructorSlug], cancellationToken);
+        if (found is not [{ Status: PublishStatus.Published } instructor])
+        {
+            return OperationResult.Success<IReadOnlyList<SiteClassSummaryServiceModel>>([]);
+        }
+
+        return OperationResult.Success(await ReadSiteListAsync(
+            CacheKeys.List(ClassAudit.ResourceType, $"site|instructor={instructor.Slug}"), instructor.Id, cancellationToken));
+    }
+
+    public async Task<OperationResult<SiteClassServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken)
+    {
+        // A malformed slug can't name a class, and must not become a cache key (CacheKeys refuses a ':').
+        if (!Slugs.IsValid(slug))
+        {
+            return SiteNotFound();
+        }
+
+        var offering = await cache.GetOrCreateFoundAsync(
+            CacheKeys.Item(ClassAudit.ResourceType, slug),
+            async token => await business.GetForSiteAsync(slug, token) is { } row
+                ? await ToSiteModelAsync(row, token)
+                : null,
+            SiteTags,
+            SiteCachePolicy.Lifetime,
+            cancellationToken);
+
+        return offering is null ? SiteNotFound() : OperationResult.Success(offering);
+    }
+
+    public async Task<OperationResult<PreviewRecord<SiteClassServiceModel>>> GetForPreviewAsync(
+        Guid id, CancellationToken cancellationToken)
+    {
+        var found = await business.GetForPreviewAsync(id, cancellationToken);
+        if (!found.Succeeded)
+        {
+            return OperationResult.Failure<PreviewRecord<SiteClassServiceModel>>(found.Error!);
+        }
+
+        return OperationResult.Success(new PreviewRecord<SiteClassServiceModel>(
+            await ToSiteModelAsync(found.Value!.Record, cancellationToken), found.Value.Status));
+    }
+
+    public Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
+        business.ListSitemapAsync(cancellationToken);
+
+    private async Task<IReadOnlyList<SiteClassSummaryServiceModel>> ReadSiteListAsync(
+        string key, Guid? instructorId, CancellationToken cancellationToken) =>
+        await cache.GetOrCreateAsync<IReadOnlyList<SiteClassSummaryServiceModel>>(
+            key,
+            async token =>
+            {
+                var rows = await business.ListForSiteAsync(instructorId, token);
+
+                // One question each to Media and Instructors for the whole list.
+                var images = await media.DescribeForSiteAsync([.. rows.Select(row => row.HeroMediaId).OfType<Guid>()], token);
+                var named = await instructors.DescribeCreditsAsync(
+                    [.. rows.SelectMany(row => row.Runs).Select(run => run.InstructorId).OfType<Guid>()], token);
+                return [.. rows.Select(row => row.ToSummary(images, named))];
+            },
+            SiteTags,
+            SiteCachePolicy.Lifetime,
+            cancellationToken);
+
+    private async Task<SiteClassServiceModel> ToSiteModelAsync(ClassSiteRow row, CancellationToken cancellationToken)
+    {
+        var images = await media.DescribeForSiteAsync(row.HeroMediaId is { } hero ? [hero] : [], cancellationToken);
+        var named = await instructors.DescribeCreditsAsync(
+            [.. row.Runs.Select(run => run.InstructorId).OfType<Guid>()], cancellationToken);
+        return row.ToServiceModel(images, named);
+    }
+
+    private static OperationResult<SiteClassServiceModel> SiteNotFound() =>
+        OperationResult.Failure<SiteClassServiceModel>(OperationError.Of(ErrorCodes.NotFound, "There is no such class."));
+
     /// <summary>
-    /// A command that asks no other module. Without <c>If-Match</c> it is a 428 before anything is read.
+    /// A command that asks no other module first. Without <c>If-Match</c> it is a 428 before anything is read.
     /// </summary>
     private async Task<OperationResult<ClassServiceModel>> TransitionAsync(
         Guid id, PublishCommand command, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
@@ -205,7 +340,49 @@ internal sealed class ClassesFacade(
             return OperationResult.Failure<ClassServiceModel>(preconditionError);
         }
 
-        return await business.TransitionAsync(id, command, ifMatch, media: null, actorUserId, cancellationToken);
+        return await CompleteAsync(
+            await business.TransitionAsync(id, command, ifMatch, media: null, actorUserId, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// What Instructors says about every instructor the runs name: which exist, with their names and statuses. One
+    /// question for the whole write; <see cref="ClassPolicy.RunsMaxCount"/> keeps it inside Instructors' lookup limit.
+    /// </summary>
+    private async Task<ClassInstructorCheck> AskInstructorsAsync(
+        IReadOnlyList<ClassRunViewModel>? runs, CancellationToken cancellationToken)
+    {
+        var ids = (runs ?? []).Select(run => run.InstructorId).OfType<Guid>().Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return ClassInstructorCheck.None;
+        }
+
+        var found = await instructors.GetSummariesAsync(ids, cancellationToken);
+        return new ClassInstructorCheck(found.ToDictionary(
+            instructor => instructor.Id, instructor => new ClassInstructorFact(instructor.Name, instructor.Status)));
+    }
+
+    /// <summary>Business's answer, finished with each run's instructor as the Instructors module describes them now.</summary>
+    private async Task<OperationResult<ClassServiceModel>> CompleteAsync(
+        OperationResult<ClassDetail> result, CancellationToken cancellationToken)
+    {
+        if (!result.Succeeded)
+        {
+            return OperationResult.Failure<ClassServiceModel>(result.Error!);
+        }
+
+        var detail = result.Value!;
+        var ids = detail.RunInstructors.Values.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return OperationResult.Success(detail.Model);
+        }
+
+        var described = (await instructors.GetSummariesAsync(ids, cancellationToken)).ToDictionary(
+            instructor => instructor.Id,
+            instructor => new ClassInstructorServiceModel(instructor.Id, instructor.Name, instructor.Slug, instructor.Status));
+        return OperationResult.Success(detail.Complete(described));
     }
 
     /// <summary>
@@ -220,7 +397,7 @@ internal sealed class ClassesFacade(
             return OperationResult.Failure<ClassMediaCheck>(current.Error!);
         }
 
-        return OperationResult.Success(current.Value!.HeroMediaId is { } heroId
+        return OperationResult.Success(current.Value!.Model.HeroMediaId is { } heroId
             ? await AskHeroCheckAsync(heroId, cancellationToken)
             : ClassMediaCheck.None);
     }

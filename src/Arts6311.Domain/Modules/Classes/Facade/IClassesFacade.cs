@@ -7,8 +7,8 @@ using Arts6311.Domain.Modules.Classes.Managers.ViewModels;
 namespace Arts6311.Domain.Modules.Classes.Facade;
 
 /// <summary>
-/// The Classes module's boundary: the CMS class routes today; the site's read routes (Phase 3), the Square push
-/// (5.x) and the importer (4.x) later. Every write takes the row version as <c>ifMatch</c>.
+/// The Classes module's boundary: the CMS class routes and the site's read routes; the Square push (5.x) and the
+/// importer (4.x) later. Every write takes the row version as <c>ifMatch</c>.
 /// </summary>
 public interface IClassesFacade
 {
@@ -18,8 +18,8 @@ public interface IClassesFacade
     Task<OperationResult<ClassServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
-    /// A new Draft. Refusals: <c>validation.failed</c> (including a hero or body picture not in the library),
-    /// <c>cms.slug_taken</c>, <c>cms.sku_taken</c>.
+    /// A new Draft. Refusals: <c>validation.failed</c> (including a hero or body picture not in the library, or a run's
+    /// instructor who is not there or is archived), <c>cms.slug_taken</c>, <c>cms.sku_taken</c>.
     /// </summary>
     Task<OperationResult<ClassServiceModel>> CreateAsync(
         ClassCreateViewModel create, string actorUserId, CancellationToken cancellationToken);
@@ -33,8 +33,8 @@ public interface IClassesFacade
         Guid id, ClassUpdateViewModel update, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Draft → Published. Refused (<c>validation.failed</c>) without a summary, a starting price or a session, or
-    /// while the hero lacks alt text.
+    /// Draft → Published. Refused (<c>validation.failed</c>) without a summary or a run, while a run lacks an
+    /// instructor, a session or a starting price, or while the hero lacks alt text.
     /// </summary>
     Task<OperationResult<ClassServiceModel>> PublishAsync(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
@@ -74,4 +74,24 @@ public interface IClassesFacade
     /// Never throws for a record that moved on — it reports what happened instead.
     /// </summary>
     Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <c>GET /site/classes</c>: every published class with a run still to come, by its next run, cached under the
+    /// <c>class-offering</c> and <c>instructor</c> type tags (ADR 0042, 0044). Only what is upcoming, so not paged.
+    /// Given an instructor's slug, only the runs that published instructor teaches; any other slug is an empty list.
+    /// </summary>
+    Task<OperationResult<IReadOnlyList<SiteClassSummaryServiceModel>>> ListForSiteAsync(
+        SiteClassListViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <c>GET /site/classes/{slug}</c>: the published class there, cached as the list is. Anything else is
+    /// <c>resource.not_found</c>, and is not cached.
+    /// </summary>
+    Task<OperationResult<SiteClassServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>For a preview link: the class as the site would show it, whatever the status. Never cached.</summary>
+    Task<OperationResult<PreviewRecord<SiteClassServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>For the sitemap. Not cached here; the Site module caches the sitemap.</summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
 }

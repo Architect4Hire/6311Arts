@@ -510,6 +510,42 @@ internal sealed class MembershipsBusiness(IMembershipsDataLayer dataLayer, ICloc
     private static IEnumerable<string> PerksOf(MembershipPlan plan) =>
         plan.Perks.OrderBy(perk => perk.Position).Select(perk => perk.Text);
 
+    public async Task<IReadOnlyList<SiteMembershipPlanServiceModel>> ListForSiteAsync(CancellationToken cancellationToken) =>
+        [.. (await dataLayer.ListPublishedAsync(cancellationToken)).Select(ToSiteServiceModel)];
+
+    public async Task<OperationResult<PreviewRecord<SiteMembershipPlanServiceModel>>> GetForPreviewAsync(
+        Guid id, CancellationToken cancellationToken)
+    {
+        var plan = await dataLayer.FindAsync(id, cancellationToken);
+        return plan is null
+            ? OperationResult.Failure<PreviewRecord<SiteMembershipPlanServiceModel>>(
+                OperationError.Of(ErrorCodes.NotFound, "There is no such plan."))
+            : OperationResult.Success(new PreviewRecord<SiteMembershipPlanServiceModel>(ToSiteServiceModel(plan), plan.Status));
+    }
+
+    public async Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken)
+    {
+        var plans = await dataLayer.ListPublishedAsync(cancellationToken);
+        return plans.Count == 0
+            ? []
+            : [new SitemapEntryServiceModel(MembershipPolicy.SitePath, plans.Max(plan => plan.UpdatedAt))];
+    }
+
+    /// <summary>
+    /// The site's view: Square's record of the money only (the starting figures are the CMS's draft, ADR 0032), and
+    /// nothing of the plan's status or bookkeeping.
+    /// </summary>
+    private static SiteMembershipPlanServiceModel ToSiteServiceModel(MembershipPlan plan) => new(
+        plan.Id,
+        plan.Slug,
+        plan.Name,
+        [.. PerksOf(plan)],
+        plan.DiscountPercent,
+        plan.Featured,
+        plan.PriceCents,
+        CatalogPolicy.Currency,
+        plan.Cadence);
+
     /// <summary>
     /// Whether the CMS may still set the starting price and cadence: only until Square has reported money or a
     /// cadence, after which both are Square's record (ADR 0005, 0040).

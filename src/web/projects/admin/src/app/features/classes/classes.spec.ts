@@ -9,12 +9,8 @@ import { ClassOffering } from '../../models/class';
 import { CLASS_OFFERING, SYNCED_CLASS, toClassSummary } from '../../models/class.fixtures';
 import { ClassEditor } from './class-editor';
 import { ClassList } from './class-list';
-import {
-  newSessionDraft,
-  sessionDraftsOf,
-  sessionInputsOf,
-  sessionsEqual,
-} from './session-grid';
+import { newRunDraft, runDraftsOf, runErrorOf, runInputsOf, runsEqual } from './run-list';
+import { sessionDraftsOf, sessionInputsOf } from './session-grid';
 
 const BASE = '/api/v1/cms/classes';
 const ONE = `${BASE}/${CLASS_OFFERING.id}`;
@@ -69,7 +65,7 @@ async function openEditor(offering: ClassOffering | null, roles: string[] = ['Ed
 }
 
 describe('ClassList', () => {
-  it('lists classes with when they next meet, their status and how many sessions they have', async () => {
+  it('lists classes with when they next meet, their status, their instructors and how many runs they have', async () => {
     const { http } = await configure();
     const fixture = TestBed.createComponent(ClassList);
     fixture.detectChanges();
@@ -99,7 +95,8 @@ describe('ClassList', () => {
     ]);
     expect(text(rows[0])).toContain('Printmaking · Beginner');
     expect(text(rows[0])).toContain('Draft');
-    expect(text(rows[0])).toContain('2'); // two sessions
+    expect(text(rows[0])).toContain('Gwen Schilling');
+    expect(text(rows[0].querySelectorAll('td')[2])).toBe('1'); // one run
     expect(text(rows[1])).toContain('No sessions to come');
     expect(rows[0].querySelector('a')?.getAttribute('href')).toBe(`/classes/${CLASS_OFFERING.id}`);
   });
@@ -159,10 +156,12 @@ describe('ClassEditor', () => {
 
     // The retry asks again rather than showing a form built from nothing.
     button(fixture.nativeElement, 'Try again')!.click();
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     expect(text(fixture.nativeElement)).not.toContain('This class couldn’t be loaded');
@@ -174,10 +173,12 @@ describe('ClassEditor', () => {
     fixture.componentRef.setInput('id', CLASS_OFFERING.id);
     fixture.detectChanges();
 
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     const root = fixture.nativeElement as HTMLElement;
@@ -186,18 +187,20 @@ describe('ClassEditor', () => {
     expect(button(root, 'Try again')).toBeUndefined();
   });
 
-  it('creates a class with its sessions as instants and a suggested SKU', async () => {
+  it('creates a class with one run, its sessions as instants and a suggested SKU', async () => {
     const { http, fixture, root, router } = await openEditor(null);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
     type(root, 'title', 'Intro to Screen Printing');
     type(root, 'summary', 'Burn your first screen.');
-    type(root, 'price', '300');
-    type(root, 'sessionDate0', '2026-10-24');
-    type(root, 'sessionStarts0', '14:00');
-    type(root, 'sessionEnds0', '17:00');
-    type(root, 'sessionCapacity0', '10');
-    type(root, 'sessionSku0', 'cls-4-1');
+    type(root, 'runLabel0', 'Fall 2026');
+    type(root, 'runCadence0', 'Saturdays');
+    type(root, 'runCapacity0', '10');
+    type(root, 'runPrice0', '300');
+    type(root, 'runSku0', 'cls-4-1');
+    type(root, 'run0SessionDate0', '2026-10-24');
+    type(root, 'run0SessionStarts0', '14:00');
+    type(root, 'run0SessionEnds0', '17:00');
     await settle(fixture);
 
     expect(input(root, 'slug').value).toBe('intro-to-screen-printing');
@@ -208,15 +211,18 @@ describe('ClassEditor', () => {
       title: 'Intro to Screen Printing',
       slug: 'intro-to-screen-printing',
       summary: 'Burn your first screen.',
-      startingPriceCents: 30000,
-      sessions: [
+      runs: [
         {
-          // 2 p.m. in Chicago in October is 19:00 UTC.
-          startsAt: '2026-10-24T19:00:00+00:00',
-          endsAt: '2026-10-24T22:00:00+00:00',
           capacity: 10,
+          label: 'Fall 2026',
+          cadence: 'Saturdays',
           sku: 'CLS-4-1',
           displayTimeZone: 'America/Chicago',
+          startingPriceCents: 30000,
+          // 2 p.m. in Chicago in October is 19:00 UTC.
+          sessions: [
+            { startsAt: '2026-10-24T19:00:00+00:00', endsAt: '2026-10-24T22:00:00+00:00' },
+          ],
         },
       ],
     });
@@ -229,146 +235,199 @@ describe('ClassEditor', () => {
     });
   });
 
+  it('chooses a run’s instructor from the instructors list', async () => {
+    const { http, fixture, root } = await openEditor(CLASS_OFFERING);
+
+    button(root, 'Remove Gwen Schilling')!.click();
+    await settle(fixture);
+    type(root, 'instructorSearch', 'nich');
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    http
+      .expectOne((r) => r.url === '/api/v1/cms/instructors')
+      .flush({
+        items: [
+          {
+            id: 'nick',
+            name: 'Nicholas Waguespack',
+            slug: 'nicholas-waguespack',
+            medium: 'Printmaking',
+            active: true,
+            status: 'Published',
+            portraitMediaId: null,
+            updatedAt: '2026-10-20T12:00:00+00:00',
+          },
+        ],
+        nextCursor: null,
+      });
+    await settle(fixture);
+    button(root, 'Choose Nicholas Waguespack')!.click();
+    await settle(fixture);
+    button(root, 'Save')!.click();
+    const patch = http.expectOne(ONE);
+
+    expect(patch.request.body.runs[0].instructorId).toBe('nick');
+    expect(patch.request.body.runs[0].id).toBe(CLASS_OFFERING.runs[0].id);
+  });
+
   it('refuses an incomplete session, a backwards one and a repeated SKU before asking the API', async () => {
     const { http, fixture, root } = await openEditor(null);
 
     type(root, 'title', 'Course');
-    type(root, 'sessionDate0', '2026-10-24');
-    type(root, 'sessionStarts0', '17:00');
-    type(root, 'sessionEnds0', '14:00');
-    type(root, 'sessionCapacity0', '10');
+    type(root, 'runCapacity0', '10');
+    type(root, 'run0SessionDate0', '2026-10-24');
+    type(root, 'run0SessionStarts0', '17:00');
+    type(root, 'run0SessionEnds0', '14:00');
     await settle(fixture);
     button(root, 'Create class')!.click();
     await settle(fixture);
 
     http.expectNone(BASE);
-    expect(text(root)).toContain('Session 1 can’t end before it starts.');
+    expect(text(root)).toContain('Run 1, session 1 can’t end before it starts.');
 
-    type(root, 'sessionEnds0', '20:00');
-    type(root, 'sessionSku0', 'CLS-9-1');
-    button(root, 'Add session')!.click();
+    type(root, 'run0SessionEnds0', '20:00');
+    type(root, 'runSku0', 'CLS-9-1');
+    button(root, 'Add run')!.click();
     await settle(fixture);
-    type(root, 'sessionSku1', 'cls-9-1');
+    type(root, 'runSku1', 'cls-9-1');
+    type(root, 'run1SessionDate0', '2026-11-07');
+    type(root, 'run1SessionStarts0', '17:00');
+    type(root, 'run1SessionEnds0', '20:00');
     await settle(fixture);
     button(root, 'Create class')!.click();
     await settle(fixture);
 
     http.expectNone(BASE);
-    expect(text(root)).toContain('Two sessions have the SKU CLS-9-1.');
+    expect(text(root)).toContain('Two runs have the SKU CLS-9-1.');
   });
 
-  it('sends only the sessions when they change, keeping the ids of the ones that stay', async () => {
+  it('sends only the runs when they change, keeping the ids of the run and sessions that stay', async () => {
     const { http, fixture, root } = await openEditor(CLASS_OFFERING);
+    const run = CLASS_OFFERING.runs[0];
 
-    expect(input(root, 'sessionSku0').value).toBe('CLS-4-1');
-    expect(input(root, 'sessionStarts0').value).toBe('14:00');
+    expect(input(root, 'runSku0').value).toBe('CLS-4-1');
+    expect(input(root, 'run0SessionStarts0').value).toBe('14:00');
     expect(fixture.componentInstance.hasUnsavedChanges()).toBe(false);
 
-    type(root, 'sessionCapacity0', '12');
+    type(root, 'runCapacity0', '12');
     await settle(fixture);
     button(root, 'Save')!.click();
     const patch = http.expectOne(ONE);
 
     expect(patch.request.headers.get('If-Match')).toBe(CLASS_OFFERING.etag);
     expect(patch.request.body).toEqual({
-      sessions: [
+      runs: [
         {
-          id: CLASS_OFFERING.sessions[0].id,
-          startsAt: '2026-10-24T19:00:00+00:00',
-          endsAt: '2026-10-24T22:00:00+00:00',
           capacity: 12,
+          id: run.id,
+          label: 'Saturday afternoons',
+          instructorId: run.instructor!.id,
+          cadence: 'Saturdays',
           sku: 'CLS-4-1',
           displayTimeZone: 'America/Chicago',
-        },
-        {
-          id: CLASS_OFFERING.sessions[1].id,
-          startsAt: '2026-10-31T19:00:00+00:00',
-          endsAt: '2026-10-31T22:00:00+00:00',
-          capacity: 10,
-          sku: 'CLS-4-2',
-          displayTimeZone: 'America/Chicago',
+          startingPriceCents: 30000,
+          sessions: [
+            {
+              id: run.sessions[0].id,
+              startsAt: '2026-10-24T19:00:00+00:00',
+              endsAt: '2026-10-24T22:00:00+00:00',
+            },
+            {
+              id: run.sessions[1].id,
+              startsAt: '2026-10-31T19:00:00+00:00',
+              endsAt: '2026-10-31T22:00:00+00:00',
+            },
+          ],
         },
       ],
     });
   });
 
-  it('shows a SKU clash from the API on the sessions and keeps the edit', async () => {
+  it('shows a SKU clash from the API on the runs and keeps the edit', async () => {
     const { http, fixture, root } = await openEditor(CLASS_OFFERING);
 
-    type(root, 'sessionSku0', 'ART-7');
+    type(root, 'runSku0', 'ART-7');
     await settle(fixture);
     button(root, 'Save')!.click();
     http.expectOne(ONE).flush(
       {
         code: 'cms.sku_taken',
         detail: 'The SKU “ART-7” is already in use.',
-        errors: {
-          sessions: ['“ART-7” belongs to another class session or shop item. Choose another.'],
-        },
+        errors: { runs: ['“ART-7” belongs to another class run or shop item. Choose another.'] },
       },
       { status: 409, statusText: 'Conflict' },
     );
     await settle(fixture);
 
-    expect(text(root.querySelector('cms-session-grid .error'))).toBe(
-      '“ART-7” belongs to another class session or shop item. Choose another.',
+    expect(text(root.querySelector('cms-class-runs .error'))).toBe(
+      '“ART-7” belongs to another class run or shop item. Choose another.',
     );
     expect(fixture.componentInstance.hasUnsavedChanges()).toBe(true);
   });
 
-  it('shows what Square holds read-only once it has reported a price', async () => {
-    const { root } = await openEditor(SYNCED_CLASS);
+  it('shows what Square holds read-only once it has reported a run’s price, and never sends it', async () => {
+    const { http, fixture, root } = await openEditor(SYNCED_CLASS);
 
     // No editable price field: the change is a command to Square (ADR 0032, arriving in 5.4a).
-    expect(input(root, 'price')).toBeNull();
-    expect(text(root.querySelector('.price'))).toBe('$300.00');
-    expect(button(root, 'Change price')?.disabled).toBe(true);
+    expect(input(root, 'runPrice0')).toBeNull();
+    const runs = root.querySelector('cms-class-runs')!;
+    expect(text(runs)).toContain('$325.00 a seat in Square.');
+    expect(text(runs)).toContain('6 of 10 seats left.');
+    expect(button(root, 'Change price for Run 1 (Saturday afternoons)')?.disabled).toBe(true);
+    expect(button(root, 'Remove Run 1 (Saturday afternoons)')?.disabled).toBe(true);
+    expect(text(runs)).toContain('can’t be removed here');
 
-    const grid = root.querySelector('cms-session-grid')!;
-    expect(text(grid)).toContain('$325.00');
-    expect(text(grid)).toContain('6 of 10 seats left');
-    expect(button(root, 'Remove session 1')?.disabled).toBe(true);
-    expect(text(grid)).toContain('can’t be removed here');
+    type(root, 'runCapacity0', '14');
+    await settle(fixture);
+    button(root, 'Save')!.click();
+    const body = http.expectOne(ONE).request.body;
+    expect(body.runs[0].capacity).toBe(14);
+    expect('startingPriceCents' in body.runs[0]).toBe(false);
   });
 
-  it('adds and removes a session that is not in Square yet', async () => {
+  it('adds a run that carries the last one’s details over, and removes one not in Square yet', async () => {
     const { fixture, root } = await openEditor(CLASS_OFFERING);
 
-    button(root, 'Remove session 2')!.click();
-    await settle(fixture);
-    expect(root.querySelectorAll('tbody tr')).toHaveLength(1);
-
-    button(root, 'Add session')!.click();
+    button(root, 'Add run')!.click();
     await settle(fixture);
 
-    // A week after the one before it, at the same time, with a free suggested SKU.
-    expect(input(root, 'sessionDate1').value).toBe('2026-10-31');
-    expect(input(root, 'sessionSku1').value).toBe('CLS-4-2');
+    // The next term is usually the same class again: instructor, seats and price carry over, with a free SKU and
+    // a first session a week after the last run's.
+    expect(input(root, 'runSku1').value).toBe('CLS-4-2');
+    expect(input(root, 'runCapacity1').value).toBe('10');
+    expect(input(root, 'runPrice1').value).toBe('300');
+    expect(input(root, 'run1SessionDate0').value).toBe('2026-11-07');
+    expect(text(root.querySelectorAll('cms-instructor-picker')[1])).toContain('Gwen Schilling');
+
+    button(root, 'Remove Run 2')!.click();
+    await settle(fixture);
+    expect(root.querySelectorAll('[data-run]')).toHaveLength(1);
+    expect(fixture.componentInstance.hasUnsavedChanges()).toBe(false);
   });
 
-  it('keeps focus in the grid when a session is removed, and marks the rows when they are refused', async () => {
+  it('keeps focus in a run’s sessions when one is removed, and marks them when the runs are refused', async () => {
     const { fixture, root } = await openEditor(CLASS_OFFERING);
+    const removeFirst = 'Remove Run 1 (Saturday afternoons) session 1';
 
-    button(root, 'Remove session 1')!.click();
+    button(root, removeFirst)!.click();
     await settle(fixture);
 
     // The clicked button went with its row, so focus moved to the row that took its place.
-    expect(document.activeElement?.getAttribute('aria-label')).toBe('Remove session 1');
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(removeFirst);
 
-    button(root, 'Remove session 1')!.click();
+    button(root, removeFirst)!.click();
     await settle(fixture);
     expect(text(document.activeElement)).toBe('Add session');
 
     button(root, 'Add session')!.click();
     await settle(fixture);
-    type(root, 'sessionDate0', '');
+    type(root, 'run0SessionDate0', '');
     await settle(fixture);
     button(root, 'Save')!.click();
     await settle(fixture);
 
-    expect(input(root, 'sessionDate0').getAttribute('aria-invalid')).toBe('true');
-    expect(input(root, 'sessionDate0').getAttribute('aria-describedby')).toBe(
-      root.querySelector('cms-session-grid .error')?.id,
+    expect(input(root, 'run0SessionDate0').getAttribute('aria-invalid')).toBe('true');
+    expect(input(root, 'run0SessionDate0').getAttribute('aria-describedby')).toBe(
+      root.querySelector('cms-class-runs .error')?.id,
     );
   });
 
@@ -454,46 +513,44 @@ describe('ClassEditor', () => {
   });
 });
 
-describe('session drafts', () => {
-  it('round-trips the saved sessions through the gallery clock', () => {
-    const rows = sessionDraftsOf(CLASS_OFFERING.sessions);
+describe('run drafts', () => {
+  it('round-trips the saved runs through their own clock', () => {
+    const runs = runDraftsOf(CLASS_OFFERING.runs);
 
-    expect(rows.map((row) => [row.date, row.starts, row.ends])).toEqual([
+    expect(runs[0].sessions.map((row) => [row.date, row.starts, row.ends])).toEqual([
       ['2026-10-24', '14:00', '17:00'],
       ['2026-10-31', '14:00', '17:00'],
     ]);
-    expect(sessionInputsOf(rows)).toEqual([
+    expect(runInputsOf(runs)?.[0].sessions).toEqual([
       {
-        id: CLASS_OFFERING.sessions[0].id,
+        id: CLASS_OFFERING.runs[0].sessions[0].id,
         startsAt: '2026-10-24T19:00:00+00:00',
         endsAt: '2026-10-24T22:00:00+00:00',
-        capacity: 10,
-        sku: 'CLS-4-1',
-        displayTimeZone: 'America/Chicago',
       },
       {
-        id: CLASS_OFFERING.sessions[1].id,
+        id: CLASS_OFFERING.runs[0].sessions[1].id,
         startsAt: '2026-10-31T19:00:00+00:00',
         endsAt: '2026-10-31T22:00:00+00:00',
-        capacity: 10,
-        sku: 'CLS-4-2',
-        displayTimeZone: 'America/Chicago',
       },
     ]);
-    expect(sessionsEqual(rows, sessionDraftsOf(CLASS_OFFERING.sessions))).toBe(true);
+    expect(runsEqual(runs, runDraftsOf(CLASS_OFFERING.runs))).toBe(true);
   });
 
-  it('is nothing to send while a row is half filled in', () => {
-    const rows = [newSessionDraft([], 4)];
+  it('is nothing to send while a run is half filled in, and says which run', () => {
+    const runs = [newRunDraft([], 4)];
 
-    expect(sessionInputsOf(rows)).toBeNull();
+    expect(runInputsOf(runs)).toBeNull();
+    expect(runErrorOf(runs)).toBe('Run 1 needs a number of seats, from 1 to 500.');
+    expect(runErrorOf([{ ...runs[0], capacity: '8' }])).toBe(
+      'Run 1, session 1 needs a date, a start time and an end time.',
+    );
   });
 
   it('keeps the same wall-clock time across the end of daylight saving', () => {
-    const october = sessionDraftsOf(CLASS_OFFERING.sessions)[0];
+    const october = sessionDraftsOf(CLASS_OFFERING.runs[0].sessions, 'America/Chicago')[0];
     const november = { ...october, key: 'n', id: null, date: '2026-11-07' };
 
-    const inputs = sessionInputsOf([november])!;
+    const inputs = sessionInputsOf([november], 'America/Chicago')!;
 
     // 2 p.m. Chicago is 19:00 UTC in October and 20:00 UTC in November.
     expect(inputs[0].startsAt).toBe('2026-11-07T20:00:00+00:00');

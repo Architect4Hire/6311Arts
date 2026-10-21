@@ -543,6 +543,45 @@ internal sealed class ExhibitionsBusiness(IExhibitionsDataLayer dataLayer, ICloc
     private static IEnumerable<Guid> CreditedIds(Exhibition exhibition) =>
         exhibition.Artists.OrderBy(credit => credit.Position).Select(credit => credit.ArtistId);
 
+    public async Task<IReadOnlyList<ExhibitionSiteRow>> ListForSiteAsync(CancellationToken cancellationToken) =>
+        [.. (await dataLayer.ListPublishedAsync(null, cancellationToken)).Select(ToSiteRow)];
+
+    public async Task<ExhibitionSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(slug);
+        return (await dataLayer.ListPublishedAsync(slug, cancellationToken)).Select(ToSiteRow).SingleOrDefault();
+    }
+
+    public async Task<OperationResult<PreviewRecord<ExhibitionSiteRow>>> GetForPreviewAsync(
+        Guid id, CancellationToken cancellationToken)
+    {
+        var exhibition = await dataLayer.FindAsync(id, cancellationToken);
+        return exhibition is null
+            ? OperationResult.Failure<PreviewRecord<ExhibitionSiteRow>>(
+                OperationError.Of(ErrorCodes.NotFound, "There is no such exhibition."))
+            : OperationResult.Success(new PreviewRecord<ExhibitionSiteRow>(ToSiteRow(exhibition), exhibition.Status));
+    }
+
+    public async Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
+        [.. (await dataLayer.ListPublishedAsync(null, cancellationToken))
+            .Select(exhibition => new SitemapEntryServiceModel(
+                SitePaths.AddressOf(ExhibitionPolicy.SitePathPrefix, exhibition.Slug), exhibition.UpdatedAt))];
+
+    private static ExhibitionSiteRow ToSiteRow(Exhibition exhibition) => new(
+        exhibition.Id,
+        exhibition.Slug,
+        exhibition.Title,
+        exhibition.Summary,
+        exhibition.Body,
+        exhibition.StartDate,
+        exhibition.EndDate,
+        exhibition is { ReceptionStartsAt: { } startsAt, ReceptionEndsAt: { } endsAt }
+            ? new ExhibitionReceptionServiceModel(startsAt, endsAt, exhibition.ReceptionNote)
+            : null,
+        exhibition.HeroMediaId,
+        [.. CreditedIds(exhibition)],
+        exhibition.UpdatedAt);
+
     /// <summary>
     /// Makes the credits exactly <paramref name="artistIds"/>, in that order. A credit that stays is updated in place
     /// rather than removed and added again, which the (exhibition, artist) key would refuse in one save.

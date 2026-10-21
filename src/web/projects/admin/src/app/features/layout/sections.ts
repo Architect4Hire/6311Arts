@@ -31,7 +31,7 @@ export const CMS_SECTIONS: readonly CmsSection[] = [
     icon: 'calendar',
     roles: STAFF_ROLES,
     summary:
-      'Class and workshop pages, sessions and instructors. Seats and prices are managed in Square.',
+      'Class and workshop pages and their runs. Seats and prices are managed in Square.',
   },
   {
     path: 'exhibitions',
@@ -46,6 +46,13 @@ export const CMS_SECTIONS: readonly CmsSection[] = [
     icon: 'brush',
     roles: STAFF_ROLES,
     summary: 'The artist roster: names, bios, mediums and portraits.',
+  },
+  {
+    path: 'instructors',
+    label: 'Instructors',
+    icon: 'people',
+    roles: STAFF_ROLES,
+    summary: 'Who teaches the classes: names, bios, portraits and links.',
   },
   {
     path: 'shop',

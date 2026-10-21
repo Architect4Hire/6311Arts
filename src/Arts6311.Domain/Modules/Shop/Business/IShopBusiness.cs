@@ -66,6 +66,26 @@ internal interface IShopBusiness
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
     /// <summary>
+    /// One page of the site's shop (ADR 0042): published items only, filtered and ordered as asked. Refusal:
+    /// <c>paging.cursor.invalid</c> for a cursor from another list or order.
+    /// </summary>
+    /// <param name="artistId">The artist the facade resolved <c>request.Artist</c> to, when it names one.</param>
+    Task<OperationResult<CursorPage<ShopItemSiteRow>>> ListForSiteAsync(
+        SiteShopListViewModel request, Guid? artistId, CancellationToken cancellationToken);
+
+    /// <summary>The published item at <paramref name="slug"/>, or <c>null</c>: a draft is not there to the site.</summary>
+    Task<ShopItemSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>One item as the site would show it, whatever the status, for a preview link.</summary>
+    Task<OperationResult<PreviewRecord<ShopItemSiteRow>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>How many published items each credited artist has, for the site's artist directory.</summary>
+    Task<IReadOnlyDictionary<Guid, int>> CountForSiteByArtistAsync(CancellationToken cancellationToken);
+
+    /// <summary>Every published item's address and last change, for the sitemap.</summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
+
+    /// <summary>
     /// Publishes one due item on the scheduled publisher's behalf, re-reading it first: the row version is the
     /// claim, so two Workers acting on one record produce one publish and one
     /// <see cref="ScheduledPublishOutcome.Lost"/>.

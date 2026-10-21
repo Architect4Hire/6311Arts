@@ -38,6 +38,12 @@ internal sealed class PagesDataLayer(
         PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         repository.ListAsync(after, take, status, search, cancellationToken);
 
+    public Task<SitePageServiceModel?> FindPublishedAsync(string slug, CancellationToken cancellationToken) =>
+        repository.FindPublishedAsync(slug, cancellationToken);
+
+    public Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken) =>
+        repository.ListPublishedAddressesAsync(cancellationToken);
+
     public async Task<PageWriteOutcome> CreateAsync(Page page, string actorUserId, string summary, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(page);

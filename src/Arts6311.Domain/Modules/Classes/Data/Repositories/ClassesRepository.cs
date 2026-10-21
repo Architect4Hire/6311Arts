@@ -1,7 +1,7 @@
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Classes.Data.Entities;
-using Arts6311.Domain.Modules.Classes.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Classes.Managers;
 using Microsoft.EntityFrameworkCore;
 
 namespace Arts6311.Domain.Modules.Classes.Data.Repositories;
@@ -16,8 +16,9 @@ internal sealed class ClassesRepository(ArtsDbContext context) : IClassesReposit
 
     public Task<ClassOffering?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         Offerings
-            .Include(offering => offering.Sessions)
+            .Include(offering => offering.Runs).ThenInclude(run => run.Sessions)
             .Include(offering => offering.Images)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(offering => offering.Id == id, cancellationToken);
 
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
@@ -30,7 +31,7 @@ internal sealed class ClassesRepository(ArtsDbContext context) : IClassesReposit
     public async Task<int> NextOfferingNumberAsync(CancellationToken cancellationToken) =>
         (await Offerings.AsNoTracking().MaxAsync(offering => (int?)offering.OfferingNumber, cancellationToken) ?? 0) + 1;
 
-    public Task<List<ClassSummaryServiceModel>> ListAsync(
+    public Task<List<ClassListRow>> ListAsync(
         ClassListPosition? after,
         int take,
         PublishStatus? status,
@@ -66,17 +67,21 @@ internal sealed class ClassesRepository(ArtsDbContext context) : IClassesReposit
             .OrderBy(offering => offering.Title)
             .ThenBy(offering => offering.Id)
             .Take(take)
-            .Select(offering => new ClassSummaryServiceModel(
+            .Select(offering => new ClassListRow(
                 offering.Id,
                 offering.Title,
                 offering.Slug,
                 offering.Status,
                 offering.ClassType,
                 offering.Level,
-                offering.Instructor,
+                offering.Runs
+                    .Where(run => run.InstructorId != null)
+                    .Select(run => run.InstructorId!.Value)
+                    .ToList(),
                 offering.HeroMediaId,
-                offering.Sessions.Count,
-                offering.Sessions
+                offering.Runs.Count,
+                offering.Runs
+                    .SelectMany(run => run.Sessions)
                     .Where(session => session.StartsAt >= asOf)
                     .Min(session => (DateTimeOffset?)session.StartsAt),
                 offering.UpdatedAt))
@@ -92,6 +97,27 @@ internal sealed class ClassesRepository(ArtsDbContext context) : IClassesReposit
             .Take(take)
             .Select(offering => offering.Id)
             .ToListAsync(cancellationToken);
+
+    public Task<List<ClassOffering>> ListPublishedAsync(
+        string? slug, DateTimeOffset? endingAfter, CancellationToken cancellationToken)
+    {
+        var query = Offerings.AsNoTracking()
+            .Include(offering => offering.Runs).ThenInclude(run => run.Sessions)
+            .AsSplitQuery()
+            .Where(offering => offering.Status == PublishStatus.Published);
+
+        if (slug is not null)
+        {
+            query = query.Where(offering => offering.Slug == slug);
+        }
+
+        if (endingAfter is { } after)
+        {
+            query = query.Where(offering => offering.Runs.Any(run => run.Sessions.Any(session => session.EndsAt > after)));
+        }
+
+        return query.OrderBy(offering => offering.Id).ToListAsync(cancellationToken);
+    }
 
     public void DiscardChanges() => context.ChangeTracker.Clear();
 

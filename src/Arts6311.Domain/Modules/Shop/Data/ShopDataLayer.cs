@@ -149,6 +149,18 @@ internal sealed class ShopDataLayer(
     public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>
         repository.ListDueAsync(asOf, take, cancellationToken);
 
+    public Task<List<ShopItemSiteRow>> ListPublishedAsync(ShopSiteQuery query, CancellationToken cancellationToken) =>
+        repository.ListPublishedAsync(query, cancellationToken);
+
+    public Task<ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken) =>
+        repository.FindPublishedAsync(slug, cancellationToken);
+
+    public Task<Dictionary<Guid, int>> CountPublishedByArtistAsync(CancellationToken cancellationToken) =>
+        repository.CountPublishedByArtistAsync(cancellationToken);
+
+    public Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken) =>
+        repository.ListPublishedAddressesAsync(cancellationToken);
+
     public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         repository.GetSlugsAsync(cancellationToken);
 

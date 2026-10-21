@@ -72,4 +72,22 @@ public interface IExhibitionsFacade
     /// version. Never throws for a record that moved on — it reports what happened instead.
     /// </summary>
     Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <c>GET /site/exhibitions</c>: every published exhibition, newest opening first, cached under the
+    /// <c>exhibition</c> and <c>artist</c> type tags (ADR 0042). A small list that grows a few a year, so not paged.
+    /// </summary>
+    Task<OperationResult<IReadOnlyList<SiteExhibitionSummaryServiceModel>>> ListForSiteAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <c>GET /site/exhibitions/{slug}</c>: the published exhibition there, cached as the list is. Anything else is
+    /// <c>resource.not_found</c>, and is not cached.
+    /// </summary>
+    Task<OperationResult<SiteExhibitionServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>For a preview link: the exhibition as the site would show it, whatever the status. Never cached.</summary>
+    Task<OperationResult<PreviewRecord<SiteExhibitionServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>For the sitemap. Not cached here; the Site module caches the sitemap.</summary>
+    Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken);
 }

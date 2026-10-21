@@ -1,10 +1,12 @@
 /**
  * Classes' API shapes, mirroring the API's ServiceModels exactly (`ClassServiceModels.cs`, the OpenAPI snapshot):
- * string ids, UTC ISO instants shown in each session's `displayTimeZone`, integer cents with a currency, enum names
+ * string ids, UTC ISO instants shown in each run's `displayTimeZone`, integer cents with a currency, enum names
  * as strings.
  *
- * What Square holds the record of — a session's `priceCents`, `seatsRemaining` and `soldOut` — appears only on the
- * read models here, never on a write one (square.md, ADR 0032).
+ * A class is offered in **runs** (ADR 0044): the same class over different terms, each with its own instructor,
+ * sessions, seats, SKU and price. The run is what Square sells. What Square holds the record of — a run's
+ * `priceCents`, `seatsRemaining` and `soldOut` — appears only on the read models here, never on a write one
+ * (square.md, ADR 0032).
  */
 
 import {
@@ -32,8 +34,9 @@ export const CLASS_LIMITS = {
   summaryMaxLength: 500,
   classTypeMaxLength: 60,
   levelMaxLength: 60,
-  instructorMaxLength: 200,
   cadenceMaxLength: 100,
+  runLabelMaxLength: 100,
+  runsMaxCount: 30,
   sessionsMaxCount: 60,
   capacityMaxSeats: 500,
   startingPriceMaxCents: 1_000_000,
@@ -44,7 +47,7 @@ export const CLASS_LIMITS = {
 /** The problem codes the class screens act on: the shared content ones plus the catalog's SKU clash (ADR 0037). */
 export const CLASS_CODES = {
   ...CONTENT_CODES,
-  /** `CatalogErrorCodes.SkuTaken`: another class session or shop item already uses the SKU. */
+  /** `CatalogErrorCodes.SkuTaken`: another class run or shop item already uses the SKU. */
   skuTaken: 'cms.sku_taken',
 } as const;
 
@@ -64,28 +67,53 @@ export function normalizeSku(value: string): string {
   return value.trim().toUpperCase();
 }
 
-/** The SKU the CMS suggests for a session (`SkuPolicy.ForClassSession`), shown before one is saved. */
-export function suggestedSku(offeringNumber: number, sessionNumber: number): string {
-  return `CLS-${offeringNumber}-${sessionNumber}`;
+/** The SKU the CMS suggests for a run (`SkuPolicy.ForClassRun`), shown before one is saved. */
+export function suggestedSku(offeringNumber: number, runNumber: number): string {
+  return `CLS-${offeringNumber}-${runNumber}`;
 }
 
-/** One sitting. Its times are UTC; `displayTimeZone` says which clock they are shown on. */
+/** One sitting: when it meets. UTC, shown in its run's display zone. */
 export interface ClassSession {
   readonly id: string;
   readonly startsAt: string;
   readonly endsAt: string;
+}
+
+/** The instructor a run names, as the Instructors module describes them now. */
+export interface ClassInstructor {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly status: PublishStatus;
+}
+
+/** One run: who teaches it, when it meets, and what Square sells for it (ADR 0044). */
+export interface ClassRun {
+  readonly id: string;
+  /** "Fall 2026", "Sunday mornings"; `null` when the class has one run and needs no name for it. */
+  readonly label: string | null;
+  /** `null` until someone is chosen: a run needs an instructor to be published. */
+  readonly instructor: ClassInstructor | null;
+  readonly cadence: string | null;
   readonly displayTimeZone: string;
   /** CMS-owned, unique across the CMS. */
   readonly sku: string;
   /** CMS-owned: how many seats it has. */
   readonly capacity: number;
+  /** The CMS's draft price, the value the first Square push creates the variation with. */
+  readonly startingPriceCents: number | null;
+  readonly currency: string;
+  /** `false` once Square has reported money or seats: from then on a price change is its own command (5.4a). */
+  readonly startingPriceEditable: boolean;
   /** Square's record of the price; `null` until Square has reported one. */
   readonly priceCents: number | null;
   /** Square's record of the seats left; `null` until the first pull. */
   readonly seatsRemaining: number | null;
   readonly soldOut: boolean;
-  /** Square has reported money or seats for this session: it can no longer be removed here (ADR 0037). */
+  /** Square has reported money or seats for this run: it can no longer be removed here (ADR 0037). */
   readonly squareHasRecord: boolean;
+  /** The sittings, in start order. */
+  readonly sessions: readonly ClassSession[];
 }
 
 export interface ClassOffering {
@@ -97,20 +125,13 @@ export interface ClassOffering {
   readonly body: string | null;
   readonly classType: string | null;
   readonly level: string | null;
-  readonly instructor: string | null;
-  readonly cadence: string | null;
-  /** The CMS's draft price, the value the first Square push creates the variations with. */
-  readonly startingPriceCents: number | null;
-  readonly currency: string;
-  /** `false` once Square has reported a price: from then on a change is its own command (5.4a). */
-  readonly startingPriceEditable: boolean;
-  /** The number its suggested SKUs are built from. */
+  /** The number its runs' suggested SKUs are built from. */
   readonly offeringNumber: number;
   readonly heroMediaId: string | null;
   /** The library images the description shows. */
   readonly imageMediaIds: readonly string[];
-  /** The sittings, in start order. */
-  readonly sessions: readonly ClassSession[];
+  /** The runs, by their first session. */
+  readonly runs: readonly ClassRun[];
   readonly status: PublishStatus;
   readonly publishedAt: string | null;
   readonly scheduledFor: string | null;
@@ -131,10 +152,12 @@ export interface ClassSummary {
   readonly status: PublishStatus;
   readonly classType: string | null;
   readonly level: string | null;
-  readonly instructor: string | null;
+  /** Who teaches its runs, by name, each once. */
+  readonly instructors: readonly string[];
   readonly heroMediaId: string | null;
-  readonly sessionCount: number;
-  /** When it next meets, of the sessions still to come; `null` when none are. */
+  /** How many runs it has, past ones included. */
+  readonly runCount: number;
+  /** When it next meets, of every run's sessions still to come; `null` when none are. */
   readonly nextSessionStartsAt: string | null;
   readonly updatedAt: string;
 }
@@ -144,16 +167,28 @@ export interface ClassPage {
   readonly nextCursor: string | null;
 }
 
-/** A sitting as sent. No price, seats or sold-out: those are Square's record (ADR 0032). */
+/** A sitting as sent. */
 export interface ClassSessionInput {
   readonly startsAt: string;
   readonly endsAt: string;
-  readonly capacity: number;
   /** The session being kept, on an edit; left out for a new one. */
   readonly id?: string;
+}
+
+/** A run as sent. No price, seats or sold-out: those are Square's record (ADR 0032). */
+export interface ClassRunInput {
+  readonly capacity: number;
+  /** The run being kept, on an edit; left out for a new one. */
+  readonly id?: string;
+  readonly label?: string;
+  readonly instructorId?: string;
+  readonly cadence?: string;
   /** Left out for the next free suggestion. */
   readonly sku?: string;
   readonly displayTimeZone?: string;
+  /** Left out once Square holds the run: the price is then Square's, and sending a different one is refused. */
+  readonly startingPriceCents?: number;
+  readonly sessions?: readonly ClassSessionInput[];
 }
 
 /** A `POST` body. A slug left out is made from the title. */
@@ -164,16 +199,13 @@ export interface ClassCreate {
   readonly body?: string;
   readonly classType?: string;
   readonly level?: string;
-  readonly instructor?: string;
-  readonly cadence?: string;
-  readonly startingPriceCents?: number;
   readonly heroMediaId?: string;
-  readonly sessions?: readonly ClassSessionInput[];
+  readonly runs?: readonly ClassRunInput[];
 }
 
 /**
- * A `PATCH` body: a field left out is unchanged; an empty string clears a text field; `sessions` replaces the
- * sittings.
+ * A `PATCH` body: a field left out is unchanged; an empty string clears a text field; `runs` replaces the runs, and
+ * each run's `sessions` replaces its sittings.
  */
 export interface ClassUpdate {
   readonly title?: string;
@@ -182,13 +214,9 @@ export interface ClassUpdate {
   readonly body?: string;
   readonly classType?: string;
   readonly level?: string;
-  readonly instructor?: string;
-  readonly cadence?: string;
-  readonly startingPriceCents?: number;
-  readonly removeStartingPrice?: true;
   readonly heroMediaId?: string;
   readonly removeHero?: true;
-  readonly sessions?: readonly ClassSessionInput[];
+  readonly runs?: readonly ClassRunInput[];
 }
 
 export interface ClassListQuery {
@@ -213,37 +241,72 @@ function decodeInteger(value: unknown): number | null | undefined {
 
 function decodeSession(body: unknown): ClassSession | null {
   const f = fields(body);
+  if (!f || !isString(f['id']) || !isString(f['startsAt']) || !isString(f['endsAt'])) return null;
+  return { id: f['id'], startsAt: f['startsAt'], endsAt: f['endsAt'] };
+}
+
+function decodeInstructor(body: unknown): ClassInstructor | null | undefined {
+  if (body === null) return null;
+  const f = fields(body);
+  if (
+    !f ||
+    !isString(f['id']) ||
+    !isString(f['name']) ||
+    !isString(f['slug']) ||
+    !isStatus(f['status'])
+  ) {
+    return undefined;
+  }
+  return { id: f['id'], name: f['name'], slug: f['slug'], status: f['status'] };
+}
+
+function decodeRun(body: unknown): ClassRun | null {
+  const f = fields(body);
   if (!f) return null;
   const capacity = decodeInteger(f['capacity']);
+  const startingPriceCents = decodeInteger(f['startingPriceCents']);
   const priceCents = decodeInteger(f['priceCents']);
   const seatsRemaining = decodeInteger(f['seatsRemaining']);
+  const instructor = decodeInstructor(f['instructor']);
+  const sessions = Array.isArray(f['sessions']) ? f['sessions'].map(decodeSession) : null;
   if (
     !isString(f['id']) ||
-    !isString(f['startsAt']) ||
-    !isString(f['endsAt']) ||
+    !isNullableString(f['label']) ||
+    instructor === undefined ||
+    !isNullableString(f['cadence']) ||
     !isString(f['displayTimeZone']) ||
     !isString(f['sku']) ||
     capacity === undefined ||
     capacity === null ||
+    startingPriceCents === undefined ||
+    !isString(f['currency']) ||
+    !isBoolean(f['startingPriceEditable']) ||
     priceCents === undefined ||
     seatsRemaining === undefined ||
     !isBoolean(f['soldOut']) ||
-    !isBoolean(f['squareHasRecord'])
+    !isBoolean(f['squareHasRecord']) ||
+    sessions === null ||
+    sessions.some((session) => session === null)
   ) {
     return null;
   }
 
   return {
     id: f['id'],
-    startsAt: f['startsAt'],
-    endsAt: f['endsAt'],
+    label: f['label'],
+    instructor,
+    cadence: f['cadence'],
     displayTimeZone: f['displayTimeZone'],
     sku: f['sku'],
     capacity,
+    startingPriceCents,
+    currency: f['currency'],
+    startingPriceEditable: f['startingPriceEditable'],
     priceCents,
     seatsRemaining,
     soldOut: f['soldOut'],
     squareHasRecord: f['squareHasRecord'],
+    sessions: sessions as ClassSession[],
   };
 }
 
@@ -251,10 +314,9 @@ export function decodeClassOffering(body: unknown): ClassOffering | null {
   const f = fields(body);
   if (!f) return null;
   const legacyId = decodeInteger(f['legacyWordPressId']);
-  const startingPriceCents = decodeInteger(f['startingPriceCents']);
   const offeringNumber = decodeInteger(f['offeringNumber']);
   const images = Array.isArray(f['imageMediaIds']) ? f['imageMediaIds'] : null;
-  const sessions = Array.isArray(f['sessions']) ? f['sessions'].map(decodeSession) : null;
+  const runs = Array.isArray(f['runs']) ? f['runs'].map(decodeRun) : null;
   if (
     !isString(f['id']) ||
     !isString(f['title']) ||
@@ -263,18 +325,13 @@ export function decodeClassOffering(body: unknown): ClassOffering | null {
     !isNullableString(f['body']) ||
     !isNullableString(f['classType']) ||
     !isNullableString(f['level']) ||
-    !isNullableString(f['instructor']) ||
-    !isNullableString(f['cadence']) ||
-    startingPriceCents === undefined ||
-    !isString(f['currency']) ||
-    !isBoolean(f['startingPriceEditable']) ||
     offeringNumber === undefined ||
     offeringNumber === null ||
     !isNullableString(f['heroMediaId']) ||
     images === null ||
     !images.every(isString) ||
-    sessions === null ||
-    sessions.some((session) => session === null) ||
+    runs === null ||
+    runs.some((run) => run === null) ||
     !isStatus(f['status']) ||
     !isNullableString(f['publishedAt']) ||
     !isNullableString(f['scheduledFor']) ||
@@ -296,15 +353,10 @@ export function decodeClassOffering(body: unknown): ClassOffering | null {
     body: f['body'],
     classType: f['classType'],
     level: f['level'],
-    instructor: f['instructor'],
-    cadence: f['cadence'],
-    startingPriceCents,
-    currency: f['currency'],
-    startingPriceEditable: f['startingPriceEditable'],
     offeringNumber,
     heroMediaId: f['heroMediaId'],
     imageMediaIds: images,
-    sessions: sessions as ClassSession[],
+    runs: runs as ClassRun[],
     status: f['status'],
     publishedAt: f['publishedAt'],
     scheduledFor: f['scheduledFor'],
@@ -320,7 +372,8 @@ export function decodeClassOffering(body: unknown): ClassOffering | null {
 export function decodeClassSummary(body: unknown): ClassSummary | null {
   const f = fields(body);
   if (!f) return null;
-  const sessionCount = decodeInteger(f['sessionCount']);
+  const runCount = decodeInteger(f['runCount']);
+  const instructors = Array.isArray(f['instructors']) ? f['instructors'] : null;
   if (
     !isString(f['id']) ||
     !isString(f['title']) ||
@@ -328,10 +381,11 @@ export function decodeClassSummary(body: unknown): ClassSummary | null {
     !isStatus(f['status']) ||
     !isNullableString(f['classType']) ||
     !isNullableString(f['level']) ||
-    !isNullableString(f['instructor']) ||
+    instructors === null ||
+    !instructors.every(isString) ||
     !isNullableString(f['heroMediaId']) ||
-    sessionCount === undefined ||
-    sessionCount === null ||
+    runCount === undefined ||
+    runCount === null ||
     !isNullableString(f['nextSessionStartsAt']) ||
     !isString(f['updatedAt'])
   ) {
@@ -345,9 +399,9 @@ export function decodeClassSummary(body: unknown): ClassSummary | null {
     status: f['status'],
     classType: f['classType'],
     level: f['level'],
-    instructor: f['instructor'],
+    instructors,
     heroMediaId: f['heroMediaId'],
-    sessionCount,
+    runCount,
     nextSessionStartsAt: f['nextSessionStartsAt'],
     updatedAt: f['updatedAt'],
   };

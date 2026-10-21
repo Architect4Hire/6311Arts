@@ -279,6 +279,18 @@ public sealed class CmsShopEndpointTests
     /// <summary>The facade as far as the controller is concerned: what it was handed, and one chosen answer.</summary>
     private sealed class RecordingShopFacade : IShopFacade
     {
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Paging.CursorPage<global::Arts6311.Domain.Modules.Shop.Managers.ServiceModels.SiteShopItemSummaryServiceModel>>> ListForSiteAsync(global::Arts6311.Domain.Modules.Shop.Managers.ViewModels.SiteShopListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Modules.Shop.Managers.ServiceModels.SiteShopItemServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Shop.Managers.ServiceModels.SiteShopItemServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<global::Arts6311.Domain.Managers.Paging.CursorPage<global::Arts6311.Domain.Modules.Shop.Managers.ServiceModels.SiteShopItemSummaryServiceModel>> ListWorksForSiteAsync(string artistSlug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<Guid, int>> CountForSiteByArtistAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<global::Arts6311.Domain.Managers.Publishing.SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public static readonly ShopItemServiceModel Item = new(
             Guid.Parse("77777777-7777-7777-7777-777777777777"),
             "Copper Cuff",
