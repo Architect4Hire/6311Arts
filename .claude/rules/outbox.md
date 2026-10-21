@@ -87,12 +87,20 @@ There's no message broker. The outbox table in `ArtsDbContext` *is* the queue, a
   - A failure sets `Pending` with `AvailableAt = now + BackoffFor(attempts)`.
   - Exhausted attempts set `Poisoned`, which is terminal until an Admin replays or discards it on the Sync screen (audited).
 - **`LastError` is sanitized.** A handler rethrows a generic message naming only the exception *type*. Never store provider messages, hosts, keys or tokens.
+  - **The dispatcher no longer takes a handler's word for it** (2.13): it stores `ex.Message` only for the two
+    types a handler authors deliberately (`OutboxPoisonException`, and the `InvalidOperationException` it wraps
+    in) and records `The handler failed ({type})` for anything else. An unwrapped `SqlException` or SMTP failure
+    is exactly where a host, a port or a credential would come from, and every Admin can read this field.
 
 ## Handling
 
 - **Delivery is at-least-once.** Every handler is idempotent:
   - Key Square writes on the outbox message `Id` (the Square idempotency key).
-  - Key emails on (`Type`, subject id).
+  - Key emails on the **outbox message id**, in the `EmailDeliveries` ledger. (`Type` plus subject id would
+    collapse a *second* genuine request — a person clicking "forgot password" twice an hour apart is two emails,
+    not one — so the ledger's unique key is the message, and `Kind`/`SubjectId` are recorded beside it for
+    support. Delivery stays at-least-once either way: the ledger is written after the send, so a crash in
+    between redelivers. ADR 0023 records why that is the right way round.)
   - Make renditions content-addressed.
 - **Never trust the payload's state.** A handler reloads current state through a **facade** in its own scope. "Push item X" means "push X as it stands now", so an old or replayed message can't send stale content.
 - **Out-of-order delivery is normal.** Compare versions and hashes, and skip when Square already has what we'd send.

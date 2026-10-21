@@ -50,6 +50,7 @@ export const PREVIEW_TYPES = [
   'page',
   'class-offering',
   'shop-item',
+  'membership-plan',
 ] as const;
 export type PreviewType = (typeof PREVIEW_TYPES)[number];
 

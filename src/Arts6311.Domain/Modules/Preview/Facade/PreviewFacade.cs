@@ -7,6 +7,8 @@ using Arts6311.Domain.Modules.Classes.Facade;
 using Arts6311.Domain.Modules.Classes.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Exhibitions.Facade;
 using Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Memberships.Facade;
+using Arts6311.Domain.Modules.Memberships.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Pages.Facade;
 using Arts6311.Domain.Modules.Pages.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Shop.Facade;
@@ -45,6 +47,7 @@ internal sealed class PreviewFacade(
     IPagesFacade pages,
     IClassesFacade classes,
     IShopFacade shop,
+    IMembershipsFacade memberships,
     IValidator<PreviewLinkRequestViewModel> requestValidator) : IPreviewFacade
 {
     public async Task<OperationResult<PreviewLinkServiceModel>> CreateLinkAsync(
@@ -148,6 +151,20 @@ internal sealed class PreviewFacade(
                         shopItem: ForPreview(piece.Value))
                     : OperationResult.Failure<ContentPreviewServiceModel>(piece.Error!);
 
+            case "membership-plan":
+                var plan = await memberships.GetAsync(entityId, cancellationToken);
+
+                // The prefix is the whole address here: every tier is shown on the memberships page, so there is
+                // no slug to append (ADR 0040).
+                return plan.Succeeded
+                    ? Preview(
+                        entityType,
+                        entityId,
+                        prefix,
+                        plan.Value!.Status,
+                        membershipPlan: ForPreview(plan.Value))
+                    : OperationResult.Failure<ContentPreviewServiceModel>(plan.Error!);
+
             default:
                 // As above: a type with a prefix but no branch here.
                 throw new ArgumentOutOfRangeException(nameof(entityType), entityType, "No preview is built for this content type.");
@@ -179,6 +196,10 @@ internal sealed class PreviewFacade(
     private static ShopItemServiceModel ForPreview(ShopItemServiceModel item) =>
         item with { UpdatedBy = string.Empty, ETag = string.Empty, LegacyWordPressId = null };
 
+    /// <inheritdoc cref="ForPreview(ArtistServiceModel)"/>
+    private static MembershipPlanServiceModel ForPreview(MembershipPlanServiceModel plan) =>
+        plan with { UpdatedBy = string.Empty, ETag = string.Empty, LegacyWordPressId = null };
+
     private static OperationResult<ContentPreviewServiceModel> Preview(
         string entityType,
         Guid entityId,
@@ -188,9 +209,11 @@ internal sealed class PreviewFacade(
         ExhibitionServiceModel? exhibition = null,
         PageServiceModel? page = null,
         ClassServiceModel? classOffering = null,
-        ShopItemServiceModel? shopItem = null) =>
+        ShopItemServiceModel? shopItem = null,
+        MembershipPlanServiceModel? membershipPlan = null) =>
         OperationResult.Success(new ContentPreviewServiceModel(
-            entityType, entityId, path, status, NoIndex: true, artist, exhibition, page, classOffering, shopItem));
+            entityType, entityId, path, status, NoIndex: true, artist, exhibition, page, classOffering, shopItem,
+            membershipPlan));
 
     private static OperationResult<ContentPreviewServiceModel> NotFound() =>
         OperationResult.Failure<ContentPreviewServiceModel>(

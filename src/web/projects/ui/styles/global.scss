@@ -2,6 +2,13 @@
  * @6311/ui global styles: imported once per app, before the app's own stylesheet.
  * Base elements plus the two primitives whose classes the site also writes by hand (.btn, .field).
  * Marketing compositions (nav, hero, bands, cards) stay in the site.
+ *
+ * On the few literal lengths in here (.skip's offsets, the 6px gaps beside a label and an error glyph):
+ * they are deliberate and must stay literal. This file is loaded by the site *and* by the CMS, which sets
+ * data-density="compact" and redefines the whole --space-* scale, so a token here resolves to two different
+ * lengths in the two apps. 6px is --space-2 in the CMS and 8px on the site, and design-system.md rule 6
+ * ("match spike0 to the pixel") makes that a regression rather than a cleanup. Values below the scale —
+ * 3px, 7px, 10px, 11px — have no token at all. Colour, type and weight still come from tokens, always.
  */
 
 @use 'tokens';

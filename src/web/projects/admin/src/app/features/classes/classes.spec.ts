@@ -120,9 +120,72 @@ describe('ClassList', () => {
     await settle(fixture);
     expect(text(fixture.nativeElement)).toContain('No class is published.');
   });
+
+  it('offers a retry when the classes cannot be loaded, and an empty state when there are none', async () => {
+    // frontend.md: every data surface has loading, empty, error and success states. All four existed in the
+    // component and only the happy path was tested, so a 503 leaving "Loading classes…" on screen for good
+    // would have passed (test-gap review).
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(ClassList);
+    fixture.detectChanges();
+
+    expect(text(fixture.nativeElement)).toContain('Loading classes…');
+
+    http.expectOne((r) => r.url === BASE).flush(null, { status: 503, statusText: 'Unavailable' });
+    await settle(fixture);
+
+    expect(text(fixture.nativeElement)).toContain('The classes couldn’t be loaded');
+
+    button(fixture.nativeElement, 'Try again')!.click();
+    http.expectOne((r) => r.url === BASE).flush({ items: [], nextCursor: null });
+    await settle(fixture);
+
+    expect(fixture.nativeElement.querySelector('ui-empty-state')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('tbody')).toBeNull();
+  });
 });
 
 describe('ClassEditor', () => {
+  it('offers a retry when the record cannot be loaded, and asks again when it is used', async () => {
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(ClassEditor);
+    fixture.componentRef.setInput('id', CLASS_OFFERING.id);
+    fixture.detectChanges();
+
+    http.expectOne(ONE).flush(null, { status: 503, statusText: 'Unavailable' });
+    await settle(fixture);
+
+    expect(text(fixture.nativeElement)).toContain('This class couldn’t be loaded');
+
+    // The retry asks again rather than showing a form built from nothing.
+    button(fixture.nativeElement, 'Try again')!.click();
+    http.expectOne(ONE).flush(
+      { code: 'resource.not_found', title: 'Not found.' },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await settle(fixture);
+
+    expect(text(fixture.nativeElement)).not.toContain('This class couldn’t be loaded');
+  });
+
+  it('says there is no such record on a 404, and offers the way back', async () => {
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(ClassEditor);
+    fixture.componentRef.setInput('id', CLASS_OFFERING.id);
+    fixture.detectChanges();
+
+    http.expectOne(ONE).flush(
+      { code: 'resource.not_found', title: 'Not found.' },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await settle(fixture);
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(text(root)).toContain('There’s no such class');
+    expect(root.querySelector('a[href="/classes"]')).not.toBeNull();
+    expect(button(root, 'Try again')).toBeUndefined();
+  });
+
   it('creates a class with its sessions as instants and a suggested SKU', async () => {
     const { http, fixture, root, router } = await openEditor(null);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);

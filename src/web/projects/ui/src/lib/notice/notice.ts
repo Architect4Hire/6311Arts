@@ -105,6 +105,9 @@ const TONES: Record<NoticeTone, { icon: IconName; word: string }> = {
       min-width: 40px;
       min-height: 40px;
       padding: 0;
+      // Pulls the 40px hit area back over the notice's own padding so the glyph stays optically aligned.
+      // A literal, not calc(var(--space-3) * -1): this notice renders on the site *and* in the compact CMS,
+      // where --space-3 is 8px, which would shift it (design-system.md rule 6).
       margin: -12px;
       border: 0;
       background: none;

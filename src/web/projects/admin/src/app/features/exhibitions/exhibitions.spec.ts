@@ -109,9 +109,72 @@ describe('ExhibitionList', () => {
 
     expect(text(fixture.nativeElement)).toContain('No exhibition is archived.');
   });
+
+  it('offers a retry when the exhibitions cannot be loaded, and an empty state when there are none', async () => {
+    // frontend.md: every data surface has loading, empty, error and success states. All four existed in the
+    // component and only the happy path was tested, so a 503 leaving "Loading exhibitions…" on screen for good
+    // would have passed (test-gap review).
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(ExhibitionList);
+    fixture.detectChanges();
+
+    expect(text(fixture.nativeElement)).toContain('Loading exhibitions…');
+
+    http.expectOne((r) => r.url === BASE).flush(null, { status: 503, statusText: 'Unavailable' });
+    await settle(fixture);
+
+    expect(text(fixture.nativeElement)).toContain('The exhibitions couldn’t be loaded');
+
+    button(fixture.nativeElement, 'Try again')!.click();
+    http.expectOne((r) => r.url === BASE).flush({ items: [], nextCursor: null });
+    await settle(fixture);
+
+    expect(fixture.nativeElement.querySelector('ui-empty-state')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('tbody')).toBeNull();
+  });
 });
 
 describe('ExhibitionEditor', () => {
+  it('offers a retry when the record cannot be loaded, and asks again when it is used', async () => {
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(ExhibitionEditor);
+    fixture.componentRef.setInput('id', EXHIBITION.id);
+    fixture.detectChanges();
+
+    http.expectOne(ONE).flush(null, { status: 503, statusText: 'Unavailable' });
+    await settle(fixture);
+
+    expect(text(fixture.nativeElement)).toContain('This exhibition couldn’t be loaded');
+
+    // The retry asks again rather than showing a form built from nothing.
+    button(fixture.nativeElement, 'Try again')!.click();
+    http.expectOne(ONE).flush(
+      { code: 'resource.not_found', title: 'Not found.' },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await settle(fixture);
+
+    expect(text(fixture.nativeElement)).not.toContain('This exhibition couldn’t be loaded');
+  });
+
+  it('says there is no such record on a 404, and offers the way back', async () => {
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(ExhibitionEditor);
+    fixture.componentRef.setInput('id', EXHIBITION.id);
+    fixture.detectChanges();
+
+    http.expectOne(ONE).flush(
+      { code: 'resource.not_found', title: 'Not found.' },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await settle(fixture);
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(text(root)).toContain('There’s no such exhibition');
+    expect(root.querySelector('a[href="/exhibitions"]')).not.toBeNull();
+    expect(button(root, 'Try again')).toBeUndefined();
+  });
+
   it('creates a show with its dates, a reception typed in gallery time, and the address from its title', async () => {
     const { http, fixture, root, router } = await openEditor(null);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);

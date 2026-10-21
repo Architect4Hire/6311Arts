@@ -24,6 +24,7 @@ internal static class OpenApiExtensions
         services.AddOpenApi(DocumentName, options => options
             .AddOperationTransformer(AddStandardErrorResponses)
             .AddOperationTransformer(StreamedMultipartUploadAttribute.Describe)
+            .AddSchemaTransformer(NumbersAreNumbers)
             .AddDocumentTransformer((document, _, _) =>
             {
                 document.Info.Title = "6311arts API";
@@ -40,6 +41,43 @@ internal static class OpenApiExtensions
             }));
 
         return services;
+    }
+
+    /// <summary>
+    /// Takes <c>string</c> off every numeric schema, and with it the digits-only pattern that comes along.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The host serializes with <see cref="System.Text.Json.JsonSerializerDefaults.Web"/>, which <em>reads</em>
+    /// quoted numbers as a leniency, so the generator described every integer as
+    /// <c>["null", "integer", "string"]</c> — money included. Nothing we write ever emits a quoted number, so the
+    /// document was promising a shape the API does not produce, and a generated client would have typed
+    /// <c>startingPriceCents</c> as <c>number | string</c> (api-contract review).
+    /// </para>
+    /// <para>
+    /// This corrects what is <em>promised</em>, not what is accepted: a client that sends <c>"100"</c> is still
+    /// read, because narrowing accepted values would be a breaking change (api-contract.md "Compatibility"). The
+    /// promise has to be corrected before any client is generated from this document, since taking a type away
+    /// afterwards is the breaking change.
+    /// </para>
+    /// </remarks>
+    private static Task NumbersAreNumbers(
+        OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+
+        var numeric = JsonSchemaType.Integer | JsonSchemaType.Number;
+        if (schema.Type is not { } type || (type & numeric) == 0 || (type & JsonSchemaType.String) == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        schema.Type = type & ~JsonSchemaType.String;
+
+        // The pattern only existed to constrain the string form, and a number cannot match a pattern anyway.
+        schema.Pattern = null;
+
+        return Task.CompletedTask;
     }
 
     /// <summary>

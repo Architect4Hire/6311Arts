@@ -167,6 +167,25 @@ public sealed class RedirectsModuleTests
     }
 
     [Fact]
+    public async Task AFailedOutboxInsertTakesTheRedirectRowWithIt()
+    {
+        // The other direction from the test below, and the one that catches a *second* SaveChangesAsync: if the
+        // row were saved and the message staged afterwards in its own save, failing the outbox insert would leave
+        // the redirect behind, live, with nothing telling the site's cache to stop serving the old answer. Failing
+        // the audit insert cannot catch that, because the audit shares whichever save goes first (test-gap review).
+        var failOutbox = new FailInsertInto("OutboxMessages");
+        await using var host = await RedirectsTestHost.CreateAsync(Ct, failOutbox);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => host.WithFacadeAsync(
+            facade => facade.CreateAsync(new RedirectCreateViewModel("/gallery", "/exhibitions"), Admin, Ct)));
+
+        Assert.True(failOutbox.Fired, "The interceptor never fired, so the save was not actually broken.");
+        Assert.Empty(await host.TableAsync());
+        Assert.Empty(await host.QueryAsync(context => context.OutboxMessages.AsNoTracking().ToListAsync(Ct)));
+        Assert.Empty(await host.AuditActionsAsync());
+    }
+
+    [Fact]
     public async Task AFailedRedirectWriteLeavesNeitherTheRowNorItsRevalidation()
     {
         // outbox.md's atomicity test for this module's staging path: the row and the message commit together.
@@ -338,14 +357,15 @@ public sealed class RedirectsModuleTests
         var message = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
             .SingleAsync(row => row.Type == RedirectSlugChanged.MessageType, Ct));
         Assert.Equal(OutboxMessageStatus.Completed, message.Status);
-        // Three messages in all, and the pass left no failure behind: the publish's revalidation and the rename's
-        // slug change are delivered, and the redirect the handler wrote staged a revalidation of its own, which
-        // the next pass delivers (ADR 0036).
+        // Four messages in all, and the pass left no failure behind: the publish's revalidation, the rename's
+        // own revalidation (the artist page is live, so an edit to it invalidates what shows it) and the rename's
+        // slug change are all delivered, and the redirect the handler wrote staged a revalidation of its own,
+        // which the next pass delivers (ADR 0036).
         var all = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
             .OrderBy(row => row.CreatedAt).ThenBy(row => row.Id).ToListAsync(Ct));
 
-        Assert.Equal(3, all.Count);
-        Assert.Equal(2, all.Count(row => row.Status == OutboxMessageStatus.Completed));
+        Assert.Equal(4, all.Count);
+        Assert.Equal(3, all.Count(row => row.Status == OutboxMessageStatus.Completed));
         var pending = Assert.Single(all, row => row.Status == OutboxMessageStatus.Pending);
         Assert.Equal(SiteRevalidateRequested.MessageType, pending.Type);
         Assert.All(all, row => Assert.Null(row.LastError));

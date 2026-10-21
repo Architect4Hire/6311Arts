@@ -61,7 +61,10 @@ paths:
 
 - **Every data surface** has loading, empty, error and success states.
 - **Unsaved edits** survive recoverable errors and warn on navigation.
-- **Square-held values** (price, stock, **seats remaining**, sold-out) are never edited in place. Before the first sync, the starting price and quantity are plain fields. After it, each value shows Square's current figure with a **Change** action that sends a command and shows its Pending / Applied / Rejected state, plus the sync status chip (ADR 0032). Membership plan price stays read-only.
+- **Square-held values** (price, stock, **seats remaining**, sold-out) are never edited in place. Before the first sync, the starting price and quantity are plain fields. After it, each value shows Square's current figure with a **Change** action that sends a command and shows its Pending / Applied / Rejected state, plus the sync status chip (ADR 0032).
+  - **A membership plan's price and billing cadence** are plain fields before the first push and Square's figures
+    afterwards, read-only with **no** Change action: a plan has no such command (ADR 0005, 0040). The editor says so
+    and names Square as where they change.
   - **A class session's capacity is the CMS's, not Square's** (ADR 0032), so it stays an ordinary field after the
     first sync; a change to it is what makes the seat adjustment. What is read-only beside it is the seats *remaining*.
   - The sync status chip needs a `SyncStatus` to show, which arrives with `SquareCatalogLink` in 5.1. Until then a

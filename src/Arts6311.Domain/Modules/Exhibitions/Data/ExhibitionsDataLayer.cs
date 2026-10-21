@@ -71,6 +71,19 @@ internal sealed class ExhibitionsDataLayer(
                 correlation.Current);
         }
 
+        // An edit to a record the site is already showing has to invalidate what shows it, exactly as a status
+        // change does. Staged before the one save, so the edit and the invalidation commit together or neither
+        // does (outbox.md). Only while it is live: nothing public renders a Draft, Scheduled or Archived record,
+        // so there is nothing cached to clear, and a draft edit should not spend an outbox row.
+        //
+        // ADR 0036 left this to 3.1 on the grounds that nothing caches a record's content yet. Closed here
+        // instead: the machinery is this module's own StageRevalidation, and leaving it out means every content
+        // edit silently serves stale copy from the moment 3.1 turns caching on (architecture + outbox review).
+        if (exhibition.Status == PublishStatus.Published)
+        {
+            StageRevalidation(exhibition);
+        }
+
         audit.Record(new AuditEntry(
             actorUserId, ExhibitionAudit.Updated, ExhibitionAudit.ResourceType, exhibition.Id.ToString(), correlation.Current,
             summary));
@@ -140,10 +153,6 @@ internal sealed class ExhibitionsDataLayer(
     }
 
     /// <summary>
-    /// Who and when, and a new row version so every other open form's If-Match goes stale — a change to the credits
-    /// alone included. EF still compares against the version the row was read with.
-    /// </summary>
-    /// <summary>
     /// Stages <c>site.revalidate-requested</c> for the exhibition's own page and, through the type tag, every list
     /// that shows it (ADR 0036). Staged before the one save, so the status change and the invalidation commit
     /// together or not at all (outbox.md).
@@ -156,6 +165,10 @@ internal sealed class ExhibitionsDataLayer(
                 [SitePaths.AddressOf(ExhibitionPolicy.SitePathPrefix, exhibition.Slug)]).Serialize(),
             correlation.Current);
 
+    /// <summary>
+    /// Who and when, and a new row version so every other open form's If-Match goes stale — a change to the credits
+    /// alone included. EF still compares against the version the row was read with.
+    /// </summary>
     private static void Stamp(Exhibition exhibition, string actorUserId, DateTimeOffset now)
     {
         exhibition.UpdatedAt = now;

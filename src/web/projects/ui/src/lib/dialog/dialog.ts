@@ -93,6 +93,8 @@ let nextId = 0;
       place-items: center;
       min-width: 40px;
       min-height: 40px;
+      // Offsets the 40px hit area against the dialog head's padding. No token is 11px; this is an optical
+      // value, kept literal rather than rounded to a token that would move the glyph (design-system.md rule 6).
       margin: -11px;
       padding: 0;
       border: 0;

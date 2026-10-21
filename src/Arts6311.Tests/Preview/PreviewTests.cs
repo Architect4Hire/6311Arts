@@ -9,6 +9,9 @@ using Arts6311.Domain.Modules.Artists.Managers.ViewModels;
 using Arts6311.Domain.Modules.Classes;
 using Arts6311.Domain.Modules.Classes.Facade;
 using Arts6311.Domain.Modules.Classes.Managers.ViewModels;
+using Arts6311.Domain.Modules.Memberships;
+using Arts6311.Domain.Modules.Memberships.Facade;
+using Arts6311.Domain.Modules.Memberships.Managers.ViewModels;
 using Arts6311.Domain.Modules.Shop;
 using Arts6311.Domain.Modules.Shop.Facade;
 using Arts6311.Domain.Modules.Shop.Managers.ViewModels;
@@ -75,6 +78,7 @@ public sealed class PreviewTests : IAsyncLifetime
         collection.AddPagesModule();
         collection.AddClassesModule();
         collection.AddShopModule();
+        collection.AddMembershipsModule();
         collection.AddPreviewModule();
         collection.Replace(ServiceDescriptor.Singleton<IMediaBlobGateway>(new FakeMediaBlobGateway()));
 
@@ -114,11 +118,13 @@ public sealed class PreviewTests : IAsyncLifetime
         var pageId = await NewPageAsync();
         var classId = await NewClassAsync();
         var itemId = await NewShopItemAsync();
+        var planId = await NewMembershipPlanAsync();
 
         var exhibition = await Ok(ReadLinkAsync("exhibition", exhibitionId));
         var page = await Ok(ReadLinkAsync("page", pageId));
         var offering = await Ok(ReadLinkAsync("class-offering", classId));
         var piece = await Ok(ReadLinkAsync("shop-item", itemId));
+        var plan = await Ok(ReadLinkAsync("membership-plan", planId));
 
         Assert.Equal("/exhibitions/show", exhibition.Path);
         Assert.Equal("Show", exhibition.Exhibition!.Title);
@@ -133,6 +139,10 @@ public sealed class PreviewTests : IAsyncLifetime
 
         Assert.Equal("/shop/copper-cuff", piece.Path);
         Assert.Equal("Copper Cuff", piece.ShopItem!.Title);
+
+        // A membership tier has no address of its own: the preview opens the page every tier shares (ADR 0040).
+        Assert.Equal("/memberships", plan.Path);
+        Assert.Equal("Gray", plan.MembershipPlan!.Name);
     }
 
     [Fact]
@@ -271,6 +281,17 @@ public sealed class PreviewTests : IAsyncLifetime
         using var scope = services.CreateScope();
         var created = await scope.ServiceProvider.GetRequiredService<IShopFacade>().CreateAsync(
             new ShopItemCreateViewModel("Copper Cuff", Description: "<p>A forged copper cuff.</p>"),
+            Editor,
+            Ct);
+        Assert.True(created.Succeeded);
+        return created.Value!.Id;
+    }
+
+    private async Task<Guid> NewMembershipPlanAsync()
+    {
+        using var scope = services.CreateScope();
+        var created = await scope.ServiceProvider.GetRequiredService<IMembershipsFacade>().CreateAsync(
+            new MembershipPlanCreateViewModel("Gray", Perks: ["5% off every class"], StartingPriceCents: 10_000),
             Editor,
             Ct);
         Assert.True(created.Succeeded);

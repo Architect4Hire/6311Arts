@@ -51,7 +51,13 @@ app.use(async (req, res, next) => {
 });
 
 app.get('/robots.txt', (_req, res) => {
-  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+  // /preview/ and /admin/ are disallowed as well as /api/. A preview link is a capability URL (ADR 0036) and
+  // nothing should carry one into an index; the CMS is session-gated at the gateway, but a crawler following a
+  // link to it just generates sign-in redirects. Both are belt-and-braces: the preview response also sets
+  // `X-Robots-Tag: noindex` and `no-store`, and 3.x's preview page must keep doing so (security review).
+  res.type('text/plain').send(
+    `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /preview/\nDisallow: /admin/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`,
+  );
 });
 
 /** Sitemap built from live WordPress data, falling back to the bundled sample when WordPress is unreachable. */

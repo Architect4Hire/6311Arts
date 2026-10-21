@@ -239,6 +239,36 @@ const COMMAND_LABELS: Readonly<
                     <td>{{ draftSessions() }}</td>
                     <td>{{ savedSessions(theirs) }}</td>
                   </tr>
+                  <tr>
+                    <th scope="row">Description</th>
+                    <td>{{ draft().body.length }} characters</td>
+                    <td>{{ (theirs.body ?? '').length }} characters</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Class type</th>
+                    <td>{{ draft().classType || '—' }}</td>
+                    <td>{{ theirs.classType || '—' }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Level</th>
+                    <td>{{ draft().level || '—' }}</td>
+                    <td>{{ theirs.level || '—' }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Instructor</th>
+                    <td>{{ draft().instructor || '—' }}</td>
+                    <td>{{ theirs.instructor || '—' }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">How often it meets</th>
+                    <td>{{ draft().cadence || '—' }}</td>
+                    <td>{{ theirs.cadence || '—' }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Lead photograph</th>
+                    <td>{{ draft().heroMediaId ? 'A photograph' : 'None' }}</td>
+                    <td>{{ theirs.heroMediaId ? 'A photograph' : 'None' }}</td>
+                  </tr>
                 </tbody>
               </table>
               <div class="actions">
@@ -948,6 +978,10 @@ export class ClassEditor implements HasUnsavedChanges {
       this.offering.set(saved);
       this.draft.set(draftOf(saved));
       this.status.set({ kind: 'ready' });
+      // Saving disabled the fieldset that held the focused control, so the browser dropped focus to <body>.
+      // Put it on the heading, which is where "Saved." is announced from, rather than leaving a keyboard or
+      // screen-reader user with no position on the page (WCAG 2.4.3 focus order).
+      this.focus(this.heading);
       this.announce('Saved.');
     } catch (error: unknown) {
       await this.saveFailed(error);
@@ -955,13 +989,22 @@ export class ClassEditor implements HasUnsavedChanges {
   }
 
   protected async keepMine(theirs: ClassOffering): Promise<void> {
-    this.offering.set(theirs);
     this.status.set({ kind: 'ready' });
     this.focus(this.heading);
+
+    // Deliberately *not* `offering.set(theirs)` before saving. `save` diffs the draft against `offering()`, so
+    // adopting their version first would make every field they changed — and this editor only loaded, never
+    // touched — look like one of "my changes", and send a stale copy straight back over it. Diffing against
+    // what this editor loaded sends only the fields it actually edited; their etag is what lets the write
+    // through. That is what frontend.md's "a 409 keeps the editor's changes" has to mean, or keeping mine
+    // silently discards theirs.
     if (!this.dirty()) {
+      this.offering.set(theirs);
+      this.draft.set(draftOf(theirs));
       this.announce('Your changes already match the saved version. Nothing more to save.');
       return;
     }
+
     await this.save(theirs.etag);
   }
 
@@ -1317,5 +1360,12 @@ function fieldErrorsOf(problem: ClassProblem | null): FieldErrors {
 function messageOf(problem: ClassProblem | null, fallback: string): string {
   if (problem === null || problem.status === 0)
     return 'Can’t reach 6311arts. Your changes are still here; try again.';
-  return problem.detail ?? fallback;
+  const message = problem.detail ?? fallback;
+
+  // A 5xx says nothing the editor can act on, so hand them the one thing support can: the correlation id,
+  // which is this request's trace id (ADR 0019). Appended here rather than left to the global problem toast,
+  // because these calls deliberately suppress it to show the failure in place.
+  return problem.status >= 500 && problem.correlationId !== null
+    ? `${message} Quote reference ${problem.correlationId} if you report it.`
+    : message;
 }

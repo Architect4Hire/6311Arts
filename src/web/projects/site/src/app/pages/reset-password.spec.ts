@@ -78,10 +78,16 @@ describe('ResetPassword', () => {
     expect(input().value).toBe('');
   });
 
-  it('never puts the token in the page or the console', async () => {
+  it('never puts the token in the page, the console or browser storage', async () => {
     const consoleSpies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) =>
       vi.spyOn(console, method).mockImplementation(() => undefined),
     );
+
+    // auth.md: "tokens never appear in localStorage, sessionStorage, IndexedDB, URLs or logs." The page and the
+    // console were asserted; storage was not, so a well-meant "remember the link across a reload" would have
+    // passed (test-gap review). Spied rather than read back, to catch a write that is cleared again afterwards.
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => undefined);
+
     const { element, account, choose } = await render();
     account.resetPassword.mockResolvedValueOnce({ kind: 'unavailable' });
 
@@ -89,6 +95,10 @@ describe('ResetPassword', () => {
     await choose(NEW_PASSPHRASE);
 
     expect(element.outerHTML).not.toContain(LINK.token);
+    expect(JSON.stringify(setItem.mock.calls)).not.toContain(LINK.token);
+    expect(JSON.stringify(setItem.mock.calls)).not.toContain(NEW_PASSPHRASE);
+    setItem.mockRestore();
+
     for (const spy of consoleSpies) {
       expect(JSON.stringify(spy.mock.calls)).not.toContain(LINK.token);
       spy.mockRestore();

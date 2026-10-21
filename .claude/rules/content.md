@@ -21,7 +21,7 @@ The CMS is closed by design. Every content type is code we own: there are no plu
 | `Exhibition` | Title, slug, summary, body, start/end, reception start/end/note, hero, artists (M:N) |
 | `ClassOffering` | Title, slug, sanitized HTML body, summary, type, level, instructor, hero, cadence, starting price; has `ClassSession` rows (start, end, display zone, SKU, capacity). **Square-synced** (ADR 0032, 0037). |
 | `ShopItem` | Artwork only (merch is POS-only, ADR 0032). Title, slug, sanitized HTML description, artist (optional, via the Artists facade), categories, ordered gallery, SKU, one-of-a-kind flag, starting price, starting quantity. **Square-synced** (ADR 0038). |
-| `MembershipPlan` | Name, slug, perks, class discount %, featured, order, starting price. **Square-synced.** |
+| `MembershipPlan` | Name, slug, perks (ordered rows), class discount %, featured, order, starting price and starting cadence. **No page of its own:** every published tier is shown on `/memberships` (ADR 0040). **Square-synced** (ADR 0005, 0040). |
 | `Page` | Slug, title, sanitized HTML body (privacy, terms, about copy blocks) |
 | `Redirect` | From path, to path, 301/302, source (`Manual` / `Imported` / `SlugChange`). No lifecycle: live once written (ADR 0035) |
 
@@ -48,11 +48,16 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
   - Publish, update and archive stage the matching `square.*` outbox message in the same save.
   - Sync status is shown, never inferred from content status.
 - **Every status command stages `site.revalidate-requested {entityType, entityId, paths}`** in the same save
-  (ADR 0036), so the cache stops serving what the change affects. The Worker's kernel handler clears the
-  `type:`, `entity:` and `site:` tags; nothing invalidates inline after a save, and nothing calls the site over
-  HTTP. The API's own in-memory copy lives at most `HybridAppCache.MaxLocalLifetime` (one minute), which is the
+  (ADR 0036), so the cache stops serving what the change affects. **So does an ordinary edit to a record whose
+  status is `Published`** (2.13): the content is what the site is showing, so changing it has to clear what shows
+  it. An edit to a Draft, Scheduled or Archived record stages nothing, because nothing public renders one.
+  The Worker's kernel handler clears the `type:`, `entity:` and `site:` tags; nothing invalidates inline after a
+  save, and nothing calls the site over HTTP. The API's own in-memory copy lives at most `HybridAppCache.MaxLocalLifetime` (one minute), which is the
   worst case for a change appearing on the site.
 - **Slugs** are unique per type. A slug change on a record that has ever been published redirects its old address to the new one (ADR 0035): the content module's DataLayer stages `redirects.slug-changed` in the rename's own save, and the Redirects module applies it.
+  - **A membership plan is the exception** (ADR 0040): it has no address of its own, so its slug is a stable key, a
+    rename owes no redirect whatever its status, and its status changes revalidate the one page every tier shares.
+    Its policy exposes `SitePath` rather than a `SitePathPrefix`, and nothing appends a slug to it.
 - **Shared kernel** (ADR 0031): `Managers/Publishing/` holds `PublishStatus`, the transition table `PublishLifecycle.Next`, `Slugs` and `ContentErrorCodes`; `Managers/Concurrency/EntityTag` verifies `If-Match`. A content module uses these rather than its own.
   - Status commands carry `If-Match` too. An illegal move (publishing what is published, anything from Archived) is `cms.status_transition_invalid`, never a silent no-op.
   - `PublishedAt` is the **first** publish and survives an unpublish; it is what makes a slug change owe a redirect (`PublishedPathChange.For`). Since 2.7 nothing returns `cms.slug_locked`; the code stays in the contract, and the ServiceModels' `slugLocked` now means "changing it redirects".
@@ -87,6 +92,10 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
 - **Square-owned fields** (price, stock or seats, sold-out) are read-only projections on the CMS record, maintained by the `SquareSync` module. CMS write models don't contain them, and a test proves it per type (`ClassWriteModelTests`).
   - The *starting* price is the CMS's own draft field, and it stays editable only until Square has reported a price
     for the record (`startingPriceEditable`, ADR 0037). After that a change is the 5.4a command.
+  - **A membership plan's starting *cadence* is the CMS's too**, and freezes on the same gate (ADR 0005, 0040): the
+    first push creates the Square plan with both figures. `MembershipCadence` holds the two the centre sells, while
+    the `Cadence` projection is a string of Square's own word, because Square has cadences the CMS does not offer.
+    A plan has no change-price command at all: after the first push, price and cadence are changed in Square.
 - **SKUs are unique across the CMS**, not per type: the shared kernel's `CatalogSkus` registry (`Managers/Catalog/`,
   ADR 0037) holds one row per SKU with its owner's type and id, so one unique key covers class sessions and (from
   2.10) shop items. A content module's DataLayer reserves and releases through `ISkuRegistry` in the **same save** as

@@ -49,8 +49,12 @@ public sealed class IdentityApiClientTests
     {
         // The gateway needs the distinction to word its log and the API needs it for the audit row; what must
         // not happen is it reaching a browser (ADR 0023), which BffSessionTests covers.
+        //
+        // BadRequest, not Unauthorized: that is the status ApiProblemDetails declares for every auth.* code
+        // (api-contract review found this fixture mocking a 401 the API never sends, so the fixture and the map
+        // disagreed and a change to the fallback would have broken sign-in with both still green).
         using var handler = new RecordingHandler(
-            Json(HttpStatusCode.Unauthorized, new { code = "auth.locked_out", title = "Locked." }));
+            Json(HttpStatusCode.BadRequest, new { code = "auth.locked_out", title = "Locked." }));
 
         var result = await Client(handler).CheckCredentialsAsync("ada@example.test", "secret", Ct);
 

@@ -99,7 +99,11 @@ type Status =
         </div>
 
         <form method="post" novalidate (ngSubmit)="submit()">
-          <fieldset class="account-panel__fields" [disabled]="!ready()">
+          <!-- Also disabled while signing in, for the reason in reset-password.ts. -->
+          <fieldset
+            class="account-panel__fields"
+            [disabled]="!ready() || status().kind === 'busy'"
+          >
             <legend class="sr-only">Your staff account</legend>
             <ui-field label="Email" required [error]="emailError()">
               <input

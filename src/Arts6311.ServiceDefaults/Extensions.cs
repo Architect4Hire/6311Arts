@@ -59,7 +59,21 @@ public static class Extensions
         builder.Logging.AddOpenTelemetry(logging =>
         {
             logging.IncludeFormattedMessage = true;
-            logging.IncludeScopes = true;
+
+            // Scopes are deliberately NOT exported. ASP.NET Core's hosting scope carries RequestPath for the
+            // whole request, and a preview link's token *is* a path segment (ADR 0036) — so every log record
+            // written while serving `GET /api/v1/site/preview/{token}`, including EF Core's "Executed DbCommand"
+            // at Information, would carry a live capability URL into the Aspire dashboard and into whatever
+            // collects logs in Azure. Anyone who could read either could replay the link for its 30 minutes.
+            //
+            // The span's url.path is redacted below, but a log processor cannot rewrite a scope: the scope is an
+            // ILogger construct the SDK walks at export time. So not exporting them is the only way to hold
+            // auth.md's "never a URL, a log line, a trace attribute or an outbox payload".
+            //
+            // Little is lost. OpenTelemetry stamps TraceId and SpanId on every record from the ambient Activity,
+            // and ADR 0019 makes that trace id the correlation id, so log-to-trace correlation never depended on
+            // the scope. What a log line genuinely needs belongs in its own message template.
+            logging.IncludeScopes = false;
         });
 
         builder.Services.AddOpenTelemetry()

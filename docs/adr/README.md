@@ -58,6 +58,8 @@ Never rewrite an accepted ADR's decision. Write a new ADR that supersedes it.
 | [0037](0037-classes-and-the-shared-catalog-sku-registry.md) | Classes: the shared catalog SKU registry, session-level Square projections, sanitized class bodies | Accepted |
 | [0038](0038-shop-items-artwork-categories-and-one-of-a-kind.md) | Shop items: artwork only, a category allow-list, an ordered gallery, the one-of-a-kind freeze | Accepted |
 | [0039](0039-csp-hashes-for-the-sites-inline-scripts.md) | The site's three inline scripts are allowed by `sha256-` hash, never by nonce (cached HTML) or `'unsafe-inline'`; WordPress origins are development-only | Accepted |
+| [0040](0040-membership-plans-without-a-page-of-their-own.md) | Membership plans have no page of their own (slug as a key, `/memberships` revalidated, no rename redirect), ordered perk rows, a CMS starting cadence, and `featured` as a plain flag | Accepted |
+| [0041](0041-telemetry-does-not-export-log-scopes.md) | Log scopes are not exported (ASP.NET Core's hosting scope carries `RequestPath`, and a preview token is a path segment); YARP's forwarder is quietened to `Warning` | Accepted |
 
 ## Template
 

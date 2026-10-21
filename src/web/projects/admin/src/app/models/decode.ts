@@ -31,6 +31,13 @@ export interface ApiProblem {
   readonly code: string | null;
   readonly detail: string | null;
   readonly fieldErrors: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The W3C trace id the API stamps on every `ProblemDetails` (ADR 0019), so a screen that shows a failure in
+   * place can give staff the one reference support can follow. The CMS services set `SUPPRESS_PROBLEM_TOAST`,
+   * so the global toast that shows this never fires for them — without it here, a failed save left nothing on
+   * screen to quote (api-contract.md "Errors").
+   */
+  readonly correlationId: string | null;
 }
 
 /** Decodes an error body; a body that is not ProblemDetails (a proxy page, a dropped connection) gives a bare status. */
@@ -47,5 +54,7 @@ export function decodeApiProblem(body: unknown, status: number): ApiProblem {
     code: f && isString(f['code']) ? f['code'] : null,
     detail: f && isString(f['detail']) ? f['detail'] : null,
     fieldErrors,
+    correlationId:
+      f && isString(f['correlationId']) && f['correlationId'] !== '' ? f['correlationId'] : null,
   };
 }

@@ -125,9 +125,72 @@ describe('RedirectList', () => {
     expect(rows[0]).toContain('From the old site');
     expect(rows[1]).toContain('Address change');
   });
+
+  it('offers a retry when the redirects cannot be loaded, and an empty state when there are none', async () => {
+    // frontend.md: every data surface has loading, empty, error and success states. All four existed in the
+    // component and only the happy path was tested, so a 503 leaving "Loading redirects…" on screen for good
+    // would have passed (test-gap review).
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(RedirectList);
+    fixture.detectChanges();
+
+    expect(text(fixture.nativeElement)).toContain('Loading redirects…');
+
+    http.expectOne((r) => r.url === BASE).flush(null, { status: 503, statusText: 'Unavailable' });
+    await settle(fixture);
+
+    expect(text(fixture.nativeElement)).toContain('The redirects couldn’t be loaded');
+
+    button(fixture.nativeElement, 'Try again')!.click();
+    http.expectOne((r) => r.url === BASE).flush({ items: [], nextCursor: null });
+    await settle(fixture);
+
+    expect(fixture.nativeElement.querySelector('ui-empty-state')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('tbody')).toBeNull();
+  });
 });
 
 describe('RedirectEditor', () => {
+  it('offers a retry when the record cannot be loaded, and asks again when it is used', async () => {
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(RedirectEditor);
+    fixture.componentRef.setInput('id', REDIRECT.id);
+    fixture.detectChanges();
+
+    http.expectOne(ONE).flush(null, { status: 503, statusText: 'Unavailable' });
+    await settle(fixture);
+
+    expect(text(fixture.nativeElement)).toContain('This redirect couldn’t be loaded');
+
+    // The retry asks again rather than showing a form built from nothing.
+    button(fixture.nativeElement, 'Try again')!.click();
+    http.expectOne(ONE).flush(
+      { code: 'resource.not_found', title: 'Not found.' },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await settle(fixture);
+
+    expect(text(fixture.nativeElement)).not.toContain('This redirect couldn’t be loaded');
+  });
+
+  it('says there is no such record on a 404, and offers the way back', async () => {
+    const { http } = await configure();
+    const fixture = TestBed.createComponent(RedirectEditor);
+    fixture.componentRef.setInput('id', REDIRECT.id);
+    fixture.detectChanges();
+
+    http.expectOne(ONE).flush(
+      { code: 'resource.not_found', title: 'Not found.' },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await settle(fixture);
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(text(root)).toContain('There’s no such redirect');
+    expect(root.querySelector('a[href="/redirects"]')).not.toBeNull();
+    expect(button(root, 'Try again')).toBeUndefined();
+  });
+
   it('creates a redirect and moves to it', async () => {
     const { http, fixture, root, router } = await openEditor(null);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);

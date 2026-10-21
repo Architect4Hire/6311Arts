@@ -81,7 +81,12 @@ const PASSWORD_MIN_LENGTH = 8;
         <app-email-request-form kind="password-reset" submitLabel="Email me a new link" />
       } @else {
         <form method="post" novalidate (ngSubmit)="submit()">
-          <fieldset class="account-panel__fields" [disabled]="!ready()">
+          <!-- Also disabled while the request is in flight: the submitted value is already captured, so
+               letting it be edited mid-flight only invites the belief that the edit was sent. -->
+          <fieldset
+            class="account-panel__fields"
+            [disabled]="!ready() || status().kind === 'busy'"
+          >
             <legend class="sr-only">Your new password</legend>
             <ui-field
               label="New password"

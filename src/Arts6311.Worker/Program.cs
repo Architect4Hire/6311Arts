@@ -13,6 +13,7 @@ using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Media;
 using Arts6311.Domain.Modules.Pages;
 using Arts6311.Domain.Modules.Redirects;
+using Arts6311.Domain.Modules.Memberships;
 using Arts6311.Domain.Modules.Shop;
 using Arts6311.Domain.Modules.Operations;
 using Arts6311.Worker;
@@ -66,6 +67,7 @@ builder.Services.AddExhibitionsModule();
 builder.Services.AddPagesModule();
 builder.Services.AddClassesModule();
 builder.Services.AddShopModule();
+builder.Services.AddMembershipsModule();
 
 // The token provider is added by the host, not the module: it lives in the ASP.NET Core framework assembly, which
 // the Domain deliberately does not reference.

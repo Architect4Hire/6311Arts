@@ -360,8 +360,35 @@ public sealed class OutboxDispatcherTests : IAsyncLifetime
         var stored = await ReadAsync(id);
         Assert.Equal(OutboxMessageStatus.Pending, stored.Status);
         Assert.Equal(1, stored.Attempts);
-        Assert.Equal("Square push failed (TaskCanceledException).", stored.LastError);
+        // The handler threw a raw TaskCanceledException rather than wrapping it, so the dispatcher records the
+        // type and not the message it was given: LastError is read by every Admin, and an unwrapped provider
+        // exception is where a host, a port or a connection string would come from (security review).
+        Assert.Equal("The handler failed (TaskCanceledException).", stored.LastError);
         Assert.Equal(OutboxMessageStatus.Pending, (await ReadAsync(other)).Status);
+    }
+
+    [Fact]
+    public async Task AnUnwrappedHandlerExceptionNeverPutsItsMessageInLastError()
+    {
+        // outbox.md puts sanitizing on the handler, and every handler in the system does wrap. This is the
+        // defence for the one that forgets: LastError is shown to every Admin on the Sync screen, and the
+        // messages that arrive unwrapped are exactly the ones that name a server, a port or a credential
+        // (a SqlException, an SMTP failure). Only the two exception types a handler authors deliberately —
+        // OutboxPoisonException and the InvalidOperationException it wraps in — are taken at their word.
+        handler.OnHandle = _ => throw new HttpRequestException(
+            "Connection to sql-prod.internal:1433 failed for user 'sa' with password 'hunter2'.");
+        var id = await EnqueueAsync();
+
+        await DispatchAsync();
+
+        var stored = await ReadAsync(id);
+        Assert.Equal("The handler failed (HttpRequestException).", stored.LastError);
+        Assert.DoesNotContain("sql-prod", stored.LastError, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hunter2", stored.LastError, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("1433", stored.LastError, StringComparison.Ordinal);
+
+        // Still an ordinary failure: it retries rather than being poisoned on the first attempt.
+        Assert.Equal(OutboxMessageStatus.Pending, stored.Status);
     }
 
     [Fact]

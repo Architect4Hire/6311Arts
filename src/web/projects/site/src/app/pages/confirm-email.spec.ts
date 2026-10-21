@@ -62,6 +62,26 @@ describe('ConfirmEmail', () => {
     expect(element.outerHTML).not.toContain(LINK.token);
   });
 
+  it('never puts the token in the page, the console or browser storage', async () => {
+    // confirm-email asserted only the rendered page (test-gap review). The console and storage are the other two
+    // places auth.md names, and this page holds the credential for the whole of its one request.
+    const consoleSpies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) =>
+      vi.spyOn(console, method).mockImplementation(() => undefined),
+    );
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => undefined);
+
+    const { element } = await render({ result: { kind: 'unavailable' } });
+
+    expect(element.outerHTML).not.toContain(LINK.token);
+    expect(JSON.stringify(setItem.mock.calls)).not.toContain(LINK.token);
+    setItem.mockRestore();
+
+    for (const spy of consoleSpies) {
+      expect(JSON.stringify(spy.mock.calls)).not.toContain(LINK.token);
+      spy.mockRestore();
+    }
+  });
+
   it('offers a new confirmation link, and sign-in, when the link cannot be used', async () => {
     const { element, navigate } = await render({ result: { kind: 'link-invalid' } });
 

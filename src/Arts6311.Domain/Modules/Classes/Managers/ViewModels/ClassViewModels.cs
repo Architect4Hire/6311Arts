@@ -36,6 +36,15 @@ public sealed record ClassCreateViewModel(
 /// <param name="StartsAt">Required. Any offset; it is kept as UTC.</param>
 /// <param name="EndsAt">Required, after <paramref name="StartsAt"/>.</param>
 /// <param name="Capacity">Required: how many seats it has.</param>
+/// <remarks>
+/// <strong>The three required fields are nullable types, and the validator refuses <c>null</c>.</strong> That
+/// reads oddly against the schema, which lists them as required and nullable, so it is deliberate: a
+/// non-nullable <c>DateTimeOffset</c> binds a missing <c>startsAt</c> to <c>0001-01-01</c> and a missing
+/// <c>capacity</c> to <c>0</c>, which the validator could only refuse as "out of range" — indistinguishable
+/// from a client that really sent those values. Keeping them nullable is what lets an omitted field answer
+/// "Every session needs a start and an end time." Sending <c>null</c> explicitly is a
+/// <c>validation.failed</c>, never a 500 (api-contract review).
+/// </remarks>
 /// <param name="Id">The session being kept, on an edit. Left out for a new one.</param>
 /// <param name="Sku">Optional: the next free suggestion (<c>CLS-&lt;offering&gt;-&lt;n&gt;</c>) when left out.</param>
 /// <param name="DisplayTimeZone">The IANA zone its times are shown in. The gallery's zone when left out.</param>

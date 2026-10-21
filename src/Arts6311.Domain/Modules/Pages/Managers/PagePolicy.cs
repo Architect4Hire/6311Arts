@@ -39,6 +39,24 @@ public static class PagePolicy
         "artists", "artist", "exhibitions", "classes", "instructors", "shop", "product", "memberships",
     };
 
+    /// <summary>
+    /// <c>about</c>, <c>visit</c> and <c>submit</c> are deliberately **not** reserved, although the site serves
+    /// each as a static route today (<c>projects/site</c> <c>app.routes.ts</c>), so a page created at one of them
+    /// would be shadowed by the component the router matches first.
+    /// </summary>
+    /// <remarks>
+    /// Reserving them is the wrong way round. Those three are the spike's hard-coded copy, and <c>/privacy</c> and
+    /// <c>/terms</c> next to them already render CMS pages — so the direction of travel is that these become CMS
+    /// pages too, not that the CMS is forbidden from the most obvious page a gallery writes. "About" is the
+    /// canonical example page throughout the Pages tests, which is the codebase saying the same thing.
+    /// <para>
+    /// So it is 3.3's call (the prompt that moves the site's routing onto the platform): either those routes start
+    /// reading the CMS like <c>/privacy</c> does, or the site keeps them and they join the set above. Until then
+    /// staff can publish a page nobody can reach, which is a real if small trap — recorded here rather than
+    /// closed off, because closing it off is the harder decision to undo.
+    /// </para>
+    /// </remarks>
+
     /// <summary>Identity's user id column length, so <c>UpdatedBy</c> can hold any user id.</summary>
     internal const int UserIdMaxLength = 450;
 }

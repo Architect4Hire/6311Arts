@@ -85,9 +85,14 @@ interface PendingImage {
     <div class="field">
       <span class="field__label" [id]="labelId">{{ label() }}</span>
 
+      <!--
+        A plain group, not role="toolbar": that role tells a screen-reader user the buttons are one tab stop
+        navigated with the arrow keys, and these are individually tab-reachable. Claiming the role without a
+        roving tabindex is a worse lie than not claiming it.
+      -->
       <div
         class="toolbar"
-        role="toolbar"
+        role="group"
         [attr.aria-label]="label() + ' formatting'"
         [attr.aria-controls]="surfaceId"
       >

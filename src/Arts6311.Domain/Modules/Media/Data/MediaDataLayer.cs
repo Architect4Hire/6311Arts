@@ -374,6 +374,15 @@ internal sealed partial class MediaDataLayer(
         // Whatever the failed run left in the tracker must not ride along on this save.
         repository.DiscardChanges();
 
+        // Two writes, deliberately, as in ProduceRenditionsAsync above: the status is the Worker's and goes out as
+        // a targeted update outside the row-version check, so it neither blocks nor is blocked by an editor saving
+        // alt text (media.md "Business decides; the DataLayer executes"). Loading the row to fold this into the
+        // audit's save would put the Worker inside that check and invalidate an open editor's form.
+        //
+        // The order is status then audit, and the consequence is bounded: if the audit save below fails, the
+        // handler throws and the message is retried, and the next attempt re-runs both (the update matches on id,
+        // so it is idempotent). Only a failure on the final attempt leaves the asset Failed with no audit row, and
+        // the Poisoned message is then the visible state instead (outbox.md).
         if (await repository.SetProcessingStatusAsync(originalId, MediaProcessingStatus.Failed, cancellationToken) == 0)
         {
             return;

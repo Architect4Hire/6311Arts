@@ -57,9 +57,11 @@ describe('RichTextEditor', () => {
     );
     expect(textbox.querySelector('h2')?.textContent).toBe('Your privacy');
     expect(textbox.querySelector('li')?.textContent).toBe('Name');
-    expect(root.querySelector('[role="toolbar"]')?.getAttribute('aria-label')).toBe(
-      'Text formatting',
-    );
+    // A labelled group, not role="toolbar": that role promises arrow-key navigation over one tab stop, and
+    // every button here is its own tab stop.
+    const formatting = root.querySelector('[role="group"]');
+    expect(formatting?.getAttribute('aria-label')).toBe('Text formatting');
+    expect(root.querySelector('[role="toolbar"]')).toBeNull();
 
     // Loading normalises the HTML inside the editor, but nothing was edited, so nothing is written back.
     expect(host.value()).toBe('<h2>Your privacy</h2><ul><li>Name</li></ul>');

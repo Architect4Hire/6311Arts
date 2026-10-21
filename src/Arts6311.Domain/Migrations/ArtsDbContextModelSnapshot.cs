@@ -815,6 +815,109 @@ namespace Arts6311.Domain.Migrations
                     b.ToTable("MediaAssets", (string)null);
                 });
 
+            modelBuilder.Entity("Arts6311.Domain.Modules.Memberships.Data.Entities.MembershipPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Cadence")
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("DiscountPercent")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Featured")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("LegacyWordPressId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long?>("PriceCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ScheduledFor")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("varchar(120)");
+
+                    b.Property<int>("StartingCadence")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("StartingPriceCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LegacyWordPressId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_MembershipPlans_LegacyWordPressId")
+                        .HasFilter("[LegacyWordPressId] IS NOT NULL");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("IX_MembershipPlans_Slug");
+
+                    b.HasIndex("DisplayOrder", "Id")
+                        .HasDatabaseName("IX_MembershipPlans_DisplayOrder_Id");
+
+                    b.HasIndex("Status", "ScheduledFor")
+                        .HasDatabaseName("IX_MembershipPlans_Status_ScheduledFor");
+
+                    b.HasIndex("Status", "DisplayOrder", "Id")
+                        .HasDatabaseName("IX_MembershipPlans_Status_DisplayOrder_Id");
+
+                    b.ToTable("MembershipPlans", (string)null);
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Memberships.Data.Entities.MembershipPlanPerk", b =>
+                {
+                    b.Property<Guid>("MembershipPlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("MembershipPlanId", "Position");
+
+                    b.ToTable("MembershipPlanPerks", (string)null);
+                });
+
             modelBuilder.Entity("Arts6311.Domain.Modules.Pages.Data.Entities.Page", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1296,6 +1399,15 @@ namespace Arts6311.Domain.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
                 });
 
+            modelBuilder.Entity("Arts6311.Domain.Modules.Memberships.Data.Entities.MembershipPlanPerk", b =>
+                {
+                    b.HasOne("Arts6311.Domain.Modules.Memberships.Data.Entities.MembershipPlan", null)
+                        .WithMany("Perks")
+                        .HasForeignKey("MembershipPlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Arts6311.Domain.Modules.Pages.Data.Entities.PageMediaReference", b =>
                 {
                     b.HasOne("Arts6311.Domain.Modules.Media.Data.Entities.MediaAsset", null)
@@ -1419,6 +1531,11 @@ namespace Arts6311.Domain.Migrations
             modelBuilder.Entity("Arts6311.Domain.Modules.Exhibitions.Data.Entities.Exhibition", b =>
                 {
                     b.Navigation("Artists");
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Memberships.Data.Entities.MembershipPlan", b =>
+                {
+                    b.Navigation("Perks");
                 });
 
             modelBuilder.Entity("Arts6311.Domain.Modules.Pages.Data.Entities.Page", b =>

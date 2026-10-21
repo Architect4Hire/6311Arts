@@ -15,7 +15,7 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
 |---|---|---|
 | Public site reads | `GET /api/v1/site/classes`, `/site/classes/{slug}`, `/site/artists`, `/site/exhibitions`, `/site/shop`, `/site/memberships`, `/site/pages/{slug}`, `/site/redirects` | `[AllowAnonymous]` |
 | Preview | `GET /api/v1/site/preview/{token}` | `[AllowAnonymous]`; the signed, expiring token is the credential (ADR 0036). `no-store`, `X-Robots-Tag: noindex`, read-only; anything unusable is 404 |
-| CMS | `GET/POST /api/v1/cms/classes`, `PATCH /cms/classes/{id}`, `POST /cms/classes/{id}/publish`; the same shape for `/cms/artists`, `/cms/exhibitions`, `/cms/pages`, `/cms/shop` (artwork; `?category=` filters it) and `/cms/media` | `CmsEditor` (deletes `CmsAdmin`) |
+| CMS | `GET/POST /api/v1/cms/classes`, `PATCH /cms/classes/{id}`, `POST /cms/classes/{id}/publish`; the same shape for `/cms/artists`, `/cms/exhibitions`, `/cms/pages`, `/cms/shop` (artwork; `?category=` filters it), `/cms/memberships` (tiers, in display order) and `/cms/media` | `CmsEditor` (deletes `CmsAdmin`) |
 | CMS status commands | `POST /api/v1/cms/{type}/{id}/publish`, `/unpublish`, `/schedule` (body `ContentScheduleViewModel`), `/unschedule`, `/archive` (`CmsAdmin`) | `CmsEditor`; every one carries `If-Match` |
 | CMS previews | `POST /api/v1/cms/preview` → `{ token, path, expiresAt }` | `CmsEditor`; mints a link for one record, changes nothing |
 | Commerce | `POST /api/v1/cart/items`, `POST /checkout/quote`, `POST /checkout/pay` | anonymous cart; pay is idempotent |
@@ -38,6 +38,7 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
   |---|---|
   | `validation.failed`, `paging.cursor.invalid`, `idempotency.key_required`, `idempotency.key_invalid` | 400 |
   | `auth.unauthenticated` | 401 |
+  | `auth.credentials_invalid`, `auth.locked_out`, `auth.email_unconfirmed`, `auth.password_rejected`, `auth.token_invalid` (internal routes only) | 400 |
   | `access.forbidden` | 403 |
   | `resource.not_found`, `request.route_not_found` | 404 |
   | `request.method_not_allowed` | 405 |
@@ -52,7 +53,7 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
   | `server.error` (the whole 5xx family) | 500 |
   | `request.rejected` (the edge's remainder), anything unmapped | 400 |
 
-  `square.unavailable` → 503 arrives with 5.2; a 429 code plus `Retry-After` arrives with the routes that need it. The missing-`If-Match` code arrived with media (2.3). `ErrorCodeMapTests` fails if a code in `ErrorCodes` has no status here.
+  `square.unavailable` → 503 arrives with 5.2; a 429 code plus `Retry-After` arrives with the routes that need it. The missing-`If-Match` code arrived with media (2.3). `ErrorCodeMapTests` fails if a code in `ErrorCodes` or `IdentityErrorCodes` has no status here. The identity codes are reachable only on `/api/v1/internal/**`, and the gateway collapses the first three into one browser answer (ADR 0023) — but they are codes in the contract, so "one code, one status" covers them. The test asks `ApiProblemDetails.IsDeclared` rather than comparing against `UnmappedCodeStatus`, because a code declared as 400 and a code that fell back to 400 are otherwise indistinguishable, which is how these five went unnoticed.
 
   A new code with any other status is added to that map deliberately. `code`, `correlationId` and `errors` are `ProblemDetails` extensions, which a generator can't infer, so the `ProblemDetails` component is hand-written to declare them. `correlationId` is the W3C trace id as 32 lower-case hex digits.
 - **Concurrency.** Editable CMS records use a row version (`ETag` / `If-Match`). A stale write gets a 409 with code `concurrency.conflict`.

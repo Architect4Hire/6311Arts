@@ -1,6 +1,7 @@
 using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
+using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Media.Managers;
 using Arts6311.Domain.Modules.Redirects.Managers;
 using Microsoft.AspNetCore.Mvc;
@@ -63,6 +64,17 @@ internal static class ApiProblemDetails
         [RedirectErrorCodes.FromTaken] = StatusCodes.Status409Conflict,
         [RedirectErrorCodes.LoopOrChain] = StatusCodes.Status409Conflict,
 
+        // Identity, on the internal routes only (auth.md). Each is 400 — the status they already answered by
+        // falling through to UnmappedCodeStatus — but declared, so "one code, one status, in one place" (ADR 0021)
+        // covers them and the gateway's IdentityApiClient is reading a status the contract states rather than one
+        // that happens to be the default. They must never reach a browser: /bff/login collapses the first three
+        // into one answer, because telling them apart enumerates accounts (ADR 0023).
+        [IdentityErrorCodes.CredentialsInvalid] = StatusCodes.Status400BadRequest,
+        [IdentityErrorCodes.LockedOut] = StatusCodes.Status400BadRequest,
+        [IdentityErrorCodes.EmailUnconfirmed] = StatusCodes.Status400BadRequest,
+        [IdentityErrorCodes.PasswordRejected] = StatusCodes.Status400BadRequest,
+        [IdentityErrorCodes.TokenInvalid] = StatusCodes.Status400BadRequest,
+
         // api-contract.md: the same key with a different body is refused, not retried (ADR 0020).
         [ErrorCodes.IdempotencyKeyReused] = StatusCodes.Status422UnprocessableEntity,
 
@@ -82,6 +94,16 @@ internal static class ApiProblemDetails
 
     public static int StatusFor(string code) =>
         StatusByCode.TryGetValue(code, out var status) ? status : UnmappedCodeStatus;
+
+    /// <summary>
+    /// Whether this code's status is declared above rather than taken from <see cref="UnmappedCodeStatus"/>.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="StatusFor"/> cannot tell a code declared as 400 from one that fell back to 400, so without this
+    /// the map's own test had to carry a hand-kept list of codes "genuinely" 400 — and a new 400 code forgotten
+    /// in both places looked fine from either side.
+    /// </remarks>
+    public static bool IsDeclared(string code) => StatusByCode.ContainsKey(code);
 
     /// <summary>
     /// Builds the response body for an expected failure. Field errors make it a

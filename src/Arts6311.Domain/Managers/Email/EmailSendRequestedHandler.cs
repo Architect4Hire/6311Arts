@@ -45,8 +45,12 @@ internal sealed partial class EmailSendRequestedHandler(
             ?? throw new OutboxPoisonException("Malformed email.send-requested payload.");
 
         // An unknown kind is poison, not a retry: no composer is going to appear while this message waits.
+        // The kind is deliberately not quoted here. It comes from the payload, and the dispatcher writes this
+        // message verbatim into OutboxMessage.LastError, which every Admin can read; today every writer passes an
+        // IdentityEmailKinds constant, but a payload is not a place to take a string from and echo (outbox.md
+        // "LastError is sanitized"). The kind is already on the message's own row for whoever investigates.
         var composer = services.GetKeyedService<IEmailComposer>(request.Kind)
-            ?? throw new OutboxPoisonException($"No email composer is registered for kind '{request.Kind}'.");
+            ?? throw new OutboxPoisonException("No email composer is registered for this message's kind.");
 
         bool alreadyHandled;
         try

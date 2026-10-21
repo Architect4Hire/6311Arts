@@ -7,6 +7,7 @@ using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Media;
 using Arts6311.Domain.Modules.Pages;
 using Arts6311.Domain.Modules.Redirects;
+using Arts6311.Domain.Modules.Memberships;
 using Arts6311.Domain.Modules.Shop;
 using Arts6311.MigrationService;
 
@@ -46,6 +47,7 @@ if (builder.Environment.IsDevelopment())
     builder.Services.AddExhibitionsDevelopmentSeeder();
     builder.Services.AddClassesDevelopmentSeeder();
     builder.Services.AddShopDevelopmentSeeder();
+    builder.Services.AddMembershipsDevelopmentSeeder();
 }
 
 var host = builder.Build();

@@ -43,8 +43,34 @@ internal sealed class CspOptions
     public string Referrer { get; set; } = "strict-origin-when-cross-origin";
 
     /// <summary>
+    /// Directive name → extra sources to append to whichever policy a path resolves to, as a space-separated list.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For sources an <em>environment</em> needs rather than the application: today, the WordPress origins the site
+    /// still reads from while the migration runs, which `appsettings.Development.json` adds and no deployed
+    /// environment does (ADR 0039).
+    /// </para>
+    /// <para>
+    /// This exists so that an environment never restates <see cref="Default"/>. A second copy of the policy would
+    /// hold a second copy of the inline-script hashes, and the two would drift apart silently — the development
+    /// copy masking a stale hash in the shipped one, which is exactly what happened when this was first written as
+    /// an override.
+    /// </para>
+    /// <para>
+    /// Only a directive the policy already names is extended. Adding an absent directive would silently narrow what
+    /// <c>default-src</c> was covering, which is the opposite of what a line called "additional" should do.
+    /// </para>
+    /// </remarks>
+    public IDictionary<string, string> AdditionalSources { get; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Merged policies by the policy they came from: <see cref="For"/> runs on every response.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> merged = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// Resolves the policy for a path: the longest matching prefix, else the default. Ordinal-ignore-case, matching
-    /// how ASP.NET compares paths.
+    /// how ASP.NET compares paths. <see cref="AdditionalSources"/> is then folded in.
     /// </summary>
     public string For(PathString path)
     {
@@ -59,7 +85,27 @@ internal sealed class CspOptions
             }
         }
 
-        return best;
+        return AdditionalSources.Count == 0 ? best : merged.GetOrAdd(best, Extend);
+    }
+
+    private string Extend(string policy)
+    {
+        var directives = policy.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        for (var i = 0; i < directives.Length; i++)
+        {
+            var name = directives[i].Split(' ', 2)[0];
+            if (!AdditionalSources.TryGetValue(name, out var extra) || string.IsNullOrWhiteSpace(extra)) continue;
+
+            foreach (var source in extra.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                // A source already allowed is not repeated: a policy is read by people as well as by browsers.
+                var sources = directives[i].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (!sources.Contains(source, StringComparer.Ordinal)) directives[i] += " " + source;
+            }
+        }
+
+        return string.Join("; ", directives);
     }
 }
 

@@ -78,6 +78,19 @@ internal sealed class ArtistsDataLayer(
                 correlation.Current);
         }
 
+        // An edit to a record the site is already showing has to invalidate what shows it, exactly as a status
+        // change does. Staged before the one save, so the edit and the invalidation commit together or neither
+        // does (outbox.md). Only while it is live: nothing public renders a Draft, Scheduled or Archived record,
+        // so there is nothing cached to clear, and a draft edit should not spend an outbox row.
+        //
+        // ADR 0036 left this to 3.1 on the grounds that nothing caches a record's content yet. Closed here
+        // instead: the machinery is this module's own StageRevalidation, and leaving it out means every content
+        // edit silently serves stale copy from the moment 3.1 turns caching on (architecture + outbox review).
+        if (artist.Status == PublishStatus.Published)
+        {
+            StageRevalidation(artist);
+        }
+
         audit.Record(new AuditEntry(
             actorUserId, ArtistAudit.Updated, ArtistAudit.ResourceType, artist.Id.ToString(), correlation.Current, summary));
 

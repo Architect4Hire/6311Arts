@@ -30,10 +30,10 @@
   </ItemGroup>
 
   <ItemGroup Label="AppHost">
-    <PackageVersion Include="Aspire.Hosting.Azure.Sql" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.Redis" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Sql" Version="13.6.2" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.2" />
+    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.6.2" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.6.2" />
     <PackageVersion Include="Aspire.Hosting.Testing" Version="$(AspireVersion)" />
     <PackageVersion Include="CommunityToolkit.Aspire.Hosting.MailPit" Version="13.6.0" />
     <PackageVersion Include="CommunityToolkit.Aspire.Hosting.Redis.Extensions" Version="13.6.0" />
@@ -53,12 +53,12 @@
       Redis is the gateway's one piece of state: a ring under the user profile would make every antiforgery token
       die with the process and disagree between replicas.
     -->
-    <PackageVersion Include="Aspire.StackExchange.Redis" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.StackExchange.Redis" Version="13.6.2" />
     <!--
       The IDistributedCache HybridCache uses as its L2, in the API and the Worker (ADR 0036): without a shared,
       out-of-process cache, a revalidation in the Worker could not reach the API's entries at all.
     -->
-    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.6.2" />
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" Version="10.0.13" />
     <!--
       The signing half of the internal token. Pinned to the version Microsoft.AspNetCore.Authentication.JwtBearer
@@ -88,8 +88,8 @@
   </ItemGroup>
 
   <ItemGroup Label="Data and caching">
-    <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="13.6.2" />
+    <PackageVersion Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" Version="13.6.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />

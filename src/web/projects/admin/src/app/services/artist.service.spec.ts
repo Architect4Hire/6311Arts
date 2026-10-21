@@ -96,6 +96,7 @@ describe('artist models', () => {
       code: 'cms.slug_taken',
       detail: 'Taken.',
       fieldErrors: { slug: ['“jane” is taken.'] },
+      correlationId: null,
     });
   });
 

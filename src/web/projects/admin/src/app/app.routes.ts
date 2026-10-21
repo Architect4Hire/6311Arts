@@ -18,6 +18,9 @@ const pageEditor = () => import('./features/pages/page-editor').then((m) => m.Pa
 const shopItemEditor = () =>
   import('./features/shop/shop-item-editor').then((m) => m.ShopItemEditor);
 
+const membershipPlanEditor = () =>
+  import('./features/memberships/membership-plan-editor').then((m) => m.MembershipPlanEditor);
+
 const redirectEditor = () =>
   import('./features/redirects/redirect-editor').then((m) => m.RedirectEditor);
 
@@ -42,6 +45,10 @@ const SCREENS: Readonly<Record<string, Pick<Route, 'loadComponent' | 'canDeactiv
   },
   shop: {
     loadComponent: () => import('./features/shop/shop-list').then((m) => m.ShopList),
+  },
+  memberships: {
+    loadComponent: () =>
+      import('./features/memberships/membership-list').then((m) => m.MembershipList),
   },
   redirects: {
     loadComponent: () => import('./features/redirects/redirect-list').then((m) => m.RedirectList),
@@ -75,6 +82,18 @@ const DETAIL_ROUTES: Routes = [
   { path: 'classes/:id', title: 'Class', section: 'classes', loadComponent: classEditor },
   { path: 'shop/new', title: 'New piece', section: 'shop', loadComponent: shopItemEditor },
   { path: 'shop/:id', title: 'Piece', section: 'shop', loadComponent: shopItemEditor },
+  {
+    path: 'memberships/new',
+    title: 'New tier',
+    section: 'memberships',
+    loadComponent: membershipPlanEditor,
+  },
+  {
+    path: 'memberships/:id',
+    title: 'Membership tier',
+    section: 'memberships',
+    loadComponent: membershipPlanEditor,
+  },
   { path: 'pages/new', title: 'New page', section: 'pages', loadComponent: pageEditor },
   { path: 'pages/:id', title: 'Page', section: 'pages', loadComponent: pageEditor },
   { path: 'redirects/new', title: 'New redirect', section: 'redirects', loadComponent: redirectEditor },

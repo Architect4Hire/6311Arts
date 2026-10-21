@@ -10,6 +10,7 @@ using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Media;
+using Arts6311.Domain.Modules.Memberships;
 using Arts6311.Domain.Modules.Pages;
 using Arts6311.Domain.Modules.Preview;
 using Arts6311.Domain.Modules.Redirects;
@@ -61,6 +62,10 @@ builder.Services.AddClassesModule();
 // The shop's artwork (content.md, ADR 0038). Its facade asks Media about the photographs and Artists about the
 // credit, so it comes after both.
 builder.Services.AddShopModule();
+
+// Membership tiers (content.md, ADR 0040). It asks no other module anything: a plan credits nobody and shows no
+// library image.
+builder.Services.AddMembershipsModule();
 
 // Redirects (content.md): the CMS's list and the site's. Its slug-change handler is the Worker's (ADR 0035).
 builder.Services.AddRedirectsModule();

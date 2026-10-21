@@ -223,6 +223,30 @@ const COMMAND_LABELS: Readonly<
                     <td>{{ draft().images.length }}</td>
                     <td>{{ theirs.imageMediaIds.length }}</td>
                   </tr>
+                  <tr>
+                    <th scope="row">Description</th>
+                    <td>{{ draft().description.length }} characters</td>
+                    <td>{{ (theirs.description ?? '').length }} characters</td>
+                  </tr>
+                  @if (theirs.startingPriceEditable) {
+                    <tr>
+                      <th scope="row">Starting price</th>
+                      <td>{{ draft().price ? '$' + draft().price : '—' }}</td>
+                      <td>{{ savedStartingPrice(theirs) }}</td>
+                    </tr>
+                  }
+                  @if (theirs.startingStockEditable) {
+                    <tr>
+                      <th scope="row">One of a kind</th>
+                      <td>{{ draft().oneOfAKind ? 'Yes' : 'No' }}</td>
+                      <td>{{ theirs.oneOfAKind ? 'Yes' : 'No' }}</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Starting count</th>
+                      <td>{{ draft().oneOfAKind ? 'One' : draft().quantity || '—' }}</td>
+                      <td>{{ theirs.oneOfAKind ? 'One' : (theirs.startingStockQuantity ?? '—') }}</td>
+                    </tr>
+                  }
                 </tbody>
               </table>
               <div class="actions">
@@ -898,6 +922,10 @@ export class ShopItemEditor implements HasUnsavedChanges {
       this.item.set(saved);
       this.draft.set(draftOf(saved));
       this.status.set({ kind: 'ready' });
+      // Saving disabled the fieldset that held the focused control, so the browser dropped focus to <body>.
+      // Put it on the heading, which is where "Saved." is announced from, rather than leaving a keyboard or
+      // screen-reader user with no position on the page (WCAG 2.4.3 focus order).
+      this.focus(this.heading);
       this.announce('Saved.');
     } catch (error: unknown) {
       await this.saveFailed(error);
@@ -905,14 +933,30 @@ export class ShopItemEditor implements HasUnsavedChanges {
   }
 
   protected async keepMine(theirs: ShopItem): Promise<void> {
-    this.item.set(theirs);
     this.status.set({ kind: 'ready' });
     this.focus(this.heading);
+
+    // Deliberately *not* `item.set(theirs)` before saving. `save` diffs the draft against `item()`, so
+    // adopting their version first would make every field they changed — and this editor only loaded, never
+    // touched — look like one of "my changes", and send a stale copy straight back over it. Diffing against
+    // what this editor loaded sends only the fields it actually edited; their etag is what lets the write
+    // through. That is what frontend.md's "a 409 keeps the editor's changes" has to mean, or keeping mine
+    // silently discards theirs.
     if (!this.dirty()) {
+      this.item.set(theirs);
+      this.draft.set(draftOf(theirs));
       this.announce('Your changes already match the saved version. Nothing more to save.');
       return;
     }
+
     await this.save(theirs.etag);
+  }
+
+  /** Their saved starting price, for the conflict table. */
+  protected savedStartingPrice(piece: ShopItem): string {
+    return piece.startingPriceCents === null
+      ? '—'
+      : money(piece.startingPriceCents, piece.currency);
   }
 
   protected useTheirs(theirs: ShopItem): void {
@@ -1238,5 +1282,12 @@ function fieldErrorsOf(problem: ShopProblem | null): FieldErrors {
 function messageOf(problem: ShopProblem | null, fallback: string): string {
   if (problem === null || problem.status === 0)
     return 'Can’t reach 6311arts. Your changes are still here; try again.';
-  return problem.detail ?? fallback;
+  const message = problem.detail ?? fallback;
+
+  // A 5xx says nothing the editor can act on, so hand them the one thing support can: the correlation id,
+  // which is this request's trace id (ADR 0019). Appended here rather than left to the global problem toast,
+  // because these calls deliberately suppress it to show the failure in place.
+  return problem.status >= 500 && problem.correlationId !== null
+    ? `${message} Quote reference ${problem.correlationId} if you report it.`
+    : message;
 }

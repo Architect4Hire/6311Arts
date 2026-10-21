@@ -197,10 +197,15 @@ five-minute staleness.
   `PreviewPolicy.EntityTypes` — with a branch in the Preview facade, which throws rather than 404s if one is
   forgotten.
 - **`cms.slug_locked` stays unused** (2.7), and `ContentErrorCodes` keeps it for the contract.
-- **A plain content edit stages no revalidation**, only status commands and redirect writes do (the prompt's
+- ~~**A plain content edit stages no revalidation**, only status commands and redirect writes do (the prompt's
   scope). Nothing caches a record's content before 3.1, so nothing can go stale yet; 3.1, which adds the site's
-  cached reads, has to decide whether an edit to a published record stages one too. A slug change is already
-  covered from the redirect's side: the handler's new row stages a revalidation for both addresses.
+  cached reads, has to decide whether an edit to a published record stages one too.~~ **Closed at the 2.13
+  checkpoint**, ahead of 3.1: an edit to a record whose status is `Published` now stages a revalidation in its own
+  save, through the module's existing `StageRevalidation`. The architecture and outbox reviews both raised it, and
+  the decision 3.1 was left to make had only one safe answer — without it, every content edit would serve stale
+  copy from the moment 3.1 turned caching on, which is a bug introduced by omission rather than a feature
+  deferred. A slug change is also covered from the redirect's side: the handler's new row stages a revalidation
+  for both addresses.
 - **Editing a redirect's old address leaves that old address's page tag uncleared**: the message names the
   addresses as they stand after the write. The type tag still clears the site's list, which is the only thing
   cached today, so this is bounded staleness rather than a wrong answer.

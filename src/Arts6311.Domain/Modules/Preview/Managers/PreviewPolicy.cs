@@ -24,8 +24,8 @@ public static class PreviewPolicy
     public const int TokenMaxLength = 1024;
 
     /// <summary>
-    /// The content types a preview link can be made for, each with where it lives on the site. Membership plans
-    /// join them in 2.11, and a type added here needs a branch in <c>PreviewFacade</c> too.
+    /// The content types a preview link can be made for, each with where it lives on the site. A type added here
+    /// needs a branch in <c>PreviewFacade</c> too.
     /// </summary>
     /// <remarks>
     /// The map lives in this module because this is the one module that may know every content type (ADR 0036);
@@ -39,6 +39,10 @@ public static class PreviewPolicy
             ["page"] = SitePaths.Pages,
             ["class-offering"] = SitePaths.Classes,
             ["shop-item"] = SitePaths.Shop,
+
+            // A membership plan has no address of its own: every published tier is shown on the one page, so this
+            // value is the whole path and nothing is appended to it (ADR 0040).
+            ["membership-plan"] = SitePaths.Memberships,
         };
 
     /// <summary>The content types a preview link can be made for.</summary>

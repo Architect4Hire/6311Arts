@@ -28,6 +28,27 @@ public sealed class PageValidatorTests
     }
 
     [Fact]
+    public async Task EveryLengthLimitIsAcceptedAtTheBoundaryAndRefusedOnePastIt()
+    {
+        // The body limit was covered; the title and slug were not (test-gap review). A limit tested only from the
+        // far side can be off by one in the direction that refuses work staff are entitled to do.
+        var title = new string('a', PagePolicy.TitleMaxLength);
+        var slug = new string('a', 120);
+        var body = new string('x', PagePolicy.BodyInputMaxLength);
+
+        Assert.Null(await FieldsAsync(new PageCreateViewModel(title, Slug: slug, Body: body)));
+
+        Assert.Equal(["title"], await FieldsAsync(new PageCreateViewModel(title + "a")));
+        Assert.Equal(["slug"], await FieldsAsync(new PageCreateViewModel("Privacy", Slug: slug + "a")));
+        Assert.Equal(["body"], await FieldsAsync(new PageCreateViewModel("Privacy", Body: body + "x")));
+
+        var update = new PageUpdateValidator();
+        Assert.Null(await update.ValidateOrErrorAsync(new PageUpdateViewModel(Title: title, Slug: slug), Ct));
+        Assert.NotNull(await update.ValidateOrErrorAsync(new PageUpdateViewModel(Title: title + "a"), Ct));
+        Assert.NotNull(await update.ValidateOrErrorAsync(new PageUpdateViewModel(Slug: slug + "a"), Ct));
+    }
+
+    [Fact]
     public async Task AnEditMustChangeSomethingAndAnEmptyBodyIsAChange()
     {
         var validator = new PageUpdateValidator();

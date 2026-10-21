@@ -164,6 +164,38 @@ public sealed class HtmlSanitizerTests
         Assert.NotNull(result.Refused);
     }
 
+    [Theory]
+    [InlineData("b", "u")]
+    [InlineData("blockquote", "u")]
+    [InlineData("div", "em")]
+    public void AnEndTagThatClosesNothingDoesNotBuyAnotherLevelOfNesting(string nested, string stray)
+    {
+        // The evasion the depth estimate used to allow (security review): every `</stray>` decremented the
+        // counter even though no such element was open, so this reported a depth of about 1 while the parser
+        // built a tree nesting once per `<nested>` — the exact shape
+        // ABodyNestedPastTheLimitIsRefusedBeforeAnythingParsesIt proves kills the process.
+        var depth = HtmlPolicy.MaxNestingDepth * 3;
+        var evasive = string.Concat(Enumerable.Repeat($"<{nested}></{stray}>", depth)) + "x";
+
+        Assert.True(HtmlPolicy.EstimateNestingDepth(evasive) > HtmlPolicy.MaxNestingDepth);
+
+        var result = Sanitizer.Sanitize(evasive);
+        Assert.True(result.IsEmpty);
+        Assert.NotNull(result.Refused);
+    }
+
+    [Fact]
+    public void AnEndTagStillClosesWhatTheMarkupLeftOpenInsideIt()
+    {
+        // `</blockquote>` closes the <em> the markup never closed, as a parser would, so what follows is not
+        // charged for it. Without this the estimate would drift up on sloppy but harmless copy and start
+        // refusing it.
+        Assert.Equal(2, HtmlPolicy.EstimateNestingDepth("<blockquote><em>a</blockquote><strong>b</strong>"));
+
+        // And a stray end tag before anything is open cannot push the count below zero.
+        Assert.Equal(1, HtmlPolicy.EstimateNestingDepth("</em></em><strong>b</strong>"));
+    }
+
     [Fact]
     public void OrdinaryCopyIsNeverTooDeepUnclosedParagraphsAndItemsIncluded()
     {

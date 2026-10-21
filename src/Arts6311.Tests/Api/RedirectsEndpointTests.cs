@@ -104,6 +104,102 @@ public sealed class RedirectsEndpointTests
         return client;
     }
 
+    [Fact]
+    public async Task AnEditCarriesItsIfMatchToTheFacadeAndAnswersWithTheNewETag()
+    {
+        // The PATCH had no endpoint test at all (test-gap review): nothing proved the If-Match header reaches the
+        // facade, or that the ETag comes back on the 200 — and an editor that cannot read the new ETag cannot
+        // make a second edit without reloading.
+        var facade = new RecordingRedirectsFacade();
+        using var api = Factory(facade);
+        using var admin = Client(api, "Admin");
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"{Cms}/{RecordingRedirectsFacade.Redirect.Id}")
+        {
+            Content = JsonContent.Create(new { toPath = "/exhibitions", statusCode = 302 }),
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", RecordingRedirectsFacade.Redirect.ETag);
+
+        using var response = await admin.SendAsync(request, Ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(RecordingRedirectsFacade.Redirect.ETag, facade.IfMatch);
+        Assert.Equal(RecordingRedirectsFacade.Redirect.ETag, response.Headers.ETag?.ToString());
+        Assert.Equal(new RedirectUpdateViewModel(null, "/exhibitions", 302), facade.Updated);
+    }
+
+    [Fact]
+    public async Task AnEditWithNoIfMatchReachesTheFacadeAsNullAndAnswers428()
+    {
+        // The controller does not invent a precondition: it passes what the request carried, and the facade
+        // refuses. Worth pinning at this layer, because a controller that defaulted the header to "*" would turn
+        // every blind write into a successful one.
+        var facade = new RecordingRedirectsFacade
+        {
+            Error = OperationError.Of(ErrorCodes.PreconditionRequired, "Send the ETag you last read."),
+        };
+        using var api = Factory(facade);
+        using var admin = Client(api, "Admin");
+
+        using var response = await admin.PatchAsJsonAsync(
+            $"{Cms}/{RecordingRedirectsFacade.Redirect.Id}", new { toPath = "/exhibitions" }, Ct);
+
+        Assert.Equal(HttpStatusCode.PreconditionRequired, response.StatusCode);
+        Assert.Null(facade.IfMatch);
+        Assert.Equal(ErrorCodes.PreconditionRequired, await CodeAsync(response));
+    }
+
+    [Fact]
+    public async Task AStaleEditIsA409TheEditorCanActOn()
+    {
+        var facade = new RecordingRedirectsFacade
+        {
+            Error = OperationError.Of(ErrorCodes.ConcurrencyConflict, "Someone else saved first."),
+        };
+        using var api = Factory(facade);
+        using var admin = Client(api, "Admin");
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"{Cms}/{RecordingRedirectsFacade.Redirect.Id}")
+        {
+            Content = JsonContent.Create(new { toPath = "/exhibitions" }),
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", "\"stale0000000000000000000000000000\"");
+
+        using var response = await admin.SendAsync(request, Ct);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(ErrorCodes.ConcurrencyConflict, await CodeAsync(response));
+    }
+
+    [Fact]
+    public async Task ABlindDeleteIsRefusedAtTheEndpointToo()
+    {
+        // ADeleteCarriesItsIfMatchAndAnswers204 above covers the happy path. This is the other half: a DELETE with
+        // no If-Match must reach the facade as null and be refused, not default to "delete whatever is there".
+        var facade = new RecordingRedirectsFacade
+        {
+            Error = OperationError.Of(ErrorCodes.PreconditionRequired, "Send the ETag you last read."),
+        };
+        using var api = Factory(facade);
+        using var admin = Client(api, "Admin");
+
+        using var response = await admin.DeleteAsync($"{Cms}/{RecordingRedirectsFacade.Redirect.Id}", Ct);
+
+        Assert.Equal(HttpStatusCode.PreconditionRequired, response.StatusCode);
+        Assert.Null(facade.IfMatch);
+        Assert.False(facade.Deleted);
+        Assert.Equal(ErrorCodes.PreconditionRequired, await CodeAsync(response));
+    }
+
+    /// <summary>The stable <c>code</c> from a <c>ProblemDetails</c> body.</summary>
+    private static async Task<string?> CodeAsync(HttpResponseMessage response)
+    {
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+        return document.RootElement.GetProperty("code").GetString();
+    }
+
     private sealed class RecordingRedirectsFacade : IRedirectsFacade
     {
         public static readonly RedirectServiceModel Redirect = new(
@@ -114,7 +210,11 @@ public sealed class RedirectsEndpointTests
 
         public RedirectCreateViewModel? Created { get; private set; }
 
+        public RedirectUpdateViewModel? Updated { get; private set; }
+
         public string? IfMatch { get; private set; }
+
+        public bool Deleted { get; private set; }
 
         public Task<OperationResult<CursorPage<RedirectServiceModel>>> ListAsync(RedirectListViewModel request, CancellationToken cancellationToken) =>
             Task.FromResult(OperationResult.Success(new CursorPage<RedirectServiceModel>([Redirect], null)));
@@ -134,12 +234,14 @@ public sealed class RedirectsEndpointTests
             Guid id, RedirectUpdateViewModel update, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
         {
             IfMatch = ifMatch;
+            Updated = update;
             return Answer();
         }
 
         public Task<OperationResult> DeleteAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
         {
             IfMatch = ifMatch;
+            Deleted = Error is null;
             return Task.FromResult(Error is null ? OperationResult.Success() : OperationResult.Failure(Error));
         }
 

@@ -73,12 +73,18 @@ visitor losing a click.
 
 The site still reads classes, exhibitions and shop items from the live WordPress (`WpApi`), and renders images
 from Jetpack's CDN. The shipped policy refuses both, so locally the page fell back to bundled sample data with
-broken images. `appsettings.Development.json` adds exactly two sources:
+broken images. `appsettings.Development.json` adds exactly two sources, through a new additive key:
 
-```text
-img-src     ... https://i0.wp.com
-connect-src 'self' https://6311arts.com
+```json
+"Csp": { "AdditionalSources": { "img-src": "https://i0.wp.com", "connect-src": "https://6311arts.com" } }
 ```
+
+`CspOptions.AdditionalSources` appends to whichever policy a path resolved to, and only to a directive that
+policy already names. **An environment must never restate `Default`,** which is what this key exists to prevent:
+written first as a plain `Default` override, the development file held its own copy of the three hashes — and
+when one was deliberately staled to check that the drift test worked, the test still passed, because the
+development copy was the one being served. A second copy of a policy is a second place for a hash to rot, in the
+half nobody is looking at.
 
 **This is a crutch with an expiry date.** It is development-only, and `TheWordPressOriginsAreDevelopmentOnly`
 asserts both halves — present in Development, absent from the shipped policy — because a crutch nobody tests is

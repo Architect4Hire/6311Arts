@@ -58,7 +58,9 @@ public sealed class PagesLayerTests
 
         await dataLayer.UpdateAsync(NewPage(PublishStatus.Published), "editor-1", "Updated: slug.", new PublishedPathChange("/terms", "/terms-of-use"), Ct);
 
-        Assert.Equal(["outbox:redirects.slug-changed", "audit:page.updated", "save"], log.Calls);
+        Assert.Equal(
+            ["outbox:redirects.slug-changed", "outbox:site.revalidate-requested", "audit:page.updated", "save"],
+            log.Calls);
     }
 
     [Theory]

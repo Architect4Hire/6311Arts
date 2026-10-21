@@ -51,7 +51,9 @@ public sealed class ArtistsLayerTests
 
         await dataLayer.UpdateAsync(artist, "editor-1", "Updated: slug.", new PublishedPathChange("/artists/jane-doe", "/artists/jane-q-doe"), Ct);
 
-        Assert.Equal(["outbox:redirects.slug-changed", "audit:artist.updated", "save"], log.Calls);
+        Assert.Equal(
+            ["outbox:redirects.slug-changed", "outbox:site.revalidate-requested", "audit:artist.updated", "save"],
+            log.Calls);
     }
 
     [Fact]

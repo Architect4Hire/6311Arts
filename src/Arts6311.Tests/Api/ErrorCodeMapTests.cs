@@ -3,6 +3,7 @@ using Arts6311.Api.Conventions;
 using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Results;
+using Arts6311.Domain.Modules.Identity.Managers;
 using Arts6311.Domain.Modules.Media.Managers;
 using Arts6311.Domain.Modules.Redirects.Managers;
 
@@ -20,8 +21,7 @@ public sealed class ErrorCodeMapTests
         // The failure this catches is quiet: StatusFor falls back to 400 for an unmapped code, so a new code would
         // ship with a plausible-looking status that the contract never promised.
         var unmapped = SharedErrorCodes()
-            .Where(code => ApiProblemDetails.StatusFor(code.Value) == ApiProblemDetails.UnmappedCodeStatus
-                && !ExpectedToBe400.Contains(code.Value))
+            .Where(code => !ApiProblemDetails.IsDeclared(code.Value))
             .Select(code => $"{code.Name} ({code.Value})")
             .ToList();
 
@@ -192,22 +192,18 @@ public sealed class ErrorCodeMapTests
         Assert.Contains(ErrorCodes.ValidationFailed, codes);
         Assert.Contains(ErrorCodes.IdempotencyKeyReused, codes);
         Assert.Contains(ErrorCodes.ServerError, codes);
+        Assert.Contains(IdentityErrorCodes.LockedOut, codes);
+        Assert.Contains(IdentityErrorCodes.TokenInvalid, codes);
     }
 
-    /// <summary>Codes whose status genuinely is 400, so the fallback and the declared value coincide.</summary>
-    private static readonly string[] ExpectedToBe400 =
-    [
-        ErrorCodes.ValidationFailed,
-        ErrorCodes.CursorInvalid,
-        ErrorCodes.IdempotencyKeyRequired,
-        ErrorCodes.IdempotencyKeyInvalid,
-        ErrorCodes.RequestRejected,
-    ];
-
+    /// <summary>
+    /// Every shared code constant: the kernel's, plus Identity's, which are raised on the internal routes and so
+    /// are part of the contract the gateway reads even though no browser sees them.
+    /// </summary>
     private static List<(string Name, string Value)> SharedErrorCodes() =>
     [
-        .. typeof(ErrorCodes)
-            .GetFields(BindingFlags.Public | BindingFlags.Static)
+        .. new[] { typeof(ErrorCodes), typeof(IdentityErrorCodes) }
+            .SelectMany(type => type.GetFields(BindingFlags.Public | BindingFlags.Static))
             .Where(field => field is { IsLiteral: true, IsInitOnly: false } && field.FieldType == typeof(string))
             .Select(field => (field.Name, (string)field.GetRawConstantValue()!)),
     ];

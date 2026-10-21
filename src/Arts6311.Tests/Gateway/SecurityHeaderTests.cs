@@ -102,10 +102,70 @@ public sealed class SecurityHeaderTests : IAsyncLifetime
         Assert.DoesNotContain("https://i0.wp.com", shipped["img-src"]);
     }
 
+    [Fact]
+    public async Task AnAdditionalSourceOnlyExtendsADirectiveThePolicyAlreadyNames()
+    {
+        // GatewayOptions.Extend's second rule: naming a directive the policy does not have would *create* it, and
+        // creating one silently narrows what default-src was covering for it — the opposite of "additional".
+        var directives = await DirectivesAsync(
+            Environments.Production, ("Gateway:Csp:AdditionalSources:frame-src", "https://frames.test"));
+
+        Assert.False(directives.ContainsKey("frame-src"));
+        Assert.DoesNotContain("https://frames.test", directives.SelectMany(entry => entry.Value));
+    }
+
+    [Fact]
+    public async Task AnAdditionalSourceAlreadyAllowedIsNotRepeated()
+    {
+        // A policy is read by people as well as by browsers, so the merge does not append a source a directive
+        // already lists.
+        var directives = await DirectivesAsync(
+            Environments.Production, ("Gateway:Csp:AdditionalSources:img-src", "data: https://extra.test"));
+
+        Assert.Equal(1, directives["img-src"].Count(source => source == "data:"));
+        Assert.Contains("https://extra.test", directives["img-src"]);
+        Assert.Equal(["'self'", "data:", "blob:", "https://extra.test"], directives["img-src"]);
+    }
+
+    [Fact]
+    public async Task NoEnvironmentRestatesTheDefaultPolicySoTheInlineScriptHashesExistOnce()
+    {
+        // The failure ADR 0039 records: Development first carried its own copy of Csp:Default, and that copy
+        // masked a stale hash in the shipped one. AdditionalSources exists so an environment adds a source
+        // without restating the policy, and this is the assertion that keeps it that way.
+        var developmentSettings = await File.ReadAllTextAsync(
+            Path.Combine(RepoPaths.SourceRoot(), "Arts6311.Gateway", "appsettings.Development.json"),
+            TestContext.Current.CancellationToken);
+
+        using var document = System.Text.Json.JsonDocument.Parse(developmentSettings);
+        var csp = document.RootElement.GetProperty("Gateway").GetProperty("Csp");
+
+        Assert.False(
+            csp.TryGetProperty("Default", out _),
+            "appsettings.Development.json restates Gateway:Csp:Default. Add sources through "
+                + "Gateway:Csp:AdditionalSources instead, or its copy of the script hashes will drift (ADR 0039).");
+
+        // And the hashes a browser is actually told to trust are the same set in both environments.
+        var development = await DirectivesAsync(Environments.Development);
+        var shipped = await DirectivesAsync(Environments.Production);
+
+        Assert.Equal(Hashes(shipped["script-src"]), Hashes(development["script-src"]));
+        Assert.NotEmpty(Hashes(shipped["script-src"]));
+
+        static string[] Hashes(string[] sources) =>
+            [.. sources.Where(source => source.StartsWith("'sha256-", StringComparison.Ordinal)).Order(StringComparer.Ordinal)];
+    }
+
     /// <summary>The policy a response really carries, split into directive → sources.</summary>
-    private async Task<Dictionary<string, string[]>> DirectivesAsync(string environmentName)
+    private async Task<Dictionary<string, string[]>> DirectivesAsync(
+        string environmentName, params (string Key, string Value)[] settings)
     {
         using var gateway = new GatewayFactory(destination, environmentName);
+        foreach (var (key, value) in settings)
+        {
+            gateway.With(key, value);
+        }
+
         using var client = gateway.CreateJsonClient();
 
         var response = await client.GetAsync("/api/v1/site/health-info", TestContext.Current.CancellationToken);

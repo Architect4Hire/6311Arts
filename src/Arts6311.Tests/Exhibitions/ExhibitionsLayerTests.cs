@@ -56,7 +56,9 @@ public sealed class ExhibitionsLayerTests
         await dataLayer.UpdateAsync(
             exhibition, "editor-1", "Updated: slug.", new PublishedPathChange("/exhibitions/a", "/exhibitions/b"), Ct);
 
-        Assert.Equal(["outbox:redirects.slug-changed", "audit:exhibition.updated", "save"], log.Calls);
+        Assert.Equal(
+            ["outbox:redirects.slug-changed", "outbox:site.revalidate-requested", "audit:exhibition.updated", "save"],
+            log.Calls);
     }
 
     [Fact]

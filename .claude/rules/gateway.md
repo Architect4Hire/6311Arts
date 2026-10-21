@@ -26,8 +26,10 @@ Destinations resolve through Aspire service discovery. Nothing in the gateway na
 In run mode the gateway listens on **HTTPS** (the developer certificate), because its `Secure`, `__Host-` cookies and `SecurePolicy = Always` antiforgery refuse plain HTTP. Behind the ACA ingress it sees plain HTTP, so 6.1 must trust the ingress's forwarded headers (`Gateway:TrustedProxies`) before the BFF works there (ADR 0026).
 
 The session gate is the route's own `AuthorizationPolicy`, in that same configuration — not a path list in code.
-**A route that requires a session must also be token-bearing** (`GatewayTransforms.TokenBearingRoutes`), or its
-requests reach the API with no credential; a test asserts it.
+**A route that requires a session and forwards to the API must also be token-bearing**
+(`GatewayTransforms.TokenBearingRoutes`), or its requests reach the API with no credential; a test asserts it.
+`admin` is the one session-gated route deliberately left out: it serves the CMS bundle from the admin container,
+which has no API call to authorize. The rule is about routes whose destination is the API.
 
 ## Edge policy
 
@@ -57,9 +59,12 @@ requests reach the API with no credential; a test asserts it.
     `projects/site` changes its hash**; the `Category=E2E` test
     `EveryInlineScriptOnTheRenderedSiteIsAllowedByItsOwnCsp` recomputes the hashes from the rendered page and names
     any that the policy no longer allows. A new inline script is refused by design — bundle it instead.
-  - **The WordPress origins (`https://6311arts.com`, `https://i0.wp.com`) are in `appsettings.Development.json`
-    only**, for as long as `WpApi` still reads the live site. They must never enter the shipped policy; a test
-    asserts both halves (ADR 0039).
+  - **`Gateway:Csp:AdditionalSources`** (directive → extra sources) appends to whichever policy a path resolved
+    to, and only to a directive that policy already names. It is how an *environment* adds a source: the
+    WordPress origins (`https://6311arts.com`, `https://i0.wp.com`) live in `appsettings.Development.json` under
+    this key for as long as `WpApi` reads the live site, and never reach the shipped policy — a test asserts both
+    halves (ADR 0039). **An environment never restates `Default`:** a second copy of the policy is a second copy
+    of the hashes, and the dev copy will mask a stale one in the shipped copy.
 - **Limits and correlation.**
   - Request size limits: **1 MiB for every route** (`Kestrel:Limits:MaxRequestBodySize`, in the gateway and the API), with per-route YARP `MaxRequestBodySize` above or below it. `/webhooks/square` is capped at 256 KB; `cms-media-upload` is raised to 26 MiB. Uploads are streamed.
   - Forwarded headers are honoured only when `Gateway:TrustedProxies` names the sender; with it empty the middleware that reads them is not in the pipeline at all, and client-supplied `X-Forwarded-*` and `Forwarded` are stripped inbound (ADR 0022).

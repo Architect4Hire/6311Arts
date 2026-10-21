@@ -32,7 +32,10 @@ export type StatusTone = 'neutral' | 'positive' | 'pending' | 'attention';
     .ui-status {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-2);
+      // Optical padding for a 10px uppercase label: below the token scale on purpose, and no token
+      // matches it. Tokenising to --space-1/--space-2 would change the chip's height (design-system.md
+      // rule 6: match spike0 to the pixel).
       padding: 3px 7px;
       border: var(--border-thin) solid var(--ink);
       background: var(--white);

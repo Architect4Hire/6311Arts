@@ -111,6 +111,7 @@ describe('media models', () => {
       detail: 'Already there.',
       existingAssetId: 'abc',
       fieldErrors: { altText: ['Describe it.'] },
+      correlationId: null,
     });
     expect(decodeMediaProblem('<html>', 502).code).toBeNull();
   });

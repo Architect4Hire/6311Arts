@@ -19,7 +19,8 @@ namespace Arts6311.Domain.Managers.Outbox.Events;
 /// the next edit may move it.
 /// </para>
 /// </remarks>
-/// <param name="EntityType">The content type, as its cache tag spells it: <c>artist</c>, <c>exhibition</c>, <c>page</c>, <c>redirect</c>.</param>
+/// <param name="EntityType">The content type, as its cache tag spells it: <c>artist</c>, <c>exhibition</c>, <c>page</c>, <c>class-offering</c>, <c>shop-item</c>,
+/// <c>membership-plan</c>, <c>redirect</c>.</param>
 /// <param name="EntityId">Which record changed.</param>
 /// <param name="Paths">The site addresses the change affects, each rooted (<c>/artists/jane-doe</c>). May be empty: the type and entity tags still apply.</param>
 public sealed record SiteRevalidateRequested(string EntityType, Guid EntityId, IReadOnlyList<string> Paths)

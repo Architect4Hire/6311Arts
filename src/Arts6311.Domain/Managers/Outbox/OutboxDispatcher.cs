@@ -106,7 +106,14 @@ internal sealed class OutboxDispatcher(ArtsDbContext context, IServiceScopeFacto
                 // TaskCanceledException — is the handler failing, and retries like any other failure.
                 // The handler contract (IOutboxMessageHandler) is that ex.Message is already sanitized. The span gets
                 // only the exception type: telemetry leaves this process, and the contract is no excuse to widen that.
-                message.LastError = Truncate(ex.Message);
+                //
+                // The contract is trusted only for the two exception types a handler authors deliberately. Anything
+                // else reaching here escaped a handler unwrapped — a SqlException naming the server, an SMTP error
+                // naming the host and port — and LastError is read by every Admin on the Sync screen. Defence in
+                // depth for the handler that forgets, not a replacement for wrapping (security review).
+                message.LastError = ex is OutboxPoisonException or InvalidOperationException
+                    ? Truncate(ex.Message)
+                    : $"The handler failed ({ex.GetType().Name}).";
                 activity.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
 
                 // A handler that names the message unprocessable (OutboxPoisonException) is believed now: retrying a

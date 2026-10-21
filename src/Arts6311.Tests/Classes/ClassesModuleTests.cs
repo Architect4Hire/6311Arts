@@ -410,6 +410,48 @@ public sealed class ClassesModuleTests
     }
 
     [Fact]
+    public async Task AFailedRenameLeavesNeitherTheNewSlugNorItsRedirectMessage()
+    {
+        // Classes had the create-path atomicity test but neither of the two staging paths the other five modules
+        // both cover (outbox review). A half-commit here is the worst of the three: the slug moves, the redirect
+        // message does not, and every link to the old address breaks silently.
+        // Disarmed while the class is set up, then armed for the rename itself.
+        var failAudit = new FailInsertInto("AuditLogs") { Armed = false };
+        await using var host = await ClassesTestHost.CreateAsync(Ct, failAudit);
+        var offering = await Ready(host);
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(offering.Id, offering.ETag, Editor, Ct)));
+
+        failAudit.Armed = true;
+
+        await Assert.ThrowsAnyAsync<Exception>(() => host.WithFacadeAsync(facade => facade.UpdateAsync(
+            offering.Id, new ClassUpdateViewModel(Slug: "screen-printing"), published.ETag, Editor, Ct)));
+
+        Assert.True(failAudit.Fired, "The interceptor never fired, so the save was not actually broken.");
+
+        Assert.Equal(published.Slug, (await host.StoredAsync(offering.Id))!.Slug);
+        Assert.Empty(await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
+            .Where(message => message.Type == RedirectSlugChanged.MessageType).ToListAsync(Ct)));
+    }
+
+    [Fact]
+    public async Task AFailedStatusChangeLeavesNeitherTheStatusNorItsRevalidation()
+    {
+        var failAudit = new FailInsertInto("AuditLogs") { Armed = false };
+        await using var host = await ClassesTestHost.CreateAsync(Ct, failAudit);
+        var offering = await Ready(host);
+
+        failAudit.Armed = true;
+
+        await Assert.ThrowsAnyAsync<Exception>(() => host.WithFacadeAsync(
+            facade => facade.PublishAsync(offering.Id, offering.ETag, Editor, Ct)));
+
+        Assert.True(failAudit.Fired, "The interceptor never fired, so the save was not actually broken.");
+
+        Assert.Equal(PublishStatus.Draft, (await host.StoredAsync(offering.Id))!.Status);
+        Assert.Empty(await host.QueryAsync(context => context.OutboxMessages.AsNoTracking().ToListAsync(Ct)));
+    }
+
+    [Fact]
     public async Task AScheduledClassIsPublishedByTheWorkerOnceAndThenSkipped()
     {
         await using var host = await ClassesTestHost.CreateAsync(Ct);

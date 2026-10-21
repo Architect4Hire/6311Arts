@@ -22,6 +22,12 @@ public static class SitePaths
     /// <summary>One piece of artwork in the shop: <c>/shop/australian-opal-silver-ring</c>.</summary>
     public const string Shop = "/shop/";
 
+    /// <summary>
+    /// Where every published membership plan is shown: one page for all of them, so this is a whole path and not a
+    /// prefix a slug is added to — a plan has no address of its own (ADR 0040).
+    /// </summary>
+    public const string Memberships = "/memberships";
+
     /// <summary>A page lives at the root: <c>/privacy</c>, <c>/terms</c>.</summary>
     public const string Pages = "/";
 

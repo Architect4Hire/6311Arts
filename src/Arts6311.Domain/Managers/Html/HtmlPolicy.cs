@@ -99,7 +99,9 @@ public static partial class HtmlPolicy
     {
         ArgumentNullException.ThrowIfNull(html);
 
-        int depth = 0, deepest = 0;
+        // The elements currently open, innermost last. A plain counter is not enough: see the `closing` branch.
+        var open = new List<string>(MaxNestingDepth + 1);
+        var deepest = 0;
         for (var i = html.IndexOf('<'); i >= 0 && i < html.Length - 1; i = html.IndexOf('<', i + 1))
         {
             var closing = html[i + 1] == '/';
@@ -125,11 +127,39 @@ public static partial class HtmlPolicy
 
             if (closing)
             {
-                depth = Math.Max(0, depth - 1);
+                // An end tag only reduces the depth if it actually closes something. A stray `</u>` with no
+                // `<u>` open is what the parser ignores entirely, so counting it down let `<b></u><b></u>…`
+                // report a depth of 1 while the real tree nested once per `<b>` — walking straight past the
+                // limit this estimate exists to enforce, into the recursive sanitize that a deep tree
+                // overflows (ADR 0034).
+                var at = -1;
+                for (var candidate = open.Count - 1; candidate >= 0; candidate--)
+                {
+                    if (string.Equals(open[candidate], name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        at = candidate;
+                        break;
+                    }
+                }
+
+                if (at >= 0)
+                {
+                    // Whatever the markup left open inside it closes with it, as a parser would.
+                    open.RemoveRange(at, open.Count - at);
+                }
             }
             else if (!selfClosing)
             {
-                deepest = Math.Max(deepest, ++depth);
+                open.Add(name);
+                deepest = Math.Max(deepest, open.Count);
+
+                // Past the limit the caller refuses the input, so there is nothing further to learn. Stopping
+                // here also keeps this O(n) on adversarial markup: without it, the scan above would search an
+                // ever-growing open list for every one of thousands of stray end tags.
+                if (deepest > MaxNestingDepth)
+                {
+                    return deepest;
+                }
             }
         }
 

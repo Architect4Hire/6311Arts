@@ -439,6 +439,10 @@ export class RedirectEditor implements HasUnsavedChanges {
       this.redirect.set(saved);
       this.draft.set(draftOf(saved));
       this.status.set({ kind: 'ready' });
+      // Saving disabled the fieldset that held the focused control, so the browser dropped focus to <body>.
+      // Put it on the heading, which is where "Saved." is announced from, rather than leaving a keyboard or
+      // screen-reader user with no position on the page (WCAG 2.4.3 focus order).
+      this.focus(this.heading);
       this.announce('Saved.');
     } catch (error: unknown) {
       await this.saveFailed(error);
@@ -583,5 +587,12 @@ function fieldErrorsOf(problem: RedirectProblem | null): FieldErrors {
 function messageOf(problem: RedirectProblem | null, fallback: string): string {
   if (problem === null || problem.status === 0)
     return 'Can’t reach 6311arts. Your changes are still here; try again.';
-  return problem.detail ?? fallback;
+  const message = problem.detail ?? fallback;
+
+  // A 5xx says nothing the editor can act on, so hand them the one thing support can: the correlation id,
+  // which is this request's trace id (ADR 0019). Appended here rather than left to the global problem toast,
+  // because these calls deliberately suppress it to show the failure in place.
+  return problem.status >= 500 && problem.correlationId !== null
+    ? `${message} Quote reference ${problem.correlationId} if you report it.`
+    : message;
 }

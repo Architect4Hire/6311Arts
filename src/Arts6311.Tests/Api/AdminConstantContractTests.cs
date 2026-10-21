@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Arts6311.Domain.Modules.Memberships.Managers;
 using Arts6311.Domain.Modules.Preview.Managers;
 using Arts6311.Domain.Modules.Shop.Managers;
 
@@ -21,6 +22,18 @@ public sealed class AdminConstantContractTests
         var slugs = Slugs(Read("models", "shop.ts"), "SHOP_CATEGORIES", @"slug:\s*'([^']+)'");
 
         Assert.Equal(ShopPolicy.Categories.Select(category => category.Slug), slugs);
+    }
+
+    [Fact]
+    public void TheAdminsMembershipCadencesAreTheOnesTheApiAccepts()
+    {
+        var values = Slugs(Read("models", "membership.ts"), "MEMBERSHIP_CADENCES", @"value:\s*'([^']+)'");
+
+        // The API writes the enum by name (JsonStringEnumConverter), so the admin's values are those names. The
+        // labels beside them are the admin's own words, as SHOP_CATEGORIES' are.
+        Assert.Equal(
+            Enum.GetNames<MembershipCadence>().Order(StringComparer.Ordinal),
+            values.Order(StringComparer.Ordinal));
     }
 
     [Fact]
