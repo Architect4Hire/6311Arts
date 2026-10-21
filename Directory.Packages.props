@@ -59,6 +59,12 @@
       out-of-process cache, a revalidation in the Worker could not reach the API's entries at all.
     -->
     <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.6.2" />
+    <!--
+      The Domain's cache-invalidation channel (ADR 0049): HybridCache reads a tag's invalidation time from L2 once per
+      process and keeps it, so the Worker's invalidations reach the API only as a Redis pub/sub message. Pinned to the
+      version Aspire.StackExchange.Redis 13.6.2 resolves, so the hosts and the Domain share one client.
+    -->
+    <PackageVersion Include="StackExchange.Redis" Version="2.13.17" />
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" Version="10.0.13" />
     <!--
       The signing half of the internal token. Pinned to the version Microsoft.AspNetCore.Authentication.JwtBearer

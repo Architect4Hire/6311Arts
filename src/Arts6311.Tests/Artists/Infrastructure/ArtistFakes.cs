@@ -396,6 +396,12 @@ internal sealed class FakeMediaFacade : IMediaFacade
     public Task<OperationResult<MediaAssetServiceModel>> UploadAsync(MediaUploadViewModel upload, string actorUserId, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
+    public Task<OperationResult<MediaAssetServiceModel>> EnsureSiteImageAsync(Guid id, string fileName, Func<Stream> open, string altText, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<MediaSubmissionImageServiceModel>> UploadSubmissionImageAsync(string fileName, Stream content, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
     public Task<OperationResult<CursorPage<MediaAssetSummaryServiceModel>>> ListAsync(MediaListViewModel request, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 

@@ -6,6 +6,7 @@ import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { BrowserNavigation } from '../../core/browser/browser-navigation';
 import { ConfirmService } from '../../core/confirm/confirm.service';
+import { UnsavedChanges } from '../../core/guards/unsaved-changes.guard';
 import { SessionService } from '../../core/session/session.service';
 import { CMS_SECTIONS } from './sections';
 import { Shell } from './shell';
@@ -117,6 +118,59 @@ describe('Shell', () => {
     await harness.fixture.whenStable();
 
     expect(assign).toHaveBeenCalledWith('/signin');
+  });
+
+  it('asks about unsaved work before signing out, and only signs out on "Discard changes"', async () => {
+    const { element, harness, http, assign } = await render(['Admin']);
+    const confirm = TestBed.inject(ConfirmService);
+    const unsaved = TestBed.inject(UnsavedChanges);
+    unsaved.watch(() => true);
+    const button = () =>
+      [...element.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Sign out')!;
+
+    button().click();
+    expect(confirm.request()?.heading).toBe('Discard unsaved changes?');
+    confirm.answer(false);
+    await harness.fixture.whenStable();
+    http.expectNone('/bff/logout');
+    expect(unsaved.shouldWarnBeforeUnload(() => true)).toBe(true);
+
+    button().click();
+    confirm.answer(true);
+    await harness.fixture.whenStable();
+    http.expectOne('/bff/logout').flush(null, { status: 204, statusText: 'No Content' });
+    await harness.fixture.whenStable();
+    expect(assign).toHaveBeenCalledWith('/signin');
+    // The browser's own prompt must not ask again about work the person chose to discard.
+    expect(unsaved.shouldWarnBeforeUnload(() => true)).toBe(false);
+  });
+
+  it('protects unsaved work again when signing out fails', async () => {
+    const { element, harness, http, assign } = await render(['Admin']);
+    const confirm = TestBed.inject(ConfirmService);
+    const unsaved = TestBed.inject(UnsavedChanges);
+    unsaved.watch(() => true);
+
+    [...element.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Sign out')!.click();
+    confirm.answer(true);
+    await harness.fixture.whenStable();
+    http.expectOne('/bff/logout').flush(null, { status: 503, statusText: 'Unavailable' });
+
+    await vi.waitFor(() => expect(unsaved.shouldWarnBeforeUnload(() => true)).toBe(true));
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('says unsaved work is lost when signing out everywhere', async () => {
+    const { element } = await render(['Admin']);
+    const confirm = TestBed.inject(ConfirmService);
+    TestBed.inject(UnsavedChanges).watch(() => true);
+
+    [...element.querySelectorAll('button')]
+      .find((b) => b.textContent?.trim() === 'Sign out everywhere')!
+      .click();
+
+    expect(confirm.request()?.message).toContain('Your unsaved changes on this screen will be lost.');
+    confirm.answer(false);
   });
 
   it('asks before signing out everywhere, and does nothing on "stay signed in"', async () => {

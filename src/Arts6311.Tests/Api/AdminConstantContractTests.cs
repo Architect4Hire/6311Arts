@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Arts6311.Domain.Modules.Media.Managers;
 using Arts6311.Domain.Modules.Memberships.Managers;
 using Arts6311.Domain.Modules.Preview.Managers;
 using Arts6311.Domain.Modules.Shop.Managers;
@@ -42,6 +43,21 @@ public sealed class AdminConstantContractTests
         var types = Slugs(Read("models", "content.ts"), "PREVIEW_TYPES", @"'([^']+)'");
 
         Assert.Equal(PreviewPolicy.PathPrefixes.Keys, types);
+    }
+
+    [Fact]
+    public void TheSitesOwnPicturesAreTheOnesMigrationServiceSeeds()
+    {
+        // The site names the logo and the social image by id in every environment (prompt 3.3): a mismatch would be a
+        // broken image in every shared link and in the search result's logo, and no build would notice.
+        var source = File.ReadAllText(Path.Combine(RepoPaths.SourceRoot(), "web", "projects", "site", "src", "app", "core", "site.ts"));
+        var ids = new Regex(@"export const SITE_IMAGES = \{\s*logo: '([^']+)',\s*openGraph: '([^']+)',").Match(source);
+
+        Assert.True(ids.Success, "SITE_IMAGES is not declared as logo then openGraph any more.");
+        Assert.Equal(MediaSiteImages.Logo.ToString(), ids.Groups[1].Value);
+        Assert.Equal(MediaSiteImages.OpenGraph.ToString(), ids.Groups[2].Value);
+        Assert.Contains("/media/${SITE_IMAGES.logo}/800.webp", source, StringComparison.Ordinal);
+        Assert.Contains("/media/${SITE_IMAGES.openGraph}/1600.jpg", source, StringComparison.Ordinal);
     }
 
     /// <summary>The strings in one <c>export const NAME = [...]</c> declaration, in the order they are written.</summary>

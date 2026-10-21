@@ -27,12 +27,12 @@ export const routes: Routes = [
   {
     path: 'privacy',
     loadComponent: () => import('./pages/info-pages').then((m) => m.CmsPage),
-    data: { wpSlug: 'privacy-policy', title: 'Privacy Policy' },
+    data: { pageSlug: 'privacy', title: 'Privacy Policy' },
   },
   {
     path: 'terms',
     loadComponent: () => import('./pages/info-pages').then((m) => m.CmsPage),
-    data: { wpSlug: 'terms-and-conditions', title: 'Terms and Conditions' },
+    data: { pageSlug: 'terms', title: 'Terms and Conditions' },
   },
   // Staff sign-in. Here rather than in the CMS because /admin/** is behind the session gate (ADR 0024).
   { path: 'signin', loadComponent: () => import('./pages/signin').then((m) => m.Signin) },

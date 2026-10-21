@@ -224,7 +224,7 @@ const COMMAND_LABELS: Readonly<
                     <td>{{ savedRuns(theirs) }}</td>
                   </tr>
                   <tr>
-                    <th scope="row">Description</th>
+                    <th scope="row">More details</th>
                     <td>{{ draft().body.length }} characters</td>
                     <td>{{ (theirs.body ?? '').length }} characters</td>
                   </tr>
@@ -342,8 +342,8 @@ const COMMAND_LABELS: Readonly<
             </fieldset>
 
             <cms-rich-text
-              label="Description"
-              hint="Headings, lists, links and pictures from the media library."
+              label="More details"
+              hint="Shown on the class page below the summary. Headings, bold, italic and lists; the class picture is the hero."
               [value]="draft().body"
               (valueChange)="patch({ body: $event })"
               [disabled]="busy()"
@@ -835,7 +835,7 @@ export class ClassEditor implements HasUnsavedChanges {
   protected statusText(offering: ClassOffering): string {
     switch (offering.status) {
       case 'Published':
-        return 'Published: on the public site once the site reads from the CMS.';
+        return 'Published: on the public site. Edits show there within a minute.';
       case 'Archived':
         return 'Archived: retired from the site. Archiving can’t be undone here.';
       case 'Scheduled':

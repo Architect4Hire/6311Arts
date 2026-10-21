@@ -31,7 +31,8 @@ export class Seo {
     const fullTitle = p.path === '/' ? p.title : `${p.title} | ${SITE.name}`;
     const url = SITE.url + p.path;
     const image = p.image ?? SITE.ogImage;
-    const description = p.description.length > 158 ? p.description.slice(0, 155).trimEnd() + '…' : p.description;
+    const description =
+      p.description.length > 158 ? p.description.slice(0, 155).trimEnd() + '…' : p.description;
 
     this.title.setTitle(fullTitle);
     const tags: Record<string, string> = {
@@ -57,7 +58,8 @@ export class Seo {
     this.link('canonical', url);
 
     const graph: object[] = [organization(), ...(p.jsonLd ?? [])];
-    if (p.breadcrumbs?.length) graph.push(breadcrumbs([{ name: 'Home', path: '/' }, ...p.breadcrumbs]));
+    if (p.breadcrumbs?.length)
+      graph.push(breadcrumbs([{ name: 'Home', path: '/' }, ...p.breadcrumbs]));
     this.jsonLd(graph);
   }
 
@@ -76,7 +78,10 @@ export class Seo {
     const script = this.doc.createElement('script');
     script.type = 'application/ld+json';
     script.setAttribute('data-seo', '');
-    script.textContent = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }).replace(/</g, '\\u003c');
+    script.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@graph': graph,
+    }).replace(/</g, '\\u003c');
     this.doc.head.appendChild(script);
   }
 }
@@ -117,14 +122,24 @@ export function organization() {
     sameAs: [SITE.instagram],
     openingHoursSpecification: SITE.hours
       .filter((h) => h.schema)
-      .map((h) => ({ '@type': 'OpeningHoursSpecification', dayOfWeek: h.schema!.days, opens: h.schema!.opens, closes: h.schema!.closes })),
+      .map((h) => ({
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: h.schema!.days,
+        opens: h.schema!.opens,
+        closes: h.schema!.closes,
+      })),
   };
 }
 
 function breadcrumbs(items: { name: string; path: string }[]) {
   return {
     '@type': 'BreadcrumbList',
-    itemListElement: items.map((it, i) => ({ '@type': 'ListItem', position: i + 1, name: it.name, item: SITE.url + it.path })),
+    itemListElement: items.map((it, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: it.name,
+      item: SITE.url + it.path,
+    })),
   };
 }
 
@@ -141,14 +156,19 @@ export function eventLd(c: ArtClass, url: string) {
     image: c.image ? [c.image] : undefined,
     organizer: { '@id': ORG_ID },
     performer: c.instructor ? { '@type': 'Person', name: c.instructor } : undefined,
-    offers: {
-      '@type': 'Offer',
-      url,
-      price: (c.price / 100).toFixed(2),
-      priceCurrency: 'USD',
-      availability: c.spotsLeft === 0 ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
-      validFrom: '2026-01-01',
-    },
+    // No offer until Square has priced the run: it can't be bought yet (ADR 0042).
+    offers:
+      c.price == null
+        ? undefined
+        : {
+            '@type': 'Offer',
+            url,
+            price: (c.price / 100).toFixed(2),
+            priceCurrency: 'USD',
+            availability:
+              c.spotsLeft === 0 ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
+            validFrom: '2026-01-01',
+          },
   };
 }
 
@@ -170,17 +190,23 @@ export function productLd(p: Product, url: string) {
   return {
     '@type': 'Product',
     name: p.name,
-    description: p.description || `${p.name}${p.artist ? ` by ${p.artist.name}` : ''}, an original work sold at ${SITE.name} in Chicago.`,
+    description:
+      p.description ||
+      `${p.name}${p.artist ? ` by ${p.artist.name}` : ''}, an original work sold at ${SITE.name} in Chicago.`,
     image: p.image ? [p.image] : undefined,
     sku: String(p.id),
     brand: p.artist ? { '@type': 'Brand', name: p.artist.name } : { '@id': ORG_ID },
-    offers: {
-      '@type': 'Offer',
-      url,
-      price: (p.price / 100).toFixed(2),
-      priceCurrency: 'USD',
-      availability: p.inStock ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
-      seller: { '@id': ORG_ID },
-    },
+    // No offer until Square has priced the piece: it isn't for sale yet (ADR 0042).
+    offers:
+      p.price == null
+        ? undefined
+        : {
+            '@type': 'Offer',
+            url,
+            price: (p.price / 100).toFixed(2),
+            priceCurrency: 'USD',
+            availability: p.inStock ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
+            seller: { '@id': ORG_ID },
+          },
   };
 }

@@ -4,7 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, switchMap } from 'rxjs';
 import { Seo } from '../core/seo.service';
 import { SITE } from '../core/site';
-import { WpApi } from '../core/wp-api.service';
+import { SiteApi } from '../services/site-api.service';
 import { SHOP_PHOTOS } from '../data/venue-photos';
 import { ProductCard } from '../shared/cards';
 import { Hero } from '../shared/hero';
@@ -54,7 +54,7 @@ import { Reveal } from '../shared/reveal';
   `,
 })
 export class Artists {
-  private all = toSignal(inject(WpApi).artists(), { initialValue: [] });
+  private all = toSignal(inject(SiteApi).artists(), { initialValue: [] });
   protected q = signal('');
   protected filtered = computed(() => {
     const q = this.q().trim().toLowerCase();
@@ -103,14 +103,14 @@ export class Artists {
   `,
 })
 export class ArtistDetail {
-  private api = inject(WpApi);
+  private api = inject(SiteApi);
   private slug = toSignal(inject(ActivatedRoute).paramMap.pipe(map((p) => p.get('slug')!)), { requireSync: true });
   private artists = toSignal(this.api.artists(), { initialValue: [] });
   protected artist = computed(() => this.artists().find((a) => a.slug === this.slug()));
   protected nameFromSlug = computed(() => this.slug().replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
   protected works = toSignal(
     inject(ActivatedRoute).paramMap.pipe(
-      switchMap((p) => this.api.products({ artist: p.get('slug')!, perPage: 24 })),
+      switchMap((p) => this.api.products({ artist: p.get('slug')!, limit: 24 })),
       map((r) => r.items),
     ),
     { initialValue: [] },

@@ -5,12 +5,22 @@ namespace Arts6311.Domain.Modules.Media.Managers.ViewModels;
 /// body, still streaming: nothing has buffered it, and nothing will hold all of it in memory.
 /// </summary>
 /// <param name="FileName">The name the browser sent, for display only.</param>
+/// <param name="FromSubmission">
+/// An artist's upload through the public form (ADR 0047): stored as <see cref="MediaAssetKind.Submission"/> under the
+/// smaller <see cref="MediaPolicy.MaxSubmissionImageBytes"/>, and a picture already held is linked, not refused.
+/// </param>
+/// <param name="SiteImageId">
+/// One of the site's own pictures (<see cref="MediaSiteImages"/>, prompt 3.3): stored at this fixed id and published
+/// at once, because the site's pages name it by that id in every environment. Set only by MigrationService's seed.
+/// </param>
 public sealed record MediaUploadViewModel(
     string FileName,
     Stream Content,
     string? AltText,
     string? Credit,
-    MediaCompressionPreset? CompressionPreset);
+    MediaCompressionPreset? CompressionPreset,
+    bool FromSubmission = false,
+    Guid? SiteImageId = null);
 
 /// <summary>A page of the library: originals only, newest first.</summary>
 /// <param name="MissingAltText">Only assets that still need alt text before they can go on published content.</param>

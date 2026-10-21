@@ -19,12 +19,18 @@ internal static class RateLimitExtensions
         /// </summary>
         public const string BffAccount = "bff-account";
         public const string Forms = "forms";
+
+        /// <summary>
+        /// <c>POST /api/v1/forms/submissions</c> (ADR 0047): tighter than <see cref="Forms"/>, because each one may carry
+        /// six pictures to store and decode. Its own window, so it cannot spend the contact form's budget either.
+        /// </summary>
+        public const string FormsSubmissions = "forms-submissions";
         public const string Checkout = "checkout";
         public const string Webhooks = "webhooks";
         public const string Api = "api";
 
         /// <summary>Every policy the gateway defines, for the test that keeps this list and gateway.md in step.</summary>
-        public static readonly string[] All = [BffLogin, BffAccount, Forms, Checkout, Webhooks, Api];
+        public static readonly string[] All = [BffLogin, BffAccount, Forms, FormsSubmissions, Checkout, Webhooks, Api];
     }
 
     /// <summary>

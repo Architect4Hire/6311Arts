@@ -104,17 +104,7 @@ internal sealed class ShopRepository(ArtsDbContext context) : IShopRepository
 
     public Task<List<ShopItemSiteRow>> ListPublishedAsync(ShopSiteQuery query, CancellationToken cancellationToken)
     {
-        var items = Items.AsNoTracking().Where(item => item.Status == PublishStatus.Published);
-
-        if (query.Category is { } category)
-        {
-            items = items.Where(item => item.Categories.Any(row => row.Category == category));
-        }
-
-        if (query.ArtistId is { } artistId)
-        {
-            items = items.Where(item => item.ArtistId == artistId);
-        }
+        var items = PublishedMatching(query.Category, query.ArtistId);
 
         // Each order is a keyset with the id as the tie-breaker, and the WHERE resumes in exactly the ORDER BY's
         // terms, so a page boundary neither skips nor repeats a row. "Unpriced last" is the leading ORDER BY term
@@ -175,6 +165,27 @@ internal sealed class ShopRepository(ArtsDbContext context) : IShopRepository
         }
 
         return ordered.Take(query.Take).Select(SiteRow).ToListAsync(cancellationToken);
+    }
+
+    public Task<int> CountPublishedAsync(string? category, Guid? artistId, CancellationToken cancellationToken) =>
+        PublishedMatching(category, artistId).CountAsync(cancellationToken);
+
+    /// <summary>The site's filters, shared by the page and its count so the two can never disagree.</summary>
+    private IQueryable<ShopItem> PublishedMatching(string? category, Guid? artistId)
+    {
+        var items = Items.AsNoTracking().Where(item => item.Status == PublishStatus.Published);
+
+        if (category is not null)
+        {
+            items = items.Where(item => item.Categories.Any(row => row.Category == category));
+        }
+
+        if (artistId is { } artist)
+        {
+            items = items.Where(item => item.ArtistId == artist);
+        }
+
+        return items;
     }
 
     public Task<ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken) =>

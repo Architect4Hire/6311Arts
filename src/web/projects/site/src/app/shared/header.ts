@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, afterNextRender, inject, signal } f
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { filter } from 'rxjs';
 import { UiIcon } from '@6311/ui';
-import { WpApi } from '../core/wp-api.service';
+import { LegacyStore } from '../core/legacy-store';
 
 /** Fixed navbar: always charcoal; compacts once the page scrolls. */
 @Component({
@@ -29,7 +29,7 @@ import { WpApi } from '../core/wp-api.service';
             </li>
           }
           <li>
-            <a class="nav__cart" [href]="api.cartUrl()" aria-label="Cart"><ui-icon name="cart" [size]="20" /></a>
+            <a class="nav__cart" [href]="store.cartUrl()" aria-label="Cart"><ui-icon name="cart" [size]="20" /></a>
           </li>
           <li><a class="btn btn-white btn-sm" routerLink="/memberships">Join</a></li>
         </ul>
@@ -38,7 +38,7 @@ import { WpApi } from '../core/wp-api.service';
   `,
 })
 export class Header {
-  protected api = inject(WpApi);
+  protected store = inject(LegacyStore);
   protected solid = signal(false);
   protected open = signal(false);
 

@@ -141,6 +141,21 @@ public sealed class SiteEndpointTests
         }
     }
 
+    [Fact]
+    public async Task TheShopSaysHowManyWorksItsFiltersMatchBesideThePage()
+    {
+        await using var host = await SeededHostAsync();
+        using var api = Factory(host);
+        using var anonymous = api.CreateJsonClient();
+
+        using var document = JsonDocument.Parse(await anonymous.GetStringAsync("/api/v1/site/shop?limit=1", Ct));
+
+        // The draft beside it is not counted; the site prints this as "1 works" whatever page it is on.
+        Assert.Equal(1, document.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal(1, document.RootElement.GetProperty("items").GetArrayLength());
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("nextCursor").ValueKind);
+    }
+
     /// <summary>One of each, published, with a draft beside most, so a route can be asked for either.</summary>
     private static async Task<SiteTestHost> SeededHostAsync()
     {

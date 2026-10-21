@@ -9,8 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace Arts6311.Api.Controllers.Site;
 
 /// <summary>
-/// <c>GET /api/v1/site/shop</c> and <c>/{slug}</c>: published artwork, cursor-paged, by category, artist and order
-/// (ADR 0042). A public read, so it opts out of authentication explicitly.
+/// <c>GET /api/v1/site/shop</c> and <c>/{slug}</c>: published artwork, cursor-paged, by category, artist and order,
+/// with the filters' total (ADR 0042). A public read, so it opts out of authentication explicitly.
 /// </summary>
 /// <remarks>
 /// A first page and a piece's page are cached in the API (HybridCache, cleared by <c>site.revalidate-requested</c>
@@ -24,7 +24,7 @@ namespace Arts6311.Api.Controllers.Site;
 public sealed class SiteShopController(IShopFacade facade) : ControllerBase
 {
     [HttpGet]
-    [ProducesResponseType<CursorPage<SiteShopItemSummaryServiceModel>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<CountedCursorPage<SiteShopItemSummaryServiceModel>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ListAsync(
         [FromQuery(Name = "category")] string? category,

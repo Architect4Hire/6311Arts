@@ -2,6 +2,7 @@ using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Results;
 using Arts6311.Domain.Managers.Validation;
 using Arts6311.Domain.Modules.Media.Business;
+using Arts6311.Domain.Modules.Media.Managers;
 using Arts6311.Domain.Modules.Media.Managers.ServiceModels;
 using Arts6311.Domain.Modules.Media.Managers.ViewModels;
 using FluentValidation;
@@ -27,6 +28,43 @@ internal sealed class MediaFacade(
         }
 
         return await business.UploadAsync(upload, actorUserId, cancellationToken);
+    }
+
+    public async Task<OperationResult<MediaAssetServiceModel>> EnsureSiteImageAsync(
+        Guid id, string fileName, Func<Stream> open, string altText, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(open);
+
+        var existing = await business.GetAsync(id, cancellationToken);
+        if (existing.Succeeded)
+        {
+            return existing;
+        }
+
+        await using var content = open();
+        return await business.UploadAsync(
+            new MediaUploadViewModel(fileName, content, altText, null, null, SiteImageId: id), actorUserId, cancellationToken);
+    }
+
+    public async Task<OperationResult<MediaSubmissionImageServiceModel>> UploadSubmissionImageAsync(
+        string fileName, Stream content, string actorUserId, CancellationToken cancellationToken)
+    {
+        var upload = new MediaUploadViewModel(fileName, content, null, null, null, FromSubmission: true);
+        if (await uploadValidator.ValidateOrErrorAsync(upload, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<MediaSubmissionImageServiceModel>(error);
+        }
+
+        var result = await business.UploadAsync(upload, actorUserId, cancellationToken);
+        if (result.Succeeded)
+        {
+            return OperationResult.Success(new MediaSubmissionImageServiceModel(result.Value!.Id, Created: true, result.Value.ETag));
+        }
+
+        return result.Error!.Code == MediaErrorCodes.Duplicate
+            && result.Error.Extensions?.GetValueOrDefault("existingAssetId") is Guid existing
+                ? OperationResult.Success(new MediaSubmissionImageServiceModel(existing, Created: false, ETag: null))
+                : OperationResult.Failure<MediaSubmissionImageServiceModel>(result.Error);
     }
 
     public async Task<OperationResult<CursorPage<MediaAssetSummaryServiceModel>>> ListAsync(

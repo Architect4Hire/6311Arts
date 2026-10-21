@@ -960,7 +960,7 @@ export class ExhibitionEditor implements HasUnsavedChanges {
   protected statusText(exhibition: Exhibition): string {
     switch (exhibition.status) {
       case 'Published':
-        return 'Published: on the public site once the site reads from the CMS.';
+        return 'Published: on the public site. Edits show there within a minute.';
       case 'Archived':
         return 'Archived: retired from the site. Archiving can’t be undone here.';
       case 'Scheduled':

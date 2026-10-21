@@ -76,11 +76,12 @@ public interface IShopFacade
     Task<ScheduledPublishOutcome> PublishScheduledAsync(Guid id, DateTimeOffset asOf, CancellationToken cancellationToken);
 
     /// <summary>
-    /// <c>GET /site/shop</c>: one page of published artwork, cursor-paged (ADR 0042). A first page is cached under
-    /// the <c>shop-item</c> and <c>artist</c> type tags; a later page, whose key would be the visitor's cursor, is
-    /// read each time. Refusals: <c>validation.failed</c>, <c>paging.cursor.invalid</c>.
+    /// <c>GET /site/shop</c>: one page of published artwork, cursor-paged, with how many works the filters match in
+    /// all (ADR 0042). A first page is cached under the <c>shop-item</c> and <c>artist</c> type tags; a later page,
+    /// whose key would be the visitor's cursor, is read each time. Refusals: <c>validation.failed</c>,
+    /// <c>paging.cursor.invalid</c>.
     /// </summary>
-    Task<OperationResult<CursorPage<SiteShopItemSummaryServiceModel>>> ListForSiteAsync(
+    Task<OperationResult<CountedCursorPage<SiteShopItemSummaryServiceModel>>> ListForSiteAsync(
         SiteShopListViewModel request, CancellationToken cancellationToken);
 
     /// <summary>

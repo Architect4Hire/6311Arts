@@ -21,7 +21,7 @@ The CMS is closed by design. Every content type is code we own: there are no plu
 | `Artist` | Name, slug, bio, medium, portrait, active |
 | `Instructor` | Name, slug, bio, medium (what they teach), portrait, active, website (`https:` only), Instagram handle (no `@`), optional linked artist (via the Artists facade). Not an artist flag: a separate roster (ADR 0043) |
 | `Exhibition` | Title, slug, summary, body, start/end, reception start/end/note, hero, artists (M:N) |
-| `ClassOffering` | Title, slug, sanitized HTML body, summary, type, level, hero; has `ClassRun` rows — the same class over different terms — each with label, **instructor** (via the Instructors facade), cadence, display zone, SKU, capacity, starting price, and `ClassSession` rows (start, end only). The run is what is sold. **Square-synced** (ADR 0032, 0037, 0044). |
+| `ClassOffering` | Title, slug, sanitized HTML body ("More details" in the admin, ADR 0045), summary, type, level, hero; has `ClassRun` rows — the same class over different terms — each with label, **instructor** (via the Instructors facade), cadence, display zone, SKU, capacity, starting price, and `ClassSession` rows (start, end only). The run is what is sold. **Square-synced** (ADR 0032, 0037, 0044). |
 | `ShopItem` | Artwork only (merch is POS-only, ADR 0032). Title, slug, sanitized HTML description, artist (optional, via the Artists facade), categories, ordered gallery, SKU, one-of-a-kind flag, starting price, starting quantity. **Square-synced** (ADR 0038). |
 | `MembershipPlan` | Name, slug, perks (ordered rows), class discount %, featured, order, starting price and starting cadence. **No page of its own:** every published tier is shown on `/memberships` (ADR 0040). **Square-synced** (ADR 0005, 0040). |
 | `Page` | Slug, title, sanitized HTML body (privacy, terms, about copy blocks) |
@@ -57,8 +57,12 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
   published exhibitions and artwork, and an unpublished instructor is still named on published classes (ADR 0042,
   0043).
   The Worker's kernel handler clears the `type:`, `entity:` and `site:` tags; nothing invalidates inline after a
-  save, and nothing calls the site over HTTP. The API's own in-memory copy lives at most `HybridAppCache.MaxLocalLifetime` (one minute), which is the
-  worst case for a change appearing on the site.
+  save, and nothing calls the site over HTTP. The tags reach the API through the **cache invalidation bus** (Redis
+  pub/sub, ADR 0049): HybridCache reads a tag's time from L2 only once per process, so the shared L2 alone never
+  carries the Worker's invalidation across. A change shows on the site within the Worker's poll and a render
+  (2.5–6 s measured in 3.4, against up to 291 s before; ADR 0049); a process that missed a message serves its copy
+  for at most the entry's lifetime.
+  `Category=E2E` `APublishedClassReachesTheSitePageAndUnpublishingMakesIt404` holds the path end to end.
 - **The site reads** (`/api/v1/site/*`, ADR 0042) show Published records only, as the site's own models, cached in
   each module's facade. **Every site cache entry carries the type tag of every content type it shows** — a shop item
   is tagged `shop-item` and `artist`, because it credits one — never an entity or path tag alone: a read by slug cannot
@@ -99,8 +103,8 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
 ## Content rules
 
 - **HTML** is sanitized on write by the shared `IHtmlSanitizer` (`Managers/Html/`, ADR 0034), in Business, on every write path (seeds and the importer included); only its output is stored. Scripts, styles and inline event handlers are never stored.
-  - The allow-list is `HtmlPolicy`: `p`, `h2`–`h4`, lists, `strong`, `em`, `a[href]`, `br`, `blockquote`, `img[src][alt]`. Links are site-relative, `#`, `http(s):`, `mailto:` or `tel:`; images are library renditions (`/media/{id}/{rendition}`) only. Widening it needs an ADR and the sanitizer suite's payloads extended.
-  - **Every picture in HTML is a library original with its own `alt`,** and the content module records it in a reference table with a `Restrict` key to `MediaAsset` (as `PageMediaReferences`), kept in step with the body on each write, so Media's delete guard sees it.
+  - The allow-list is `HtmlPolicy`, one list for every HTML field (ADR 0045): `p`, `h2`, `ul`, `ol`, `li`, `strong`, `em`, `br`, with no attributes. Other heading levels become `h2`; a link keeps its words; a picture or quote is removed (a quote's paragraphs stay). Widening it needs an ADR, the sanitizer suite's payloads extended, and `<cms-rich-text>`'s toolbar changed to match.
+  - **No pictures or links in HTML at this time** (ADR 0045): a record's pictures are its hero or gallery. The picture support from ADR 0034 (the `*MediaReferences` tables with their `Restrict` key, the facades' Media checks, the alt-text rule) stays in place, unused, for when pictures come back.
   - Long-text fields that predate the sanitizer (the artist bio, the exhibition body) stay plain text until a prompt converts them.
 - **Square-owned fields** (price, stock or seats, sold-out) are read-only projections on the CMS record, maintained by the `SquareSync` module. CMS write models don't contain them, and a test proves it per type (`ClassWriteModelTests`).
   - The *starting* price is the CMS's own draft field, and it stays editable only until Square has reported a price

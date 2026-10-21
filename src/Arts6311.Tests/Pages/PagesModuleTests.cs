@@ -93,7 +93,8 @@ public sealed class PagesModuleTests
         Assert.Empty((await host.StoredAsync(page.Id))!.Images);
         Assert.True((await DeleteImageAsync(host, image)).Succeeded);
 
-        var summary = await host.QueryAsync(context => context.AuditLogs.AsNoTracking().Select(entry => entry.Summary).SingleAsync(Ct));
+        var summary = await host.QueryAsync(context => context.AuditLogs.AsNoTracking()
+            .Where(entry => entry.Action == "page.created").Select(entry => entry.Summary).SingleAsync(Ct));
         Assert.Contains("a picture", summary, StringComparison.Ordinal);
     }
 
@@ -169,6 +170,27 @@ public sealed class PagesModuleTests
         var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(terms.Id, written.ETag, Editor, Ct)));
 
         Assert.Equal(PublishStatus.Published, published.Status);
+    }
+
+    [Fact]
+    public async Task APlaceholderSeededBeforeLinksWereTakenOutIsStillAPlaceholder()
+    {
+        // ADR 0045: a database seeded under the wider allow-list holds the placeholder with its mailto: link.
+        await using var host = await PagesTestHost.CreateAsync(Ct, withSeeder: true);
+        await host.SeedAsync(Ct);
+        await host.ExecuteAsync(async context =>
+        {
+            var seeded = await context.Set<Page>().SingleAsync(page => page.Slug == "terms", Ct);
+            seeded.Body = seeded.Body!.Replace(
+                "info@6311arts.com.", "<a href=\"mailto:info@6311arts.com\">info@6311arts.com</a>.", StringComparison.Ordinal);
+            await context.SaveChangesAsync(Ct);
+        });
+        var terms = await host.QueryAsync(context => context.Set<Page>().AsNoTracking().SingleAsync(page => page.Slug == "terms", Ct));
+
+        var refused = await host.WithFacadeAsync(facade => facade.PublishAsync(terms.Id, EntityTag.Format(terms.RowVersion), Editor, Ct));
+
+        Assert.Contains("<a href", terms.Body, StringComparison.Ordinal);
+        Assert.Contains("placeholder", refused.Error!.FieldErrors["body"][0], StringComparison.Ordinal);
     }
 
     [Fact]

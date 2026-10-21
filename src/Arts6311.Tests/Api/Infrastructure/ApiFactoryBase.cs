@@ -1,4 +1,5 @@
 using Arts6311.Api;
+using Arts6311.Domain.Managers.Caching;
 using Arts6311.Tests.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
@@ -6,6 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Arts6311.Tests.Api.Infrastructure;
 
@@ -75,6 +77,17 @@ internal abstract class ApiFactoryBase : WebApplicationFactory<ApiHost>
             // startup — the blob repository — and the Azure SDK retried a storage account that is not there for about
             // 30 seconds on every host. A ring in a list costs nothing.
             services.Configure<KeyManagementOptions>(options => options.XmlRepository = new InMemoryXmlRepository());
+
+            // No Redis here either. The cache invalidation bus subscribes while the host starts (ADR 0049), where
+            // the L2 only ever connected on first use; one process has no one to tell. Crossing processes is
+            // CacheInvalidationTests' and the E2E publish-to-page test's.
+            services.Replace(ServiceDescriptor.Singleton<ICacheInvalidationBus, NoCacheInvalidationBus>());
+            foreach (var listener in services
+                .Where(descriptor => descriptor.ImplementationType == typeof(CacheInvalidationListener))
+                .ToList())
+            {
+                services.Remove(listener);
+            }
 
             // The role-gated probe routes the edge tests aim at, added to the host's own controller set so the
             // Development-only gate and secure-by-default apply to them exactly as to a real controller.

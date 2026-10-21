@@ -58,6 +58,7 @@ Managers/                # shared kernel: Persistence, Outbox, Idempotency, Cach
   - the ServiceModels it returns
   - entity types, only where a foreign key already crosses
 - The shared kernel never depends on a module. `ArtsDbContext` is the one documented exception.
+- The kernel's one provider client is **StackExchange.Redis**, named only by `Managers/Caching/RedisCacheInvalidationBus.cs`: the cache invalidation bus rides HybridCache's own Redis connection, beside the cache it serves (ADR 0049). Anything else that talks to Redis goes through `IAppCache`.
 - `ModuleBoundaryTests` enforces all of this.
 
 ## Layer ownership

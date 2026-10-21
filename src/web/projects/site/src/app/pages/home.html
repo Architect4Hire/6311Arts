@@ -16,12 +16,15 @@
 @if (featured(); as f) {
   <section class="band band--dark text-center" reveal>
     <div class="container container--narrow">
-      <p class="eyebrow">{{ featuredIsNext() ? 'Opening ' + (f.start | when: 'short') : 'Now on view' }}</p>
+      <p class="eyebrow">
+        {{ featuredIsNext() ? 'Opening ' + (f.start | when: 'short') : 'Now on view' }}
+      </p>
       <h2 class="band__title band__title--xl">{{ f.title }}</h2>
       <p class="band__lead">{{ f.summary }}</p>
       @if (f.reception) {
         <p class="band__note">
-          <ui-icon name="ticket" [size]="20" /> Opening reception {{ f.reception.start | when: 'long' }},
+          <ui-icon name="ticket" [size]="20" /> Opening reception
+          {{ f.reception.start | when: 'long' }},
           {{ f.reception.start | when: 'time' : f.reception.end }}. {{ f.reception.note }}.
         </p>
       }
@@ -38,9 +41,10 @@
   <div class="container container--mid">
     <h2 class="band__title">Who we are</h2>
     <p class="band__lead">
-      6311arts is an inclusive art center founded in 2025 in a 5,000-square-foot former funeral home in Rogers Edge.
-      Under the original wood ceiling you’ll find a gallery, a working classroom and a shop, all built to give
-      local artists of every background a safe place to show, sell and teach.
+      6311arts is an inclusive art center founded in 2025 in a 5,000-square-foot former funeral home
+      in Rogers Edge. Under the original wood ceiling you’ll find a gallery, a working classroom and
+      a shop, all built to give local artists of every background a safe place to show, sell and
+      teach.
     </p>
     <a class="link-arrow" routerLink="/about">Our story <ui-icon name="arrow" [size]="18" /></a>
   </div>
@@ -93,7 +97,10 @@
   <div class="container">
     <div class="container--mid" reveal>
       <h2 class="band__title">From the shop</h2>
-      <p class="band__lead">Prints, ceramics, jewelry and paintings by the artists down the street. Every purchase goes straight back into the neighborhood.</p>
+      <p class="band__lead">
+        Prints, ceramics, jewelry and paintings by the artists down the street. Every purchase goes
+        straight back into the neighborhood.
+      </p>
     </div>
     <div class="grid-products" reveal>
       @for (p of products(); track p.id) {
@@ -105,11 +112,19 @@
 </section>
 
 <!-- Membership action band -->
-<section class="band band--photo band--tall text-center" [style.--band-image]="'url(' + memberPhoto + ')'">
+<section
+  class="band band--photo band--tall text-center"
+  [style.--band-image]="'url(' + memberPhoto + ')'"
+>
   <div class="container container--mid" reveal>
-    <p class="eyebrow">Memberships from {{ tiers[0].price | money }} a year</p>
+    @if (joinFrom() != null) {
+      <p class="eyebrow">Memberships from {{ joinFrom() | money }} a year</p>
+    }
     <h2 class="band__title band__title--xl">Keep the doors open. Save on every class.</h2>
-    <p class="band__lead">Members get up to 15% off workshops, the annual members’ party and 6311arts gear, and keep a free gallery free for everyone.</p>
+    <p class="band__lead">
+      Members get up to 15% off workshops, the annual members’ party and 6311arts gear, and keep a
+      free gallery free for everyone.
+    </p>
     <p><a class="btn btn-white btn-lg" routerLink="/memberships">Become a member</a></p>
   </div>
 </section>

@@ -1,11 +1,13 @@
 using Arts6311.Api.Authentication;
 using Arts6311.Api.Conventions;
 using Arts6311.Domain.Managers;
+using Arts6311.Domain.Managers.Caching;
 using Arts6311.Domain.Managers.Idempotency;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Modules.Artists;
 using Arts6311.Domain.Modules.Classes;
 using Arts6311.Domain.Modules.Exhibitions;
+using Arts6311.Domain.Modules.Forms;
 using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
@@ -33,10 +35,12 @@ builder.AddSqlServerDbContext<ArtsDbContext>(
 
 // The IDistributedCache HybridCache picks up as its L2 (aspire.md). It has to be registered before
 // AddArtsKernel's AddArtsCaching so HybridCache sees it, and it is what makes a revalidation in the Worker reach
-// this host's entries: with L1 alone each process would only ever invalidate its own copy (ADR 0036).
+// this host's entries: with L1 alone each process would only ever invalidate its own copy (ADR 0036). The tag
+// itself arrives on the invalidation bus, because HybridCache never re-reads a tag's time from L2 (ADR 0049).
 builder.AddRedisDistributedCache("cache");
 
 builder.Services.AddArtsKernel();
+builder.Services.AddArtsCacheInvalidation();
 builder.Services.AddArtsIdempotency(builder.Configuration);
 builder.Services.AddOperationsModule();
 
@@ -75,6 +79,10 @@ builder.Services.AddMembershipsModule();
 
 // Redirects (content.md): the CMS's list and the site's. Its slug-change handler is the Worker's (ADR 0035).
 builder.Services.AddRedirectsModule();
+
+// The public forms and the CMS inbox (ADR 0047). A submission's pictures go through Media's facade, so it comes
+// after AddMediaModule. Its emails are composed and sent by the Worker.
+builder.Services.AddFormsModule(builder.Configuration);
 
 // Previews (ADR 0036): staff mint a signed, expiring link here and the site reads it back. After the content
 // modules, whose facades it asks for the record, and after Data Protection, which signs the token.

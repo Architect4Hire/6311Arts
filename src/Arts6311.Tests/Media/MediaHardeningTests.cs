@@ -314,7 +314,7 @@ public sealed class MediaHardeningTests
 
         public Task<MediaAsset?> FindOriginalAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<Guid?> FindOriginalByChecksumAsync(string checksum, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Guid?> FindOriginalByChecksumAsync(string checksum, bool includeSubmissions, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<List<MediaAssetSummaryServiceModel>> ListOriginalsAsync(
             MediaListPosition? after, int take, bool missingAltText, MediaProcessingStatus? status, CancellationToken cancellationToken) =>

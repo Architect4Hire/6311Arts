@@ -198,7 +198,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             if (!string.Equals(stored, offering.Body, StringComparison.Ordinal))
             {
                 SetBody(offering, body);
-                changes.Add(stored is null ? "description cleared" : "description");
+                changes.Add(stored is null ? "more details cleared" : "more details");
             }
         }
 
@@ -911,14 +911,14 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         if (body.Refused is { } refusal)
         {
             return (null, OperationError.Validation(
-                "The class description couldn't be read.",
+                "“More details” couldn't be read.",
                 [("body", $"{refusal} Paste it as plain text, or simplify its formatting, and try again.")]));
         }
 
         if (body.Html.Length > ClassPolicy.BodyMaxLength)
         {
             return (null, OperationError.Validation(
-                "The description is too long.",
+                "“More details” is too long.",
                 [("body", string.Create(CultureInfo.InvariantCulture, $"Keep it under {ClassPolicy.BodyMaxLength:N0} characters of formatted text."))]));
         }
 
@@ -940,7 +940,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         return problems.Count == 0
             ? (body, null)
-            : (null, OperationError.Validation("The class description needs attention.", problems));
+            : (null, OperationError.Validation("“More details” needs attention.", problems));
     }
 
     /// <summary>Stores the sanitized body and makes the image references exactly the pictures it shows.</summary>

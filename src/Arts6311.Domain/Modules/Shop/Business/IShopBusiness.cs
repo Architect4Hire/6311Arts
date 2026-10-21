@@ -66,11 +66,11 @@ internal interface IShopBusiness
     Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken);
 
     /// <summary>
-    /// One page of the site's shop (ADR 0042): published items only, filtered and ordered as asked. Refusal:
-    /// <c>paging.cursor.invalid</c> for a cursor from another list or order.
+    /// One page of the site's shop (ADR 0042): published items only, filtered and ordered as asked, with how many the
+    /// filters match in all. Refusal: <c>paging.cursor.invalid</c> for a cursor from another list or order.
     /// </summary>
     /// <param name="artistId">The artist the facade resolved <c>request.Artist</c> to, when it names one.</param>
-    Task<OperationResult<CursorPage<ShopItemSiteRow>>> ListForSiteAsync(
+    Task<OperationResult<CountedCursorPage<ShopItemSiteRow>>> ListForSiteAsync(
         SiteShopListViewModel request, Guid? artistId, CancellationToken cancellationToken);
 
     /// <summary>The published item at <paramref name="slug"/>, or <c>null</c>: a draft is not there to the site.</summary>

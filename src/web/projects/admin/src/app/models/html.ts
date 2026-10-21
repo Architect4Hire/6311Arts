@@ -1,6 +1,9 @@
 /**
  * The server's HTML allow-list as the admin's editor needs it (`HtmlPolicy.cs`, ADR 0034), so the editor never
  * produces what the API would strip. The API sanitizes regardless and has the last word.
+ *
+ * Links and pictures are off at this time (ADR 0045), so the editor uses none of these. They mirror the server's
+ * rules, which are kept for when they come back.
  */
 
 const LINK_SCHEMES = ['http:', 'https:', 'mailto:', 'tel:'];

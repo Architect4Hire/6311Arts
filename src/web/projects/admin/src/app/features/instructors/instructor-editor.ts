@@ -850,7 +850,7 @@ export class InstructorEditor implements HasUnsavedChanges {
   protected statusText(instructor: Instructor): string {
     switch (instructor.status) {
       case 'Published':
-        return 'Published: on the public site once the site reads from the CMS.';
+        return 'Published: on the public site. Edits show there within a minute.';
       case 'Archived':
         return 'Archived: retired from the site. Archiving can’t be undone here.';
       case 'Scheduled':

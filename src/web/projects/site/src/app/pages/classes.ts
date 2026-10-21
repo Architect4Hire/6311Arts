@@ -7,7 +7,7 @@ import { ArtClass, ClassType, Exhibition } from '../core/models';
 import { Seo, eventLd } from '../core/seo.service';
 import { SITE } from '../core/site';
 import { IN_PAGE } from '../core/navigation';
-import { WpApi } from '../core/wp-api.service';
+import { SiteApi } from '../services/site-api.service';
 import { slugify } from '../data/mock-shop';
 import { STUDIO_PHOTOS } from '../data/venue-photos';
 import { ClassCard, ShowCard, ShowMoment } from '../shared/cards';
@@ -291,7 +291,7 @@ import { Reveal } from '../shared/reveal';
   `,
 })
 export class Classes {
-  private api = inject(WpApi);
+  private api = inject(SiteApi);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 

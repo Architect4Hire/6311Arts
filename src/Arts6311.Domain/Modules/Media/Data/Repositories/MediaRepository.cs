@@ -28,16 +28,20 @@ internal sealed class MediaRepository(ArtsDbContext context) : IMediaRepository
     public Task<List<MediaAsset>> GetRenditionsAsync(Guid originalId, CancellationToken cancellationToken) =>
         Assets.Where(asset => asset.ParentAssetId == originalId).ToListAsync(cancellationToken);
 
-    public async Task<Guid?> FindOriginalByChecksumAsync(string checksum, CancellationToken cancellationToken) =>
+    // Two pools: a staff upload is checked against the library, a submitted picture against other submitted ones, so a
+    // visitor can never link (and so pin against deletion) a library picture by sending its bytes (ADR 0047).
+    public async Task<Guid?> FindOriginalByChecksumAsync(string checksum, bool includeSubmissions, CancellationToken cancellationToken) =>
         await Assets.AsNoTracking()
-            .Where(asset => asset.Checksum == checksum && asset.Kind != MediaAssetKind.Derived)
+            .Where(asset => asset.Checksum == checksum && asset.Kind != MediaAssetKind.Derived
+                && (includeSubmissions ? asset.Kind == MediaAssetKind.Submission : asset.Kind != MediaAssetKind.Submission))
             .Select(asset => (Guid?)asset.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<List<MediaAssetSummaryServiceModel>> ListOriginalsAsync(
         MediaListPosition? after, int take, bool missingAltText, MediaProcessingStatus? status, CancellationToken cancellationToken)
     {
-        var query = Assets.AsNoTracking().Where(asset => asset.Kind != MediaAssetKind.Derived);
+        // Submitted pictures are an applicant's, seen from their submission, not the library's (ADR 0047).
+        var query = Assets.AsNoTracking().Where(asset => asset.Kind != MediaAssetKind.Derived && asset.Kind != MediaAssetKind.Submission);
 
         if (missingAltText)
         {

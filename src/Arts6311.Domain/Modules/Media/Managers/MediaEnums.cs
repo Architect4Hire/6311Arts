@@ -13,6 +13,13 @@ public enum MediaAssetKind
 
     /// <summary>A rendition, linked to its original.</summary>
     Derived = 20,
+
+    /// <summary>
+    /// An image an artist sent with the public submission form (prompt 2.12, ADR 0047). Stored and rendered like a
+    /// staff upload, but always a draft, never listed in the library, and never a reason to refuse a staff upload
+    /// of the same picture.
+    /// </summary>
+    Submission = 30,
 }
 
 /// <summary>Where an original is in its rendition pipeline.</summary>

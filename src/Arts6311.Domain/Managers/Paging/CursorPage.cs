@@ -6,6 +6,12 @@ namespace Arts6311.Domain.Managers.Paging;
 /// </summary>
 public sealed record CursorPage<T>(IReadOnlyList<T> Items, string? NextCursor);
 
+/// <summary>
+/// A <see cref="CursorPage{T}"/> that also says how many items the whole list holds under the same filters, for a
+/// list whose reader shows that number ("312 works"). The count ignores the cursor: it is the same on every page.
+/// </summary>
+public sealed record CountedCursorPage<T>(IReadOnlyList<T> Items, string? NextCursor, int TotalCount);
+
 /// <summary>A request for one page: an opaque cursor (absent for the first page) and a requested size.</summary>
 public sealed record PageRequest(string? Cursor, int? Limit)
 {

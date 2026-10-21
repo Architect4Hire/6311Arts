@@ -24,12 +24,13 @@ internal sealed class MediaBusiness(IMediaDataLayer dataLayer, IClock clock) : I
     {
         ArgumentNullException.ThrowIfNull(upload);
 
-        await using var spool = await dataLayer.SpoolUploadAsync(upload.Content, MediaPolicy.MaxUploadBytes, cancellationToken);
+        var cap = upload.FromSubmission ? MediaPolicy.MaxSubmissionImageBytes : MediaPolicy.MaxUploadBytes;
+        await using var spool = await dataLayer.SpoolUploadAsync(upload.Content, cap, cancellationToken);
         if (spool is null)
         {
             return Fail<MediaAssetServiceModel>(
                 MediaErrorCodes.TooLarge,
-                string.Create(CultureInfo.InvariantCulture, $"Images can be at most {MediaPolicy.MaxUploadBytes / (1024 * 1024)} MB."));
+                string.Create(CultureInfo.InvariantCulture, $"Images can be at most {cap / (1024 * 1024)} MB."));
         }
 
         var fileName = CleanFileName(upload.FileName);
@@ -80,7 +81,10 @@ internal sealed class MediaBusiness(IMediaDataLayer dataLayer, IClock clock) : I
         var (width, height) = keepReencode ? (candidates.Width, candidates.Height) : (probe.DisplayWidth, probe.DisplayHeight);
         var checksum = await dataLayer.ChecksumAsync(masterFile.Stream, cancellationToken);
 
-        if (await dataLayer.FindDuplicateAsync(checksum, cancellationToken) is { } existing)
+        // A staff upload is checked against the library only, a submission against other submissions only (ADR 0047): a
+        // hidden picture never blocks staff, and a visitor can never link a library picture by sending its bytes.
+        if (upload.SiteImageId is null
+            && await dataLayer.FindDuplicateAsync(checksum, includeSubmissions: upload.FromSubmission, cancellationToken) is { } existing)
         {
             return OperationResult.Failure<MediaAssetServiceModel>(new OperationError(
                 MediaErrorCodes.Duplicate,
@@ -90,11 +94,11 @@ internal sealed class MediaBusiness(IMediaDataLayer dataLayer, IClock clock) : I
         }
 
         var now = clock.UtcNow;
-        var id = Guid.NewGuid();
+        var id = upload.SiteImageId ?? Guid.NewGuid();
         var original = new MediaAsset
         {
             Id = id,
-            Kind = MediaAssetKind.Original,
+            Kind = upload.FromSubmission ? MediaAssetKind.Submission : MediaAssetKind.Original,
             FileName = fileName,
             MimeType = plan.Format.MimeType(),
             Bytes = masterFile.Length,
@@ -104,7 +108,8 @@ internal sealed class MediaBusiness(IMediaDataLayer dataLayer, IClock clock) : I
             Checksum = checksum,
             BlobKey = MediaBlobKeys.Original(id, checksum, plan.Format),
             ProcessingStatus = MediaProcessingStatus.Pending,
-            Visibility = MediaVisibility.Draft,
+            // The site's own pictures are public from the start (MediaSiteImages); everything else waits for publishing.
+            Visibility = upload.SiteImageId is null ? MediaVisibility.Draft : MediaVisibility.Published,
             CompressionPreset = upload.CompressionPreset ?? MediaCompressionPreset.Balanced,
             AltText = altText,
             Credit = Clean(upload.Credit) ?? Truncate(probe.Exif.Copyright, MediaPolicy.CreditMaxLength),

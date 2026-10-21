@@ -56,6 +56,13 @@ public sealed class PlatformCheckpointTests(PlatformFixture platform, ITestOutpu
         "/api/v1/internal/anything-else",
     ];
 
+    /// <summary>
+    /// How long a CMS change may take to reach the site: the Worker's poll (<c>OutboxPolicy.PollingInterval</c>, five
+    /// seconds), the bus, and a render, with room for a slow CI machine. Far inside the five-minute lifetime the bug
+    /// produced.
+    /// </summary>
+    private static readonly TimeSpan PublishToPageBudget = TimeSpan.FromSeconds(30);
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -221,6 +228,25 @@ public sealed class PlatformCheckpointTests(PlatformFixture platform, ITestOutpu
                 policy.Contains($"'sha256-{hash}'", StringComparison.Ordinal),
                 $"The CSP does not allow an inline script the site renders. Add 'sha256-{hash}' to "
                 + $"Gateway:Csp:Default (script-src). The script begins: {script[..Math.Min(80, script.Length)]}");
+        }
+    }
+
+    /// <summary>
+    /// The site's server renders its pages from the site read API, asking the gateway at the origin Aspire hands it
+    /// over run mode's HTTPS endpoint (prompt 3.2). A read that failed — no origin, an untrusted certificate, a host
+    /// the SSR engine refused — makes the page a 503 <c>no-store</c>, so a 200 here is the whole path working.
+    /// </summary>
+    [Fact]
+    public async Task TheSiteRendersItsPagesFromTheApiThroughTheGateway()
+    {
+        using var browser = Browser(out _);
+
+        foreach (var path in new[] { "/classes", "/shop", "/memberships", "/exhibitions" })
+        {
+            var page = await browser.GetAsync(path, "text/html");
+            Assert.True(
+                page.StatusCode == HttpStatusCode.OK,
+                $"{path} answered {(int)page.StatusCode}: the site's server could not read the API through the gateway.");
         }
     }
 
@@ -487,6 +513,119 @@ public sealed class PlatformCheckpointTests(PlatformFixture platform, ITestOutpu
 
         using var visitor = Browser(out _);
         Assert.Equal(HttpStatusCode.NotFound, (await visitor.GetAsync(url)).StatusCode);
+    }
+
+    /// <summary>
+    /// Prompt 3.4's checkpoint: staff publish a class, edit it and unpublish it through the CMS, and a signed-out
+    /// visitor's page follows each step within <see cref="PublishToPageBudget"/>. The path is the whole platform: the
+    /// API's save stages <c>site.revalidate-requested</c>, the Worker clears the tags and publishes them on the cache
+    /// invalidation bus, the API drops its copies, and the site's server renders from the API through the gateway.
+    /// </summary>
+    /// <remarks>
+    /// Before ADR 0049 the Worker's invalidation never reached the API (HybridCache keeps each tag's time from its
+    /// first L2 read), and these steps took up to the cache's five-minute lifetime.
+    /// </remarks>
+    [Fact]
+    public async Task APublishedClassReachesTheSitePageAndUnpublishingMakesIt404()
+    {
+        using var staff = Browser(out _);
+        await SignInAsync(staff);
+        await staff.EnsureAntiforgeryAsync();
+        using var visitor = Browser(out _);
+
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var instructor = await CmsAsync(staff, HttpMethod.Post, "/api/v1/cms/instructors", null,
+            new { name = $"E2E Instructor {suffix}" });
+        Assert.Equal(HttpStatusCode.Created, instructor.Response.StatusCode);
+
+        var startsAt = DateTimeOffset.UtcNow.AddDays(30);
+        var created = await CmsAsync(staff, HttpMethod.Post, "/api/v1/cms/classes", null, new
+        {
+            title = $"E2E Publish {suffix}",
+            summary = "Before the edit.",
+            runs = new[]
+            {
+                new
+                {
+                    capacity = 10,
+                    instructorId = instructor.Body.GetProperty("id").GetString(),
+                    startingPriceCents = 2500,
+                    sessions = new[] { new { startsAt, endsAt = startsAt.AddHours(3) } },
+                },
+            },
+        });
+        Assert.Equal(HttpStatusCode.Created, created.Response.StatusCode);
+        var id = created.Body.GetProperty("id").GetString();
+        var page = $"/classes/{created.Body.GetProperty("slug").GetString()}";
+
+        async Task<(HttpStatusCode Status, string Html)> VisitAsync()
+        {
+            var response = await visitor.GetAsync(page, "text/html");
+            return (response.StatusCode, await response.Content.ReadAsStringAsync(Ct));
+        }
+
+        var published = await CmsAsync(staff, HttpMethod.Post, $"/api/v1/cms/classes/{id}/publish", created.ETag);
+        Assert.Equal(HttpStatusCode.OK, published.Response.StatusCode);
+        var shown = await WithinBudgetAsync("publish → page", async () =>
+            await VisitAsync() is { Status: HttpStatusCode.OK } visit && visit.Html.Contains("Before the edit.", StringComparison.Ordinal));
+
+        var marker = $"Edited {suffix}.";
+        var edited = await CmsAsync(staff, HttpMethod.Patch, $"/api/v1/cms/classes/{id}", published.ETag,
+            new { summary = marker });
+        Assert.Equal(HttpStatusCode.OK, edited.Response.StatusCode);
+        var editShown = await WithinBudgetAsync("edit → page", async () =>
+            (await VisitAsync()).Html.Contains(marker, StringComparison.Ordinal));
+
+        var unpublished = await CmsAsync(staff, HttpMethod.Post, $"/api/v1/cms/classes/{id}/unpublish", edited.ETag);
+        Assert.Equal(HttpStatusCode.OK, unpublished.Response.StatusCode);
+        var gone = await WithinBudgetAsync("unpublish → 404", async () =>
+            (await VisitAsync()).Status == HttpStatusCode.NotFound);
+
+        output.WriteLine(
+            $"Publish → page {shown.TotalSeconds:F1}s; edit → page {editShown.TotalSeconds:F1}s; unpublish → 404 {gone.TotalSeconds:F1}s.");
+    }
+
+
+    /// <summary>Polls once a second until the probe holds; fails if it does not within the budget.</summary>
+    private static async Task<TimeSpan> WithinBudgetAsync(string step, Func<Task<bool>> probe)
+    {
+        // Once a second: the gateway's api limit is per address, and the site server's own reads count against it.
+        var clock = Stopwatch.StartNew();
+        while (!await probe())
+        {
+            if (clock.Elapsed > PublishToPageBudget)
+            {
+                Assert.Fail($"{step} did not happen within {PublishToPageBudget.TotalSeconds:F0}s.");
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1), Ct);
+        }
+
+        return clock.Elapsed;
+    }
+
+    /// <summary>A CMS write as the admin sends it: antiforgery, and <c>If-Match</c> when the record has a version.</summary>
+    private static async Task<(HttpResponseMessage Response, JsonElement Body, string? ETag)> CmsAsync(
+        BffClient browser, HttpMethod method, string path, string? ifMatch, object? body = null)
+    {
+        using var request = new HttpRequestMessage(method, path);
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
+
+        request.Headers.TryAddWithoutValidation("X-XSRF-TOKEN", browser.RequestToken);
+        if (ifMatch is not null)
+        {
+            request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        }
+
+        var response = await browser.Http.SendAsync(request, Ct);
+        var text = await response.Content.ReadAsStringAsync(Ct);
+        var json = text.Length > 0 ? JsonDocument.Parse(text).RootElement.Clone() : default;
+        Assert.True(response.IsSuccessStatusCode, $"{method} {path} answered {(int)response.StatusCode}: {text}");
+
+        return (response, json, response.Headers.ETag?.ToString());
     }
 
     private BffClient Browser(out CookieJarHandler jar, bool followRedirects = true)

@@ -44,6 +44,9 @@ internal interface IShopRepository
     /// </summary>
     Task<List<ShopItemSiteRow>> ListPublishedAsync(ShopSiteQuery query, CancellationToken cancellationToken);
 
+    /// <summary>How many published items match the site's category and artist filters, whatever the page.</summary>
+    Task<int> CountPublishedAsync(string? category, Guid? artistId, CancellationToken cancellationToken);
+
     /// <summary>The published item at <paramref name="slug"/>, projected straight to a site row.</summary>
     Task<ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken);
 

@@ -11,10 +11,10 @@ namespace Arts6311.Domain.Managers.Revalidation;
 /// <para>
 /// <strong>How far an invalidation reaches.</strong> HybridCache's tag invalidation is logical, not a delete: it
 /// records "ignore anything tagged this and created before now" in the host that calls it and in the shared L2
-/// (Redis), so another host's reader treats its L2 copy as a miss. What it cannot do is reach into another host's
-/// in-memory L1, which keeps its copy until <c>LocalCacheExpiration</c>. <see cref="HybridAppCache"/> caps that at
-/// <see cref="HybridAppCache.MaxLocalLifetime"/>, so a published change shows on the site within that long at
-/// worst (ADR 0036).
+/// (Redis). Another host reads that time from L2 only the first time it meets the tag, and keeps it, so this
+/// Worker's invalidation alone would never reach the API. <see cref="HybridAppCache"/> also publishes each tag on the
+/// cache invalidation bus, and every other host applies it to its own HybridCache: a published change shows on the
+/// site within the Worker's poll and a render. A missed message is bounded by the entry's lifetime (ADR 0049).
 /// </para>
 /// <para>
 /// Idempotent by nature: invalidating a tag twice records the same "ignore older entries" instant, so a

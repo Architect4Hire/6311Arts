@@ -55,6 +55,13 @@ public sealed class PlatformFixture : IAsyncLifetime
             ["idempotency-fingerprint-key"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
             ["seed-admin-email"] = AdminEmail,
             ["seed-admin-password"] = AdminSecret,
+
+            // The site's SSR settings (3.2): the gateway's host, and the real API rather than sample data.
+            ["site-allowed-hosts"] = "localhost",
+            ["site-mock-fallback"] = "false",
+
+            // The forms' staff inbox (ADR 0047): a non-routable address, as every environment but production uses.
+            ["forms-staff-email"] = "staff@6311arts.localhost",
         };
 
         // Square:Mode decides which resources exist, so it is read while the AppHost composes the model and has to be

@@ -17,8 +17,8 @@ internal interface IMediaRepository
     /// <summary>An original's renditions, tracked.</summary>
     Task<List<MediaAsset>> GetRenditionsAsync(Guid originalId, CancellationToken cancellationToken);
 
-    /// <summary>The original already holding exactly these bytes, if any.</summary>
-    Task<Guid?> FindOriginalByChecksumAsync(string checksum, CancellationToken cancellationToken);
+    /// <summary>The original already holding exactly these bytes, if any; submitted pictures only when asked.</summary>
+    Task<Guid?> FindOriginalByChecksumAsync(string checksum, bool includeSubmissions, CancellationToken cancellationToken);
 
     /// <summary>One page of originals, newest first, projected straight to tiles.</summary>
     Task<List<MediaAssetSummaryServiceModel>> ListOriginalsAsync(

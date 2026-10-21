@@ -5,7 +5,7 @@ import { map, switchMap } from 'rxjs';
 import { UiIcon } from '@6311/ui';
 import { Seo } from '../core/seo.service';
 import { SITE } from '../core/site';
-import { WpApi } from '../core/wp-api.service';
+import { SiteApi } from '../services/site-api.service';
 import { slugify } from '../data/mock-shop';
 import { STUDIO_PHOTOS } from '../data/venue-photos';
 import { ArtImage } from '../shared/art-image';
@@ -113,7 +113,7 @@ import { Reveal } from '../shared/reveal';
   `,
 })
 export class InstructorDetail {
-  private api = inject(WpApi);
+  private api = inject(SiteApi);
   private route = inject(ActivatedRoute);
   protected studioPhotos = STUDIO_PHOTOS;
 
@@ -140,7 +140,7 @@ export class InstructorDetail {
   });
   protected works = toSignal(
     this.route.paramMap.pipe(
-      switchMap((p) => this.api.products({ artist: p.get('slug')!, perPage: 8 })),
+      switchMap((p) => this.api.products({ artist: p.get('slug')!, limit: 8 })),
       map((r) => r.items),
     ),
     { initialValue: [] },
@@ -206,7 +206,7 @@ export class InstructorDetail {
   `,
 })
 export class Instructors {
-  private api = inject(WpApi);
+  private api = inject(SiteApi);
   protected studioPhotos = STUDIO_PHOTOS;
   private all = toSignal(this.api.instructors(), { initialValue: [] });
   private classes = toSignal(this.api.classes(), { initialValue: [] });

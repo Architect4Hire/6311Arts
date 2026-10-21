@@ -3,7 +3,6 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Editor } from '@tiptap/core';
-import { MediaAssetSummary } from '../models/media';
 import { RichTextEditor } from './rich-text-editor';
 
 const ASSET_ID = '0199f0a0-0000-7000-8000-0000000000aa';
@@ -88,66 +87,69 @@ describe('RichTextEditor', () => {
     expect(textbox.getAttribute('aria-invalid')).toBe('true');
     expect(textbox.getAttribute('aria-describedby')).toContain('-error');
     expect(text(root)).toContain('Write the page first.');
+    expect(root.querySelector('.editor')?.classList).toContain('editor--invalid');
   });
 
-  it('takes only links the server keeps', async () => {
+  it('shows focus once, on the frame around the toolbar and the text', async () => {
+    const { fixture, root, editor } = await render();
+    const frame = root.querySelector('.editor')!;
+
+    // The toolbar and the text share the frame; the text draws no box of its own inside it.
+    expect(frame.querySelector('[role="group"]')).not.toBeNull();
+    expect(frame.querySelector('[role="textbox"]')).not.toBeNull();
+    expect(frame.querySelector('.field__control')).toBeNull();
+
+    editor.view.dom.dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    expect(frame.classList).toContain('editor--focused');
+
+    editor.view.dom.dispatchEvent(new FocusEvent('blur'));
+    fixture.detectChanges();
+    expect(frame.classList).not.toContain('editor--focused');
+  });
+
+  it('offers one heading level and no link, quote or picture (ADR 0045)', async () => {
     const { fixture, root, editor, host } = await render();
-    editor.commands.setTextSelection({ from: 1, to: 5 });
 
-    button(root, 'Link').click();
-    fixture.detectChanges();
-    const href = root.querySelector('[name="linkHref"]') as HTMLInputElement;
-    href.value = 'javascript:alert(1)';
-    href.dispatchEvent(new Event('input'));
-    button(root, 'Apply link').click();
-    fixture.detectChanges();
-    expect(text(root)).toContain('Use a page on this site');
-    expect(host.value()).not.toContain('<a');
+    const labels = [...root.querySelectorAll('button')].map((candidate) => text(candidate));
+    expect(labels).toEqual([
+      'Text',
+      'Heading',
+      'Bold',
+      'Italic',
+      'Bullets',
+      'Numbers',
+      'Undo',
+      'Redo',
+    ]);
 
-    href.value = '/visit';
-    href.dispatchEvent(new Event('input'));
-    button(root, 'Apply link').click();
+    editor.commands.setTextSelection(3);
+    button(root, 'Text').click();
     fixture.detectChanges();
+    // Tiptap keeps an empty paragraph after a closing list to type into; the server drops it.
+    expect(host.value()).toMatch(/^<p>Your privacy<\/p><ul>/);
+    expect(button(root, 'Heading').getAttribute('aria-pressed')).toBe('false');
 
-    expect(host.value()).toContain('<a href="/visit">Your</a>');
-    expect(host.value()).not.toContain('target=');
-    expect(root.querySelector('[name="linkHref"]')).toBeNull();
+    button(root, 'Heading').click();
+    fixture.detectChanges();
+    expect(host.value()).toMatch(/^<h2>Your privacy<\/h2><ul>/);
+    expect(button(root, 'Heading').getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('puts a library picture in only with alt text, at its rendition address', async () => {
-    const { fixture, root, component, host } = await render();
-    const asset = {
-      id: ASSET_ID,
-      thumbnailUrl: null,
-      altText: null,
-    } as unknown as MediaAssetSummary;
-
-    (component as unknown as { picked(asset: MediaAssetSummary): void }).picked(asset);
-    fixture.detectChanges();
-    button(root, 'Insert picture').click();
-    fixture.detectChanges();
-    expect(text(root)).toContain('Describe the picture before it goes in.');
-
-    const alt = root.querySelector('[name="imageAlt"]') as HTMLInputElement;
-    alt.value = 'The gallery’s front window';
-    alt.dispatchEvent(new Event('input'));
-    button(root, 'Insert picture').click();
-    fixture.detectChanges();
-
-    expect(host.value()).toContain(
-      `<img src="/media/${ASSET_ID}/800.webp" alt="The gallery’s front window">`,
-    );
-  });
-
-  it('drops a picture from outside the library when a body arrives with one', async () => {
+  it('keeps only the words of a link and drops every picture when a body arrives with them', async () => {
     const { fixture, editor, host } = await render();
 
     host.value.set(
-      `<p>Look</p><img src="https://elsewhere.example/a.jpg" alt="x"><img src="/media/${ASSET_ID}/800.webp" alt="ok">`,
+      `<p>See <a href="/visit">Visit</a>.</p><blockquote><p>Quoted</p></blockquote>` +
+        `<img src="https://elsewhere.example/a.jpg" alt="x"><img src="/media/${ASSET_ID}/800.webp" alt="ok">`,
     );
     fixture.detectChanges();
 
-    expect(editor.getHTML()).not.toContain('elsewhere.example');
-    expect(editor.getHTML()).toContain(`/media/${ASSET_ID}/800.webp`);
+    const html = editor.getHTML();
+    expect(html).toContain('<p>See Visit.</p>');
+    expect(html).toContain('<p>Quoted</p>');
+    expect(html).not.toContain('<a');
+    expect(html).not.toContain('<blockquote');
+    expect(html).not.toContain('<img');
   });
 });

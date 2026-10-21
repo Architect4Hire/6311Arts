@@ -2,7 +2,7 @@ import { Exhibition } from '../core/models';
 import { GALLERY_PHOTOS } from './venue-photos';
 
 /**
- * Copied from 6311arts.com/gallery on 2026-10-18. Used when the WordPress API can't be reached.
+ * Copied from 6311arts.com/gallery on 2026-10-18. Served only when the site API fails and SiteApi's mock fallback is on.
  *
  * Images are the show's own full-colour poster or install shot from the WordPress uploads folder. A show with
  * no artwork online yet borrows a photo of the room it will hang in, rather than falling back to a blank tile.

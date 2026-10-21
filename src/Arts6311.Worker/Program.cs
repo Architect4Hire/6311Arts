@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers;
+using Arts6311.Domain.Managers.Caching;
 using Arts6311.Domain.Managers.Email;
 using Arts6311.Domain.Managers.Idempotency;
 using Arts6311.Domain.Managers.Outbox;
@@ -7,6 +8,8 @@ using Arts6311.Domain.Managers.Revalidation;
 using Arts6311.Domain.Modules.Artists;
 using Arts6311.Domain.Modules.Classes;
 using Arts6311.Domain.Modules.Exhibitions;
+using Arts6311.Domain.Modules.Forms;
+using Arts6311.Domain.Modules.Forms.Managers;
 using Arts6311.Domain.Modules.Identity;
 using Arts6311.Domain.Modules.Identity.Data.Entities;
 using Arts6311.Domain.Modules.Identity.Managers;
@@ -40,9 +43,11 @@ builder.AddSqlServerDbContext<ArtsDbContext>(
 // The same Redis the API uses as its HybridCache L2. This host writes to it rather than reads from it: the
 // site.revalidate-requested handler tells the shared cache to stop serving what a change affects, which is the
 // only way an invalidation here reaches the API's entries (ADR 0036). Before AddArtsKernel, so HybridCache sees it.
+// The bus is what actually tells the API: HybridCache never re-reads a tag's time from L2 (ADR 0049).
 builder.AddRedisDistributedCache("cache");
 
 builder.Services.AddArtsKernel();
+builder.Services.AddArtsCacheInvalidation();
 builder.Services.AddArtsIdempotencyMaintenance();
 builder.Services.AddOperationsModule();
 
@@ -71,6 +76,17 @@ builder.Services.AddPagesModule();
 builder.Services.AddClassesModule();
 builder.Services.AddShopModule();
 builder.Services.AddMembershipsModule();
+
+// The four form emails' composers (ADR 0047), which reload their record through the Forms facade. The staff inbox
+// is per environment (the AppHost's forms-staff-email), checked at startup because only this host sends email.
+builder.Services.AddFormsModule(builder.Configuration);
+builder.Services.AddOptions<FormsOptions>()
+    .Validate(options =>
+    {
+        options.Validate(production: builder.Environment.IsProduction());
+        return true;
+    })
+    .ValidateOnStart();
 
 // The token provider is added by the host, not the module: it lives in the ASP.NET Core framework assembly, which
 // the Domain deliberately does not reference.

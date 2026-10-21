@@ -334,6 +334,12 @@ public sealed class CmsMediaEndpointTests
 
         public MediaViewer? Viewer { get; private set; }
 
+        public Task<OperationResult<MediaAssetServiceModel>> EnsureSiteImageAsync(Guid id, string fileName, Func<Stream> open, string altText, string actorUserId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OperationResult<MediaSubmissionImageServiceModel>> UploadSubmissionImageAsync(string fileName, Stream content, string actorUserId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public async Task<OperationResult<MediaAssetServiceModel>> UploadAsync(
             MediaUploadViewModel upload, string actorUserId, CancellationToken cancellationToken)
         {

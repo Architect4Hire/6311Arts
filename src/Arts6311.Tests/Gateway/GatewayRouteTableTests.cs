@@ -20,6 +20,8 @@ public sealed class GatewayRouteTableTests : IDisposable
     [InlineData("media", "api", "/media/{**rest}")]
     [InlineData("cms", "api", "/api/v1/cms/{**rest}")]
     [InlineData("cms-media-upload", "api", "/api/v1/cms/media")]
+    [InlineData("forms", "api", "/api/v1/forms/{**rest}")]
+    [InlineData("forms-submissions", "api", "/api/v1/forms/submissions")]
     [InlineData("api", "api", "/api/{**rest}")]
     [InlineData("admin", "admin", "/admin/{**rest}")]
     [InlineData("site", "site", "/{**rest}")]
@@ -36,7 +38,7 @@ public sealed class GatewayRouteTableTests : IDisposable
     {
         // An extra route is as much a problem as a missing one: it is public surface nobody reviewed.
         Assert.Equal(
-            ["admin", "api", "cms", "cms-media-upload", "media", "site", "webhooks-square"],
+            ["admin", "api", "cms", "cms-media-upload", "forms", "forms-submissions", "media", "site", "webhooks-square"],
             Config().Routes.Select(route => route.RouteId).Order(StringComparer.Ordinal));
     }
 
@@ -64,6 +66,31 @@ public sealed class GatewayRouteTableTests : IDisposable
         Assert.Equal(Arts6311.Domain.Modules.Media.Managers.MediaPolicy.MaxUploadRequestBytes, route.MaxRequestBodySize);
         Assert.Equal(GatewayPolicies.CmsEditor, route.AuthorizationPolicy);
         Assert.Equal(RateLimitExtensions.Policies.Api, route.RateLimiterPolicy);
+    }
+
+    [Theory]
+    [InlineData("forms", RateLimitExtensions.Policies.Forms)]
+    [InlineData("forms-submissions", RateLimitExtensions.Policies.FormsSubmissions)]
+    public void ThePublicFormsAreAnonymousAndRateLimited(string routeId, string policy)
+    {
+        // ADR 0047: anyone may send a form, so the guard is a limiter rather than a session — the submissions their
+        // own tighter one, since each may carry six pictures; the antiforgery edge still applies to every unsafe request.
+        var route = Route(routeId);
+
+        Assert.Equal(policy, route.RateLimiterPolicy);
+        Assert.True(string.IsNullOrEmpty(route.AuthorizationPolicy));
+    }
+
+    [Fact]
+    public void TheSubmissionRouteIsAPostWithTheSubmissionLimit()
+    {
+        // Six pictures at 10 MiB plus the answers, sized from the same constant as the API's RequestSizeLimit, so the
+        // two cannot drift apart. The other forms keep the server's 1 MiB default.
+        var route = Route("forms-submissions");
+
+        Assert.Equal(["POST"], route.Match.Methods);
+        Assert.Equal(Arts6311.Domain.Modules.Forms.Managers.FormsPolicy.MaxSubmissionRequestBytes, route.MaxRequestBodySize);
+        Assert.Null(Route("forms").MaxRequestBodySize);
     }
 
     [Fact]

@@ -15,7 +15,13 @@ import { ConfirmService } from '../confirm/confirm.service';
 import { SessionService } from '../session/session.service';
 import { roleGuard } from './role.guard';
 import { sessionGuard } from './session.guard';
-import { HasUnsavedChanges, unsavedChangesGuard } from './unsaved-changes.guard';
+import { RouterTestingHarness } from '@angular/router/testing';
+import {
+  HasUnsavedChanges,
+  UnsavedChanges,
+  unsavedChangesGuard,
+  warnBeforeUnload,
+} from './unsaved-changes.guard';
 
 @Component({ template: '' })
 class Blank {}
@@ -141,5 +147,106 @@ describe('unsavedChangesGuard', () => {
 
     expect(await result).toBe(leaves);
     expect(confirm.request()).toBeNull();
+  });
+});
+
+@Component({ template: '<p>editing</p>' })
+class DirtyEditor implements HasUnsavedChanges {
+  static dirty = true;
+  constructor() {
+    warnBeforeUnload(() => DirtyEditor.dirty);
+  }
+  hasUnsavedChanges(): boolean {
+    return DirtyEditor.dirty;
+  }
+}
+
+describe('discarding unsaved changes, every way out', () => {
+  async function editing() {
+    DirtyEditor.dirty = true;
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'classes/:id', component: DirtyEditor, canDeactivate: [unsavedChangesGuard] },
+          { path: 'classes', component: Blank },
+        ]),
+      ],
+    });
+    const harness = await RouterTestingHarness.create('/classes/1');
+    return { harness, router: TestBed.inject(Router), confirm: TestBed.inject(ConfirmService) };
+  }
+
+  // Not whenStable(): the navigation is pending until the question is answered, so it never settles first.
+  const asked = (confirm: ConfirmService) =>
+    vi.waitFor(() => expect(confirm.request()).not.toBeNull());
+
+  const unloading = () => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+
+  it('navigates once "Discard changes" is chosen, and stays on "Keep editing"', async () => {
+    const { router, confirm } = await editing();
+
+    const kept = router.navigateByUrl('/classes');
+    await asked(confirm);
+    confirm.answer(false);
+    expect(await kept).toBe(false);
+    expect(router.url).toBe('/classes/1');
+
+    const left = router.navigateByUrl('/classes');
+    await asked(confirm);
+    expect(confirm.request()?.confirmLabel).toBe('Discard changes');
+    confirm.answer(true);
+    expect(await left).toBe(true);
+    expect(router.url).toBe('/classes');
+  });
+
+  it('counts an open editor, and lets the browser ask until the work is released', async () => {
+    const { harness } = await editing();
+    harness.detectChanges();
+    const unsaved = TestBed.inject(UnsavedChanges);
+
+    expect(unsaved.any()).toBe(true);
+    expect(unloading()).toBe(true);
+
+    unsaved.release();
+    expect(unloading()).toBe(false);
+
+    unsaved.hold();
+    expect(unloading()).toBe(true);
+  });
+
+  it('asks before leaving the app only when something is unsaved, and a discard is final', async () => {
+    await editing();
+    const unsaved = TestBed.inject(UnsavedChanges);
+    const confirm = TestBed.inject(ConfirmService);
+
+    const kept = unsaved.confirmLeavingApp();
+    confirm.answer(false);
+    expect(await kept).toBe(false);
+    expect(unsaved.shouldWarnBeforeUnload(() => true)).toBe(true);
+
+    const left = unsaved.confirmLeavingApp();
+    confirm.answer(true);
+    expect(await left).toBe(true);
+    expect(unsaved.shouldWarnBeforeUnload(() => true)).toBe(false);
+
+    DirtyEditor.dirty = false;
+    expect(await unsaved.confirmLeavingApp()).toBe(true);
+    expect(confirm.request()).toBeNull();
+  });
+
+  it('stops counting a screen once it is gone', async () => {
+    const { router, confirm } = await editing();
+    const unsaved = TestBed.inject(UnsavedChanges);
+
+    const left = router.navigateByUrl('/classes');
+    await asked(confirm);
+    confirm.answer(true);
+    await left;
+
+    expect(unsaved.any()).toBe(false);
   });
 });

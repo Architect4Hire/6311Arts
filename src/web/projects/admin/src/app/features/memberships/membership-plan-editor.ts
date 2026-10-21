@@ -868,7 +868,7 @@ export class MembershipPlanEditor implements HasUnsavedChanges {
   protected statusText(plan: MembershipPlan): string {
     switch (plan.status) {
       case 'Published':
-        return 'Published: on the memberships page once the site reads from the CMS.';
+        return 'Published: on the memberships page. Edits show there within a minute.';
       case 'Archived':
         return 'Archived: retired from the site. Archiving can’t be undone here.';
       case 'Scheduled':

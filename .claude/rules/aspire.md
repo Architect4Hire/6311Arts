@@ -30,10 +30,11 @@ Stable logical names: `sql`, `appdb`, `cache`, `storage`, `blobs`, `mail`, `squa
 
 ## Dependency order
 
-- `migrations` waits for `appdb` and **completes** before `api` and `worker` start (`WaitForCompletion`).
+- `migrations` waits for `appdb` and `blobs` (in every mode: it seeds the site's own pictures into Media, ADR 0048) and **completes** before `api` and `worker` start (`WaitForCompletion`).
 - `api` waits for `appdb`, `cache` and `blobs`.
-- `worker` waits for `appdb`, `cache`, `blobs` and `mail`. It shares the API's HybridCache L2 because that is the
-  only path from a revalidation it dispatches to the API's cached pages (ADR 0036).
+- `worker` waits for `appdb`, `cache`, `blobs` and `mail`. It shares the API's Redis because that is the only path
+  from a revalidation it dispatches to the API's cached pages: the HybridCache L2 (ADR 0036) and the cache
+  invalidation channel both hosts subscribe to with `AddArtsCacheInvalidation()` (ADR 0049).
 - `gateway` waits for `api`, `site`, `admin` and `cache`.
 - `site` and `admin` share `src/web`: each waits for its Aspire installer, and `admin-installer` waits for `site-installer` so two installs never run in one `node_modules`. Installs pass `--no-save` and never rewrite `package-lock.json` (ADR 0027).
 - Use `WaitFor` and health checks. No sleeps.
@@ -47,6 +48,8 @@ Stable logical names: `sql`, `appdb`, `cache`, `storage`, `blobs`, `mail`, `squa
   - `idempotency-fingerprint-key`
   - `seed-admin-password` (read it with `dotnet user-secrets list --project src/Arts6311.AppHost`)
 - **Seed admin email.** `seed-admin-email` is a plain parameter that defaults from AppHost `appsettings.json` (`Parameters:seed-admin-email`). Override it in user-secrets.
+- **The forms' staff inbox** (ADR 0047) is the plain parameter `forms-staff-email`, the Worker's `Forms:StaffAddress`. Its default is the non-routable `staff@6311arts.localhost`; only production sets a real inbox.
+- **The site's SSR settings** (ADR 0046) are plain parameters too: `site-allowed-hosts` (Angular's `NG_ALLOWED_HOSTS`, default `localhost`) and `site-mock-fallback` (default `false`). The site also gets `SITE_API_ORIGIN`, the gateway's endpoint, as a reference without a `WaitFor` (the gateway waits on the site), and trusts the developer certificate in run mode.
 - **Developer-supplied secrets.** Only needed for sandbox mode: `square-access-token`, `square-webhook-signature-key`. They're created only when `Square:Mode=sandbox`.
 - **Never print a parameter's value** while checking secrets. List names only, for example from `dotnet user-secrets list --json`. PEM values span several lines, so a line-based `cut` leaks them.
 - **`Square:Mode`** (`fake` | `sandbox`) is AppHost configuration, not a dashboard prompt. It decides which resources exist. The default is `fake`, so a clean clone runs offline with zero prompts.

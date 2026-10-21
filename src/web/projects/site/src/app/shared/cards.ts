@@ -42,7 +42,11 @@ import { MoneyPipe, WhenPipe, today } from './format';
       </p>
     </div>
     <div class="class-card__cta">
-      <span class="class-card__price">{{ c.price | money }}</span>
+      @if (c.price != null) {
+        <span class="class-card__price">{{ c.price | money }}</span>
+      } @else {
+        <span class="class-card__tba">Price to be announced</span>
+      }
       @if (c.spotsLeft != null && c.spotsLeft <= 4) {
         <span class="tag tag--hot">{{
           c.spotsLeft === 0 ? 'Sold out' : 'Only ' + c.spotsLeft + ' spots left'
@@ -127,10 +131,17 @@ export class ShowCard {
       <span class="product-card__name">{{ p.name }}</span>
     </a>
     <span class="product-card__foot">
-      @if (p.artist) {
-        <a [routerLink]="['/artists', p.artist.slug]">{{ p.artist.name }}</a>
+      @if (p.artist?.slug) {
+        <a [routerLink]="['/artists', p.artist?.slug]">{{ p.artist?.name }}</a>
+      } @else if (p.artist) {
+        <!-- Credited by name; they have no published page to link to (ADR 0042). -->
+        <span>{{ p.artist.name }}</span>
       }
-      <span class="product-card__price">{{ p.price | money }}</span>
+      @if (p.price != null) {
+        <span class="product-card__price">{{ p.price | money }}</span>
+      } @else {
+        <span class="product-card__tba">Price to be announced</span>
+      }
     </span>
   `,
 })

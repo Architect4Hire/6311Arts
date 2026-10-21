@@ -16,6 +16,7 @@ Bytes live in blob storage (container `media`). Metadata, relationships and proc
 | `Original` | The **compressed master** of a staff upload (the upload itself is not kept). Immutable once stored. |
 | `Imported` | Pulled from WordPress by the importer, with source URL and import date recorded |
 | `Derived` | A rendition (400 / 800 / 1600 wide, WebP + JPEG) linked to its original |
+| `Submission` | A picture from the public artist submission form (ADR 0047): 10 MiB cap, always `Draft`, never in the library list; a picture already held is linked, and a staff upload is never refused because of one |
 
 ## Required metadata
 
@@ -53,4 +54,5 @@ Bytes live in blob storage (container `media`). Metadata, relationships and proc
 - **Square images.** An image attached to a Square-synced item is uploaded to Square by the catalog push handler. The `SquareCatalogLink` records the Square image id; the asset never stores it.
 - **Deleting** an original is blocked while it's referenced by content or by a Square link. **Anything that references an image declares a foreign key to `MediaAsset.Id` with `DeleteBehavior.Restrict`.** The repository finds every such key in the EF model, so Media never names the modules that use it. The bytes go afterwards, through `media.purge-requested`: "remove what no row names under `{assetId}/`". A delete stages it, and so does a rendition run that replaced files. For a live asset it spares the current preset's keys, which a run may be uploading.
 - **Before publishing content with an image**, a content module calls `IMediaFacade.CheckAttachableAsync` (alt text required).
+- **The site's own pictures** (the logo and the default social image) are ordinary assets at the fixed ids in `MediaSiteImages`. MigrationService's `SiteImageSeeder` puts them there, published, in every environment, through `IMediaFacade.EnsureSiteImageAsync`; a run that finds them changes nothing. Only the seed can choose an id or start an asset `Published`; the CMS route never sets `SiteImageId` (ADR 0048).
 - **Alt text** describes what's in the picture. It's never generated from the filename or title.

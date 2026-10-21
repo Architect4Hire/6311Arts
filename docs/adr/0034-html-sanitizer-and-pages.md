@@ -1,6 +1,6 @@
 # 0034 — The shared HTML sanitizer and Pages: HtmlSanitizer 9.2, a small allow-list, library-only images, Tiptap in the admin
 
-- **Status:** Accepted
+- **Status:** Accepted (amended by [0045](0045-one-slim-rich-text-allow-list.md): the allow-list is now `p`, `h2`, lists, `strong`, `em`, `br`, with no links, pictures or quotes, and the editor's toolbar matches)
 - **Date:** 2026-10-20
 - **Rules affected:** `.claude/rules/content.md`
 - **Builds on:** [0030](0030-media-library-compressed-masters-and-renditions.md) (`Restrict` keys to `MediaAsset`, the

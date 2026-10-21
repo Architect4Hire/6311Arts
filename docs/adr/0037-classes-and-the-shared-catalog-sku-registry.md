@@ -1,6 +1,6 @@
 # 0037 — Classes: the shared catalog SKU registry and session-level projections
 
-- **Status:** Accepted (amended by [0044](0044-class-runs-with-their-own-instructor-and-seats.md): the run, not the session, holds the SKU, capacity, starting price and projections)
+- **Status:** Accepted (amended by [0044](0044-class-runs-with-their-own-instructor-and-seats.md): the run, not the session, holds the SKU, capacity, starting price and projections; and by [0045](0045-one-slim-rich-text-allow-list.md): the body is labelled "More details" and uses the slim allow-list)
 - **Date:** 2026-10-20
 - **Rules affected:** `.claude/rules/content.md`, `.claude/rules/square.md`, `.claude/rules/api-contract.md`
 - **Builds on:** [0031](0031-artists-and-the-shared-content-lifecycle.md) (the shared content lifecycle),

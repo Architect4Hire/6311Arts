@@ -1,6 +1,7 @@
 # 0042 — The site read API, its cache, and the site's own read models
 
-- **Status:** Accepted — except "Publishing an image", recorded here and implemented by 3.1b
+- **Status:** Accepted — except "Publishing an image", recorded here and implemented by 3.1b; how a change reaches
+  another process amended by [0049](0049-cache-invalidation-bus.md) (the "within a minute" below did not hold)
 - **Date:** 2026-10-21
 - **Rules affected:** `.claude/rules/api-contract.md`, `.claude/rules/backend.md`, `.claude/rules/content.md`,
   `.claude/rules/media.md`
@@ -59,8 +60,8 @@ seldom enough that clearing a whole type costs nothing. The kernel spells the na
 `SitePaths`), and a test holds each equal to its module's audit `ResourceType`.
 
 - **Lifetimes.** `SiteCachePolicy.Lifetime` is five minutes in HybridCache (one minute in each replica's memory, as
-  before); responses send `Cache-Control: public, max-age=60` — the minute a published change takes to reach
-  another replica's memory — and `no-store` on a failure.
+  before); responses send `Cache-Control: public, max-age=60` — how long anything in front of the API may keep a
+  read (ADR 0049 corrects "the minute a change takes to reach another replica") — and `no-store` on a failure.
 - **The worst case is the lifetime, not the minute.** HybridCache is cache-aside: a read that began before a commit
   can finish after the revalidation cleared its tags, and store what it read for the full lifetime. That needs a read
   and a write within milliseconds of each other on one record; the usual case is the minute, the bound is five.
@@ -134,9 +135,10 @@ routes describe answers 404 to a visitor**, so 3.2 depends on it.
   and the directory. Correct, and at this centre's rate of writes, free.
 - **An artist's edit stages its revalidation whatever the artist's status** — the one exception to content.md's
   "a draft edit stages nothing" — because an unpublished artist is still credited by name on published work.
-- A published change usually shows within a minute (one replica's L1), as ADR 0036 already accepted, and at worst
-  within the five-minute lifetime (the cache-aside race above); a cache in front of the
-  API adds nothing to that.
+- A published change usually shows within seconds, through the cache invalidation bus (ADR 0049; the "within a
+  minute" first written here assumed the shared L2 carried it, which it does not), and at worst within the
+  five-minute lifetime (the cache-aside race above, or a missed bus message); a cache in front of the API adds
+  nothing to that.
 - A site model change is a contract change: the OpenAPI snapshot, and from 3.2 the site's own models, move with it.
 - 3.2 must not ship before 3.1b, or every picture on the site is missing.
 - The sitemap is one unpaged list. The sitemap protocol caps a file at 50,000 addresses, a few hundred times what

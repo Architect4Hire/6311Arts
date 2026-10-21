@@ -781,7 +781,7 @@ internal sealed class ShopBusiness(IShopDataLayer dataLayer, IHtmlSanitizer sani
                 [("startingStockQuantity", "There is only one of it. Untick “one of a kind” to stock more than one.")])
             : null;
 
-    public async Task<OperationResult<CursorPage<ShopItemSiteRow>>> ListForSiteAsync(
+    public async Task<OperationResult<CountedCursorPage<ShopItemSiteRow>>> ListForSiteAsync(
         SiteShopListViewModel request, Guid? artistId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -809,7 +809,7 @@ internal sealed class ShopBusiness(IShopDataLayer dataLayer, IHtmlSanitizer sani
                 || !Guid.TryParseExact(decoded.Value!.TieBreaker, "N", out var afterId)
                 || PositionOf(sort, decoded.Value.SortValue, afterId) is not { } position)
             {
-                return OperationResult.Failure<CursorPage<ShopItemSiteRow>>(
+                return OperationResult.Failure<CountedCursorPage<ShopItemSiteRow>>(
                     OperationError.Of(ErrorCodes.CursorInvalid, "The cursor is not valid for this list."));
             }
 
@@ -828,7 +828,9 @@ internal sealed class ShopBusiness(IShopDataLayer dataLayer, IHtmlSanitizer sani
             next = new PageCursor(SortValueOf(sort, last), last.Id.ToString("N")).Encode(scope);
         }
 
-        return OperationResult.Success(new CursorPage<ShopItemSiteRow>(rows, next));
+        // The count the shop shows ("312 works"): the same filters, not the page, so it reads the same on every page.
+        var total = await dataLayer.CountPublishedAsync(request.Category, artistId, cancellationToken);
+        return OperationResult.Success(new CountedCursorPage<ShopItemSiteRow>(rows, next, total));
     }
 
     public Task<ShopItemSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken)

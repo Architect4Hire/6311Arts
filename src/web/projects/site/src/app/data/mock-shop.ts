@@ -20,7 +20,8 @@ export function slugify(s: string): string {
     .replace(/(^-|-$)/g, '');
 }
 
-export const MOCK_PRODUCTS: Product[] = [
+/** WooCommerce's numeric ids as copied; the site's ids are strings, so they are converted on export. */
+const PRODUCTS: (Omit<Product, 'id'> & { id: number })[] = [
   { id: 792, slug: 'ammonite-fossil-and-variscite-oxidized-silver-necklace-22chain-carrie-haase', name: 'Ammonite Fossil & Variscite Necklace', artist: a('Carrie Haase'), price: 52500, image: up('2026/09/Ammonite-Fossil-and-Variscite-Oxidized-Silver-Necklace-22chain-necklace.jpeg'), categories: ['jewelry'], inStock: true },
   { id: 734, slug: 'large-branch-handle-bowl-susan-volk', name: 'Large Branch Handle Bowl', artist: a('Susan Volk'), price: 27500, image: up('2026/09/Large-branch-handle-bowl-Susan-Volk.jpeg'), categories: ['ceramics'], inStock: true },
   { id: 709, slug: 'the-recovery-series-pt-2-6-stephen-bell', name: 'The Recovery Series (Pt. 2) #6', artist: a('Stephen Bell'), price: 12500, image: up('2026/09/The-Recovery-Series-Pt.-2-6-decorative-tree-trunk.jpeg'), categories: ['sculpture'], inStock: true },
@@ -40,6 +41,8 @@ export const MOCK_PRODUCTS: Product[] = [
   { id: 4531, slug: 'iron-buffalo-ring-jewelry', name: 'Iron Buffalo Ring', artist: a('Carrie Haase'), price: 24500, image: up('2026/09/Iron-Buffalo-Ring-jewelry.jpeg'), categories: ['jewelry'], inStock: true },
   { id: 4529, slug: 'petrified-palmwood-earrings-carrie-haase', name: 'Petrified Palmwood Earrings', artist: a('Carrie Haase'), price: 29500, image: up('2026/09/Petrified-Palmwood-Earrings-Carrie-Haase.jpeg'), categories: ['jewelry'], inStock: true },
 ];
+
+export const MOCK_PRODUCTS: Product[] = PRODUCTS.map((p) => ({ ...p, id: String(p.id) }));
 
 const NAMES = [
   'Mike Sebahar', 'Candice Johnson', 'Socorro Mucino', 'Micki Croisant', 'Mike Winchester', 'Nolan Code', 'Susan Volk',
@@ -85,7 +88,7 @@ export const MOCK_ARTISTS: Artist[] = NAMES.map((name) => ({
   medium: COUNTS[name]?.[1],
 })).sort((x, y) => x.name.localeCompare(y.name));
 
-export const MEMBERSHIPS: MembershipTier[] = [
+const TIERS: (Omit<MembershipTier, 'id'> & { id: number })[] = [
   { id: 0, slug: 'gray-membership', name: 'Gray', price: 10000, discount: 5, perks: ['5% off every class & workshop', 'Annual membership party', '6311arts tote'] },
   {
     id: 0,
@@ -105,3 +108,5 @@ export const MEMBERSHIPS: MembershipTier[] = [
     perks: ['15% off every class & workshop', 'Annual membership party', '6311arts tote', '6311arts t-shirt'],
   },
 ];
+
+export const MEMBERSHIPS: MembershipTier[] = TIERS.map((t) => ({ ...t, id: String(t.id) }));

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { UiIcon } from '@6311/ui';
@@ -7,6 +7,7 @@ import { SITE } from '../core/site';
 import { Hero } from '../shared/hero';
 import { Reveal } from '../shared/reveal';
 import { STUDIO_PHOTOS } from '../data/venue-photos';
+import { FormsApi, SUBMISSION_LIMITS, SubmissionAnswers } from '../services/forms-api.service';
 
 /** What an applicant can ask us for. The three panels below open from these. */
 const GOALS = [
@@ -31,11 +32,9 @@ const WINDOWS = ['Next 3 months', '3 – 6 months out', '6 – 12 months out', '
 const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop', 'Instagram', 'Search', 'Somewhere else'];
 
 /**
- * STUB. The artist submission form that replaces the Google Form linked from /submit.
- *
- * Nothing is sent anywhere yet: `send()` only collects what was typed and shows it back, so we can
- * agree on the fields before the API exists. Everything here is a plain template-driven control bound
- * to a signal, so the same markup can be dropped onto a real endpoint later.
+ * The artist submission form, which replaced the Google Form linked from /submit (prompt 3.3). It posts to
+ * `/api/v1/forms/submissions` (ADR 0047): the answers as JSON, then up to six pictures; staff get a notification and
+ * the artist a short confirmation. Every control is template-driven and bound to a signal.
  */
 @Component({
   selector: 'app-artist-submission',
@@ -53,21 +52,15 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
             <ui-icon name="star" [size]="48" [stroke]="1" />
             <h2 class="band__title">Thanks, {{ name() || 'friend' }}.</h2>
             <p class="band__lead band__lead--left">
-              Nothing was actually sent — this page is a stub while we settle on the questions. Here is everything it
-              collected, which is what the real endpoint would receive.
+              Your submission is with us. Someone from the gallery will read it and get back to you, usually within
+              three weeks. We've sent a short confirmation to {{ email() }}.
             </p>
-            <pre class="sform__payload">{{ payload() }}</pre>
             <p class="btn-row" style="justify-content: flex-start">
-              <button class="btn btn-dark" type="button" (click)="sent.set(false)">Back to the form</button>
-              <a class="btn btn-border-dark" routerLink="/artists">See who else shows here</a>
+              <a class="btn btn-dark" routerLink="/artists">See who else shows here</a>
+              <a class="btn btn-border-dark" routerLink="/">Back to the home page</a>
             </p>
           </div>
         } @else {
-          <p class="band__note" style="margin-bottom: 28px">
-            <ui-icon name="spark" [size]="18" />
-            Draft form — submissions are not received yet. For now, email {{ site.email }}.
-          </p>
-
           <form class="sform" (ngSubmit)="send()" novalidate>
             <!-- 1 ---------------------------------------------------------------- -->
             <fieldset class="sform__step" reveal>
@@ -256,14 +249,14 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
             <!-- 4 ---------------------------------------------------------------- -->
             <fieldset class="sform__step" reveal>
               <legend class="sform__legend"><span class="sform__num">4</span> Images</legend>
-              <p class="field__hint">Three to five pieces, JPG or PNG, as large as you have. Nothing uploads from this stub.</p>
+              <p class="field__hint">Three to five pieces work best: up to six, JPG, PNG or WebP, up to 10 MB each.</p>
               <label class="field field--wide">
                 <span class="field__label">Images of your work</span>
-                <input class="file" name="images" type="file" accept="image/*" multiple (change)="pickFiles($event)" />
+                <input class="file" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple (change)="pickFiles($event)" />
               </label>
               @if (files().length) {
                 <ul class="sform__files">
-                  @for (f of files(); track f) { <li><ui-icon name="frame" [size]="16" /> {{ f }}</li> }
+                  @for (f of files(); track f) { <li><ui-icon name="frame" [size]="16" /> {{ f.name }} ({{ kilobytes(f) }} KB)</li> }
                 </ul>
               }
               <label class="field field--wide">
@@ -296,7 +289,7 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
               @if (error()) { <p class="subscribe__err" role="alert">{{ error() }}</p> }
 
               <div class="btn-row" style="justify-content: flex-start">
-                <button class="btn btn-dark btn-lg" type="submit">Send my submission</button>
+                <button class="btn btn-dark btn-lg" type="submit" [disabled]="sending()">{{ sending() ? 'Sending…' : 'Send my submission' }}</button>
                 <a class="btn btn-border-dark btn-lg" routerLink="/submit">What we are looking for</a>
               </div>
             </fieldset>
@@ -308,6 +301,7 @@ const HEARD = ['Walked past the gallery', 'Another artist', 'A class or workshop
 })
 export class ArtistSubmission {
   protected site = SITE;
+  private forms = inject(FormsApi);
   protected studioPhotos = STUDIO_PHOTOS;
   protected goals = GOALS;
   protected mediums = MEDIUMS;
@@ -347,7 +341,7 @@ export class ArtistSubmission {
   protected materials = signal('');
   protected taughtBefore = signal(false);
   // 4 · images
-  protected files = signal<string[]>([]);
+  protected files = signal<File[]>([]);
   protected portfolio = signal('');
   // 5 · the rest
   protected heard = signal('');
@@ -356,6 +350,7 @@ export class ArtistSubmission {
   protected trap = signal('');
 
   protected sent = signal(false);
+  protected sending = signal(false);
   protected error = signal('');
 
   protected has(g: Goal): boolean {
@@ -368,47 +363,72 @@ export class ArtistSubmission {
 
   protected pickFiles(e: Event): void {
     const picked = (e.target as HTMLInputElement).files;
-    this.files.set(picked ? [...picked].map((f) => `${f.name} (${Math.round(f.size / 1024)} KB)`) : []);
+    this.files.set(picked ? [...picked] : []);
   }
 
-  /** What a real POST body would look like. Shown back to the applicant while this page is a stub. */
-  protected payload = computed(() =>
-    JSON.stringify(
-      {
-        artist: {
-          name: this.name(), pronouns: this.pronouns(), email: this.email(), phone: this.phone(),
-          neighborhood: this.neighborhood(), zip: this.zip(), website: this.website(), instagram: this.instagram(),
-        },
-        work: {
-          medium: this.medium(), otherMedia: this.otherMedia(), years: this.years(),
-          priceBand: this.priceBand(), bio: this.bio(), statement: this.statement(),
-        },
-        wants: this.wants(),
-        sell: this.has('sell') ? { piecesReady: this.piecesReady(), restock: this.restock() } : undefined,
-        exhibit: this.has('exhibit')
-          ? { showTitle: this.showTitle(), workCount: this.workCount(), largest: this.largest(), window: this.showWindow(), gallery: this.gallery() }
-          : undefined,
-        teach: this.has('teach')
-          ? { classTitle: this.classTitle(), maxStudents: this.maxStudents(), format: this.format(), materials: this.materials(), taughtBefore: this.taughtBefore() }
-          : undefined,
-        images: this.files(),
-        portfolio: this.portfolio(),
-        heard: this.heard(),
-        consent: { ownWork: this.ownWork(), newsletter: this.newsletter() },
-      },
-      null,
-      2,
-    ),
-  );
+  protected kilobytes(file: File): number {
+    return Math.round(file.size / 1024);
+  }
 
-  protected send(): void {
+  /** The answers in the shape the API reads; a goal's panel goes only when the goal is picked. */
+  private answers(): SubmissionAnswers {
+    return {
+      artist: {
+        name: this.name().trim(),
+        email: this.email().trim(),
+        pronouns: this.pronouns(),
+        phone: this.phone(),
+        neighborhood: this.neighborhood(),
+        zip: this.zip(),
+        website: this.website(),
+        instagram: this.instagram(),
+      },
+      work: {
+        medium: this.medium(),
+        otherMedia: this.otherMedia(),
+        years: this.years(),
+        priceBand: this.priceBand(),
+        bio: this.bio(),
+        statement: this.statement(),
+      },
+      wants: this.wants(),
+      sell: this.has('sell') ? { piecesReady: this.piecesReady(), restock: this.restock() } : undefined,
+      exhibit: this.has('exhibit')
+        ? { showTitle: this.showTitle(), workCount: this.workCount(), largest: this.largest(), window: this.showWindow(), gallery: this.gallery() }
+        : undefined,
+      teach: this.has('teach')
+        ? { classTitle: this.classTitle(), maxStudents: this.maxStudents(), format: this.format(), materials: this.materials(), taughtBefore: this.taughtBefore() }
+        : undefined,
+      portfolio: this.portfolio(),
+      heard: this.heard(),
+      consent: { ownWork: this.ownWork(), newsletter: this.newsletter() },
+      company: this.trap(),
+    };
+  }
+
+  protected async send(): Promise<void> {
     if (!this.name().trim()) return this.error.set('Please tell us your name.');
     if (!/^\S+@\S+\.\S+$/.test(this.email())) return this.error.set('That email address does not look right.');
     if (!this.wants().length) return this.error.set('Pick at least one thing you are here for.');
     if (!this.ownWork()) return this.error.set('Please confirm the work is yours.');
-    // Stub: a real build posts payload() to the API here.
+    if (this.files().length > SUBMISSION_LIMITS.maxImages) {
+      return this.error.set(`Choose up to ${SUBMISSION_LIMITS.maxImages} images.`);
+    }
+    const tooLarge = this.files().find((file) => file.size > SUBMISSION_LIMITS.maxImageBytes);
+    if (tooLarge) return this.error.set(`${tooLarge.name} is larger than 10 MB. Choose a smaller copy.`);
+
     this.error.set('');
-    this.sent.set(true);
+    this.sending.set(true);
+    const outcome = await this.forms.submit(this.answers(), this.files());
+    this.sending.set(false);
+    if (outcome.ok) return this.sent.set(true);
+    this.error.set(
+      outcome.kind === 'invalid'
+        ? outcome.message
+        : outcome.kind === 'busy'
+          ? 'We have had a lot of submissions from your connection. Please try again in an hour.'
+          : `That didn't go through. Please try again, or email ${this.site.email}.`,
+    );
   }
 
   constructor() {

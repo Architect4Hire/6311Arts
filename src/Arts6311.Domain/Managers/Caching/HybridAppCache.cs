@@ -2,10 +2,11 @@ using Microsoft.Extensions.Caching.Hybrid;
 
 namespace Arts6311.Domain.Managers.Caching;
 
-internal sealed class HybridAppCache(HybridCache cache) : IAppCache
+internal sealed class HybridAppCache(HybridCache cache, ICacheInvalidationBus invalidations) : IAppCache
 {
-    // Each replica's in-memory copy lives at most this long, so a tag invalidated on one replica reaches the
-    // others within a minute even before L2 tag metadata is consulted.
+    // Each process's in-memory copy lives at most this long. A tag removed in another process reaches this one through
+    // the invalidation bus (ADR 0049), not through this cap: HybridCache never re-reads a tag's time from L2 once it
+    // has one, so a missed message leaves an entry as old as its whole lifetime, not this.
     internal static readonly TimeSpan MaxLocalLifetime = TimeSpan.FromMinutes(1);
 
     public ValueTask<T> GetOrCreateAsync<T>(
@@ -32,6 +33,13 @@ internal sealed class HybridAppCache(HybridCache cache) : IAppCache
     public ValueTask RemoveAsync(string key, CancellationToken cancellationToken) =>
         cache.RemoveAsync(key, cancellationToken);
 
-    public ValueTask RemoveByTagAsync(string tag, CancellationToken cancellationToken) =>
-        cache.RemoveByTagAsync(tag, cancellationToken);
+    /// <summary>
+    /// Invalidates the tag here and in L2, then tells every other process (ADR 0049). A failed publish throws, so the
+    /// <c>site.revalidate-requested</c> message that asked is retried; invalidating a tag twice is harmless.
+    /// </summary>
+    public async ValueTask RemoveByTagAsync(string tag, CancellationToken cancellationToken)
+    {
+        await cache.RemoveByTagAsync(tag, cancellationToken);
+        await invalidations.PublishAsync(tag, cancellationToken);
+    }
 }

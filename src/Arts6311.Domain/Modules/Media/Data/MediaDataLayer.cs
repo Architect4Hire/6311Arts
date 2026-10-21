@@ -105,8 +105,8 @@ internal sealed partial class MediaDataLayer(
         return checksum;
     }
 
-    public Task<Guid?> FindDuplicateAsync(string checksum, CancellationToken cancellationToken) =>
-        repository.FindOriginalByChecksumAsync(checksum, cancellationToken);
+    public Task<Guid?> FindDuplicateAsync(string checksum, bool includeSubmissions, CancellationToken cancellationToken) =>
+        repository.FindOriginalByChecksumAsync(checksum, includeSubmissions, cancellationToken);
 
     public async Task CreateOriginalAsync(MediaAsset original, Stream master, CancellationToken cancellationToken)
     {

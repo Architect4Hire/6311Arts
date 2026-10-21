@@ -639,6 +639,165 @@ namespace Arts6311.Domain.Migrations
                     b.ToTable("ExhibitionArtists", (string)null);
                 });
 
+            modelBuilder.Entity("Arts6311.Domain.Modules.Forms.Data.Entities.ArtistSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AnswersJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Wants")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReceivedAt", "Id")
+                        .HasDatabaseName("IX_ArtistSubmissions_ReceivedAt_Id");
+
+                    b.HasIndex("Status", "ReceivedAt", "Id")
+                        .HasDatabaseName("IX_ArtistSubmissions_Status_ReceivedAt_Id");
+
+                    b.ToTable("ArtistSubmissions", (string)null);
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Forms.Data.Entities.ArtistSubmissionImage", b =>
+                {
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MediaAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.HasKey("SubmissionId", "MediaAssetId");
+
+                    b.HasIndex("MediaAssetId")
+                        .HasDatabaseName("IX_ArtistSubmissionImages_MediaAssetId");
+
+                    b.ToTable("ArtistSubmissionImages", (string)null);
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Forms.Data.Entities.ContactMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<bool>("Handled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReceivedAt", "Id")
+                        .HasDatabaseName("IX_ContactMessages_ReceivedAt_Id");
+
+                    b.HasIndex("Handled", "ReceivedAt", "Id")
+                        .HasDatabaseName("IX_ContactMessages_Handled_ReceivedAt_Id");
+
+                    b.ToTable("ContactMessages", (string)null);
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Forms.Data.Entities.NewsletterSubscriber", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConsentVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset>("ConsentedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasDatabaseName("IX_NewsletterSubscribers_Email");
+
+                    b.HasIndex("CreatedAt", "Id")
+                        .HasDatabaseName("IX_NewsletterSubscribers_CreatedAt_Id");
+
+                    b.ToTable("NewsletterSubscribers", (string)null);
+                });
+
             modelBuilder.Entity("Arts6311.Domain.Modules.Identity.Data.Entities.ArtsRole", b =>
                 {
                     b.Property<string>("Id")
@@ -1519,6 +1678,21 @@ namespace Arts6311.Domain.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Arts6311.Domain.Modules.Forms.Data.Entities.ArtistSubmissionImage", b =>
+                {
+                    b.HasOne("Arts6311.Domain.Modules.Media.Data.Entities.MediaAsset", null)
+                        .WithMany()
+                        .HasForeignKey("MediaAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Arts6311.Domain.Modules.Forms.Data.Entities.ArtistSubmission", null)
+                        .WithMany("Images")
+                        .HasForeignKey("SubmissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Arts6311.Domain.Modules.Instructors.Data.Entities.Instructor", b =>
                 {
                     b.HasOne("Arts6311.Domain.Modules.Artists.Data.Entities.Artist", null)
@@ -1677,6 +1851,11 @@ namespace Arts6311.Domain.Migrations
             modelBuilder.Entity("Arts6311.Domain.Modules.Exhibitions.Data.Entities.Exhibition", b =>
                 {
                     b.Navigation("Artists");
+                });
+
+            modelBuilder.Entity("Arts6311.Domain.Modules.Forms.Data.Entities.ArtistSubmission", b =>
+                {
+                    b.Navigation("Images");
                 });
 
             modelBuilder.Entity("Arts6311.Domain.Modules.Memberships.Data.Entities.MembershipPlan", b =>

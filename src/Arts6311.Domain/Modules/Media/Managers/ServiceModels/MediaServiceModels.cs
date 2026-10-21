@@ -33,6 +33,11 @@ public sealed record MediaAssetServiceModel(
 /// <param name="Url">Versioned (<c>?v=</c>), so it may be cached as immutable.</param>
 public sealed record MediaRenditionServiceModel(string Name, string MimeType, int Width, int Height, long Bytes, string Url);
 
+/// <summary>A picture taken from the public submission form (ADR 0047).</summary>
+/// <param name="Created">False when Media already held the picture and this is that asset, to link rather than delete.</param>
+/// <param name="ETag">The new asset's, so a submission that fails can remove what it added; <c>null</c> when not created.</param>
+public sealed record MediaSubmissionImageServiceModel(Guid Id, bool Created, [property: JsonPropertyName("etag")] string? ETag);
+
 /// <summary>One library tile.</summary>
 /// <param name="ThumbnailUrl">The 400-wide WebP, or <c>null</c> until renditions exist.</param>
 public sealed record MediaAssetSummaryServiceModel(

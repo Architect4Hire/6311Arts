@@ -21,6 +21,8 @@ internal sealed class FakeShopRepository(CallLog log) : IShopRepository
 
     public Task<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public Task<int> CountPublishedAsync(string? category, Guid? artistId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<Dictionary<Guid, int>> CountPublishedByArtistAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -98,6 +100,8 @@ internal sealed class FakeShopDataLayer : IShopDataLayer
     public Task<List<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow>> ListPublishedAsync(global::Arts6311.Domain.Modules.Shop.Data.ShopSiteQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<int> CountPublishedAsync(string? category, Guid? artistId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<Dictionary<Guid, int>> CountPublishedByArtistAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
@@ -252,7 +256,7 @@ internal sealed class FakeShopDataLayer : IShopDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingShopBusiness : IShopBusiness
 {
-    public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Paging.CursorPage<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow>>> ListForSiteAsync(global::Arts6311.Domain.Modules.Shop.Managers.ViewModels.SiteShopListViewModel request, Guid? artistId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Paging.CountedCursorPage<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow>>> ListForSiteAsync(global::Arts6311.Domain.Modules.Shop.Managers.ViewModels.SiteShopListViewModel request, Guid? artistId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
 

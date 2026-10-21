@@ -218,7 +218,7 @@ import { ScheduleControl } from '../../shared/schedule-control';
 
             <cms-rich-text
               label="Text"
-              hint="Headings, lists, links and pictures from the media library. Needed to publish."
+              hint="Headings, bold, italic and lists. Needed to publish."
               [value]="draft().body"
               (valueChange)="setBody($event)"
               [disabled]="busy()"
@@ -567,7 +567,7 @@ export class PageEditor implements HasUnsavedChanges {
   protected statusText(page: Page): string {
     switch (page.status) {
       case 'Published':
-        return 'Published: on the public site once the site reads from the CMS.';
+        return 'Published: on the public site. Edits show there within a minute.';
       case 'Archived':
         return 'Archived: retired from the site. Archiving can’t be undone here.';
       case 'Scheduled':

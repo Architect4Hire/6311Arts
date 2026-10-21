@@ -3,11 +3,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { ArtClass, Exhibition } from '../core/models';
-import { WpApi } from '../core/wp-api.service';
+import { SiteApi } from '../services/site-api.service';
 import { Classes } from './classes';
 
 const PRINTING: ArtClass = {
-  id: 1,
+  id: '1',
   slug: 'screen-printing',
   title: 'Screen Printing Night',
   start: '2026-11-10T18:00:00-06:00',
@@ -53,7 +53,7 @@ async function render(query: string) {
       provideHttpClient(),
       provideRouter([]),
       {
-        provide: WpApi,
+        provide: SiteApi,
         useValue: { classes: () => of([PRINTING]), exhibitions: () => of([WINTER, BOATS]) },
       },
     ],

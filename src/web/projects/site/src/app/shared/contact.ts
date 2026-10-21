@@ -1,10 +1,13 @@
-import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { UiIcon } from '@6311/ui';
 import { SITE } from '../core/site';
+import { FormsApi } from '../services/forms-api.service';
 
-/** The template's contact section: visit details on the left, a "Say hello" form on the right. */
+/**
+ * The template's contact section: visit details on the left, a "Say hello" form on the right, which sends to
+ * `POST /api/v1/forms/contact` (ADR 0047): staff get the message, the sender a short confirmation.
+ */
 @Component({
   selector: 'app-contact',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -54,7 +57,7 @@ import { SITE } from '../core/site';
 })
 export class Contact {
   protected site = SITE;
-  private http = inject(HttpClient);
+  private forms = inject(FormsApi);
   protected name = '';
   protected email = '';
   protected message = '';
@@ -64,8 +67,8 @@ export class Contact {
   send(): void {
     if (!this.name || !/^\S+@\S+\.\S+$/.test(this.email) || !this.message) return this.state.set('error');
     this.state.set('sending');
-    this.http
-      .post('/api/contact', { name: this.name, email: this.email, message: this.message, company: this.trap })
-      .subscribe({ next: () => this.state.set('done'), error: () => this.state.set('error') });
+    void this.forms
+      .contact({ name: this.name, email: this.email, message: this.message, company: this.trap })
+      .then((outcome) => this.state.set(outcome.ok ? 'done' : 'error'));
   }
 }

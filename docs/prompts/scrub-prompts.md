@@ -1171,15 +1171,31 @@ SCOPE: AddAzureContainerAppEnvironment("aca"); publish mappings per aspireify/re
 managed identity per app; gateway the only external ingress; squarefake + devtunnel excluded;
 migrations as a run-once job). Resolve ADR 0009 (Redis in Azure: managed vs container app — costs) with
 me. Dev = scale-to-zero except gateway; prod = min 1 for gateway/api/site/worker.
+Email per environment (ADR 0047): forms-staff-email is the centre's inbox in production only; every other
+environment keeps a test inbox, and Azure Communication Services outside production is restricted (or sends
+to a sink) so a visitor's form confirmation never reaches a real stranger from dev.
+Site in publish mode: SITE_API_ORIGIN = the gateway's internal endpoint; site-allowed-hosts = the Container Apps
+domain + 6311arts.com + www (ADR 0046).
+Gateway rate limiting for SSR (ADR 0046, open): the gateway partitions by client IP, so every server-side read
+from the site container shares one `api` budget (300/min) and the global 600/min — a crawl or a busy evening
+429s the whole site. Give the site's own reads their own partition, keyed on a trusted identity rather than an
+address or a header a browser can send: the site presents a credential the gateway verifies (a generated secret
+parameter / Key Vault reference, or the site's managed identity), only on GET /api/v1/site/**, with its own
+generous limit; everything else (and anything presenting no or a bad credential) keeps the per-IP limits.
+Forwarded headers from ACA ingress are trusted only from the ingress, so real visitors keep per-IP partitions.
 
-CONSTRAINT: aspire.md; aspire-deployment skill; verify publish APIs on aspire.dev.
+CONSTRAINT: aspire.md; gateway.md; auth.md; aspire-deployment skill; verify publish APIs on aspire.dev.
 
-RESTRICTION: No `aspire deploy` (denied). Run mode unchanged — prove aspire run still needs no Azure.
+RESTRICTION: No `aspire deploy` (denied). Run mode unchanged — prove aspire run still needs no Azure. The SSR
+credential is never sent to or readable by a browser, never logged, and never widens anything beyond the site
+read routes' rate limit (no auth bypass, no internal routes).
 
 UTILIZATION: aspire-deployment; @security-reviewer.
 
 BEHAVIOR: Plan, wait, implement, `aspire publish` to a temp folder, summarize generated resources,
-ingress, identities and secret references.
+ingress, identities and secret references. Tests: SSR reads with the credential land in the site partition;
+a browser request with a forged or missing credential stays per-IP and gets 429 at the old limit; a spoofed
+X-Forwarded-For from outside the ingress doesn't change a partition.
 ```
 
 ## 6.2 — Dev environment via CI

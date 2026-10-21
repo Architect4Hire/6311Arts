@@ -15,6 +15,12 @@ public static class MediaPolicy
     /// </summary>
     public const long MaxUploadRequestBytes = MaxUploadBytes + (1024 * 1024);
 
+    /// <summary>
+    /// The largest image an artist may send with the public submission form: 10 MiB (ADR 0047). Smaller than a staff
+    /// upload because anyone can send one; a phone photo is 2 to 8 MB, and the master is 2560 px either way.
+    /// </summary>
+    public const long MaxSubmissionImageBytes = 10L * 1024 * 1024;
+
     /// <summary>The longest side an upload may have. Read from the file header, so a decompression bomb never decodes.</summary>
     public const int MaxSidePixels = 12_000;
 

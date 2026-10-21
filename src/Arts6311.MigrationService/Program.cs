@@ -35,15 +35,19 @@ builder.Services.AddPagesPlaceholderSeeder();
 // The spike's fixed legacy redirects, in every environment, so the site reads them from the API (ADR 0035).
 builder.Services.AddLegacyRedirectSeeder();
 
+// The site's own pictures — the logo and the default social image — at fixed ids, published, in every environment
+// (prompt 3.3): the site names them by id. So Media, on the "blobs" client, is composed here everywhere now.
+builder.AddAzureBlobServiceClient("blobs");
+builder.Services.AddMediaModule();
+builder.Services.AddScoped<IDataSeeder, SiteImageSeeder>();
+
 // The spike's artist roster, exhibitions, classes and shop, for a clean clone to show. Development only: elsewhere both come from
 // the WordPress import (4.x), whose slugs these would collide with. The exhibition and instructor seeds credit artists
-// through IArtistsFacade (facade to facade), whose facade asks Media about portraits, so Development also composes
-// Media on the "blobs" client (ADR 0033). The class seed names instructors through IInstructorsFacade (ADR 0043).
+// through IArtistsFacade (facade to facade), whose facade asks Media about portraits — composed above (ADR 0033). The
+// class seed names instructors through IInstructorsFacade (ADR 0043).
 // The roster's seeder is registered first, then the instructors': seeders run in registration order.
 if (builder.Environment.IsDevelopment())
 {
-    builder.AddAzureBlobServiceClient("blobs");
-    builder.Services.AddMediaModule();
     builder.Services.AddArtistsModule();
     builder.Services.AddInstructorsModule();
     builder.Services.AddArtistsDevelopmentSeeder();

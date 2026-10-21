@@ -49,9 +49,8 @@ VERIFY   counts, links, images, redirects, SEO parity ──> report + admin rev
 - **Prices and stock.** WooCommerce price and stock import only into the **starting** fields (`StartingPriceCents`, starting quantity, run capacity). They're used once, when the item is first created in Square. They never touch Square-owned projections. The WooCommerce SKU, if there is one, imports into `Sku`.
 - **Merch is never imported** (ADR 0032). Products identified as merch in the mapping table are reported as `Skipped (merch: POS-only)`.
 - **Body HTML** is rewritten and sanitized:
-  - `wp-content/uploads/...` URLs become `/media/{assetId}/{rendition}` via `ImportMediaMap`.
   - Shortcodes and Beaver Builder markup are stripped, and listed in the report.
-  - The shared sanitizer runs last.
+  - The shared sanitizer runs last. It keeps paragraphs, one heading level, bold, italic and lists (ADR 0045): links keep their words, and inline pictures are removed and listed in the report. A WordPress post's featured image is the record's hero or gallery, through `ImportMediaMap`; rewriting `wp-content/uploads/...` URLs inside the body is not needed while pictures are off.
 
 ## Square matching (when 6311 already sells in Square)
 

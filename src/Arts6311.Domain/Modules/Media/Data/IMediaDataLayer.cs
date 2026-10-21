@@ -75,7 +75,7 @@ internal interface IMediaDataLayer
     /// <summary>SHA-256 of the stream, lower-case hex; the stream is left at its start.</summary>
     Task<string> ChecksumAsync(Stream content, CancellationToken cancellationToken);
 
-    Task<Guid?> FindDuplicateAsync(string checksum, CancellationToken cancellationToken);
+    Task<Guid?> FindDuplicateAsync(string checksum, bool includeSubmissions, CancellationToken cancellationToken);
 
     /// <summary>
     /// Stores the master's bytes, then the row, its audit entry and <c>media.rendition-requested</c> in one save. A

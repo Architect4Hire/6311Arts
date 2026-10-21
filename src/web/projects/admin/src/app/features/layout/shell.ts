@@ -6,6 +6,7 @@ import { filter } from 'rxjs';
 import { UiButton, UiIcon } from '@6311/ui';
 import { STAFF_ROLES } from '../../models/session';
 import { ConfirmService } from '../../core/confirm/confirm.service';
+import { UnsavedChanges } from '../../core/guards/unsaved-changes.guard';
 import { SessionService } from '../../core/session/session.service';
 import { CMS_SECTIONS } from './sections';
 
@@ -45,13 +46,7 @@ import { CMS_SECTIONS } from './sections';
             <span class="sr-only">Signed in as </span>{{ who.displayName }}
             <span class="bar__role">{{ roleLabel() }}</span>
           </span>
-          <button
-            uiButton
-            type="button"
-            variant="border"
-            [busy]="leaving()"
-            (click)="signOut()"
-          >
+          <button uiButton type="button" variant="border" [busy]="leaving()" (click)="signOut()">
             Sign out
           </button>
           <button
@@ -212,6 +207,7 @@ export class Shell {
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly confirm = inject(ConfirmService);
+  private readonly unsaved = inject(UnsavedChanges);
 
   protected readonly navOpen = signal(false);
   protected readonly leaving = signal(false);
@@ -243,19 +239,28 @@ export class Shell {
       });
   }
 
+  /**
+   * Signing out leaves the app, which the router's unsaved-changes guard never sees. So unsaved work is asked about
+   * here, before the session ends: after the BFF has signed out, "Keep editing" would leave a screen that can't save.
+   */
   protected async signOut(): Promise<void> {
+    if (this.unsaved.any() && !(await this.unsaved.confirmLeavingApp())) return;
     await this.leave(() => this.session.signOut());
   }
 
   protected async signOutEverywhere(): Promise<void> {
+    const unsaved = this.unsaved.any();
     const confirmed = await this.confirm.confirm({
       heading: 'Sign out everywhere?',
       message:
-        'This ends your sessions on every device and browser, including this one. Others end within five minutes.',
+        'This ends your sessions on every device and browser, including this one. Others end within five minutes.' +
+        (unsaved ? ' Your unsaved changes on this screen will be lost.' : ''),
       confirmLabel: 'Sign out everywhere',
       cancelLabel: 'Stay signed in',
     });
-    if (confirmed) await this.leave(() => this.session.signOutEverywhere());
+    if (!confirmed) return;
+    if (unsaved) this.unsaved.release();
+    await this.leave(() => this.session.signOutEverywhere());
   }
 
   /** The skip link moves focus as well as scroll, so keyboard users land in the screen, not just near it. */
@@ -269,8 +274,9 @@ export class Shell {
     try {
       await action();
     } catch {
-      // The problem interceptor has already said why; stay signed in and on this screen.
+      // The problem interceptor has already said why; stay signed in and on this screen, its work protected again.
       this.leaving.set(false);
+      this.unsaved.hold();
     }
   }
 }

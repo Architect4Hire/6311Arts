@@ -1,23 +1,29 @@
-/** Normalized shapes the UI renders. The WordPress service maps API responses into these. */
+/**
+ * Normalized shapes the UI renders. `SiteApi` maps the site read API's models (`../models/site.ts`) into these
+ * (`site-mappers.ts`), so the pages kept the spike's shapes when WordPress went away.
+ */
 
 export interface Product {
-  id: number;
+  id: string;
   slug: string;
   name: string;
-  artist?: { name: string; slug: string };
-  /** Price in cents, as the WooCommerce Store API returns it. */
-  price: number;
+  /** Who made it; `slug` is absent when they have no published page, so the name shows without a link. */
+  artist?: { name: string; slug?: string };
+  /** Price in cents: Square's record, absent until Square has priced it, and until then it isn't for sale. */
+  price?: number;
   image?: string;
   categories: string[];
   inStock: boolean;
   description?: string;
 }
 
-export type ClassType = 'Printmaking' | 'Drawing' | 'Painting' | 'Mixed media' | 'Talk' | 'Event' | 'Other';
+export type ClassType =
+  'Printmaking' | 'Drawing' | 'Painting' | 'Mixed media' | 'Talk' | 'Event' | 'Other';
 export type ClassLevel = 'Beginner' | 'Intermediate' | 'All levels';
 
+/** One run of a class: the dates a seat buys. A class taught over two terms is two of these with one slug. */
 export interface ArtClass {
-  id: number;
+  id: string;
   slug: string;
   title: string;
   /** ISO date-time of the first session (local Chicago time). */
@@ -29,7 +35,8 @@ export interface ArtClass {
   cadence?: string;
   type: ClassType;
   level: ClassLevel;
-  price: number;
+  /** Square's record of the price, absent until Square has reported one. */
+  price?: number;
   instructor?: string;
   image?: string;
   summary: string;
@@ -72,10 +79,11 @@ export interface Artist {
 }
 
 export interface MembershipTier {
-  id: number;
+  id: string;
   slug: string;
   name: string;
-  price: number;
+  /** Square's record of the yearly price, absent until Square has reported one. */
+  price?: number;
   perks: string[];
   discount: number;
   featured?: boolean;
@@ -85,4 +93,11 @@ export interface CmsPage {
   slug: string;
   title: string;
   html: string;
+}
+
+/** One page of the shop: the works on it, how many the filters match in all, and where the next page starts. */
+export interface ProductPage {
+  items: Product[];
+  total: number;
+  nextCursor: string | null;
 }

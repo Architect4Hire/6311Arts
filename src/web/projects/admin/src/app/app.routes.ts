@@ -2,7 +2,7 @@ import { Route, Routes } from '@angular/router';
 import { roleGuard } from './core/guards/role.guard';
 import { sessionGuard } from './core/guards/session.guard';
 import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
-import { CMS_SECTIONS } from './features/layout/sections';
+import { CMS_SECTIONS, CmsSection } from './features/layout/sections';
 
 const artistEditor = () =>
   import('./features/artists/artist-editor').then((m) => m.ArtistEditor);
@@ -27,11 +27,22 @@ const membershipPlanEditor = () =>
 const redirectEditor = () =>
   import('./features/redirects/redirect-editor').then((m) => m.RedirectEditor);
 
+const submissionDetail = () =>
+  import('./features/forms/submission-detail').then((m) => m.SubmissionDetail);
+
+const messageDetail = () =>
+  import('./features/forms/message-detail').then((m) => m.MessageDetail);
+
 const placeholder = () =>
   import('./features/section-placeholder/section-placeholder').then((m) => m.SectionPlaceholder);
 
-/** The sections whose screens exist; the rest show the placeholder until their prompt builds them. */
-const SCREENS: Readonly<Record<string, Pick<Route, 'loadComponent' | 'canDeactivate'>>> = {
+/**
+ * The sections whose screens exist; the rest show the placeholder until their prompt builds them. A section whose
+ * screens are tabs (`SECTION_TABS`) redirects to its first one instead.
+ */
+const SCREENS: Readonly<
+  Record<string, Pick<Route, 'loadComponent' | 'canDeactivate'> | { readonly redirectTo: string }>
+> = {
   '': { loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard) },
   exhibitions: {
     loadComponent: () =>
@@ -64,7 +75,43 @@ const SCREENS: Readonly<Record<string, Pick<Route, 'loadComponent' | 'canDeactiv
     loadComponent: () => import('./features/media/media-library').then((m) => m.MediaLibrary),
     canDeactivate: [unsavedChangesGuard],
   },
+  forms: { redirectTo: '/forms/submissions' },
 };
+
+/** The section that owns a route below it, whose roles and nav entry it shares. */
+function ownedBy(section: string): CmsSection {
+  return CMS_SECTIONS.find((candidate) => candidate.path === section)!;
+}
+
+/**
+ * A section's own screens when it has more than one: tabs, each a list at its own address (ADR 0047's Forms
+ * inbox). They keep the section's roles; none is an editor, so none asks about unsaved changes.
+ */
+const SECTION_TABS: Routes = [
+  {
+    path: 'forms/submissions',
+    title: 'Submissions',
+    section: 'forms',
+    loadComponent: () =>
+      import('./features/forms/submission-list').then((m) => m.SubmissionList),
+  },
+  {
+    path: 'forms/messages',
+    title: 'Messages',
+    section: 'forms',
+    loadComponent: () => import('./features/forms/message-list').then((m) => m.MessageList),
+  },
+  {
+    path: 'forms/newsletter',
+    title: 'Newsletter',
+    section: 'forms',
+    loadComponent: () =>
+      import('./features/forms/newsletter-list').then((m) => m.NewsletterList),
+  },
+].map(({ section, ...route }) => {
+  const owner = ownedBy(section);
+  return { ...route, canActivate: [roleGuard(...owner.roles)], data: { section: owner } };
+});
 
 /**
  * Screens below a section's own page: an editor for one record. Each keeps its section's roles, and asks before
@@ -117,8 +164,15 @@ const DETAIL_ROUTES: Routes = [
   { path: 'pages/:id', title: 'Page', section: 'pages', loadComponent: pageEditor },
   { path: 'redirects/new', title: 'New redirect', section: 'redirects', loadComponent: redirectEditor },
   { path: 'redirects/:id', title: 'Redirect', section: 'redirects', loadComponent: redirectEditor },
+  {
+    path: 'forms/submissions/:id',
+    title: 'Submission',
+    section: 'forms',
+    loadComponent: submissionDetail,
+  },
+  { path: 'forms/messages/:id', title: 'Message', section: 'forms', loadComponent: messageDetail },
 ].map(({ section, ...route }) => {
-  const owner = CMS_SECTIONS.find((candidate) => candidate.path === section)!;
+  const owner = ownedBy(section);
   return {
     ...route,
     canActivate: [roleGuard(...owner.roles)],
@@ -143,15 +197,23 @@ export const routes: Routes = [
     loadComponent: () => import('./features/layout/shell').then((m) => m.Shell),
     canActivate: [sessionGuard],
     children: [
-      ...CMS_SECTIONS.map((section) => ({
-        path: section.path,
-        pathMatch: 'full' as const,
-        title: section.label,
-        canActivate: [roleGuard(...section.roles)],
-        data: { section },
-        loadComponent: placeholder,
-        ...SCREENS[section.path],
-      })),
+      ...CMS_SECTIONS.map((section): Route => {
+        const screen = SCREENS[section.path];
+        // A redirect runs before any guard, so it carries none: the screen it leads to has the section's.
+        if (screen && 'redirectTo' in screen) {
+          return { path: section.path, pathMatch: 'full', redirectTo: screen.redirectTo };
+        }
+        return {
+          path: section.path,
+          pathMatch: 'full',
+          title: section.label,
+          canActivate: [roleGuard(...section.roles)],
+          data: { section },
+          loadComponent: placeholder,
+          ...screen,
+        };
+      }),
+      ...SECTION_TABS,
       ...DETAIL_ROUTES,
       {
         path: 'forbidden',

@@ -19,6 +19,23 @@ public interface IMediaFacade
     Task<OperationResult<MediaAssetServiceModel>> UploadAsync(
         MediaUploadViewModel upload, string actorUserId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// For the Forms module: one picture from the public artist submission form (ADR 0047), stored as a hidden
+    /// <c>Submission</c> draft under the 10 MiB cap. A picture Media already holds is not a
+    /// refusal here: its id comes back with <c>Created</c> false, to be linked rather than copied. Refusals are the
+    /// upload's own (<c>media.too_large</c>, <c>media.type_unsupported</c>, …).
+    /// </summary>
+    Task<OperationResult<MediaSubmissionImageServiceModel>> UploadSubmissionImageAsync(
+        string fileName, Stream content, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For MigrationService: makes sure one of the site's own pictures (the logo, the default social image) exists at
+    /// its fixed id, published, with this alt text (prompt 3.3). Does nothing when it already does, so the seed can run
+    /// on every start; the renditions follow through the Worker as for any upload.
+    /// </summary>
+    Task<OperationResult<MediaAssetServiceModel>> EnsureSiteImageAsync(
+        Guid id, string fileName, Func<Stream> open, string altText, string actorUserId, CancellationToken cancellationToken);
+
     Task<OperationResult<CursorPage<MediaAssetSummaryServiceModel>>> ListAsync(
         MediaListViewModel request, CancellationToken cancellationToken);
 

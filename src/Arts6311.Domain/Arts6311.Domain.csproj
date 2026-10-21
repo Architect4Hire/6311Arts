@@ -13,6 +13,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" />
+    <!-- The cache invalidation bus (ADR 0049). Only Managers/Caching/RedisCacheInvalidationBus.cs names it. -->
+    <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <!-- Media renditions and the compressed master (ADR 0030). Only Modules/Media/Gateways names SkiaSharp. -->
     <PackageReference Include="SkiaSharp" />

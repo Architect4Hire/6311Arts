@@ -232,12 +232,12 @@ internal sealed class ShopFacade(
                 $"Reading shop item {id} for its scheduled publish failed ({gallery.Error.Code}).");
     }
 
-    public async Task<OperationResult<CursorPage<SiteShopItemSummaryServiceModel>>> ListForSiteAsync(
+    public async Task<OperationResult<CountedCursorPage<SiteShopItemSummaryServiceModel>>> ListForSiteAsync(
         SiteShopListViewModel request, CancellationToken cancellationToken)
     {
         if (await siteListValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
         {
-            return OperationResult.Failure<CursorPage<SiteShopItemSummaryServiceModel>>(error);
+            return OperationResult.Failure<CountedCursorPage<SiteShopItemSummaryServiceModel>>(error);
         }
 
         // An artist is filtered by their page's slug, so only a published artist has work to show: a draft artist's
@@ -248,7 +248,7 @@ internal sealed class ShopFacade(
             var found = await artists.FindBySlugsAsync([artistSlug], cancellationToken);
             if (found is not [{ Status: PublishStatus.Published } artist])
             {
-                return OperationResult.Success(new CursorPage<SiteShopItemSummaryServiceModel>([], null));
+                return OperationResult.Success(new CountedCursorPage<SiteShopItemSummaryServiceModel>([], null, 0));
             }
 
             artistId = artist.Id;
@@ -260,12 +260,14 @@ internal sealed class ShopFacade(
             return await ReadSitePageAsync(request, artistId, cancellationToken);
         }
 
+        // "site-counted": the entry's shape gained totalCount (ADR 0046). A new key means an entry an older build left
+        // in the shared L2 is never read back as this shape, which would show "0 works" until it expired.
         var limit = new PageRequest(null, request.Limit).EffectiveLimit;
         var key = CacheKeys.List(
             ShopAudit.ResourceType,
             string.Create(
                 CultureInfo.InvariantCulture,
-                $"site|{request.Category ?? "*"}|{request.Artist ?? "*"}|{request.Sort ?? ShopPolicy.SiteSorts[0]}|{limit}"));
+                $"site-counted|{request.Category ?? "*"}|{request.Artist ?? "*"}|{request.Sort ?? ShopPolicy.SiteSorts[0]}|{limit}"));
 
         return OperationResult.Success(await cache.GetOrCreateAsync(
             key,
@@ -322,9 +324,10 @@ internal sealed class ShopFacade(
     {
         // Another module's request with a slug it has already read from Artists, so anything malformed is its bug;
         // an artist with no work is an empty page, never a failure.
+        // The artist page carries a plain cursor page: its reader shows the work, not how much there is.
         var page = await ListForSiteAsync(new SiteShopListViewModel(Artist: artistSlug), cancellationToken);
         return page.Succeeded
-            ? page.Value!
+            ? new CursorPage<SiteShopItemSummaryServiceModel>(page.Value!.Items, page.Value.NextCursor)
             : throw new ArgumentException($"Not a site list request ({page.Error!.Code}).", nameof(artistSlug));
     }
 
@@ -334,18 +337,18 @@ internal sealed class ShopFacade(
     public Task<IReadOnlyList<SitemapEntryServiceModel>> ListSitemapAsync(CancellationToken cancellationToken) =>
         business.ListSitemapAsync(cancellationToken);
 
-    private async Task<OperationResult<CursorPage<SiteShopItemSummaryServiceModel>>> ReadSitePageAsync(
+    private async Task<OperationResult<CountedCursorPage<SiteShopItemSummaryServiceModel>>> ReadSitePageAsync(
         SiteShopListViewModel request, Guid? artistId, CancellationToken cancellationToken)
     {
         var page = await business.ListForSiteAsync(request, artistId, cancellationToken);
         if (!page.Succeeded)
         {
-            return OperationResult.Failure<CursorPage<SiteShopItemSummaryServiceModel>>(page.Error!);
+            return OperationResult.Failure<CountedCursorPage<SiteShopItemSummaryServiceModel>>(page.Error!);
         }
 
         var (credits, images) = await DescribeSiteAsync(page.Value!.Items, cancellationToken);
-        return OperationResult.Success(new CursorPage<SiteShopItemSummaryServiceModel>(
-            [.. page.Value.Items.Select(row => row.ToSummary(credits, images))], page.Value.NextCursor));
+        return OperationResult.Success(new CountedCursorPage<SiteShopItemSummaryServiceModel>(
+            [.. page.Value.Items.Select(row => row.ToSummary(credits, images))], page.Value.NextCursor, page.Value.TotalCount));
     }
 
     /// <summary>

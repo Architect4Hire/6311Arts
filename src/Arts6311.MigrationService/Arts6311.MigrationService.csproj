@@ -19,4 +19,9 @@
     <InternalsVisibleTo Include="Arts6311.Tests" />
   </ItemGroup>
 
+  <!-- The site's own pictures (prompt 3.3), seeded into Media at fixed ids by SiteImageSeeder. -->
+  <ItemGroup>
+    <EmbeddedResource Include="SiteImages/*.*" LogicalName="SiteImages.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

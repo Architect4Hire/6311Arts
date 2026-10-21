@@ -27,7 +27,6 @@
     "@angular/router": "^22.2.0",
     "@angular/ssr": "^22.2.3",
     "@tiptap/core": "3.31.4",
-    "@tiptap/extension-image": "3.31.4",
     "@tiptap/pm": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
     "express": "^5.1.0",

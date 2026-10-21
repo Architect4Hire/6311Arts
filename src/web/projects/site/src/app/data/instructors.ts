@@ -2,7 +2,7 @@ import { Instructor } from '../core/models';
 import { slugify } from './mock-shop';
 
 /**
- * Sample instructor profiles for the people teaching in `MOCK_CLASSES`, used only when WordPress
+ * Sample instructor profiles for the people teaching in `MOCK_CLASSES`, used only when the site API
  * can't be reached. Bios are DRAFT copy written from the class listings themselves — staff replace
  * them (and add portraits, links and neighborhoods) in wp-admin before this goes live.
  */

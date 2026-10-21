@@ -425,6 +425,33 @@ public sealed class SiteReadTests
     }
 
     [Fact]
+    public async Task TheShopsTotalCountsWhatItsFiltersMatchAndReadsTheSameOnEveryPage()
+    {
+        await using var host = await SiteTestHost.CreateAsync(Ct);
+        var jane = await host.AddArtistAsync("Jane Doe");
+        var zed = await host.AddArtistAsync("Zed Draft", PublishStatus.Draft);
+        await host.AddShopItemAsync("Copper Cuff", artistId: jane, categories: ["jewelry"]);
+        await host.AddShopItemAsync("Etching", artistId: jane, categories: ["prints"]);
+        await host.AddShopItemAsync("Linocut", categories: ["prints"]);
+        await host.AddShopItemAsync("Bowl", artistId: zed, categories: ["ceramics"]);
+        await host.AddShopItemAsync("Unfinished", PublishStatus.Draft, categories: ["prints"]);
+
+        Assert.Equal(4, (await ShopAsync(host)).TotalCount);
+        Assert.Equal(2, (await ShopAsync(host, new SiteShopListViewModel(Category: "prints"))).TotalCount);
+        Assert.Equal(2, (await ShopAsync(host, new SiteShopListViewModel(Artist: "jane-doe"))).TotalCount);
+        Assert.Equal(1, (await ShopAsync(host, new SiteShopListViewModel(Category: "prints", Artist: "jane-doe"))).TotalCount);
+
+        // An artist with nothing to show is an empty shop, and says so.
+        Assert.Equal(0, (await ShopAsync(host, new SiteShopListViewModel(Artist: "zed-draft"))).TotalCount);
+
+        // The count is the list's, not the page's: a later page, read past the cache, gives the same number.
+        var first = await ShopAsync(host, new SiteShopListViewModel(Limit: 3));
+        var second = await ShopAsync(host, new SiteShopListViewModel(Cursor: first.NextCursor, Limit: 3));
+        Assert.Equal((3, 4), (first.Items.Count, first.TotalCount));
+        Assert.Equal((1, 4, (string?)null), (second.Items.Count, second.TotalCount, second.NextCursor));
+    }
+
+    [Fact]
     public async Task ACursorFromAnotherListOrOrderIsRefusedAndABadQueryIsAValidationFailure()
     {
         await using var host = await SiteTestHost.CreateAsync(Ct);
@@ -442,7 +469,7 @@ public sealed class SiteReadTests
             new SiteShopListViewModel(Cursor: "not-a-cursor"),
         })
         {
-            var refused = await host.WithAsync<IShopFacade, OperationResult<CursorPage<SiteShopItemSummaryServiceModel>>>(
+            var refused = await host.WithAsync<IShopFacade, OperationResult<CountedCursorPage<SiteShopItemSummaryServiceModel>>>(
                 facade => facade.ListForSiteAsync(request, Ct));
             Assert.Equal(ErrorCodes.CursorInvalid, refused.Error!.Code);
         }
@@ -456,7 +483,7 @@ public sealed class SiteReadTests
             new SiteShopListViewModel(Cursor: new string('a', ShopPolicy.SiteCursorMaxLength + 1)),
         })
         {
-            var refused = await host.WithAsync<IShopFacade, OperationResult<CursorPage<SiteShopItemSummaryServiceModel>>>(
+            var refused = await host.WithAsync<IShopFacade, OperationResult<CountedCursorPage<SiteShopItemSummaryServiceModel>>>(
                 facade => facade.ListForSiteAsync(request, Ct));
             Assert.Equal(ErrorCodes.ValidationFailed, refused.Error!.Code);
         }
@@ -619,8 +646,8 @@ public sealed class SiteReadTests
         await Ok(host.WithAsync<IMembershipsFacade, OperationResult<IReadOnlyList<SiteMembershipPlanServiceModel>>>(
             facade => facade.ListForSiteAsync(Ct)));
 
-    private static async Task<CursorPage<SiteShopItemSummaryServiceModel>> ShopAsync(SiteTestHost host, SiteShopListViewModel? request = null) =>
-        await Ok(host.WithAsync<IShopFacade, OperationResult<CursorPage<SiteShopItemSummaryServiceModel>>>(
+    private static async Task<CountedCursorPage<SiteShopItemSummaryServiceModel>> ShopAsync(SiteTestHost host, SiteShopListViewModel? request = null) =>
+        await Ok(host.WithAsync<IShopFacade, OperationResult<CountedCursorPage<SiteShopItemSummaryServiceModel>>>(
             facade => facade.ListForSiteAsync(request ?? new SiteShopListViewModel(), Ct)));
 
     private static async Task<IReadOnlyList<SitemapEntryServiceModel>> SitemapAsync(SiteTestHost host) =>

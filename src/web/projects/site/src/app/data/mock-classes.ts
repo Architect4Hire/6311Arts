@@ -2,12 +2,13 @@ import { ArtClass } from '../core/models';
 
 /**
  * Sample classes copied from 6311arts.com/events on 2026-10-18.
- * Used only when the WordPress API can't be reached. Summaries are draft marketing copy for staff to review,
+ * Served only when the site API fails and SiteApi's mock fallback is on (SITE_MOCK_FALLBACK). Summaries are draft marketing copy for staff to review,
  * and spotsLeft/capacity are illustrative until the FooEvents fields are exposed (see wordpress/6311-headless.php).
  */
 const flyer = (path: string) => `https://i0.wp.com/6311arts.com/wp-content/uploads/${path}?resize=800%2C800&ssl=1`;
 
-export const MOCK_CLASSES: ArtClass[] = [
+/** WordPress's numeric ids as copied; converted to the site's string ids on export. */
+const CLASSES: (Omit<ArtClass, 'id'> & { id: number })[] = [
   {
     id: 7660,
     slug: 'day-of-the-dead-ofrenda-alter-making-workshop-with-candice-thursday-11-22-600-900pm',
@@ -139,3 +140,5 @@ export const MOCK_CLASSES: ArtClass[] = [
     capacity: 10,
   },
 ];
+
+export const MOCK_CLASSES: ArtClass[] = CLASSES.map((c) => ({ ...c, id: String(c.id) }));

@@ -317,7 +317,7 @@ const COMMAND_LABELS: Readonly<
 
             <cms-rich-text
               label="Description"
-              hint="Headings, lists, links and pictures from the media library. Needed to publish."
+              hint="Headings, bold, italic and lists; the item's pictures are its photographs. Needed to publish."
               [value]="draft().description"
               (valueChange)="patch({ description: $event })"
               [disabled]="busy()"
@@ -877,7 +877,7 @@ export class ShopItemEditor implements HasUnsavedChanges {
   protected statusText(piece: ShopItem): string {
     switch (piece.status) {
       case 'Published':
-        return 'Published: in the shop once the site reads from the CMS.';
+        return 'Published: in the shop. Edits show there within a minute.';
       case 'Archived':
         return 'Archived: retired from the shop. Archiving can’t be undone here.';
       case 'Scheduled':

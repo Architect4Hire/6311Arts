@@ -1269,6 +1269,65 @@
   text-transform: uppercase;
 }
 
+/*
+ * Phones: "Page N of M" on its own line, then the buttons as thumb-sized targets that share the row, or take a row each
+ * when the screen is too narrow for both (under ~340px). Previous stays left and Next right, wherever they land.
+ */
+@media (max-width: 720px) {
+  .pager {
+    flex-wrap: wrap;
+    gap: 12px;
+    .btn {
+      flex: 1 1 140px;
+      min-height: 48px;
+    }
+  }
+  .pager__status {
+    order: -1;
+    flex-basis: 100%;
+    text-align: center;
+  }
+}
+
+/* Where paging lands: clear of the fixed bar (scrolled, it is about 56px tall). */
+.filters__count {
+  scroll-margin-top: 80px;
+}
+
+/*
+ * "Price to be announced": Square has not priced the record yet (ADR 0042, 0046). Set like the site's other small
+ * labels (the count, the pager), in place of the figure, so the slot never sits empty.
+ */
+.buy__tba,
+.class-card__tba,
+.product-card__tba,
+.tier__tba {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+.buy__tba {
+  margin: 0;
+}
+
+/* Too long to share the row with the artist on a two-up phone grid: under them instead. Priced cards are untouched. */
+.product-card__foot:has(.product-card__tba) {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.product-card__tba {
+  font-size: 11px;
+}
+
+.tier__tba {
+  margin: 14px 0 12px;
+  opacity: 0.75;
+}
+
 /* ---------- detail pages ---------- */
 
 .detail {
@@ -2091,17 +2150,6 @@
   border: 2px solid var(--ink);
   background: var(--white);
   padding: clamp(24px, 4vw, 48px);
-}
-
-.sform__payload {
-  background: var(--ink);
-  color: var(--light);
-  padding: 20px;
-  margin: 0 0 24px;
-  overflow-x: auto;
-  font-size: 13px;
-  line-height: 1.6;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* ---------- instructors ---------- */

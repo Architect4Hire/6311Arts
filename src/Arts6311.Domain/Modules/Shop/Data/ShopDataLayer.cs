@@ -152,6 +152,9 @@ internal sealed class ShopDataLayer(
     public Task<List<ShopItemSiteRow>> ListPublishedAsync(ShopSiteQuery query, CancellationToken cancellationToken) =>
         repository.ListPublishedAsync(query, cancellationToken);
 
+    public Task<int> CountPublishedAsync(string? category, Guid? artistId, CancellationToken cancellationToken) =>
+        repository.CountPublishedAsync(category, artistId, cancellationToken);
+
     public Task<ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken) =>
         repository.FindPublishedAsync(slug, cancellationToken);
 

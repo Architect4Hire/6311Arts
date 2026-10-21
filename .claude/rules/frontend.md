@@ -32,7 +32,12 @@ paths:
 ## Calling the API
 
 - **Browser calls** use relative `/api/v1/...` and `/bff/...` URLs, with credentials and the XSRF header (interceptor). There are no absolute origins anywhere in client code.
-- **SSR calls** use the gateway origin injected by Aspire into the Node server environment. That's server-side config, never bundled.
+- **SSR calls** use the gateway origin injected by Aspire into the Node server environment (`SITE_API_ORIGIN`). That's server-side config, never bundled.
+  - The site's `SiteApi` asks for relative `/api/v1/site/...` on both sides, and the server's `GatewayBackend` (an
+    `HttpBackend`, so below the transfer cache) re-targets them to that origin. Never re-target in an interceptor:
+    the transfer cache would key the absolute address and the browser would fetch every page twice (ADR 0046).
+  - A failed read is an empty answer and, on the server, a 503 `no-store`; sample data only with
+    `SITE_MOCK_FALLBACK=true`. A record Square has not priced shows "Price to be announced" and is not for sale (ADR 0042, 0046).
 - **Session** state comes from `/bff/session`. No tokens or user data in browser storage.
 - **XSRF** is Angular's own interceptor via `withXsrfConfiguration({ cookieName: '__Host-6311.csrf', headerName: 'X-XSRF-TOKEN' })`. It runs before every `withInterceptors` function, so an interceptor that retries a write sets the header itself (ADR 0027).
 - **Leaving an app** (site → CMS, CMS → `/signin`) is a full navigation through an injectable (`BrowserNavigation`, `BrowserLocation`), never `window.location` in a component, so tests can see it.
@@ -53,9 +58,12 @@ paths:
   - HTTP transfer cache
   - hydration with event replay
   - scroll animations that never hide content
-- **Legacy URL redirects** come from `/api/v1/site/redirects` (CMS-managed and imported), with the spike's hard-coded map as a fallback.
+- **Legacy URL redirects** come from `/api/v1/site/redirects` (CMS-managed and imported), with the spike's hard-coded map as a fallback. The order is the CMS's list, then the spike's map, then `/product/{slug}` (a published class's slug → `/classes`, otherwise `/shop`) and `/artist/{slug}` (`server/legacy-redirects.ts`). `server/site-data.ts` caches the routing data for 60 s and refreshes it behind the request (5 s after a failed read). Every legacy URL in the spike's map must still 301 with the API down (ADR 0048).
+- **`/sitemap.xml`** comes from `/api/v1/site/sitemap`. When that can't be read it is a `503` with `Retry-After`, never a shorter list. `robots.txt` is fixed text (ADR 0048).
+- **Forms** post through `FormsApi` to `/api/v1/forms/*` with the antiforgery header. The site server has no form routes of its own (ADR 0047, 0048).
+- **The logo and default social image** are Media assets at the fixed ids in `SITE_IMAGES` (`core/site.ts`), mirroring `MediaSiteImages`. Name them as `/media/{id}/{rendition}`, never a WordPress upload URL (ADR 0048).
 - **Checkout and member billing** load the Square Web Payments SDK. It runs in the browser only, never during SSR, and its host comes from config. Card fields stay inside Square's iframes.
-- **`security.allowedHosts`** comes from configuration (local gateway host, Container Apps domains, `6311arts.com`).
+- **`security.allowedHosts`** comes from configuration (local gateway host, Container Apps domains, `6311arts.com`): `angular.json` keeps only `localhost` for `ng serve`, and the AppHost's `site-allowed-hosts` parameter becomes Angular's `NG_ALLOWED_HOSTS` (ADR 0046).
 
 ## Admin
 

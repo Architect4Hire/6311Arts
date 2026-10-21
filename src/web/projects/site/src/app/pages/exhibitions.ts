@@ -3,7 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { UiIcon } from '@6311/ui';
 import { Seo, exhibitionLd } from '../core/seo.service';
-import { WpApi } from '../core/wp-api.service';
+import { SiteApi } from '../services/site-api.service';
 import { GALLERY_PHOTOS } from '../data/venue-photos';
 import { ArtImage } from '../shared/art-image';
 import { ExhibitionCard, exhibitionStatus } from '../shared/cards';
@@ -62,7 +62,7 @@ import { Reveal } from '../shared/reveal';
   `,
 })
 export class Exhibitions {
-  private all = toSignal(inject(WpApi).exhibitions(), { initialValue: [] });
+  private all = toSignal(inject(SiteApi).exhibitions(), { initialValue: [] });
   protected spotlight = computed(() =>
     this.all()
       .filter((e) => exhibitionStatus(e) !== 'Past')

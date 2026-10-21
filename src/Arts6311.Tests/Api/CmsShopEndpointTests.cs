@@ -279,7 +279,7 @@ public sealed class CmsShopEndpointTests
     /// <summary>The facade as far as the controller is concerned: what it was handed, and one chosen answer.</summary>
     private sealed class RecordingShopFacade : IShopFacade
     {
-        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Paging.CursorPage<global::Arts6311.Domain.Modules.Shop.Managers.ServiceModels.SiteShopItemSummaryServiceModel>>> ListForSiteAsync(global::Arts6311.Domain.Modules.Shop.Managers.ViewModels.SiteShopListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Paging.CountedCursorPage<global::Arts6311.Domain.Modules.Shop.Managers.ServiceModels.SiteShopItemSummaryServiceModel>>> ListForSiteAsync(global::Arts6311.Domain.Modules.Shop.Managers.ViewModels.SiteShopListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Modules.Shop.Managers.ServiceModels.SiteShopItemServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
 

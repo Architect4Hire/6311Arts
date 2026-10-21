@@ -1,6 +1,8 @@
 # 0036 — Revalidation by cache tag, the scheduled publisher, and preview links
 
-- **Status:** Accepted — the preview answer's shape amended by [0042](0042-site-read-api-and-its-cache.md)
+- **Status:** Accepted — the preview answer's shape amended by [0042](0042-site-read-api-and-its-cache.md); how an
+  invalidation reaches another process amended by [0049](0049-cache-invalidation-bus.md) (the shared L2 alone does
+  not, so "≤1 minute stale" did not hold)
 - **Date:** 2026-10-20
 - **Rules affected:** `.claude/rules/content.md`, `.claude/rules/outbox.md`, `.claude/rules/aspire.md`,
   `.claude/rules/backend.md`, `.claude/rules/api-contract.md`

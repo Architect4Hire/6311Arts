@@ -109,6 +109,9 @@ internal interface IShopDataLayer
     /// <summary>One page of published items for the site, as site rows.</summary>
     Task<List<ShopItemSiteRow>> ListPublishedAsync(ShopSiteQuery query, CancellationToken cancellationToken);
 
+    /// <summary>How many published items the site's filters match, for the shop's count.</summary>
+    Task<int> CountPublishedAsync(string? category, Guid? artistId, CancellationToken cancellationToken);
+
     /// <summary>The published item at <paramref name="slug"/>, as a site row.</summary>
     Task<ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken);
 

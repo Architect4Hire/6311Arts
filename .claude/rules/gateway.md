@@ -13,7 +13,9 @@ paths:
 | `/bff/**` | gateway itself | Session endpoints (`auth.md`) |
 | `/api/v1/internal/**` | — | 404 from browsers, always |
 | `/api/v1/cms/**` | `https+http://api` | Requires a `CmsEditor` session; internal token attached |
-| `POST /api/v1/cms/media` (`cms-media-upload`) | `https+http://api` | As `cms`, with `MaxRequestBodySize` set to `MediaPolicy.MaxUploadRequestBytes` (26 MiB): the only large-body route (ADR 0030) |
+| `POST /api/v1/cms/media` (`cms-media-upload`) | `https+http://api` | As `cms`, with `MaxRequestBodySize` set to `MediaPolicy.MaxUploadRequestBytes` (26 MiB): the CMS's only large-body route (ADR 0030) |
+| `/api/v1/forms/**` (`forms`) | `https+http://api` | The public forms (ADR 0047): anonymous, `forms` rate limit, antiforgery as for every unsafe request |
+| `POST /api/v1/forms/submissions` (`forms-submissions`) | `https+http://api` | As `forms`, but its own `forms-submissions` rate limit (3 an hour) and `MaxRequestBodySize` set to `FormsPolicy.MaxSubmissionRequestBytes` (64 MiB: six 10 MiB pictures and the answers) |
 | `/api/**` | `https+http://api` | Internal token attached; client credentials stripped |
 | `/webhooks/square` | `https+http://api` | POST only, 256 KB limit, no session, rate limited |
 | `/media/**` | `https+http://api` | GET and HEAD only. Long-cache image delivery; a user token is attached when there is a session, for drafts |
@@ -39,7 +41,8 @@ which has no API call to authorize. The rule is about routes whose destination i
   - `bff-account` — `/bff/forgot-password`, `/bff/resend-confirmation`, `/bff/reset-password`,
     `/bff/confirm-email` (2.2a/2.2b, ADR 0028, 0029); its own window so reset traffic cannot spend the sign-in
     budget
-  - `forms` (submissions, newsletter, contact — 2.12)
+  - `forms` (newsletter and contact — 2.12)
+  - `forms-submissions` (artist submissions: 3 an hour, because each may carry six pictures — ADR 0047)
   - `checkout` (5.14)
   - `webhooks` — on `/webhooks/square` from 1.8
   - `api` — on `/api/**` from 1.8
@@ -66,7 +69,7 @@ which has no API call to authorize. The rule is about routes whose destination i
     halves (ADR 0039). **An environment never restates `Default`:** a second copy of the policy is a second copy
     of the hashes, and the dev copy will mask a stale one in the shipped copy.
 - **Limits and correlation.**
-  - Request size limits: **1 MiB for every route** (`Kestrel:Limits:MaxRequestBodySize`, in the gateway and the API), with per-route YARP `MaxRequestBodySize` above or below it. `/webhooks/square` is capped at 256 KB; `cms-media-upload` is raised to 26 MiB. Uploads are streamed.
+  - Request size limits: **1 MiB for every route** (`Kestrel:Limits:MaxRequestBodySize`, in the gateway and the API), with per-route YARP `MaxRequestBodySize` above or below it. `/webhooks/square` is capped at 256 KB; `cms-media-upload` is raised to 26 MiB and `forms-submissions` to 64 MiB. Uploads are streamed.
   - Forwarded headers are honoured only when `Gateway:TrustedProxies` names the sender; with it empty the middleware that reads them is not in the pipeline at all, and client-supplied `X-Forwarded-*` and `Forwarded` are stripped inbound (ADR 0022).
   - A correlation id is created or propagated and returned in `ProblemDetails`.
   - `AllowedHosts` is `*` in run mode and **must be set for the deployed origin in 6.1**: the client `Host` becomes `X-Forwarded-Host`, which the SSR site may build absolute URLs from.
