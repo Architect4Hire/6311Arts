@@ -1,0 +1,344 @@
+<p class="back"><a routerLink="/classes">← All classes</a></p>
+
+<!-- Exists from the start, so what is written into it later is read out. -->
+<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+@switch (status().kind) {
+  @case ('loading') {
+    <p role="status">Loading class…</p>
+  }
+  @case ('load-failed') {
+    <ui-notice tone="error" heading="This class couldn’t be loaded">
+      <p>6311arts may be unreachable for a moment.</p>
+      <button uiButton type="button" size="sm" (click)="load()">Try again</button>
+    </ui-notice>
+  }
+  @case ('not-found') {
+    <ui-notice tone="warning" heading="There’s no such class">
+      <p>It may have been removed, or the link is wrong.</p>
+      <a uiButton size="sm" routerLink="/classes">Back to the classes</a>
+    </ui-notice>
+  }
+  @default {
+    <header class="title">
+      <h1 #heading class="cms-title" tabindex="-1">{{ offering()?.title || 'New class' }}</h1>
+      @if (offering(); as offering) {
+        <ui-status-chip [tone]="chips[offering.status].tone" [icon]="chips[offering.status].icon">{{
+          chips[offering.status].label
+        }}</ui-status-chip>
+      }
+    </header>
+
+    @if (conflict(); as theirs) {
+      <div
+        #conflictBox
+        class="conflict"
+        role="region"
+        aria-label="Your changes and the saved version"
+        tabindex="-1"
+      >
+        <ui-notice tone="warning" heading="Someone else saved this class while you were editing">
+          <table class="compare">
+            <caption class="sr-only">
+              Your changes and the saved version
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Field</th>
+                <th scope="col">Yours</th>
+                <th scope="col">Saved</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Title</th>
+                <td>{{ draft().title || '—' }}</td>
+                <td>{{ theirs.title }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Web address</th>
+                <td>/classes/{{ draft().slug }}</td>
+                <td>/classes/{{ theirs.slug }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Summary</th>
+                <td>{{ draft().summary || '—' }}</td>
+                <td>{{ theirs.summary || '—' }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Runs</th>
+                <td>{{ describeRuns(draft().runs) }}</td>
+                <td>{{ savedRuns(theirs) }}</td>
+              </tr>
+              <tr>
+                <th scope="row">More details</th>
+                <td>{{ draft().body.length }} characters</td>
+                <td>{{ (theirs.body ?? '').length }} characters</td>
+              </tr>
+              <tr>
+                <th scope="row">Class type</th>
+                <td>{{ draft().classType || '—' }}</td>
+                <td>{{ theirs.classType || '—' }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Level</th>
+                <td>{{ draft().level || '—' }}</td>
+                <td>{{ theirs.level || '—' }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Lead photograph</th>
+                <td>{{ draft().heroMediaId ? 'A photograph' : 'None' }}</td>
+                <td>{{ theirs.heroMediaId ? 'A photograph' : 'None' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="actions">
+            <button uiButton type="button" variant="dark" size="sm" (click)="keepMine(theirs)">
+              Keep my changes
+            </button>
+            <button uiButton type="button" size="sm" (click)="useTheirs(theirs)">
+              Use the saved version and discard mine
+            </button>
+          </div>
+        </ui-notice>
+      </div>
+    }
+
+    @if (formError(); as message) {
+      <ui-notice tone="error">{{ message }}</ui-notice>
+    }
+
+    <div class="layout">
+      <form class="form" novalidate (ngSubmit)="save()">
+        <!-- Disabled while a save or command is in flight, so nothing typed then is overwritten by its answer. -->
+        <fieldset class="fields" [disabled]="busy()">
+          <legend class="sr-only">Class details</legend>
+          <ui-field label="Title" [required]="true" [error]="errors().title ?? null">
+            <input
+              uiControl
+              name="title"
+              autocomplete="off"
+              [attr.maxlength]="limits.titleMaxLength"
+              [ngModel]="draft().title"
+              (ngModelChange)="setTitle($event)"
+            />
+          </ui-field>
+
+          <ui-field
+            label="Web address"
+            [required]="true"
+            [hint]="slugHint()"
+            [error]="errors().slug ?? null"
+          >
+            <input
+              uiControl
+              name="slug"
+              autocomplete="off"
+              spellcheck="false"
+              [attr.maxlength]="limits.slugMaxLength"
+              [ngModel]="draft().slug"
+              (ngModelChange)="setSlug($event)"
+            />
+          </ui-field>
+
+          <ui-field
+            label="Summary"
+            hint="One or two sentences for the card and search results. Needed to publish."
+            [error]="errors().summary ?? null"
+          >
+            <textarea
+              uiControl
+              name="summary"
+              rows="3"
+              [attr.maxlength]="limits.summaryMaxLength"
+              [ngModel]="draft().summary"
+              (ngModelChange)="patch({ summary: $event })"
+            ></textarea>
+          </ui-field>
+
+          <div class="pair">
+            <ui-field
+              label="Kind"
+              hint="Printmaking, Drawing, Talk…"
+              [error]="errors().classType ?? null"
+            >
+              <input
+                uiControl
+                name="classType"
+                autocomplete="off"
+                [attr.maxlength]="limits.classTypeMaxLength"
+                [ngModel]="draft().classType"
+                (ngModelChange)="patch({ classType: $event })"
+              />
+            </ui-field>
+            <ui-field label="Level" hint="Beginner, All levels…" [error]="errors().level ?? null">
+              <input
+                uiControl
+                name="level"
+                autocomplete="off"
+                [attr.maxlength]="limits.levelMaxLength"
+                [ngModel]="draft().level"
+                (ngModelChange)="patch({ level: $event })"
+              />
+            </ui-field>
+          </div>
+        </fieldset>
+
+        <cms-rich-text
+          label="More details"
+          hint="Shown on the class page below the summary. Headings, bold, italic and lists; the class picture is the hero."
+          [value]="draft().body"
+          (valueChange)="patch({ body: $event })"
+          [disabled]="busy()"
+          [error]="errors().body ?? null"
+        />
+
+        <cms-class-runs
+          [runs]="draft().runs"
+          (runsChange)="setRuns($event)"
+          [offeringNumber]="offering()?.offeringNumber ?? null"
+          [currency]="currency()"
+          [disabled]="busy()"
+          [error]="errors().runs ?? null"
+        />
+
+        <div class="actions">
+          <button
+            uiButton
+            type="submit"
+            variant="dark"
+            [busy]="status().kind === 'saving'"
+            [disabled]="!dirty() || busy()"
+          >
+            {{ saveLabel() }}
+          </button>
+          @if (offering() && dirty()) {
+            <button uiButton type="button" [disabled]="busy()" (click)="discard()">
+              Discard changes
+            </button>
+          }
+        </div>
+      </form>
+
+      <aside class="side">
+        <section class="panel" aria-labelledby="hero-heading">
+          <h2 id="hero-heading" class="panel__title">Hero image</h2>
+          @if (hero()?.unavailable) {
+            <ui-notice tone="error">
+              This image’s details couldn’t be loaded.
+              <button uiButton type="button" size="sm" (click)="retryHero()">Try again</button>
+            </ui-notice>
+          } @else if (hero(); as hero) {
+            @if (hero.url) {
+              <img class="hero" [src]="hero.url" [alt]="hero.altText ?? ''" />
+            } @else {
+              <div class="hero hero--pending">Preview not ready yet</div>
+            }
+            @if (!hero.altText) {
+              <ui-notice tone="warning">
+                This image has no alt text yet. Add it in Media before publishing the class.
+              </ui-notice>
+            }
+          } @else if (draft().heroMediaId) {
+            <p role="status">Loading hero image…</p>
+          } @else {
+            <p class="panel__empty">No hero image yet.</p>
+          }
+          @if (errors().heroMediaId; as message) {
+            <p class="error" role="alert">{{ message }}</p>
+          }
+          <div class="actions">
+            <button
+              uiButton
+              type="button"
+              size="sm"
+              [disabled]="busy()"
+              (click)="picking.set(true)"
+            >
+              {{ draft().heroMediaId ? 'Change hero image' : 'Choose hero image' }}
+            </button>
+            @if (draft().heroMediaId) {
+              <button uiButton type="button" size="sm" [disabled]="busy()" (click)="removeHero()">
+                Remove hero image
+              </button>
+            }
+          </div>
+        </section>
+
+        @if (offering(); as offering) {
+          <section class="panel" aria-labelledby="publishing-heading">
+            <h2 #publishingHeading id="publishing-heading" class="panel__title" tabindex="-1">
+              Publishing
+            </h2>
+            <p class="panel__text">{{ statusText(offering) }}</p>
+            @if (dirty()) {
+              <p class="panel__hint" id="publishing-hint">
+                Save your changes first: these act on the saved version.
+              </p>
+            }
+            <div class="actions">
+              @if (canPublish()) {
+                <button
+                  uiButton
+                  type="button"
+                  variant="dark"
+                  size="sm"
+                  aria-describedby="publishing-hint"
+                  [busy]="commanding() === 'publish'"
+                  [disabled]="dirty() || busy()"
+                  (click)="run('publish')"
+                >
+                  Publish
+                </button>
+              }
+              @if (offering.status === 'Published') {
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  aria-describedby="publishing-hint"
+                  [busy]="commanding() === 'unpublish'"
+                  [disabled]="dirty() || busy()"
+                  (click)="unpublish()"
+                >
+                  Unpublish
+                </button>
+              }
+              @if (canArchive()) {
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  aria-describedby="publishing-hint"
+                  [busy]="commanding() === 'archive'"
+                  [disabled]="dirty() || busy()"
+                  (click)="archive()"
+                >
+                  Archive
+                </button>
+              }
+            </div>
+
+            <cms-schedule-control
+              noun="class"
+              [status]="offering.status"
+              [scheduledFor]="offering.scheduledFor"
+              [disabled]="dirty() || busy()"
+              [busy]="commanding()"
+              (schedule)="schedule($event)"
+              (unschedule)="unschedule()"
+            />
+
+            <cms-preview-link
+              entityType="class-offering"
+              [entityId]="offering.id"
+              [dirty]="dirty()"
+            />
+          </section>
+        }
+      </aside>
+    </div>
+
+    <cms-media-picker [(open)]="picking" (picked)="chooseHero($event)" />
+  }
+}

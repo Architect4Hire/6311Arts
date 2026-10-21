@@ -1,0 +1,144 @@
+:host {
+  display: grid;
+  gap: var(--space-5);
+}
+.back,
+.meta {
+  margin: 0;
+  font-size: var(--fs-small);
+}
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+.title .cms-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.cms-title:focus,
+.conflict:focus {
+  outline: none;
+}
+.layout {
+  display: grid;
+  gap: var(--space-6);
+  align-items: start;
+}
+@media (min-width: 1000px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  }
+  .review {
+    position: sticky;
+    top: var(--space-5);
+  }
+}
+.answers,
+.review {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.group {
+  display: grid;
+  gap: var(--space-3);
+}
+.group__heading {
+  margin: 0;
+  padding-bottom: var(--space-2);
+  border-bottom: var(--border-thin) solid var(--line);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+.pairs {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.pair {
+  display: grid;
+  gap: var(--space-1) var(--space-4);
+}
+@media (min-width: 600px) {
+  .pair {
+    grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
+  }
+}
+.pair dt {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+.pair dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.multiline {
+  white-space: pre-wrap;
+}
+.none {
+  margin: 0;
+  color: var(--muted);
+}
+.images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.image {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.image__link {
+  display: block;
+  aspect-ratio: 1;
+  background: var(--light);
+  border: var(--border-thin) solid var(--line);
+}
+.image__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.image__caption {
+  color: var(--muted);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+.form,
+.fields {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.fields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-small);
+}
+.compare th,
+.compare td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-thin) solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}

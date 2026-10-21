@@ -1,0 +1,80 @@
+<app-hero
+  title="Shop local art"
+  eyebrow="780+ original works"
+  lead="Every piece is made by an artist who lives within six miles of the gallery. Buy online or see it in person on Clark Street."
+  [images]="shopPhotos"
+/>
+<section class="band band--white" id="content">
+  <div class="container">
+    <div class="filters">
+      @for (c of cats; track c.slug) {
+        <a
+          class="chip"
+          [class.is-on]="cat() === c.slug"
+          [href]="href({ category: c.slug || null, page: null, cursor: null })"
+          (click)="stay($event, { category: c.slug || null, page: null, cursor: null })"
+          >{{ c.label }}</a
+        >
+      }
+      <span class="filters__sep"></span>
+      <label class="select">
+        <span class="sr-only">Sort by</span>
+        <select [value]="sort()" (change)="setSort($any($event.target).value)">
+          <option value="">Newest</option>
+          <option value="price-asc">Price, low to high</option>
+          <option value="price-desc">Price, high to low</option>
+          <option value="title">A to Z</option>
+        </select>
+      </label>
+    </div>
+    <!-- Paging lands here, not on the hero: focused (for a keyboard or screen reader) and scrolled to. -->
+    <p class="filters__count" id="works" tabindex="-1" #count>{{ result()?.total ?? 0 }} works</p>
+    <div class="grid-products">
+      @for (p of result()?.items ?? []; track p.id) {
+        <app-product-card [item]="p" />
+      }
+    </div>
+    @if (totalPages() > 1) {
+      <nav class="pager" aria-label="Shop pages">
+        @if (previous(); as prev) {
+          <a
+            class="btn btn-border-dark pager__prev"
+            [href]="href(prev.query)"
+            [attr.rel]="prev.first ? null : 'prev'"
+            (click)="turn($event, prev.query)"
+            >{{ prev.first ? 'First page' : 'Previous' }}</a
+          >
+        }
+        <span class="pager__status">Page {{ page() }} of {{ totalPages() }}</span>
+        @if (result()?.nextCursor; as next) {
+          <a
+            class="btn btn-dark pager__next"
+            [href]="href({ page: page() + 1, cursor: next })"
+            rel="next"
+            (click)="turn($event, { page: page() + 1, cursor: next })"
+            >Next</a
+          >
+        }
+      </nav>
+    }
+  </div>
+</section>
+<section class="band band--light">
+  <div class="container cols-3 text-center">
+    <div class="feature feature--dark">
+      <ui-icon name="heart" [size]="56" [stroke]="1" />
+      <h3 class="feature__title">Support artists</h3>
+      <p>Every sale supports the local artist who made the work.</p>
+    </div>
+    <div class="feature feature--dark">
+      <ui-icon name="pin" [size]="56" [stroke]="1" />
+      <h3 class="feature__title">See it in person</h3>
+      <p>Most pieces are on display in the gallery, Wednesday to Sunday.</p>
+    </div>
+    <div class="feature feature--dark">
+      <ui-icon name="gift" [size]="56" [stroke]="1" />
+      <h3 class="feature__title">14-day returns</h3>
+      <p>Shop items come back undamaged with a receipt for a full refund.</p>
+    </div>
+  </div>
+</section>

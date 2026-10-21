@@ -1,0 +1,124 @@
+:host {
+  display: grid;
+  gap: var(--space-5);
+}
+.back {
+  margin: 0;
+  font-size: var(--fs-small);
+}
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+.title .cms-title {
+  margin: 0;
+}
+.cms-title:focus,
+.conflict:focus,
+.panel__title:focus {
+  outline: none;
+}
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(min(100%, 240px), 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.form,
+.side,
+.fields {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.fields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: var(--space-4);
+}
+.panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-thin) solid var(--line);
+}
+.panel__title {
+  margin: 0;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+.panel__text,
+.panel__hint {
+  margin: 0;
+}
+.panel__hint {
+  font-size: var(--fs-small);
+  color: var(--text-soft);
+}
+.price {
+  font-weight: var(--fw-bold);
+}
+.perks {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.perk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
+.perk ui-field {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.perk__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.choice {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+.error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-small);
+}
+.compare th,
+.compare td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-thin) solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}

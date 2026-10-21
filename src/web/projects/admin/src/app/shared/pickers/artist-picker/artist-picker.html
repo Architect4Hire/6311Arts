@@ -1,0 +1,90 @@
+<section class="panel" aria-labelledby="artist-heading">
+  <h2 id="artist-heading" class="panel__title">{{ heading() }}</h2>
+
+  <!-- Exists from the start, so what is written into it later is read out. -->
+  <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+  @if (artist(); as credited) {
+    <p class="credited">
+      <span class="credited__name">{{ credited.name }}</span>
+      @if (credited.status !== 'Published') {
+        <ui-status-chip [tone]="chips[credited.status].tone" [icon]="chips[credited.status].icon">{{
+          chips[credited.status].label
+        }}</ui-status-chip>
+      }
+    </p>
+    <div class="actions">
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        data-action="remove-artist"
+        [disabled]="disabled()"
+        [attr.aria-label]="'Remove ' + credited.name"
+        (click)="clear()"
+      >
+        Remove
+      </button>
+    </div>
+  } @else {
+    <p class="panel__empty">Nobody credited yet.</p>
+  }
+
+  <ui-field
+    [label]="artist() ? 'Credit someone else' : 'Credit an artist'"
+    hint="Search the roster by name. Archived artists can’t be credited."
+    [error]="error()"
+  >
+    <input
+      #searchInput
+      uiControl
+      type="search"
+      name="artistSearch"
+      autocomplete="off"
+      [attr.maxlength]="searchMaxLength()"
+      [disabled]="disabled()"
+      [value]="search()"
+      (input)="onSearch(searchInput.value)"
+    />
+  </ui-field>
+
+  @switch (state()) {
+    @case ('searching') {
+      <p role="status" class="panel__hint">Searching the roster…</p>
+    }
+    @case ('failed') {
+      <p class="error">
+        The roster couldn’t be searched.
+        <button uiButton type="button" size="sm" (click)="runSearch()">Try again</button>
+      </p>
+    }
+    @case ('ready') {
+      @if (offers().length === 0) {
+        <p class="panel__hint">No artist on the roster matches “{{ query() }}”.</p>
+      } @else {
+        <ul class="offers" aria-label="Matching artists">
+          @for (candidate of offers(); track candidate.id) {
+            <li class="offer">
+              <button
+                uiButton
+                type="button"
+                size="sm"
+                [disabled]="disabled()"
+                [attr.aria-label]="'Credit ' + candidate.name"
+                (click)="choose(candidate)"
+              >
+                Credit
+              </button>
+              <span>
+                {{ candidate.name }}
+                @if (candidate.medium) {
+                  <span class="offer__medium">{{ candidate.medium }}</span>
+                }
+              </span>
+            </li>
+          }
+        </ul>
+      }
+    }
+  }
+</section>

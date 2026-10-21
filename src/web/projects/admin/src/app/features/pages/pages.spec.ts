@@ -8,9 +8,9 @@ import { ConfirmService } from '../../core/confirm/confirm.service';
 import { SessionService } from '../../core/session/session.service';
 import { Page } from '../../models/page';
 import { PAGE, toPageSummary } from '../../models/page.fixtures';
-import { RichTextEditor } from '../../shared/rich-text-editor';
-import { PageEditor } from './page-editor';
-import { PageList } from './page-list';
+import { RichTextEditor } from '../../shared/rich-text-editor/rich-text-editor';
+import { PageEditor } from './page-editor/page-editor';
+import { PageList } from './page-list/page-list';
 
 const BASE = '/api/v1/cms/pages';
 const ONE = `${BASE}/${PAGE.id}`;
@@ -151,10 +151,12 @@ describe('PageEditor', () => {
     fixture.componentRef.setInput('id', PAGE.id);
     fixture.detectChanges();
 
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     const root = fixture.nativeElement as HTMLElement;

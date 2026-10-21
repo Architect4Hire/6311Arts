@@ -8,8 +8,8 @@ import { SessionService } from '../../core/session/session.service';
 import { ARTIST, toArtistSummary } from '../../models/artist.fixtures';
 import { Exhibition } from '../../models/exhibition';
 import { EXHIBITION, toExhibitionSummary } from '../../models/exhibition.fixtures';
-import { ExhibitionEditor } from './exhibition-editor';
-import { ExhibitionList } from './exhibition-list';
+import { ExhibitionEditor } from './exhibition-editor/exhibition-editor';
+import { ExhibitionList } from './exhibition-list/exhibition-list';
 
 const BASE = '/api/v1/cms/exhibitions';
 const ONE = `${BASE}/${EXHIBITION.id}`;
@@ -148,10 +148,12 @@ describe('ExhibitionEditor', () => {
 
     // The retry asks again rather than showing a form built from nothing.
     button(fixture.nativeElement, 'Try again')!.click();
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     expect(text(fixture.nativeElement)).not.toContain('This exhibition couldn’t be loaded');
@@ -163,10 +165,12 @@ describe('ExhibitionEditor', () => {
     fixture.componentRef.setInput('id', EXHIBITION.id);
     fixture.detectChanges();
 
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     const root = fixture.nativeElement as HTMLElement;

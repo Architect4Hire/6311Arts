@@ -1,0 +1,18 @@
+:host {
+  display: grid;
+  gap: var(--space-5);
+}
+.cms-title:focus {
+  outline: none;
+}
+.cms-lead {
+  margin-bottom: 0;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.more {
+  text-align: center;
+}

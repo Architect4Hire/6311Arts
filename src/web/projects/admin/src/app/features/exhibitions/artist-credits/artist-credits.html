@@ -1,0 +1,133 @@
+<section class="panel" aria-labelledby="credits-heading">
+  <h2 id="credits-heading" class="panel__title">Artists</h2>
+
+  <!-- Exists from the start, so what is written into it later is read out. -->
+  <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+  @if (credits().length === 0) {
+    <p class="panel__empty">No artists credited yet.</p>
+  } @else {
+    <ol class="credits" aria-label="Credited artists, in order">
+      @for (
+        artist of credits();
+        track artist.id;
+        let index = $index, first = $first, last = $last
+      ) {
+        <li class="credit" [attr.data-credit]="artist.id">
+          <span class="credit__name">
+            {{ artist.name }}
+            @if (artist.status !== 'Published') {
+              <ui-status-chip
+                [tone]="chips[artist.status].tone"
+                [icon]="chips[artist.status].icon"
+                >{{ chips[artist.status].label }}</ui-status-chip
+              >
+            }
+          </span>
+          <span class="credit__actions">
+            <button
+              uiButton
+              type="button"
+              size="sm"
+              data-action="up"
+              [disabled]="disabled() || first"
+              [attr.aria-label]="'Move ' + artist.name + ' up'"
+              (click)="move(index, -1)"
+            >
+              Up
+            </button>
+            <button
+              uiButton
+              type="button"
+              size="sm"
+              data-action="down"
+              [disabled]="disabled() || last"
+              [attr.aria-label]="'Move ' + artist.name + ' down'"
+              (click)="move(index, 1)"
+            >
+              Down
+            </button>
+            <button
+              uiButton
+              type="button"
+              size="sm"
+              data-action="remove"
+              [disabled]="disabled()"
+              [attr.aria-label]="'Remove ' + artist.name"
+              (click)="remove(index)"
+            >
+              Remove
+            </button>
+          </span>
+        </li>
+      }
+    </ol>
+  }
+
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+
+  @if (full()) {
+    <p class="panel__hint">
+      An exhibition credits at most {{ limits.artistsMaxCount }} artists. Remove one to add another.
+    </p>
+  } @else {
+    <ui-field
+      label="Add an artist"
+      hint="Search the roster by name. Archived artists can’t be credited."
+    >
+      <input
+        #searchInput
+        uiControl
+        type="search"
+        name="artistSearch"
+        autocomplete="off"
+        [attr.maxlength]="limits.searchMaxLength"
+        [disabled]="disabled()"
+        [value]="search()"
+        (input)="onSearch(searchInput.value)"
+      />
+    </ui-field>
+
+    @switch (state()) {
+      @case ('searching') {
+        <p role="status" class="panel__hint">Searching the roster…</p>
+      }
+      @case ('failed') {
+        <p class="error">
+          The roster couldn’t be searched.
+          <button uiButton type="button" size="sm" (click)="runSearch()">Try again</button>
+        </p>
+      }
+      @case ('ready') {
+        @if (offers().length === 0) {
+          <p class="panel__hint">No artist on the roster to add matches “{{ query() }}”.</p>
+        } @else {
+          <ul class="offers" aria-label="Matching artists">
+            @for (artist of offers(); track artist.id) {
+              <li class="offer">
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  [disabled]="disabled()"
+                  [attr.aria-label]="'Add ' + artist.name"
+                  (click)="add(artist)"
+                >
+                  Add
+                </button>
+                <span>
+                  {{ artist.name }}
+                  @if (artist.medium) {
+                    <span class="offer__medium">{{ artist.medium }}</span>
+                  }
+                </span>
+              </li>
+            }
+          </ul>
+        }
+      }
+    }
+  }
+</section>

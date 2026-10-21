@@ -1,0 +1,12 @@
+<ui-dialog [open]="open()" [heading]="request()?.heading ?? ''" (closed)="confirm.answer(false)">
+  <p>{{ request()?.message }}</p>
+  <div uiDialogActions>
+    <!-- autofocus: a question that can discard work opens on the safe answer, not the close button. -->
+    <button uiButton type="button" variant="border-dark" autofocus (click)="confirm.answer(false)">
+      {{ request()?.cancelLabel }}
+    </button>
+    <button uiButton type="button" variant="dark" (click)="confirm.answer(true)">
+      {{ request()?.confirmLabel }}
+    </button>
+  </div>
+</ui-dialog>

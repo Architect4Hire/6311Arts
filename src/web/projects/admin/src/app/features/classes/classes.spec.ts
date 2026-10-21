@@ -7,10 +7,10 @@ import { ConfirmService } from '../../core/confirm/confirm.service';
 import { SessionService } from '../../core/session/session.service';
 import { ClassOffering } from '../../models/class';
 import { CLASS_OFFERING, SYNCED_CLASS, toClassSummary } from '../../models/class.fixtures';
-import { ClassEditor } from './class-editor';
-import { ClassList } from './class-list';
-import { newRunDraft, runDraftsOf, runErrorOf, runInputsOf, runsEqual } from './run-list';
-import { sessionDraftsOf, sessionInputsOf } from './session-grid';
+import { ClassEditor } from './class-editor/class-editor';
+import { ClassList } from './class-list/class-list';
+import { newRunDraft, runDraftsOf, runErrorOf, runInputsOf, runsEqual } from './run-list/run-list';
+import { sessionDraftsOf, sessionInputsOf } from './session-grid/session-grid';
 
 const BASE = '/api/v1/cms/classes';
 const ONE = `${BASE}/${CLASS_OFFERING.id}`;

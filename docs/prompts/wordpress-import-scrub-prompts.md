@@ -2,11 +2,39 @@
 
 Atomic prompts that build `Arts6311.Importer`. It pulls everything from the live WordPress/WooCommerce site into blob storage and the CMS database, locally first and then into Azure, and can re-run safely until cutover.
 
-This file replaces Phase 4 (4.1 and 4.2) of `docs/scrub-prompts.md`. Run it after **Phase 2** (the CMS modules exist) and **3.1** (site read API). Run **I.9** once Square Phase 5.3 is done.
+This file replaces Phase 4 (4.1 and 4.2) of `docs/prompts/scrub-prompts.md`. Run it after **Phase 2** (the CMS modules exist) and **3.1** (site read API).
 
 **Rule:** `.claude/rules/import.md`
 **Skill:** `.claude/skills/add-import-mapping`
 **Reviewers:** `@architecture-reviewer`, `@outbox-reviewer`, `@security-reviewer`, `@test-gap-analyzer`
+
+## Run order
+
+The series is independent of Square up to I.8, then joins Phase 5 at I.9.
+
+```text
+Phase 2 + 3.1 ──> I.1 … I.8 ──┐
+                              ├──> I.9 … I.14 ──> cutover
+Phase 5.1 + 5.3 ──────────────┘
+```
+
+| Prompts | Need | Notes |
+|---|---|---|
+| I.1 – I.8 | Phase 2, 3.1 | Never touch Square. Run them now. |
+| *stop* | — | **Publish nothing imported here.** It is all Draft; a bulk publish before I.9 makes 5.3 create a second Square object for artwork 6311 already sells ("Square matching", `import.md`). |
+| I.9 | **5.1** (`SquareCatalogLink` to write) and **5.3** (the read-only catalog gateway to read) | The one join between the two tracks. |
+| I.10 – I.11 | I.9 | I.10 is optional (MailPoet export). |
+| I.12 | Phase 6.1 | The importer as a Container Apps job. |
+| I.13 – I.14 | everything above | Delta refresh, then the cutover freeze and final delta. |
+
+**Start I.2 early.** It asks *you* to create a read-only WooCommerce key and a read-only Application Password in
+wp-admin; I.3 onwards waits on them, and I.14 revokes them.
+
+**I.1 is not optional paperwork.** Three facts the mappings depend on are unknown until it runs: whether an
+`exhibition` post type exists on the live site at all (the mu-plugin that registers it was never installed), whether
+`fooevents/v1/events` is public and what shape it has, and whether the installed FooEvents version really uses the
+eight `WooCommerceEvents*` meta keys the legacy plugin reads — `src/web/projects/site/README.md` says to check them
+before going live, and nobody has.
 
 ## What the live site exposes (checked 2026-10-18)
 
@@ -27,6 +55,7 @@ The spike's `6311/v1` endpoints are **not** installed on the live site. The impo
 I.1 discover ─> I.2 credentials ─> I.3 extract (snapshot) ─> I.4 media download
      ─> I.5 staging tables ─> I.6 media load (blob + renditions via outbox)
      ─> I.7 content mappings (one prompt per type) ─> I.8 load orchestration + report
+     ══ gate: Square 5.1 + 5.3 done, nothing imported published yet ══
      ─> I.9 Square match ─> I.10 newsletter (optional) ─> I.11 verify
      ─> I.12 run in Azure dev ─> I.13 delta refresh ─> I.14 cutover freeze + final delta
 ```
@@ -209,7 +238,7 @@ BEHAVIOR: Plan, wait, implement; run twice against the same snapshot and prove t
 nothing. Show the report.
 ```
 
-## I.9 — Square catalog match (run after Square Phase 5.3)
+## I.9 — Square catalog match (needs Square 5.1 and 5.3; run before anything imported is published)
 
 ```
 SCOPE: `importer match-square`: read the Square catalog (ISquareCatalogGateway, read-only) and propose

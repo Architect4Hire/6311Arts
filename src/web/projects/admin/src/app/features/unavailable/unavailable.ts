@@ -11,19 +11,7 @@ import { SessionService } from '../../core/session/session.service';
   selector: 'cms-unavailable',
   imports: [UiButton, UiNotice],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <main class="cms-standalone">
-      <h1 class="cms-title">6311arts CMS</h1>
-      <ui-notice tone="warning" heading="The CMS can’t check your session right now">
-        <p>Nothing has been lost. Try again in a moment.</p>
-      </ui-notice>
-      <p>
-        <button uiButton type="button" variant="dark" [busy]="retrying()" (click)="retry()">
-          Try again
-        </button>
-      </p>
-    </main>
-  `,
+  templateUrl: './unavailable.html',
 })
 export class Unavailable {
   /** The CMS URL the visit was for (from the query string), to resume once the session answers. */

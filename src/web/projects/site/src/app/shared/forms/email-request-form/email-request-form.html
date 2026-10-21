@@ -1,0 +1,45 @@
+<div class="account-panel__status" aria-live="polite">
+  @switch (status().kind) {
+    @case ('busy') {
+      <p class="sr-only">Sending…</p>
+    }
+    @case ('sent') {
+      <ui-notice tone="success" heading="Check your email">
+        <p>{{ sentMessage() }}</p>
+      </ui-notice>
+    }
+    @case ('rate-limited') {
+      <ui-notice tone="error" heading="Too many requests">
+        <p>{{ rateLimitedMessage() }}</p>
+      </ui-notice>
+    }
+    @case ('unavailable') {
+      <ui-notice tone="error" heading="We couldn’t send the link">
+        <p>Something on our side isn’t answering. Try again shortly.</p>
+      </ui-notice>
+    }
+  }
+</div>
+
+<form method="post" novalidate (ngSubmit)="submit()">
+  <fieldset class="account-panel__fields" [disabled]="!ready()">
+    <legend class="sr-only">{{ legend() }}</legend>
+    <ui-field label="Email" required [error]="emailError()">
+      <input
+        #emailInput
+        uiControl
+        type="email"
+        name="email"
+        autocomplete="username"
+        spellcheck="false"
+        [attr.maxlength]="maxLength"
+        [(ngModel)]="email"
+      />
+    </ui-field>
+    <p>
+      <button uiButton type="submit" variant="dark" [busy]="status().kind === 'busy'">
+        {{ status().kind === 'busy' ? 'Sending…' : submitLabel() }}
+      </button>
+    </p>
+  </fieldset>
+</form>

@@ -1,0 +1,70 @@
+.panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-thin) solid var(--line);
+}
+.panel__title {
+  margin: 0;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+.panel__empty,
+.panel__hint {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--text-soft);
+}
+.run {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-thin) solid var(--line);
+}
+.run__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.run__title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-heavy);
+}
+.run__none {
+  font-size: var(--fs-small);
+  color: var(--text-soft);
+}
+.pair,
+.trio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: var(--space-3);
+}
+.square {
+  display: grid;
+  gap: var(--space-2);
+}
+.square__line {
+  margin: 0;
+  font-size: var(--fs-small);
+}
+.square__price {
+  font-weight: var(--fw-bold);
+}
+.square__seats {
+  color: var(--text-soft);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.error {
+  margin: 0;
+  color: var(--danger);
+  font-weight: var(--fw-bold);
+}

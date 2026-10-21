@@ -1,0 +1,16 @@
+<ui-icon class="ui-notice__glyph" [name]="meta().icon" [size]="20" [stroke]="2" />
+<div class="ui-notice__body">
+  @if (heading()) {
+    <p class="ui-notice__heading">
+      <span class="sr-only">{{ meta().word }}: </span>{{ heading() }}
+    </p>
+  } @else {
+    <span class="sr-only">{{ meta().word }}: </span>
+  }
+  <ng-content />
+</div>
+@if (dismissible()) {
+  <button type="button" class="ui-notice__close" aria-label="Dismiss" (click)="dismissed.emit()">
+    <ui-icon name="close" [size]="16" [stroke]="2.4" />
+  </button>
+}

@@ -1,0 +1,399 @@
+<p class="back"><a routerLink="/shop">← All artwork</a></p>
+
+<!-- Exists from the start, so what is written into it later is read out. -->
+<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+@switch (status().kind) {
+  @case ('loading') {
+    <p role="status">Loading piece…</p>
+  }
+  @case ('load-failed') {
+    <ui-notice tone="error" heading="This piece couldn’t be loaded">
+      <p>6311arts may be unreachable for a moment.</p>
+      <button uiButton type="button" size="sm" (click)="load()">Try again</button>
+    </ui-notice>
+  }
+  @case ('not-found') {
+    <ui-notice tone="warning" heading="There’s no such piece">
+      <p>It may have been removed, or the link is wrong.</p>
+      <a uiButton size="sm" routerLink="/shop">Back to the shop</a>
+    </ui-notice>
+  }
+  @default {
+    <header class="title">
+      <h1 #heading class="cms-title" tabindex="-1">{{ item()?.title || 'New piece' }}</h1>
+      @if (item(); as piece) {
+        <ui-status-chip [tone]="chips[piece.status].tone" [icon]="chips[piece.status].icon">{{
+          chips[piece.status].label
+        }}</ui-status-chip>
+      }
+    </header>
+
+    @if (conflict(); as theirs) {
+      <div
+        #conflictBox
+        class="conflict"
+        role="region"
+        aria-label="Your changes and the saved version"
+        tabindex="-1"
+      >
+        <ui-notice tone="warning" heading="Someone else saved this piece while you were editing">
+          <table class="compare">
+            <caption class="sr-only">
+              Your changes and the saved version
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Field</th>
+                <th scope="col">Yours</th>
+                <th scope="col">Saved</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Title</th>
+                <td>{{ draft().title || '—' }}</td>
+                <td>{{ theirs.title }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Web address</th>
+                <td>/shop/{{ draft().slug }}</td>
+                <td>/shop/{{ theirs.slug }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Artist</th>
+                <td>{{ draft().artist?.name || 'Nobody' }}</td>
+                <td>{{ theirs.artist?.name || 'Nobody' }}</td>
+              </tr>
+              <tr>
+                <th scope="row">SKU</th>
+                <td>{{ draft().sku || '—' }}</td>
+                <td>{{ theirs.sku }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Categories</th>
+                <td>{{ labels(draft().categories) }}</td>
+                <td>{{ labels(theirs.categories) }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Photographs</th>
+                <td>{{ draft().images.length }}</td>
+                <td>{{ theirs.imageMediaIds.length }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Description</th>
+                <td>{{ draft().description.length }} characters</td>
+                <td>{{ (theirs.description ?? '').length }} characters</td>
+              </tr>
+              @if (theirs.startingPriceEditable) {
+                <tr>
+                  <th scope="row">Starting price</th>
+                  <td>{{ draft().price ? '$' + draft().price : '—' }}</td>
+                  <td>{{ savedStartingPrice(theirs) }}</td>
+                </tr>
+              }
+              @if (theirs.startingStockEditable) {
+                <tr>
+                  <th scope="row">One of a kind</th>
+                  <td>{{ draft().oneOfAKind ? 'Yes' : 'No' }}</td>
+                  <td>{{ theirs.oneOfAKind ? 'Yes' : 'No' }}</td>
+                </tr>
+                <tr>
+                  <th scope="row">Starting count</th>
+                  <td>{{ draft().oneOfAKind ? 'One' : draft().quantity || '—' }}</td>
+                  <td>{{ theirs.oneOfAKind ? 'One' : (theirs.startingStockQuantity ?? '—') }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <div class="actions">
+            <button uiButton type="button" variant="dark" size="sm" (click)="keepMine(theirs)">
+              Keep my changes
+            </button>
+            <button uiButton type="button" size="sm" (click)="useTheirs(theirs)">
+              Use the saved version and discard mine
+            </button>
+          </div>
+        </ui-notice>
+      </div>
+    }
+
+    @if (formError(); as message) {
+      <ui-notice tone="error">{{ message }}</ui-notice>
+    }
+
+    <div class="layout">
+      <form class="form" novalidate (ngSubmit)="save()">
+        <!-- Disabled while a save or command is in flight, so nothing typed then is overwritten by its answer. -->
+        <fieldset class="fields" [disabled]="busy()">
+          <legend class="sr-only">Piece details</legend>
+          <ui-field label="Title" [required]="true" [error]="errors().title ?? null">
+            <input
+              uiControl
+              name="title"
+              autocomplete="off"
+              [attr.maxlength]="limits.titleMaxLength"
+              [ngModel]="draft().title"
+              (ngModelChange)="setTitle($event)"
+            />
+          </ui-field>
+
+          <ui-field
+            label="Web address"
+            [required]="true"
+            [hint]="slugHint()"
+            [error]="errors().slug ?? null"
+          >
+            <input
+              uiControl
+              name="slug"
+              autocomplete="off"
+              spellcheck="false"
+              [attr.maxlength]="limits.slugMaxLength"
+              [ngModel]="draft().slug"
+              (ngModelChange)="setSlug($event)"
+            />
+          </ui-field>
+
+          <ui-field label="SKU" [hint]="skuHint()" [error]="errors().sku ?? null">
+            <input
+              uiControl
+              name="sku"
+              autocomplete="off"
+              spellcheck="false"
+              [attr.maxlength]="limits.skuMaxLength"
+              [ngModel]="draft().sku"
+              (ngModelChange)="patch({ sku: $event })"
+            />
+          </ui-field>
+        </fieldset>
+
+        <cms-rich-text
+          label="Description"
+          hint="Headings, bold, italic and lists; the item's pictures are its photographs. Needed to publish."
+          [value]="draft().description"
+          (valueChange)="patch({ description: $event })"
+          [disabled]="busy()"
+          [error]="errors().description ?? null"
+        />
+
+        <fieldset
+          class="panel"
+          [disabled]="busy()"
+          [attr.aria-describedby]="errors().categories ? 'categories-error' : null"
+        >
+          <legend class="panel__title">Categories</legend>
+          @if (errors().categories; as message) {
+            <p id="categories-error" class="error" role="alert">{{ message }}</p>
+          }
+          <div class="choices">
+            @for (option of categories; track option.slug) {
+              <label class="choice">
+                <input
+                  type="checkbox"
+                  [attr.name]="'category-' + option.slug"
+                  [checked]="draft().categories.includes(option.slug)"
+                  (change)="toggleCategory(option.slug)"
+                />
+                {{ option.label }}
+              </label>
+            }
+          </div>
+        </fieldset>
+
+        <fieldset
+          class="panel"
+          [disabled]="busy()"
+          [attr.aria-describedby]="errors().oneOfAKind ? 'one-of-a-kind-error' : null"
+        >
+          <legend class="panel__title">Price and stock</legend>
+          @if (priceEditable()) {
+            <div class="pair">
+              <ui-field
+                label="Price"
+                [hint]="priceHint()"
+                [error]="errors().startingPriceCents ?? null"
+              >
+                <input
+                  uiControl
+                  name="price"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  step="0.01"
+                  [attr.max]="limits.startingPriceMaxCents / 100"
+                  [ngModel]="draft().price"
+                  (ngModelChange)="setPrice($event)"
+                />
+              </ui-field>
+              @if (!draft().oneOfAKind) {
+                <ui-field
+                  label="How many"
+                  hint="How many there are to sell."
+                  [error]="errors().startingStockQuantity ?? null"
+                >
+                  <input
+                    uiControl
+                    name="quantity"
+                    type="number"
+                    inputmode="numeric"
+                    min="1"
+                    [attr.max]="limits.startingStockMaxQuantity"
+                    [ngModel]="draft().quantity"
+                    (ngModelChange)="setQuantity($event)"
+                  />
+                </ui-field>
+              }
+            </div>
+            <label class="choice">
+              <input
+                type="checkbox"
+                name="oneOfAKind"
+                [checked]="draft().oneOfAKind"
+                (change)="toggleOneOfAKind()"
+              />
+              One of a kind — there is only one of it
+            </label>
+            @if (errors().oneOfAKind; as message) {
+              <p id="one-of-a-kind-error" class="error" role="alert">{{ message }}</p>
+            }
+          } @else if (item(); as piece) {
+            <p class="panel__text price">{{ squarePrice(piece) }}</p>
+            <p class="panel__text">{{ squareStock(piece) }}</p>
+            <p id="square-holds-hint" class="panel__hint">
+              Square holds this piece’s price and stock now. Changing either is an audited request
+              to Square, which arrives with the Square sync.
+              @if (piece.oneOfAKind) {
+                There is only one of this piece, so its stock is never set from here.
+              }
+            </p>
+            <!-- 5.4a and 5.4b send these as commands with the figures staff last saw (ADR 0032). -->
+            <div class="actions">
+              <button
+                uiButton
+                type="button"
+                size="sm"
+                [disabled]="true"
+                aria-describedby="square-holds-hint"
+              >
+                Change price
+              </button>
+              @if (!piece.oneOfAKind) {
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  [disabled]="true"
+                  aria-describedby="square-holds-hint"
+                >
+                  Set quantity
+                </button>
+              }
+            </div>
+          }
+        </fieldset>
+
+        <div class="actions">
+          <button
+            uiButton
+            type="submit"
+            variant="dark"
+            [busy]="status().kind === 'saving'"
+            [disabled]="!dirty() || busy()"
+          >
+            {{ saveLabel() }}
+          </button>
+          @if (item() && dirty()) {
+            <button uiButton type="button" [disabled]="busy()" (click)="discard()">
+              Discard changes
+            </button>
+          }
+        </div>
+      </form>
+
+      <aside class="side">
+        <cms-artist-picker
+          [artist]="draft().artist"
+          (artistChange)="patch({ artist: $event })"
+          [disabled]="busy()"
+          [error]="errors().artistId ?? null"
+        />
+
+        <cms-gallery-editor
+          [images]="draft().images"
+          (imagesChange)="patch({ images: $event })"
+          [disabled]="busy()"
+          [error]="errors().imageMediaIds ?? null"
+        />
+
+        @if (item(); as piece) {
+          <section class="panel" aria-labelledby="publishing-heading">
+            <h2 #publishingHeading id="publishing-heading" class="panel__title" tabindex="-1">
+              Publishing
+            </h2>
+            <p class="panel__text">{{ statusText(piece) }}</p>
+            @if (dirty()) {
+              <p class="panel__hint" id="publishing-hint">
+                Save your changes first: these act on the saved version.
+              </p>
+            }
+            <div class="actions">
+              @if (canPublish()) {
+                <button
+                  uiButton
+                  type="button"
+                  variant="dark"
+                  size="sm"
+                  [attr.aria-describedby]="dirty() ? 'publishing-hint' : null"
+                  [busy]="commanding() === 'publish'"
+                  [disabled]="dirty() || busy()"
+                  (click)="run('publish')"
+                >
+                  Publish
+                </button>
+              }
+              @if (piece.status === 'Published') {
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  [attr.aria-describedby]="dirty() ? 'publishing-hint' : null"
+                  [busy]="commanding() === 'unpublish'"
+                  [disabled]="dirty() || busy()"
+                  (click)="unpublish()"
+                >
+                  Unpublish
+                </button>
+              }
+              @if (canArchive()) {
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  [attr.aria-describedby]="dirty() ? 'publishing-hint' : null"
+                  [busy]="commanding() === 'archive'"
+                  [disabled]="dirty() || busy()"
+                  (click)="archive()"
+                >
+                  Archive
+                </button>
+              }
+            </div>
+
+            <cms-schedule-control
+              noun="piece"
+              [status]="piece.status"
+              [scheduledFor]="piece.scheduledFor"
+              [disabled]="dirty() || busy()"
+              [busy]="commanding()"
+              (schedule)="schedule($event)"
+              (unschedule)="unschedule()"
+            />
+
+            <cms-preview-link entityType="shop-item" [entityId]="piece.id" [dirty]="dirty()" />
+          </section>
+        }
+      </aside>
+    </div>
+  }
+}

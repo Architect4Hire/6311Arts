@@ -41,6 +41,8 @@ BEHAVIOR:     inspect, plan, wait for approval, implement, test, report
 - **Approve the plan, not the code.** Each prompt stops after its plan.
 - **Mark a prompt `— done`** only after its stated verification passes.
 - **Checkpoint prompts** (✅) end each phase. Don't start the next phase until they're clean.
+- **Phase 4 is superseded.** The WordPress import is `prompts/wordpress-import-scrub-prompts.md` (I.1–I.14), and its
+  order interleaves with Phase 5 — see the note under Phase 4.
 
 ## Prerequisites
 
@@ -48,11 +50,12 @@ BEHAVIOR:     inspect, plan, wait for approval, implement, test, report
 |---|---|
 | Phase 0 | .NET 10 SDK, Node 22.22.3+ / 24.15+, Docker-compatible runtime, Aspire CLI |
 | Phase 1 | Nothing external. All secrets are generated on first `aspire run`. |
-| Phase 4 | Read access to the live WordPress REST endpoints (public) |
+| Phase 4 (the import series, `prompts/wordpress-import-scrub-prompts.md`) | Public WordPress REST read access; then a read-only WooCommerce key and a read-only Application Password, both created in I.2 and revoked at I.14 |
 | Phase 5 (sandbox, opt-in) | Square developer account, sandbox app, access token, webhook signature key; dev tunnel login |
 | Phase 6 | Azure subscription, resource groups for dev and prod, GitHub OIDC federated credential |
 
-Everything through Phase 5 runs offline against `Arts6311.SquareFake`.
+Everything through Phase 5 runs offline against `Arts6311.SquareFake`. The one exception is the WordPress import
+series, which reads the live site — GET only, read-only (`import.md`).
 
 ## Repo review findings (2026-10-18)
 
@@ -722,7 +725,30 @@ BEHAVIOR: Report timings and any fix needed (wiring only).
 
 # Phase 4 — WordPress import
 
-## 4.1 — Importer (dry run)
+> **⛔ Superseded — do not run 4.1 or 4.2.** Both are replaced by
+> [`prompts/wordpress-import-scrub-prompts.md`](wordpress-import-scrub-prompts.md) (I.1–I.14), which reaches the same
+> place — a dry-run report, then idempotent apply — in atomic steps.
+>
+> **Order:** run **I.1 → I.8 now** (they need only Phase 2 and 3.1 and never touch Square), then **Phase 5 through
+> 5.3**, then **I.9 → I.14**. I.9, the Square catalog match, is the one join: it writes `SquareCatalogLink` rows, so it
+> needs 5.1 for the table and 5.3 for the read-only catalog gateway.
+>
+> **Nothing imported is published until I.9 has matched it.** The match pass is what links an imported piece to the
+> Square object 6311 may already sell; publishing first makes 5.3 create a duplicate (`import.md`, "Square matching").
+> Everything imports as Draft, so this is a discipline across the seam, not a code gate — the damage would be a bulk
+> publish between I.8 and I.9.
+>
+> Why these two are dead rather than merely old:
+>
+> - 4.1 reads `6311/v1/exhibitions`. The mu-plugin that registers those routes — **and the `exhibition` post type
+>   itself** — was never installed on the live site (`src/web/projects/site/legacy/6311-headless.php`), so neither the
+>   endpoint nor, probably, the content exists. I.1 is what finds out.
+> - 4.1 reads FooEvents date meta and exact stock. Neither is on the public Store API; both need the read-only
+>   WooCommerce key that I.2 creates.
+> - 4.1 is one prompt for seven content types. `add-import-mapping` wants a mapping table and golden fixtures per
+>   type, which is what I.7 is.
+
+## 4.1 — Importer (dry run) — ⛔ superseded by I.1–I.8
 
 ```
 SCOPE: Arts6311.Importer (AppHost explicit-start resource): read WordPress public endpoints (artists
@@ -741,7 +767,7 @@ UTILIZATION: add-external-integration; Explore over projects/site/legacy.
 BEHAVIOR: Plan the field mapping table, wait, implement, run --dry-run, show the report.
 ```
 
-## 4.2 — Importer (apply)
+## 4.2 — Importer (apply) — ⛔ superseded by I.7, I.8 and I.13
 
 ```
 SCOPE: --apply: idempotent upserts on LegacyWordPressId through facades; images via the Media upload
@@ -757,6 +783,11 @@ BEHAVIOR: Run --apply locally, re-run to prove idempotency, spot-check 10 pages 
 ---
 
 # Phase 5 — Square two-way integration
+
+**Order against the import series:** 5.1 and 5.3 must land before I.9, and nothing imported may be published until
+I.9 has run — see the note under Phase 4. 5.3 onwards is worth running against imported content rather than the
+development seed: real SKUs (or none), entity-encoded names, full galleries, a `price: 0` class and missing alt text
+are the cases a catalog push actually breaks on.
 
 Field ownership is fixed (`square.md`, ADR 0032): the CMS creates artwork and classes, owns their SKU,
 and changes their price and quantity only through commands; Square holds the record; merch and any

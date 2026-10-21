@@ -9,7 +9,7 @@ import { ConfirmService } from '../../core/confirm/confirm.service';
 import { UnsavedChanges } from '../../core/guards/unsaved-changes.guard';
 import { SessionService } from '../../core/session/session.service';
 import { CMS_SECTIONS } from './sections';
-import { Shell } from './shell';
+import { Shell } from './shell/shell';
 
 @Component({ template: '<p>screen</p>' })
 class Screen {}
@@ -151,7 +151,9 @@ describe('Shell', () => {
     const unsaved = TestBed.inject(UnsavedChanges);
     unsaved.watch(() => true);
 
-    [...element.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Sign out')!.click();
+    [...element.querySelectorAll('button')]
+      .find((b) => b.textContent?.trim() === 'Sign out')!
+      .click();
     confirm.answer(true);
     await harness.fixture.whenStable();
     http.expectOne('/bff/logout').flush(null, { status: 503, statusText: 'Unavailable' });
@@ -169,7 +171,9 @@ describe('Shell', () => {
       .find((b) => b.textContent?.trim() === 'Sign out everywhere')!
       .click();
 
-    expect(confirm.request()?.message).toContain('Your unsaved changes on this screen will be lost.');
+    expect(confirm.request()?.message).toContain(
+      'Your unsaved changes on this screen will be lost.',
+    );
     confirm.answer(false);
   });
 
@@ -177,7 +181,9 @@ describe('Shell', () => {
     const { element, harness, http, assign } = await render(['Admin']);
     const confirm = TestBed.inject(ConfirmService);
     const button = () =>
-      [...element.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Sign out everywhere')!;
+      [...element.querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === 'Sign out everywhere',
+      )!;
 
     button().click();
     expect(confirm.request()?.heading).toBe('Sign out everywhere?');

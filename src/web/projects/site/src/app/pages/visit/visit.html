@@ -1,0 +1,34 @@
+<app-hero
+  title="Plan your visit"
+  eyebrow="Free admission"
+  [lead]="site.address.street + ', ' + site.address.city + ' · ' + site.address.neighborhood"
+  [images]="frontPhotos"
+/>
+<section class="band band--dark" id="content">
+  <div class="container cols-3 text-center">
+    <div class="feature" reveal>
+      <ui-icon name="clock" [size]="56" [stroke]="1" />
+      <h3 class="feature__title">Hours</h3>
+      <p>Wed & Sun 11 am – 5 pm<br />Thu – Sat 11 am – 6 pm<br />Mon & Tue by appointment</p>
+    </div>
+    <div class="feature" reveal="150">
+      <ui-icon name="pin" [size]="56" [stroke]="1" />
+      <h3 class="feature__title">Getting here</h3>
+      <p>On Clark Street a block south of Devon Avenue, on the #22 Clark bus line.</p>
+    </div>
+    <div class="feature" reveal="300">
+      <ui-icon name="heart" [size]="56" [stroke]="1" />
+      <h3 class="feature__title">Always free</h3>
+      <p>The gallery and opening receptions are free and open to everyone.</p>
+    </div>
+  </div>
+</section>
+<div class="map">
+  <iframe
+    title="Map to 6311arts"
+    loading="lazy"
+    referrerpolicy="no-referrer-when-downgrade"
+    src="https://maps.google.com/maps?q=6311%20N%20Clark%20St%2C%20Chicago%2C%20IL%2060660&z=15&output=embed"
+  ></iframe>
+</div>
+<app-contact />

@@ -1,0 +1,73 @@
+<!-- Rendered up front, so a screen reader announces what changes inside it (design-system.md). -->
+<p class="schedule__status" role="status">{{ announcement() }}</p>
+
+@if (canSchedule()) {
+  <div class="pair">
+    <ui-field label="Day" required>
+      <input
+        uiControl
+        type="date"
+        name="scheduleDate"
+        [min]="today()"
+        [attr.aria-describedby]="describedBy()"
+        [attr.aria-invalid]="error() ? 'true' : null"
+        [disabled]="disabled()"
+        [ngModel]="when().date"
+        (ngModelChange)="patch({ date: $event })"
+        #dayInput
+      />
+    </ui-field>
+    <ui-field label="Time" hint="At the gallery, Chicago time." required>
+      <input
+        uiControl
+        type="time"
+        name="scheduleTime"
+        [attr.aria-describedby]="describedBy()"
+        [attr.aria-invalid]="error() ? 'true' : null"
+        [disabled]="disabled()"
+        [ngModel]="when().time"
+        (ngModelChange)="patch({ time: $event })"
+        #timeInput
+      />
+    </ui-field>
+  </div>
+
+  <!-- One message for the pair, because either field can be the one at fault. -->
+  @if (error(); as message) {
+    <p class="schedule__error" [id]="errorId" role="alert">{{ message }}</p>
+  }
+
+  @if (disabled()) {
+    <p class="schedule__hint" [id]="hintId">
+      Save your changes first: scheduling acts on the saved version.
+    </p>
+  }
+
+  <div class="actions">
+    <button
+      uiButton
+      type="button"
+      size="sm"
+      [attr.aria-describedby]="disabled() ? hintId : null"
+      [busy]="busy() === 'schedule'"
+      [disabled]="disabled()"
+      (click)="submit()"
+    >
+      {{ status() === 'Scheduled' ? 'Change the time' : 'Schedule' }}
+    </button>
+
+    @if (status() === 'Scheduled') {
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        [attr.aria-describedby]="disabled() ? hintId : null"
+        [busy]="busy() === 'unschedule'"
+        [disabled]="disabled()"
+        (click)="unschedule.emit()"
+      >
+        Unschedule
+      </button>
+    }
+  </div>
+}

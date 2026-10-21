@@ -1,0 +1,21 @@
+@let p = item();
+<a [routerLink]="['/shop', p.slug]" class="product-card__link">
+  <app-art-image [src]="p.image" [alt]="p.name" ratio="4 / 5" />
+  @if (!p.inStock) {
+    <span class="tag tag--sold">Sold</span>
+  }
+  <span class="product-card__name">{{ p.name }}</span>
+</a>
+<span class="product-card__foot">
+  @if (p.artist?.slug) {
+    <a [routerLink]="['/artists', p.artist?.slug]">{{ p.artist?.name }}</a>
+  } @else if (p.artist) {
+    <!-- Credited by name; they have no published page to link to (ADR 0042). -->
+    <span>{{ p.artist.name }}</span>
+  }
+  @if (p.price != null) {
+    <span class="product-card__price">{{ p.price | money }}</span>
+  } @else {
+    <span class="product-card__tba">Price to be announced</span>
+  }
+</span>

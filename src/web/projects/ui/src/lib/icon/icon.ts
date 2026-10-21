@@ -54,27 +54,8 @@ export const ICON_NAMES = Object.keys(GLYPHS) as readonly IconName[];
     '[attr.role]': 'label() ? "img" : null',
     '[attr.aria-label]': 'label() || null',
   },
-  template: `<svg
-    viewBox="0 0 48 48"
-    fill="none"
-    stroke="currentColor"
-    [attr.stroke-width]="stroke()"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  >
-    <path [attr.d]="d()" />
-  </svg>`,
-  styles: `
-    :host {
-      display: inline-flex;
-      width: var(--icon-size);
-      height: var(--icon-size);
-    }
-    svg {
-      width: 100%;
-      height: 100%;
-    }
-  `,
+  templateUrl: './icon.html',
+  styleUrl: './icon.scss',
 })
 export class UiIcon {
   readonly name = input.required<IconName>();

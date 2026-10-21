@@ -36,84 +36,8 @@ const TONES: Record<NoticeTone, { icon: IconName; word: string }> = {
     '[attr.data-tone]': 'tone()',
     '[attr.role]': "tone() === 'error' ? 'alert' : 'status'",
   },
-  template: `
-    <ui-icon class="ui-notice__glyph" [name]="meta().icon" [size]="20" [stroke]="2" />
-    <div class="ui-notice__body">
-      @if (heading()) {
-        <p class="ui-notice__heading">
-          <span class="sr-only">{{ meta().word }}: </span>{{ heading() }}
-        </p>
-      } @else {
-        <span class="sr-only">{{ meta().word }}: </span>
-      }
-      <ng-content />
-    </div>
-    @if (dismissible()) {
-      <button
-        type="button"
-        class="ui-notice__close"
-        aria-label="Dismiss"
-        (click)="dismissed.emit()"
-      >
-        <ui-icon name="close" [size]="16" [stroke]="2.4" />
-      </button>
-    }
-  `,
-  styles: `
-    .ui-notice {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--space-3);
-      border-left: var(--border-accent) solid var(--ink);
-      background: var(--light);
-      color: var(--ink);
-      padding: var(--space-4) var(--space-5);
-      font-size: var(--fs-meta);
-      line-height: var(--lh-hint);
-    }
-    .ui-notice[data-tone='warning'] {
-      border-left-color: var(--hot);
-    }
-    .ui-notice[data-tone='error'] {
-      border-left-color: var(--danger);
-    }
-    .ui-notice[data-tone='error'] .ui-notice__glyph {
-      color: var(--danger);
-    }
-    .ui-notice__glyph {
-      flex: none;
-    }
-    .ui-notice__body {
-      flex: 1;
-      min-width: 0;
-    }
-    .ui-notice__body > :last-child {
-      margin-bottom: 0;
-    }
-    .ui-notice__heading {
-      font-size: var(--fs-button);
-      font-weight: var(--fw-heavy);
-      letter-spacing: var(--track-wide);
-      text-transform: uppercase;
-      margin: 2px 0 var(--space-1);
-    }
-    /* a 40px target around a 16px glyph; the negative margin keeps the notice's padding visually intact */
-    .ui-notice__close {
-      flex: none;
-      display: inline-grid;
-      place-items: center;
-      min-width: 40px;
-      min-height: 40px;
-      padding: 0;
-      // Pulls the 40px hit area back over the notice's own padding so the glyph stays optically aligned.
-      // A literal, not calc(var(--space-3) * -1): this notice renders on the site *and* in the compact CMS,
-      // where --space-3 is 8px, which would shift it (design-system.md rule 6).
-      margin: -12px;
-      border: 0;
-      background: none;
-      cursor: pointer;
-    }
-  `,
+  templateUrl: './notice.html',
+  styleUrl: './notice.scss',
 })
 export class UiNotice {
   readonly tone = input<NoticeTone>('info');

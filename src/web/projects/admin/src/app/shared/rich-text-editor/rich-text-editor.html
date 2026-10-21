@@ -1,0 +1,130 @@
+<div class="field">
+  <span class="field__label" [id]="labelId">{{ label() }}</span>
+
+  <!--
+    One frame around the toolbar and the text, so they read as one control. Focus shows once, on the frame,
+    while the text has it; the buttons keep their own focus ring.
+  -->
+  <div
+    class="editor"
+    [class.editor--focused]="focused()"
+    [class.editor--invalid]="!!error()"
+    [class.editor--disabled]="disabled()"
+  >
+    <!--
+    A plain group, not role="toolbar": that role tells a screen-reader user the buttons are one tab stop
+    navigated with the arrow keys, and these are individually tab-reachable. Claiming the role without a
+    roving tabindex is a worse lie than not claiming it.
+  -->
+    <div
+      class="toolbar"
+      role="group"
+      [attr.aria-label]="label() + ' formatting'"
+      [attr.aria-controls]="surfaceId"
+    >
+      <span class="group">
+        @for (tool of blocks; track tool.key) {
+          <button
+            uiButton
+            type="button"
+            size="sm"
+            [variant]="active()[tool.key] ? 'dark' : 'border-dark'"
+            [attr.aria-pressed]="active()[tool.key]"
+            [disabled]="disabled()"
+            (mousedown)="$event.preventDefault()"
+            (click)="block(tool.key)"
+          >
+            {{ tool.label }}
+          </button>
+        }
+      </span>
+      <span class="group">
+        <button
+          uiButton
+          type="button"
+          size="sm"
+          [variant]="active().bold ? 'dark' : 'border-dark'"
+          [attr.aria-pressed]="active().bold"
+          [disabled]="disabled()"
+          (mousedown)="$event.preventDefault()"
+          (click)="run((chain) => chain.toggleBold())"
+        >
+          Bold
+        </button>
+        <button
+          uiButton
+          type="button"
+          size="sm"
+          [variant]="active().italic ? 'dark' : 'border-dark'"
+          [attr.aria-pressed]="active().italic"
+          [disabled]="disabled()"
+          (mousedown)="$event.preventDefault()"
+          (click)="run((chain) => chain.toggleItalic())"
+        >
+          Italic
+        </button>
+      </span>
+      <span class="group">
+        <button
+          uiButton
+          type="button"
+          size="sm"
+          [variant]="active().bulletList ? 'dark' : 'border-dark'"
+          [attr.aria-pressed]="active().bulletList"
+          [disabled]="disabled()"
+          (mousedown)="$event.preventDefault()"
+          (click)="run((chain) => chain.toggleBulletList())"
+        >
+          Bullets
+        </button>
+        <button
+          uiButton
+          type="button"
+          size="sm"
+          [variant]="active().orderedList ? 'dark' : 'border-dark'"
+          [attr.aria-pressed]="active().orderedList"
+          [disabled]="disabled()"
+          (mousedown)="$event.preventDefault()"
+          (click)="run((chain) => chain.toggleOrderedList())"
+        >
+          Numbers
+        </button>
+      </span>
+      <span class="group">
+        <button
+          uiButton
+          type="button"
+          size="sm"
+          variant="border-dark"
+          [disabled]="disabled() || !active().canUndo"
+          (mousedown)="$event.preventDefault()"
+          (click)="run((chain) => chain.undo())"
+        >
+          Undo
+        </button>
+        <button
+          uiButton
+          type="button"
+          size="sm"
+          variant="border-dark"
+          [disabled]="disabled() || !active().canRedo"
+          (mousedown)="$event.preventDefault()"
+          (click)="run((chain) => chain.redo())"
+        >
+          Redo
+        </button>
+      </span>
+    </div>
+
+    <div #surface class="surface"></div>
+  </div>
+
+  @if (hint()) {
+    <span class="field__hint" [id]="hintId">{{ hint() }}</span>
+  }
+  @if (error()) {
+    <span class="field__error" [id]="errorId"
+      ><ui-icon name="stop" [size]="16" [stroke]="2.4" />{{ error() }}</span
+    >
+  }
+</div>

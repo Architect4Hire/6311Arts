@@ -1,0 +1,25 @@
+<app-hero
+  title="Who teaches here"
+  eyebrow="Artists first, teachers second"
+  lead="Every class is led by someone who makes the work themselves, most of them from the neighborhood."
+  [images]="studioPhotos"
+/>
+<section class="band band--white" id="content">
+  <div class="container">
+    <div class="team">
+      @for (i of roster(); track i.slug; let n = $index) {
+        <a class="team__person" [routerLink]="['/instructors', i.slug]" [reveal]="n * 80">
+          <div class="team__photo" aria-hidden="true">{{ initials(i.name) }}</div>
+          <h2 class="team__name">{{ i.name }}</h2>
+          <p class="team__role">{{ i.medium ?? 'Instructor' }}</p>
+        </a>
+      }
+    </div>
+  </div>
+</section>
+<section class="band band--dark text-center">
+  <div class="container container--mid" reveal>
+    <h2 class="band__title">Want to teach a class?</h2>
+    <a class="btn btn-white btn-lg" routerLink="/artists/submit">Pitch a class</a>
+  </div>
+</section>

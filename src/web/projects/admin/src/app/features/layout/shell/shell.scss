@@ -1,0 +1,112 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--light);
+}
+.bar {
+  --focus: var(--focus-on-dark);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--ink);
+  color: var(--white);
+}
+.bar__brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--white);
+  text-decoration: none;
+}
+.bar__name {
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+}
+.bar__tag {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-label);
+  color: var(--white-70);
+}
+.bar__toggle {
+  display: none;
+}
+.bar__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+.bar__user {
+  font-size: var(--fs-meta);
+}
+.bar__role {
+  margin-left: var(--space-2);
+  font-size: var(--fs-label);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--white-70);
+}
+.frame {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  flex: 1;
+}
+.nav {
+  background: var(--white);
+  border-right: var(--border-thin) solid var(--line);
+  padding: var(--space-4) 0;
+}
+.nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nav__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 40px;
+  padding: var(--space-3) var(--space-5);
+  border-left: var(--border-accent) solid transparent;
+  color: var(--text);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-button);
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.nav__link:hover {
+  background: var(--light);
+  color: var(--ink);
+}
+.nav__link--active {
+  border-left-color: var(--ink);
+  background: var(--light);
+  color: var(--ink);
+}
+.main {
+  padding: var(--space-6) var(--pad);
+  outline: none;
+}
+@media (max-width: 900px) {
+  .bar__toggle {
+    display: inline-flex;
+  }
+  .frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .nav {
+    display: none;
+    border-right: 0;
+    border-bottom: var(--border-thin) solid var(--line);
+  }
+  .nav--open {
+    display: block;
+  }
+}

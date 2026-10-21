@@ -1,0 +1,41 @@
+<!-- role="list": Safari drops list semantics from a list styled without bullets. -->
+<ul class="grid" role="list" [attr.aria-label]="label()">
+  @for (item of items(); track item.id) {
+    <li>
+      <button
+        #tile
+        type="button"
+        class="tile"
+        [class.tile--selected]="selectable() && item.id === selectedId()"
+        [attr.aria-pressed]="selectable() ? item.id === selectedId() : null"
+        (click)="chosen.emit(item)"
+      >
+        <span class="tile__frame">
+          @if (item.thumbnailUrl; as url) {
+            <img class="tile__img" [src]="url" alt="" loading="lazy" decoding="async" />
+          } @else {
+            <ui-icon class="tile__placeholder" name="frame" [size]="40" [stroke]="1.2" />
+          }
+        </span>
+        <span class="tile__name">{{ item.fileName || 'Untitled image' }}</span>
+        <span class="tile__meta">{{ item.width }}×{{ item.height }} · {{ size(item.bytes) }}</span>
+        <span class="tile__chips">
+          @switch (item.processingStatus) {
+            @case ('Pending') {
+              <ui-status-chip tone="pending" icon="clock">Processing</ui-status-chip>
+            }
+            @case ('Failed') {
+              <ui-status-chip tone="attention" icon="alert">Failed</ui-status-chip>
+            }
+          }
+          @if (!item.altText) {
+            <ui-status-chip tone="attention" icon="info">Needs alt text</ui-status-chip>
+          }
+          @if (item.visibility === 'Published') {
+            <ui-status-chip tone="positive" icon="check">Published</ui-status-chip>
+          }
+        </span>
+      </button>
+    </li>
+  }
+</ul>

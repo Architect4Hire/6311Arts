@@ -1,0 +1,20 @@
+:host {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  z-index: 50;
+  display: grid;
+  gap: var(--space-3);
+  width: min(420px, calc(100vw - 2 * var(--space-5)));
+}
+:host:empty {
+  display: none;
+}
+.cms-toast {
+  box-shadow: 0 4px 18px var(--black-12);
+}
+.cms-toast__ref {
+  color: var(--text-soft);
+  font-size: var(--fs-label);
+  overflow-wrap: anywhere;
+}

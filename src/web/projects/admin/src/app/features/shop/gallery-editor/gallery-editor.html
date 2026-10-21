@@ -1,0 +1,105 @@
+<section class="panel" aria-labelledby="gallery-heading">
+  <h2 id="gallery-heading" class="panel__title">Photographs</h2>
+
+  <!-- Exists from the start, so what is written into it later is read out. -->
+  <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+  @if (images().length === 0) {
+    <p class="panel__empty">
+      No photographs yet. A piece needs at least one, described, before it can be published.
+    </p>
+  } @else {
+    <ol class="gallery" aria-label="Photographs, in order">
+      @for (id of images(); track id; let index = $index, first = $first, last = $last) {
+        <li class="shot" [attr.data-shot]="index">
+          @if (shot(id); as photograph) {
+            @if (photograph.unavailable) {
+              <div class="shot__thumb shot__thumb--missing">Not loaded</div>
+            } @else if (photograph.url) {
+              <img class="shot__thumb" [src]="photograph.url" [alt]="photograph.altText ?? ''" />
+            } @else {
+              <div class="shot__thumb shot__thumb--pending">No preview yet</div>
+            }
+          } @else {
+            <div class="shot__thumb shot__thumb--pending">Loading…</div>
+          }
+
+          <div class="shot__detail">
+            @if (first) {
+              <p class="shot__lead">Lead photograph</p>
+            }
+            @if (shot(id); as photograph) {
+              @if (!photograph.unavailable && !photograph.altText) {
+                <ui-notice tone="warning">
+                  No alt text yet. Add it in Media before publishing.
+                </ui-notice>
+              }
+            }
+          </div>
+
+          <div class="shot__actions">
+            <button
+              uiButton
+              type="button"
+              size="sm"
+              data-action="up"
+              [disabled]="disabled() || first"
+              [attr.aria-label]="'Move photograph ' + (index + 1) + ' up'"
+              (click)="move(index, -1)"
+            >
+              Up
+            </button>
+            <button
+              uiButton
+              type="button"
+              size="sm"
+              data-action="down"
+              [disabled]="disabled() || last"
+              [attr.aria-label]="'Move photograph ' + (index + 1) + ' down'"
+              (click)="move(index, 1)"
+            >
+              Down
+            </button>
+            <button
+              uiButton
+              type="button"
+              size="sm"
+              data-action="remove"
+              [disabled]="disabled()"
+              [attr.aria-label]="'Remove photograph ' + (index + 1)"
+              (click)="remove(index)"
+            >
+              Remove
+            </button>
+          </div>
+        </li>
+      }
+    </ol>
+  }
+
+  @if (error(); as message) {
+    <p class="error" role="alert" [id]="errorId">{{ message }}</p>
+  }
+
+  @if (full()) {
+    <p class="panel__hint">
+      A piece has at most {{ limits.galleryMaxCount }} photographs. Remove one to add another.
+    </p>
+  } @else {
+    <div class="actions">
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        data-action="add"
+        [disabled]="disabled()"
+        [attr.aria-describedby]="error() ? errorId : null"
+        (click)="picking.set(true)"
+      >
+        Add photograph
+      </button>
+    </div>
+  }
+
+  <cms-media-picker [(open)]="picking" (picked)="add($event)" />
+</section>

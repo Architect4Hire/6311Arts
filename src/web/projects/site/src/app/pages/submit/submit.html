@@ -1,0 +1,35 @@
+<app-hero
+  title="Submit your work"
+  eyebrow="North Side artists wanted"
+  lead="Teach our classes, show in our galleries, sell in our shop. Submissions are open year-round."
+  [images]="studioPhotos"
+/>
+<section class="band band--white" id="content">
+  <div class="container cols-3 text-center">
+    <div class="feature feature--dark" reveal>
+      <ui-icon name="brush" [size]="64" [stroke]="1" />
+      <h3 class="feature__title">Teach</h3>
+      <p>Pitch a one-night workshop or a five-week course in your medium.</p>
+    </div>
+    <div class="feature feature--dark" reveal="150">
+      <ui-icon name="frame" [size]="64" [stroke]="1" />
+      <h3 class="feature__title">Exhibit</h3>
+      <p>Solo, group and East and West gallery shows, chosen with intention.</p>
+    </div>
+    <div class="feature feature--dark" reveal="300">
+      <ui-icon name="cart" [size]="64" [stroke]="1" />
+      <h3 class="feature__title">Sell</h3>
+      <p>Put your prints, ceramics, jewelry and paintings in front of neighbors who buy local.</p>
+    </div>
+  </div>
+</section>
+<section class="band band--dark text-center">
+  <div class="container container--mid" reveal>
+    <h2 class="band__title">Ready?</h2>
+    <p class="band__lead">
+      The form takes about five minutes. Have a few images of your work and a short bio handy.
+    </p>
+    <!-- The site's own form since 3.3, in place of the Google Form (ADR 0047). -->
+    <a class="btn btn-white btn-lg" routerLink="/artists/submit">Open the submission form</a>
+  </div>
+</section>

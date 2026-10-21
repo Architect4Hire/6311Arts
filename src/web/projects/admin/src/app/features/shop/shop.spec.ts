@@ -8,8 +8,8 @@ import { SessionService } from '../../core/session/session.service';
 import { ARTIST, toArtistSummary } from '../../models/artist.fixtures';
 import { ShopItem } from '../../models/shop';
 import { SHOP_ITEM, SYNCED_SHOP_ITEM, toShopItemSummary } from '../../models/shop.fixtures';
-import { ShopItemEditor } from './shop-item-editor';
-import { ShopList } from './shop-list';
+import { ShopItemEditor } from './shop-item-editor/shop-item-editor';
+import { ShopList } from './shop-list/shop-list';
 
 const BASE = '/api/v1/cms/shop';
 const ONE = `${BASE}/${SHOP_ITEM.id}`;
@@ -183,10 +183,12 @@ describe('ShopItemEditor', () => {
 
     // The retry asks again rather than showing a form built from nothing.
     button(fixture.nativeElement, 'Try again')!.click();
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     expect(text(fixture.nativeElement)).not.toContain('This piece couldn’t be loaded');
@@ -198,10 +200,12 @@ describe('ShopItemEditor', () => {
     fixture.componentRef.setInput('id', SHOP_ITEM.id);
     fixture.detectChanges();
 
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     const root = fixture.nativeElement as HTMLElement;
@@ -290,7 +294,9 @@ describe('ShopItemEditor', () => {
       {
         code: 'cms.sku_taken',
         detail: 'The SKU “CLS-4-1” is already in use.',
-        errors: { sku: ['“CLS-4-1” belongs to another shop item or class session. Choose another.'] },
+        errors: {
+          sku: ['“CLS-4-1” belongs to another shop item or class session. Choose another.'],
+        },
       },
       { status: 409, statusText: 'Conflict' },
     );
@@ -309,7 +315,9 @@ describe('ShopItemEditor', () => {
     expect(text(root.querySelector('.price'))).toBe('Price in Square: $120.00');
     expect(text(root)).toContain('1 in stock in Square.');
     expect(button(root, 'Change price')?.disabled).toBe(true);
-    expect(button(root, 'Change price')?.getAttribute('aria-describedby')).toBe('square-holds-hint');
+    expect(button(root, 'Change price')?.getAttribute('aria-describedby')).toBe(
+      'square-holds-hint',
+    );
 
     // A one-of-a-kind piece never gets a set-quantity command at all (ADR 0032).
     expect(button(root, 'Set quantity')).toBeUndefined();

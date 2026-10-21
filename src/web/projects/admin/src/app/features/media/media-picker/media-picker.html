@@ -1,0 +1,66 @@
+<ui-dialog [(open)]="open" heading="Choose an image">
+  @switch (state()) {
+    @case ('loading') {
+      <p role="status">Loading the library…</p>
+    }
+    @case ('failed') {
+      <ui-notice tone="error" heading="The library couldn’t be loaded">
+        <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
+      </ui-notice>
+    }
+    @default {
+      @if (items().length === 0) {
+        <ui-empty-state icon="frame" heading="No images yet" [level]="3">
+          <p>Upload images in Media, then choose one here.</p>
+        </ui-empty-state>
+      } @else {
+        <cms-media-grid
+          label="Images to choose from"
+          [items]="items()"
+          [selectable]="true"
+          [selectedId]="selected()?.id ?? null"
+          (chosen)="selected.set($event)"
+        />
+        @if (moreFailed()) {
+          <ui-notice tone="error"
+            >More images couldn’t be loaded. The ones above are still here.</ui-notice
+          >
+        }
+        @if (next()) {
+          <p>
+            <button uiButton type="button" size="sm" [busy]="loadingMore()" (click)="more()">
+              {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
+            </button>
+          </p>
+        }
+      }
+    }
+  }
+
+  <!-- Exists from the start, so the warning that appears on selection is read out. -->
+  <div aria-live="polite">
+    @if (missingAltText()) {
+      <ui-notice tone="warning">
+        This image has no alt text yet. It can be chosen, but it can’t go on published content until
+        it has some.
+      </ui-notice>
+    }
+  </div>
+
+  <div uiDialogActions>
+    <button uiButton type="button" (click)="open.set(false)">Cancel</button>
+    <button
+      uiButton
+      type="button"
+      variant="dark"
+      aria-describedby="media-picker-hint"
+      [disabled]="!selected()"
+      (click)="pick()"
+    >
+      Use this image
+    </button>
+    @if (!selected()) {
+      <span id="media-picker-hint" class="hint">Choose an image first.</span>
+    }
+  </div>
+</ui-dialog>

@@ -9,25 +9,7 @@ import { CMS_SECTIONS } from '../layout/sections';
   selector: 'cms-dashboard',
   imports: [RouterLink, UiButton, UiEmptyState],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <h1 class="cms-title">Welcome, {{ name() }}</h1>
-    <p class="cms-lead">This is where you edit what the public site shows.</p>
-
-    <!-- Not "nothing needs attention": no data stands behind this panel yet, so it must not claim an all-clear. -->
-    <ui-empty-state icon="grid" heading="Attention list not connected yet">
-      <p>
-        Drafts waiting to publish, sync problems and new form submissions will be listed here once those screens
-        exist.
-      </p>
-      <div uiEmptyActions>
-        @for (section of shortcuts(); track section.path) {
-          <a uiButton variant="border-dark" [routerLink]="'/' + section.path">{{
-            section.label
-          }}</a>
-        }
-      </div>
-    </ui-empty-state>
-  `,
+  templateUrl: './dashboard.html',
 })
 export class Dashboard {
   private readonly session = inject(SessionService);

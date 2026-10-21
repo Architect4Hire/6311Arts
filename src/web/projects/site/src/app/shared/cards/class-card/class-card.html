@@ -1,0 +1,45 @@
+@let c = item();
+@let on = date() ?? c.start;
+<a class="class-card__date" [routerLink]="['/classes', c.slug]" [attr.aria-label]="c.title">
+  <span class="class-card__mon">{{ on | when: 'mon' }}</span>
+  <span class="class-card__day">{{ on | when: 'day' }}</span>
+  <span class="class-card__dow">{{ on | when: 'dow' }}</span>
+</a>
+<div class="class-card__body">
+  <p class="class-card__meta">
+    <span>{{ c.type }}</span
+    ><span>{{ c.level }}</span>
+    @if (c.sessions > 1) {
+      <span>{{ week() ? 'Week ' + week() + ' of ' + c.sessions : c.sessions + ' weeks' }}</span>
+    }
+  </p>
+  <h3 class="class-card__title">
+    <a [routerLink]="['/classes', c.slug]">{{ c.title }}</a>
+  </h3>
+  <p class="class-card__when">
+    {{ c.cadence ? c.cadence + ' · ' : '' }}{{ c.start | when: 'time' : c.end }}
+    @if (c.instructor) {
+      <span class="class-card__by"
+        >with
+        <a class="linkish" [routerLink]="['/instructors', slug(c.instructor)]">{{
+          c.instructor
+        }}</a></span
+      >
+    }
+  </p>
+</div>
+<div class="class-card__cta">
+  @if (c.price != null) {
+    <span class="class-card__price">{{ c.price | money }}</span>
+  } @else {
+    <span class="class-card__tba">Price to be announced</span>
+  }
+  @if (c.spotsLeft != null && c.spotsLeft <= 4) {
+    <span class="tag tag--hot">{{
+      c.spotsLeft === 0 ? 'Sold out' : 'Only ' + c.spotsLeft + ' spots left'
+    }}</span>
+  }
+  <a class="btn btn-dark btn-sm" [routerLink]="['/classes', c.slug]">{{
+    c.price === 0 ? 'RSVP' : 'Reserve'
+  }}</a>
+</div>

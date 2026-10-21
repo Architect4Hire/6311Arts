@@ -10,13 +10,7 @@ import { CmsSection } from '../layout/sections';
   selector: 'cms-section-placeholder',
   imports: [UiEmptyState],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <h1 class="cms-title">{{ section().label }}</h1>
-    <p class="cms-lead">{{ section().summary }}</p>
-    <ui-empty-state [icon]="section().icon" heading="Not ready yet">
-      <p>The {{ section().label.toLowerCase() }} screens are still being built.</p>
-    </ui-empty-state>
-  `,
+  templateUrl: './section-placeholder.html',
 })
 export class SectionPlaceholder {
   readonly section = input.required<CmsSection>();

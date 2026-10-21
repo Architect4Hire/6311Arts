@@ -1,0 +1,15 @@
+<div>
+  <h1 class="cms-title">Forms</h1>
+  <p class="cms-lead">What visitors sent through the site’s forms.</p>
+</div>
+<nav class="tabs" aria-label="Forms">
+  @for (tab of tabs; track tab.path) {
+    <a
+      class="tabs__link"
+      [routerLink]="tab.path"
+      routerLinkActive="tabs__link--active"
+      ariaCurrentWhenActive="page"
+      >{{ tab.label }}</a
+    >
+  }
+</nav>

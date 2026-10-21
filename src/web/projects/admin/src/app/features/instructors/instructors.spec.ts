@@ -9,8 +9,8 @@ import { Instructor } from '../../models/instructor';
 import { INSTRUCTOR, toInstructorSummary } from '../../models/instructor.fixtures';
 import { ARTIST, toArtistSummary } from '../../models/artist.fixtures';
 import { ASSET } from '../../models/media.fixtures';
-import { InstructorEditor } from './instructor-editor';
-import { InstructorList } from './instructor-list';
+import { InstructorEditor } from './instructor-editor/instructor-editor';
+import { InstructorList } from './instructor-list/instructor-list';
 
 const BASE = '/api/v1/cms/instructors';
 const ONE = `${BASE}/${INSTRUCTOR.id}`;
@@ -73,7 +73,9 @@ describe('InstructorList', () => {
     const fixture = TestBed.createComponent(InstructorList);
     fixture.detectChanges();
 
-    expect(text(fixture.nativeElement.querySelector('[role="status"]'))).toBe('Loading instructors…');
+    expect(text(fixture.nativeElement.querySelector('[role="status"]'))).toBe(
+      'Loading instructors…',
+    );
     const request = http.expectOne((r) => r.url === BASE);
     expect(request.request.params.get('status')).toBeNull();
     request.flush({
@@ -86,7 +88,10 @@ describe('InstructorList', () => {
     await settle(fixture);
 
     const rows = [...(fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr')];
-    expect(rows.map((row) => text(row.querySelector('th a')))).toEqual(['Gwen Schilling', 'Piloto']);
+    expect(rows.map((row) => text(row.querySelector('th a')))).toEqual([
+      'Gwen Schilling',
+      'Piloto',
+    ]);
     expect(text(rows[0])).toContain('Draft');
     expect(text(rows[1])).toContain('Published');
     expect(rows[0].querySelector('a')?.getAttribute('href')).toBe(`/instructors/${INSTRUCTOR.id}`);
@@ -137,7 +142,9 @@ describe('InstructorList', () => {
     const { http } = await configure();
     const fixture = TestBed.createComponent(InstructorList);
     fixture.detectChanges();
-    http.expectOne((r) => r.url === BASE).flush({ items: [toInstructorSummary(INSTRUCTOR)], nextCursor: null });
+    http
+      .expectOne((r) => r.url === BASE)
+      .flush({ items: [toInstructorSummary(INSTRUCTOR)], nextCursor: null });
     await settle(fixture);
 
     button(fixture.nativeElement, 'Drafts')!.click();
@@ -146,7 +153,9 @@ describe('InstructorList', () => {
     expect(root.querySelectorAll('tbody tr')).toHaveLength(1);
     expect(root.querySelector('table')?.getAttribute('aria-busy')).toBe('true');
 
-    http.expectOne((r) => r.url === BASE).flush({ items: [toInstructorSummary(INSTRUCTOR)], nextCursor: null });
+    http
+      .expectOne((r) => r.url === BASE)
+      .flush({ items: [toInstructorSummary(INSTRUCTOR)], nextCursor: null });
     await settle(fixture);
     expect(root.querySelector('table')?.getAttribute('aria-busy')).toBeNull();
     expect(text(root.querySelector('[aria-live="polite"]'))).toBe('1 instructor.');
@@ -301,7 +310,11 @@ describe('InstructorEditor', () => {
     await settle(fixture);
     button(root, 'Save')!.click();
 
-    expect(http.expectOne(ONE).request.body).toEqual({ website: '', instagram: '', removeArtist: true });
+    expect(http.expectOne(ONE).request.body).toEqual({
+      website: '',
+      instagram: '',
+      removeArtist: true,
+    });
   });
 
   it('shows a taken web address beside its field and keeps what was typed', async () => {
@@ -310,16 +323,14 @@ describe('InstructorEditor', () => {
     type(root, 'slug', 'piloto');
     await settle(fixture);
     button(root, 'Save')!.click();
-    http
-      .expectOne(ONE)
-      .flush(
-        {
-          code: 'cms.slug_taken',
-          detail: 'Another instructor already has this web address.',
-          errors: { slug: ['“piloto” is taken. Choose another.'] },
-        },
-        { status: 409, statusText: 'Conflict' },
-      );
+    http.expectOne(ONE).flush(
+      {
+        code: 'cms.slug_taken',
+        detail: 'Another instructor already has this web address.',
+        errors: { slug: ['“piloto” is taken. Choose another.'] },
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
     await settle(fixture);
 
     expect(input(root, 'slug').value).toBe('piloto');
@@ -359,7 +370,9 @@ describe('InstructorEditor', () => {
     type(root, 'medium', 'Ceramics');
     await settle(fixture);
     button(root, 'Save')!.click();
-    http.expectOne(ONE).flush({ code: 'concurrency.conflict' }, { status: 409, statusText: 'Conflict' });
+    http
+      .expectOne(ONE)
+      .flush({ code: 'concurrency.conflict' }, { status: 409, statusText: 'Conflict' });
     await settle(fixture);
     http.expectOne(ONE).flush(theirs);
     await settle(fixture);
@@ -449,7 +462,9 @@ describe('InstructorEditor', () => {
     button(root, 'Archive')!.click();
     await settle(fixture);
 
-    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ heading: 'Archive this instructor?' }));
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({ heading: 'Archive this instructor?' }),
+    );
     http.expectOne(`${ONE}/archive`).flush({ ...INSTRUCTOR, status: 'Archived', etag: '"v2"' });
     await settle(fixture);
     expect(text(root.querySelector('header'))).toContain('Archived');
@@ -534,12 +549,13 @@ describe('InstructorEditor', () => {
     const { http, fixture, root } = await openEditor(INSTRUCTOR);
 
     button(root, 'Preview')!.click();
-    http
-      .expectOne('/api/v1/cms/preview')
-      .flush({ code: 'resource.not_found', detail: 'This preview link is not valid any more.' }, {
+    http.expectOne('/api/v1/cms/preview').flush(
+      { code: 'resource.not_found', detail: 'This preview link is not valid any more.' },
+      {
         status: 404,
         statusText: 'Not Found',
-      });
+      },
+    );
     await settle(fixture);
 
     expect(text(root)).toContain('This preview link is not valid any more.');

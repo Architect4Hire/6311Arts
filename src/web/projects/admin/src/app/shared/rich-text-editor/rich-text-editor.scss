@@ -1,0 +1,52 @@
+:host {
+  display: block;
+}
+.editor {
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  transition: border-color var(--dur-fast);
+}
+.editor--focused {
+  border-color: var(--ink);
+}
+/* An invalid body keeps its danger border while focused, as every other control does. */
+.editor--invalid {
+  border-color: var(--danger);
+}
+.editor--disabled {
+  background: var(--light);
+  color: var(--muted);
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2);
+  border-bottom: var(--border-thin) solid var(--line);
+  background: var(--light);
+}
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.surface {
+  overflow-wrap: anywhere;
+}
+/*
+  Tiptap makes the editable element itself, so only ::ng-deep reaches it. It fills the frame, so a click
+  anywhere below the text lands in it, and it draws no outline of its own: the frame shows its focus, and the
+  global :focus-visible ring would otherwise draw a second box inside the first.
+*/
+.surface ::ng-deep .ProseMirror {
+  min-height: 16rem;
+  padding: var(--control-pad);
+  outline: none;
+}
+.surface ::ng-deep .ProseMirror > :first-child {
+  margin-top: 0;
+}
+.surface ::ng-deep .ProseMirror > :last-child {
+  margin-bottom: 0;
+}

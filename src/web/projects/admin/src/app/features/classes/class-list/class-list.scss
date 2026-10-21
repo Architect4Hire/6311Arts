@@ -1,0 +1,73 @@
+:host {
+  display: grid;
+  gap: var(--space-5);
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.cms-lead {
+  margin-bottom: 0;
+}
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-end;
+}
+.tools__search {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.scroll {
+  overflow-x: auto;
+}
+.classes {
+  width: 100%;
+  border-collapse: collapse;
+}
+.classes th,
+.classes td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-thin) solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.classes thead th {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+.classes tbody th {
+  font-weight: var(--fw-bold);
+}
+.slug,
+.kind {
+  display: block;
+  font-size: var(--fs-small);
+  font-weight: normal;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+.more {
+  text-align: center;
+}
+.refreshing {
+  margin: 0;
+  color: var(--text-soft);
+}
+/* On a phone, the counts, instructor and date go, so nothing hides off to the side. */
+@media (max-width: 600px) {
+  .wide {
+    display: none;
+  }
+}

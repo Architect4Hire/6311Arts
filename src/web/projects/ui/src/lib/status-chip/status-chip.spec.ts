@@ -1,6 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { SYNC_STATUS, SyncStatus, UiStatusChip, UiSyncStatus } from './status-chip';
+import { UiStatusChip } from './status-chip';
+import { SYNC_STATUS, SyncStatus, UiSyncStatus } from '../sync-status/sync-status';
 
 @Component({
   imports: [UiSyncStatus, UiStatusChip],

@@ -21,7 +21,9 @@ There's no Bootstrap or jQuery.
 
 - **Tokens** (`projects/ui/styles/tokens.scss`): color, type scale, spacing, borders, motion. They're extracted from the spike's `styles.scss`. Feature styles use tokens and never literal colors.
 - **Global styles** (`projects/ui/styles/global.scss`): imported once per app.
-- **Shared primitives** (`@6311/ui`): only what both apps use — button, icon, field, notice, status chip, dialog, empty state. The site's marketing compositions (hero, bands, cards) stay in `projects/site/src/app/shared/`.
+- **Component styles**: a sibling `.scss` inside the component's own folder, named in `styleUrl` — never a
+  `styles:` block in the decorator (ADR 0050, 0051, `frontend.md`).
+- **Shared primitives** (`@6311/ui`): only what both apps use — button, icon, field, notice, status chip, sync status, dialog, empty state; one folder per component under `lib/`. The site's marketing compositions (hero, bands, cards) stay in `projects/site/src/app/shared/`, grouped by kind (`layout/`, `cards/`, `forms/`, `media/`).
 - **Admin** uses the same tokens at productivity density. Same typography and palette, tighter spacing.
 
 ## Rules

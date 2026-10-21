@@ -1,0 +1,9 @@
+<section class="band band--light band--after-nav">
+  <div class="container container--narrow account-panel">
+    <h1 #headingRef class="band__title band__title--left" tabindex="-1">{{ heading() }}</h1>
+    @if (lead()) {
+      <p class="band__lead band__lead--left">{{ lead() }}</p>
+    }
+    <ng-content />
+  </div>
+</section>

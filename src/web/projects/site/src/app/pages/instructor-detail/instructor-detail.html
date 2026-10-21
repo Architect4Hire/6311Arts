@@ -1,0 +1,129 @@
+<app-hero
+  [title]="name()"
+  [eyebrow]="person()?.medium ?? 'Instructor at 6311arts'"
+  [images]="studioPhotos"
+/>
+
+<section class="band band--white" id="content">
+  <div class="container detail">
+    <div class="detail__media">
+      @if (person()?.image) {
+        <app-art-image [src]="person()!.image" [alt]="name()" ratio="1 / 1" [priority]="true" />
+      } @else {
+        <div class="tutor__photo" aria-hidden="true">{{ initials() }}</div>
+      }
+    </div>
+    <div class="detail__info">
+      <p class="crumbs"><a routerLink="/classes">Classes</a> · Instructor</p>
+      <h2 class="detail__title">{{ name() }}</h2>
+      @if (person()?.bio) {
+        <p class="detail__lead">{{ person()!.bio }}</p>
+      } @else {
+        <p class="detail__lead">
+          {{ name() }} teaches at 6311arts. We’re still writing their profile — in the meantime,
+          their upcoming classes are below.
+        </p>
+      }
+      <ul class="facts">
+        @if (person()?.medium) {
+          <li>
+            <ui-icon name="brush" [size]="22" /><span
+              >Teaches <strong>{{ person()!.medium }}</strong></span
+            >
+          </li>
+        }
+        <li>
+          <ui-icon name="clock" [size]="22" />
+          <span>
+            @if (classes().length) {
+              <strong>{{ classes().length }}</strong>
+              {{ classes().length === 1 ? 'class' : 'classes' }} on the calendar
+            } @else {
+              Nothing scheduled right now
+            }
+          </span>
+        </li>
+        @if (person()?.neighborhood) {
+          <li>
+            <ui-icon name="pin" [size]="22" /><span>Based in {{ person()!.neighborhood }}</span>
+          </li>
+        }
+        @if (artist(); as a) {
+          <li>
+            <ui-icon name="cart" [size]="22" />
+            <span
+              >Also sells in the shop —
+              <a class="linkish" [routerLink]="['/artists', a.slug]">see their work</a></span
+            >
+          </li>
+        }
+        @if (person()?.website) {
+          <li>
+            <ui-icon name="arrow" [size]="22" />
+            <span
+              ><a class="linkish" [href]="person()!.website" target="_blank" rel="noopener">{{
+                person()!.website
+              }}</a></span
+            >
+          </li>
+        }
+        @if (person()?.instagram) {
+          <li>
+            <ui-icon name="instagram" [size]="22" />
+            <span
+              ><a
+                class="linkish"
+                [href]="'https://instagram.com/' + person()!.instagram"
+                target="_blank"
+                rel="noopener"
+                >&#64;{{ person()!.instagram }}</a
+              ></span
+            >
+          </li>
+        }
+      </ul>
+      <p class="btn-row" style="justify-content: flex-start">
+        <a class="btn btn-dark" routerLink="/classes">All classes</a>
+        @if (artist(); as a) {
+          <a class="btn btn-border-dark" [routerLink]="['/artists', a.slug]">Shop their work</a>
+        }
+      </p>
+    </div>
+  </div>
+</section>
+
+@if (classes().length) {
+  <section class="band band--light">
+    <div class="container">
+      <h2 class="band__title text-center">Coming up with {{ firstName() }}</h2>
+      <div class="class-list">
+        @for (c of classes(); track c.id) {
+          <app-class-card [item]="c" reveal />
+        }
+      </div>
+    </div>
+  </section>
+}
+
+@if (works().length) {
+  <section class="band band--white">
+    <div class="container">
+      <h2 class="band__title text-center">{{ firstName() }} in the shop</h2>
+      <div class="grid-products">
+        @for (p of works(); track p.id) {
+          <app-product-card [item]="p" />
+        }
+      </div>
+    </div>
+  </section>
+}
+
+<section class="band band--dark text-center">
+  <div class="container container--mid" reveal>
+    <h2 class="band__title">Teach a class here</h2>
+    <p class="band__lead">
+      We’re always looking for North Side artists to lead a workshop or a five-week course.
+    </p>
+    <a class="btn btn-white btn-lg" routerLink="/artists/submit">Pitch a class</a>
+  </div>
+</section>

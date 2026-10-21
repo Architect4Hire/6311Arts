@@ -1,0 +1,67 @@
+<a class="skip" href="#main" (click)="skipToMain($event)">Skip to content</a>
+
+<header class="bar">
+  <a class="bar__brand" routerLink="/">
+    <span class="bar__name">6311arts</span>
+    <span class="bar__tag">CMS</span>
+  </a>
+
+  <button
+    uiButton
+    type="button"
+    variant="border"
+    class="bar__toggle"
+    [attr.aria-expanded]="navOpen()"
+    aria-controls="cms-nav"
+    (click)="navOpen.set(!navOpen())"
+  >
+    <ui-icon [name]="navOpen() ? 'close' : 'menu'" [size]="20" [stroke]="2" />
+    Sections
+  </button>
+
+  @if (session.session(); as who) {
+    <div class="bar__who">
+      <span class="bar__user">
+        <span class="sr-only">Signed in as </span>{{ who.displayName }}
+        <span class="bar__role">{{ roleLabel() }}</span>
+      </span>
+      <button uiButton type="button" variant="border" [busy]="leaving()" (click)="signOut()">
+        Sign out
+      </button>
+      <button
+        uiButton
+        type="button"
+        variant="border"
+        [busy]="leaving()"
+        (click)="signOutEverywhere()"
+      >
+        Sign out everywhere
+      </button>
+    </div>
+  }
+</header>
+
+<div class="frame">
+  <nav id="cms-nav" class="nav" aria-label="CMS sections" [class.nav--open]="navOpen()">
+    <ul>
+      @for (section of sections(); track section.path) {
+        <li>
+          <a
+            [routerLink]="'/' + section.path"
+            routerLinkActive="nav__link--active"
+            ariaCurrentWhenActive="page"
+            [routerLinkActiveOptions]="{ exact: section.path === '' }"
+            class="nav__link"
+          >
+            <ui-icon [name]="section.icon" [size]="20" [stroke]="1.6" />
+            {{ section.label }}
+          </a>
+        </li>
+      }
+    </ul>
+  </nav>
+
+  <main id="main" class="main" tabindex="-1">
+    <router-outlet />
+  </main>
+</div>

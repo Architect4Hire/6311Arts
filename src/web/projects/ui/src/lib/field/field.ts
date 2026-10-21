@@ -28,23 +28,7 @@ let nextId = 0;
   imports: [UiIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'field' },
-  template: `
-    <label class="field__label" [attr.for]="id()"
-      >{{ label() }}
-      @if (required()) {
-        <span class="field__req">required</span>
-      }
-    </label>
-    <ng-content />
-    @if (hint()) {
-      <span class="field__hint" [id]="hintId()">{{ hint() }}</span>
-    }
-    @if (error()) {
-      <span class="field__error" [id]="errorId()"
-        ><ui-icon name="stop" [size]="16" [stroke]="2.4" />{{ error() }}</span
-      >
-    }
-  `,
+  templateUrl: './field.html',
 })
 export class UiField {
   readonly label = input.required<string>();

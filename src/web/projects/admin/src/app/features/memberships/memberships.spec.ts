@@ -7,8 +7,8 @@ import { ConfirmService } from '../../core/confirm/confirm.service';
 import { SessionService } from '../../core/session/session.service';
 import { MembershipPlan } from '../../models/membership';
 import { MEMBERSHIP_PLAN, toMembershipPlanSummary } from '../../models/membership.fixtures';
-import { MembershipList } from './membership-list';
-import { MembershipPlanEditor } from './membership-plan-editor';
+import { MembershipList } from './membership-list/membership-list';
+import { MembershipPlanEditor } from './membership-plan-editor/membership-plan-editor';
 
 const BASE = '/api/v1/cms/memberships';
 const ONE = `${BASE}/${MEMBERSHIP_PLAN.id}`;
@@ -147,10 +147,12 @@ describe('MembershipPlanEditor', () => {
 
     // The retry asks again rather than showing a form built from nothing.
     button(fixture.nativeElement, 'Try again')!.click();
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     expect(text(fixture.nativeElement)).not.toContain('This tier couldn’t be loaded');
@@ -162,10 +164,12 @@ describe('MembershipPlanEditor', () => {
     fixture.componentRef.setInput('id', MEMBERSHIP_PLAN.id);
     fixture.detectChanges();
 
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     const root = fixture.nativeElement as HTMLElement;
@@ -240,7 +244,9 @@ describe('MembershipPlanEditor', () => {
         detail: 'This tier isn’t ready to publish yet.',
         errors: {
           startingPriceCents: ['Set what the tier costs: the page shows a price on every card.'],
-          perks: ['Add at least one perk: a tier with nothing listed gives members nothing to read.'],
+          perks: [
+            'Add at least one perk: a tier with nothing listed gives members nothing to read.',
+          ],
         },
       },
       { status: 400, statusText: 'Bad Request' },

@@ -5,33 +5,40 @@ import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 import { CMS_SECTIONS, CmsSection } from './features/layout/sections';
 
 const artistEditor = () =>
-  import('./features/artists/artist-editor').then((m) => m.ArtistEditor);
+  import('./features/artists/artist-editor/artist-editor').then((m) => m.ArtistEditor);
 
 const instructorEditor = () =>
-  import('./features/instructors/instructor-editor').then((m) => m.InstructorEditor);
+  import('./features/instructors/instructor-editor/instructor-editor').then(
+    (m) => m.InstructorEditor,
+  );
 
 const exhibitionEditor = () =>
-  import('./features/exhibitions/exhibition-editor').then((m) => m.ExhibitionEditor);
+  import('./features/exhibitions/exhibition-editor/exhibition-editor').then(
+    (m) => m.ExhibitionEditor,
+  );
 
 const classEditor = () =>
-  import('./features/classes/class-editor').then((m) => m.ClassEditor);
+  import('./features/classes/class-editor/class-editor').then((m) => m.ClassEditor);
 
-const pageEditor = () => import('./features/pages/page-editor').then((m) => m.PageEditor);
+const pageEditor = () =>
+  import('./features/pages/page-editor/page-editor').then((m) => m.PageEditor);
 
 const shopItemEditor = () =>
-  import('./features/shop/shop-item-editor').then((m) => m.ShopItemEditor);
+  import('./features/shop/shop-item-editor/shop-item-editor').then((m) => m.ShopItemEditor);
 
 const membershipPlanEditor = () =>
-  import('./features/memberships/membership-plan-editor').then((m) => m.MembershipPlanEditor);
+  import('./features/memberships/membership-plan-editor/membership-plan-editor').then(
+    (m) => m.MembershipPlanEditor,
+  );
 
 const redirectEditor = () =>
-  import('./features/redirects/redirect-editor').then((m) => m.RedirectEditor);
+  import('./features/redirects/redirect-editor/redirect-editor').then((m) => m.RedirectEditor);
 
 const submissionDetail = () =>
-  import('./features/forms/submission-detail').then((m) => m.SubmissionDetail);
+  import('./features/forms/submission-detail/submission-detail').then((m) => m.SubmissionDetail);
 
 const messageDetail = () =>
-  import('./features/forms/message-detail').then((m) => m.MessageDetail);
+  import('./features/forms/message-detail/message-detail').then((m) => m.MessageDetail);
 
 const placeholder = () =>
   import('./features/section-placeholder/section-placeholder').then((m) => m.SectionPlaceholder);
@@ -46,33 +53,43 @@ const SCREENS: Readonly<
   '': { loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard) },
   exhibitions: {
     loadComponent: () =>
-      import('./features/exhibitions/exhibition-list').then((m) => m.ExhibitionList),
+      import('./features/exhibitions/exhibition-list/exhibition-list').then(
+        (m) => m.ExhibitionList,
+      ),
   },
   artists: {
-    loadComponent: () => import('./features/artists/artist-list').then((m) => m.ArtistList),
+    loadComponent: () =>
+      import('./features/artists/artist-list/artist-list').then((m) => m.ArtistList),
   },
   instructors: {
     loadComponent: () =>
-      import('./features/instructors/instructor-list').then((m) => m.InstructorList),
+      import('./features/instructors/instructor-list/instructor-list').then(
+        (m) => m.InstructorList,
+      ),
   },
   classes: {
-    loadComponent: () => import('./features/classes/class-list').then((m) => m.ClassList),
+    loadComponent: () =>
+      import('./features/classes/class-list/class-list').then((m) => m.ClassList),
   },
   pages: {
-    loadComponent: () => import('./features/pages/page-list').then((m) => m.PageList),
+    loadComponent: () => import('./features/pages/page-list/page-list').then((m) => m.PageList),
   },
   shop: {
-    loadComponent: () => import('./features/shop/shop-list').then((m) => m.ShopList),
+    loadComponent: () => import('./features/shop/shop-list/shop-list').then((m) => m.ShopList),
   },
   memberships: {
     loadComponent: () =>
-      import('./features/memberships/membership-list').then((m) => m.MembershipList),
+      import('./features/memberships/membership-list/membership-list').then(
+        (m) => m.MembershipList,
+      ),
   },
   redirects: {
-    loadComponent: () => import('./features/redirects/redirect-list').then((m) => m.RedirectList),
+    loadComponent: () =>
+      import('./features/redirects/redirect-list/redirect-list').then((m) => m.RedirectList),
   },
   media: {
-    loadComponent: () => import('./features/media/media-library').then((m) => m.MediaLibrary),
+    loadComponent: () =>
+      import('./features/media/media-library/media-library').then((m) => m.MediaLibrary),
     canDeactivate: [unsavedChangesGuard],
   },
   forms: { redirectTo: '/forms/submissions' },
@@ -93,20 +110,21 @@ const SECTION_TABS: Routes = [
     title: 'Submissions',
     section: 'forms',
     loadComponent: () =>
-      import('./features/forms/submission-list').then((m) => m.SubmissionList),
+      import('./features/forms/submission-list/submission-list').then((m) => m.SubmissionList),
   },
   {
     path: 'forms/messages',
     title: 'Messages',
     section: 'forms',
-    loadComponent: () => import('./features/forms/message-list').then((m) => m.MessageList),
+    loadComponent: () =>
+      import('./features/forms/message-list/message-list').then((m) => m.MessageList),
   },
   {
     path: 'forms/newsletter',
     title: 'Newsletter',
     section: 'forms',
     loadComponent: () =>
-      import('./features/forms/newsletter-list').then((m) => m.NewsletterList),
+      import('./features/forms/newsletter-list/newsletter-list').then((m) => m.NewsletterList),
   },
 ].map(({ section, ...route }) => {
   const owner = ownedBy(section);
@@ -162,7 +180,12 @@ const DETAIL_ROUTES: Routes = [
   },
   { path: 'pages/new', title: 'New page', section: 'pages', loadComponent: pageEditor },
   { path: 'pages/:id', title: 'Page', section: 'pages', loadComponent: pageEditor },
-  { path: 'redirects/new', title: 'New redirect', section: 'redirects', loadComponent: redirectEditor },
+  {
+    path: 'redirects/new',
+    title: 'New redirect',
+    section: 'redirects',
+    loadComponent: redirectEditor,
+  },
   { path: 'redirects/:id', title: 'Redirect', section: 'redirects', loadComponent: redirectEditor },
   {
     path: 'forms/submissions/:id',
@@ -194,7 +217,7 @@ export const routes: Routes = [
   },
   {
     path: '',
-    loadComponent: () => import('./features/layout/shell').then((m) => m.Shell),
+    loadComponent: () => import('./features/layout/shell/shell').then((m) => m.Shell),
     canActivate: [sessionGuard],
     children: [
       ...CMS_SECTIONS.map((section): Route => {

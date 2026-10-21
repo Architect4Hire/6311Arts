@@ -18,60 +18,8 @@ import { IconName, UiIcon } from '../icon/icon';
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   host: { class: 'ui-empty' },
-  template: `
-    @if (icon(); as name) {
-      <ui-icon class="ui-empty__icon" [name]="name" [size]="48" [stroke]="1.2" />
-    }
-    @if (level() === 3) {
-      <h3 class="ui-empty__title">{{ heading() }}</h3>
-    } @else {
-      <h2 class="ui-empty__title">{{ heading() }}</h2>
-    }
-    <div class="ui-empty__text"><ng-content /></div>
-    <div class="ui-empty__actions"><ng-content select="[uiEmptyActions]" /></div>
-  `,
-  styles: `
-    .ui-empty {
-      display: grid;
-      justify-items: center;
-      gap: var(--space-3);
-      padding: var(--space-7) 0;
-      text-align: center;
-      font-size: var(--fs-lead);
-      color: var(--muted);
-    }
-    .ui-empty__icon {
-      margin-bottom: var(--space-1);
-    }
-    .ui-empty__title {
-      margin: 0;
-      font-size: var(--fs-meta);
-      font-weight: var(--fw-heavy);
-      letter-spacing: var(--track-wide);
-      text-transform: uppercase;
-      color: var(--ink);
-    }
-    .ui-empty__text {
-      max-width: 52ch;
-    }
-    .ui-empty__text > :last-child {
-      margin-bottom: 0;
-    }
-    .ui-empty__text:empty,
-    .ui-empty__actions:empty {
-      display: none;
-    }
-    .ui-empty__actions,
-    .ui-empty__actions > [uiEmptyActions] {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: var(--space-3);
-    }
-    .ui-empty__actions {
-      margin-top: var(--space-2);
-    }
-  `,
+  templateUrl: './empty-state.html',
+  styleUrl: './empty-state.scss',
 })
 export class UiEmptyState {
   readonly heading = input.required<string>();

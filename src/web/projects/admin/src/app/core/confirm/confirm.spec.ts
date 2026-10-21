@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { ConfirmHost } from './confirm-host';
+import { ConfirmHost } from './confirm-host/confirm-host';
 import { ConfirmService } from './confirm.service';
 
 const question = {

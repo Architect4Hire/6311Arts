@@ -1,0 +1,50 @@
+<app-account-panel heading="Confirm your email address">
+  <div class="account-panel__status" aria-live="polite">
+    @switch (status().kind) {
+      @case ('confirming') {
+        <ui-notice tone="info" heading="Confirming your address…">
+          <p>This takes a moment.</p>
+        </ui-notice>
+      }
+      @case ('link-invalid') {
+        <ui-notice tone="error" heading="This link can’t be used">
+          <p>
+            It may have expired (links work for one hour), been used already, or lost its ending on
+            the way here. If you’ve already confirmed your address,
+            <a routerLink="/signin">sign in</a>. Otherwise ask for a new link below.
+          </p>
+        </ui-notice>
+      }
+      @case ('rate-limited') {
+        <ui-notice tone="error" heading="Too many attempts">
+          <p>{{ rateLimitedMessage() }}</p>
+        </ui-notice>
+      }
+      @case ('unavailable') {
+        <ui-notice tone="error" heading="Your address isn’t confirmed yet">
+          <p>Something on our side isn’t answering. Your link still works: try again shortly.</p>
+        </ui-notice>
+      }
+    }
+  </div>
+
+  @switch (status().kind) {
+    @case ('link-invalid') {
+      <app-email-request-form kind="email-confirmation" submitLabel="Email me a new link" />
+    }
+  }
+  <!-- One button for every retryable state, kept while the retry runs (busy), so focus is never dropped. -->
+  @if (retryable()) {
+    <p>
+      <button
+        uiButton
+        type="button"
+        variant="dark"
+        [busy]="status().kind === 'confirming'"
+        (click)="retry()"
+      >
+        {{ status().kind === 'confirming' ? 'Trying again…' : 'Try again' }}
+      </button>
+    </p>
+  }
+</app-account-panel>

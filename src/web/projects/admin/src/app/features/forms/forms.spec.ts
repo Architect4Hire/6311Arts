@@ -15,11 +15,11 @@ import {
   SUBSCRIBER,
   toSubmissionSummary,
 } from '../../models/forms.fixtures';
-import { MessageDetail } from './message-detail';
-import { MessageList } from './message-list';
-import { NewsletterList } from './newsletter-list';
-import { SubmissionDetail } from './submission-detail';
-import { SubmissionList } from './submission-list';
+import { MessageDetail } from './message-detail/message-detail';
+import { MessageList } from './message-list/message-list';
+import { NewsletterList } from './newsletter-list/newsletter-list';
+import { SubmissionDetail } from './submission-detail/submission-detail';
+import { SubmissionList } from './submission-list/submission-list';
 
 const BASE = '/api/v1/cms/forms';
 const SUBMISSIONS = `${BASE}/submissions`;
@@ -541,7 +541,11 @@ describe('NewsletterList', () => {
 describe('Forms routes', () => {
   async function at(url: string) {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter(routes, withComponentInputBinding())],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter(routes, withComponentInputBinding()),
+      ],
     });
     const http = TestBed.inject(HttpTestingController);
     const loaded = TestBed.inject(SessionService).ensureLoaded();

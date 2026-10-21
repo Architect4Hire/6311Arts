@@ -1,0 +1,65 @@
+<app-hero
+  title="Who we are"
+  eyebrow="6311arts · founded in 2025"
+  lead="An inclusive art center in a former funeral home on Clark Street."
+  [images]="images"
+/>
+<section class="band band--light text-center" id="content">
+  <div class="container container--mid" reveal>
+    <h2 class="band__title">Our story</h2>
+    <p class="band__lead">
+      6311arts opened in 2025 in a 5,000-square-foot former funeral home in Rogers Edge, the corner
+      of Edgewater where it meets Rogers Park. Under the building’s original wood ceiling we built a
+      gallery, a classroom and a shop.
+    </p>
+    <p class="band__lead">
+      Our mission is simple: give local artists of all backgrounds a unique and safe space to
+      exhibit and sell their work, and back it up with free career development sessions. We teach
+      printmaking, watercolor, mosaic and more.
+    </p>
+  </div>
+</section>
+<section class="band band--dark">
+  <div class="container cols-3 text-center">
+    <div class="feature" reveal>
+      <ui-icon name="frame" [size]="64" [stroke]="1" />
+      <h3 class="feature__title">The gallery</h3>
+      <p>Three rooms of rotating exhibitions, free and open five days a week.</p>
+    </div>
+    <div class="feature" reveal="150">
+      <ui-icon name="brush" [size]="64" [stroke]="1" />
+      <h3 class="feature__title">The classroom</h3>
+      <p>A print studio and workshop space where local artists teach small groups.</p>
+    </div>
+    <div class="feature" reveal="300">
+      <ui-icon name="cart" [size]="64" [stroke]="1" />
+      <h3 class="feature__title">The shop</h3>
+      <p>Hundreds of original works by artists who live within six miles.</p>
+    </div>
+  </div>
+</section>
+<section class="band band--white text-center">
+  <div class="container">
+    <h2 class="band__title">Our team</h2>
+    <div class="team">
+      @for (p of team; track p.name; let i = $index) {
+        <div class="team__person" [reveal]="i * 120">
+          <div class="team__photo" aria-hidden="true">{{ initials(p.name) }}</div>
+          <h3 class="team__name">{{ p.name }}</h3>
+          <p class="team__role">{{ p.role }}</p>
+        </div>
+      }
+    </div>
+  </div>
+</section>
+<section class="band band--light text-center">
+  <div class="container container--mid" reveal>
+    <h2 class="band__title">Get involved</h2>
+    <p class="btn-row">
+      <a class="btn btn-dark btn-lg" routerLink="/memberships">Become a member</a>
+      <a class="btn btn-border-dark btn-lg" routerLink="/submit">Submit your work</a>
+      <a class="btn btn-border-dark btn-lg" routerLink="/visit">Visit</a>
+    </p>
+  </div>
+</section>
+<app-newsletter />

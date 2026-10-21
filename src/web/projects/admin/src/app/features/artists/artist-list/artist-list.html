@@ -1,0 +1,119 @@
+<div class="head">
+  <div>
+    <h1 class="cms-title">Artists</h1>
+    <p class="cms-lead">
+      The artist roster: who shows at 6311arts, what they make, and their portrait.
+    </p>
+  </div>
+  <a uiButton variant="dark" routerLink="/artists/new">New artist</a>
+</div>
+
+<div class="tools">
+  <ui-field label="Find an artist" class="tools__search">
+    <input
+      #searchInput
+      uiControl
+      type="search"
+      name="search"
+      autocomplete="off"
+      [attr.maxlength]="limits.searchMaxLength"
+      [value]="search()"
+      (input)="onSearch(searchInput.value)"
+    />
+  </ui-field>
+  <div class="filters" role="group" aria-label="Filter by status">
+    @for (option of filters; track option.value) {
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        [variant]="filter() === option.value ? 'dark' : 'border-dark'"
+        [attr.aria-pressed]="filter() === option.value"
+        (click)="filter.set(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    }
+  </div>
+</div>
+
+<!-- Exists from the start, so the counts written into it later are read out. -->
+<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+@switch (state()) {
+  @case ('loading') {
+    <p role="status">Loading artists…</p>
+  }
+  @case ('failed') {
+    <ui-notice tone="error" heading="The artists couldn’t be loaded">
+      <p>6311arts may be unreachable for a moment.</p>
+      <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
+    </ui-notice>
+  }
+  @default {
+    @if (items().length === 0) {
+      <ui-empty-state icon="brush" [heading]="emptyHeading()">
+        <p>{{ emptyText() }}</p>
+      </ui-empty-state>
+    } @else {
+      @if (refreshing()) {
+        <p role="status" class="refreshing">Updating the list…</p>
+      }
+      <div class="scroll" role="region" aria-label="Artists" tabindex="0">
+        <table class="roster" [attr.aria-busy]="refreshing() || null">
+          <caption class="sr-only">
+            Artists, by name
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col" class="wide">Medium</th>
+              <th scope="col">Status</th>
+              <th scope="col">Showing</th>
+              <th scope="col" class="wide">Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (artist of items(); track artist.id; let index = $index) {
+              <tr>
+                <th scope="row">
+                  <a [routerLink]="['/artists', artist.id]" [attr.data-row]="index">{{
+                    artist.name
+                  }}</a>
+                  <span class="slug">/artists/{{ artist.slug }}</span>
+                  @if (artist.medium) {
+                    <span class="narrow-medium">{{ artist.medium }}</span>
+                  }
+                </th>
+                <td class="wide">{{ artist.medium ?? '—' }}</td>
+                <td>
+                  <ui-status-chip
+                    [tone]="chips[artist.status].tone"
+                    [icon]="chips[artist.status].icon"
+                    >{{ chips[artist.status].label }}</ui-status-chip
+                  >
+                </td>
+                <td>{{ artist.active ? 'Yes' : 'No' }}</td>
+                <td class="wide">
+                  <time [attr.datetime]="artist.updatedAt">{{ updated(artist.updatedAt) }}</time>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (moreFailed()) {
+        <ui-notice tone="error" heading="More artists couldn’t be loaded">
+          <p>The artists above are still here.</p>
+        </ui-notice>
+      }
+      @if (next()) {
+        <p class="more">
+          <button uiButton type="button" [busy]="loadingMore()" (click)="more()">
+            {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
+          </button>
+        </p>
+      }
+    }
+  }
+}

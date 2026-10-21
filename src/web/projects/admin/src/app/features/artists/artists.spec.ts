@@ -8,8 +8,8 @@ import { SessionService } from '../../core/session/session.service';
 import { Artist } from '../../models/artist';
 import { ARTIST, toArtistSummary } from '../../models/artist.fixtures';
 import { ASSET } from '../../models/media.fixtures';
-import { ArtistEditor } from './artist-editor';
-import { ArtistList } from './artist-list';
+import { ArtistEditor } from './artist-editor/artist-editor';
+import { ArtistList } from './artist-list/artist-list';
 
 const BASE = '/api/v1/cms/artists';
 const ONE = `${BASE}/${ARTIST.id}`;
@@ -135,7 +135,9 @@ describe('ArtistList', () => {
     const { http } = await configure();
     const fixture = TestBed.createComponent(ArtistList);
     fixture.detectChanges();
-    http.expectOne((r) => r.url === BASE).flush({ items: [toArtistSummary(ARTIST)], nextCursor: null });
+    http
+      .expectOne((r) => r.url === BASE)
+      .flush({ items: [toArtistSummary(ARTIST)], nextCursor: null });
     await settle(fixture);
 
     button(fixture.nativeElement, 'Drafts')!.click();
@@ -144,7 +146,9 @@ describe('ArtistList', () => {
     expect(root.querySelectorAll('tbody tr')).toHaveLength(1);
     expect(root.querySelector('table')?.getAttribute('aria-busy')).toBe('true');
 
-    http.expectOne((r) => r.url === BASE).flush({ items: [toArtistSummary(ARTIST)], nextCursor: null });
+    http
+      .expectOne((r) => r.url === BASE)
+      .flush({ items: [toArtistSummary(ARTIST)], nextCursor: null });
     await settle(fixture);
     expect(root.querySelector('table')?.getAttribute('aria-busy')).toBeNull();
     expect(text(root.querySelector('[aria-live="polite"]'))).toBe('1 artist.');
@@ -243,16 +247,14 @@ describe('ArtistEditor', () => {
     type(root, 'slug', 'piloto');
     await settle(fixture);
     button(root, 'Save')!.click();
-    http
-      .expectOne(ONE)
-      .flush(
-        {
-          code: 'cms.slug_taken',
-          detail: 'Another artist already has this web address.',
-          errors: { slug: ['“piloto” is taken. Choose another.'] },
-        },
-        { status: 409, statusText: 'Conflict' },
-      );
+    http.expectOne(ONE).flush(
+      {
+        code: 'cms.slug_taken',
+        detail: 'Another artist already has this web address.',
+        errors: { slug: ['“piloto” is taken. Choose another.'] },
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
     await settle(fixture);
 
     expect(input(root, 'slug').value).toBe('piloto');
@@ -292,7 +294,9 @@ describe('ArtistEditor', () => {
     type(root, 'medium', 'Ceramics');
     await settle(fixture);
     button(root, 'Save')!.click();
-    http.expectOne(ONE).flush({ code: 'concurrency.conflict' }, { status: 409, statusText: 'Conflict' });
+    http
+      .expectOne(ONE)
+      .flush({ code: 'concurrency.conflict' }, { status: 409, statusText: 'Conflict' });
     await settle(fixture);
     http.expectOne(ONE).flush(theirs);
     await settle(fixture);
@@ -467,12 +471,13 @@ describe('ArtistEditor', () => {
     const { http, fixture, root } = await openEditor(ARTIST);
 
     button(root, 'Preview')!.click();
-    http
-      .expectOne('/api/v1/cms/preview')
-      .flush({ code: 'resource.not_found', detail: 'This preview link is not valid any more.' }, {
+    http.expectOne('/api/v1/cms/preview').flush(
+      { code: 'resource.not_found', detail: 'This preview link is not valid any more.' },
+      {
         status: 404,
         statusText: 'Not Found',
-      });
+      },
+    );
     await settle(fixture);
 
     expect(text(root)).toContain('This preview link is not valid any more.');

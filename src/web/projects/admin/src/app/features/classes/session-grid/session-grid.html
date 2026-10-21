@@ -1,0 +1,110 @@
+<fieldset class="sessions" [disabled]="disabled()">
+  <legend class="sessions__title">Sessions</legend>
+
+  <!-- Exists from the start, so what is written into it later is read out. -->
+  <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+  @if (sessions().length === 0) {
+    <p class="sessions__empty">No sessions yet. A run needs at least one to be published.</p>
+  } @else {
+    <div class="scroll" role="region" [attr.aria-label]="run() + ' sessions'" tabindex="0">
+      <table class="grid">
+        <caption class="sr-only">
+          {{
+            run()
+          }}
+          sessions, in the order they meet. Times are
+          {{
+            zone()
+          }}
+          time.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Starts</th>
+            <th scope="col">Ends</th>
+            <th scope="col"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of sessions(); track row.key; let index = $index) {
+            <tr [attr.data-session]="index">
+              <td>
+                <input
+                  class="field__control"
+                  type="date"
+                  [attr.name]="prefix() + 'Date' + index"
+                  [attr.aria-label]="run() + ', date of session ' + (index + 1)"
+                  aria-required="true"
+                  [attr.aria-invalid]="invalid() ? 'true' : null"
+                  [attr.aria-describedby]="describedBy()"
+                  [value]="row.date"
+                  (input)="patch(index, { date: value($event) })"
+                />
+              </td>
+              <td>
+                <input
+                  class="field__control"
+                  type="time"
+                  [attr.name]="prefix() + 'Starts' + index"
+                  [attr.aria-label]="run() + ', start time of session ' + (index + 1)"
+                  aria-required="true"
+                  [attr.aria-invalid]="invalid() ? 'true' : null"
+                  [attr.aria-describedby]="describedBy()"
+                  [value]="row.starts"
+                  (input)="patch(index, { starts: value($event) })"
+                />
+              </td>
+              <td>
+                <input
+                  class="field__control"
+                  type="time"
+                  [attr.name]="prefix() + 'Ends' + index"
+                  [attr.aria-label]="run() + ', end time of session ' + (index + 1)"
+                  aria-required="true"
+                  [attr.aria-invalid]="invalid() ? 'true' : null"
+                  [attr.aria-describedby]="describedBy()"
+                  [value]="row.ends"
+                  (input)="patch(index, { ends: value($event) })"
+                />
+              </td>
+              <td class="row-actions">
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  data-action="remove-session"
+                  [attr.aria-label]="'Remove ' + run() + ' session ' + (index + 1)"
+                  (click)="remove(index)"
+                >
+                  Remove
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (full()) {
+    <p class="sessions__hint">
+      A run has at most {{ limits.sessionsMaxCount }} sessions. Remove one to add another.
+    </p>
+  } @else {
+    <div class="actions">
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        data-action="add-session"
+        [attr.aria-label]="'Add session to ' + run()"
+        (click)="add()"
+      >
+        Add session
+      </button>
+      <p class="sessions__hint">Times are {{ zone() }} time.</p>
+    </div>
+  }
+</fieldset>

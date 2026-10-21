@@ -5,11 +5,11 @@ import { ConfirmService } from '../../core/confirm/confirm.service';
 import { SessionService } from '../../core/session/session.service';
 import { MediaAssetSummary } from '../../models/media';
 import { ASSET } from '../../models/media.fixtures';
-import { MediaEditor } from './media-editor';
-import { MediaGrid } from './media-grid';
-import { MediaLibrary, toSummary } from './media-library';
-import { MediaPicker } from './media-picker';
-import { MediaUploader } from './media-uploader';
+import { MediaEditor } from './media-editor/media-editor';
+import { MediaGrid } from './media-grid/media-grid';
+import { MediaLibrary, toSummary } from './media-library/media-library';
+import { MediaPicker } from './media-picker/media-picker';
+import { MediaUploader } from './media-uploader/media-uploader';
 
 const LIST = '/api/v1/cms/media';
 const SUMMARY: MediaAssetSummary = toSummary(ASSET);
@@ -371,7 +371,9 @@ describe('MediaLibrary', () => {
     const { http, fixture, element } = await render();
     const first = http.expectOne((r) => r.url === LIST);
 
-    ([...element.querySelectorAll('button')].find((b) => text(b) === 'Failed') as HTMLElement).click();
+    (
+      [...element.querySelectorAll('button')].find((b) => text(b) === 'Failed') as HTMLElement
+    ).click();
     await settle(fixture);
     const second = http.expectOne((r) => r.url === LIST);
     second.flush({ items: [], nextCursor: null });
@@ -389,7 +391,9 @@ describe('MediaLibrary', () => {
     http.expectOne((r) => r.url === LIST).flush(null, { status: 503, statusText: 'Unavailable' });
     await settle(fixture);
 
-    (fixture.componentInstance as unknown as { onUploaded(asset: typeof ASSET): void }).onUploaded(ASSET);
+    (fixture.componentInstance as unknown as { onUploaded(asset: typeof ASSET): void }).onUploaded(
+      ASSET,
+    );
     fixture.detectChanges();
 
     expect(text(element)).toContain('couldn’t be loaded');
@@ -401,7 +405,9 @@ describe('MediaLibrary', () => {
     http.expectOne((r) => r.url === LIST).flush({ items: [SUMMARY], nextCursor: 'next' });
     await settle(fixture);
 
-    ([...element.querySelectorAll('button')].find((b) => text(b) === 'Load more') as HTMLElement).click();
+    (
+      [...element.querySelectorAll('button')].find((b) => text(b) === 'Load more') as HTMLElement
+    ).click();
     await settle(fixture);
     http.expectOne((r) => r.url === LIST).flush(null, { status: 503, statusText: 'Unavailable' });
     await settle(fixture);

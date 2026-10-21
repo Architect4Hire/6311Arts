@@ -1,0 +1,47 @@
+<div class="hero__slides" aria-hidden="true">
+  @for (s of slides(); track s; let i = $index) {
+    <div
+      class="hero__slide"
+      [class.is-on]="i === slide()"
+      [style.background-image]="'url(' + s + ')'"
+    ></div>
+  }
+</div>
+<div class="hero__veil"></div>
+<div class="hero__body">
+  @if (logo()) {
+    <img
+      class="mark hero__logo"
+      src="/logo.webp"
+      alt=""
+      width="224"
+      height="224"
+      fetchpriority="high"
+    />
+  }
+  @if (eyebrow()) {
+    <p class="hero__eyebrow">{{ eyebrow() }}</p>
+  }
+  <h1 class="hero__title">
+    @if (rotate().length) {
+      <span class="hero__static">{{ title() }}</span>
+      <span class="hero__rotator" aria-live="off">
+        @for (w of rotate(); track w; let i = $index) {
+          <span class="hero__word" [class.is-on]="i === word()" [attr.aria-hidden]="i !== word()">{{
+            w
+          }}</span>
+        }
+      </span>
+      <span class="sr-only">{{ rotate().join(', ') }}</span>
+    } @else {
+      {{ title() }}
+    }
+  </h1>
+  @if (lead()) {
+    <p class="hero__lead">{{ lead() }}</p>
+  }
+  <div class="hero__ctas"><ng-content /></div>
+</div>
+@if (size() === 'full') {
+  <a class="hero__scroll" href="#content" aria-label="Scroll to content"><span></span></a>
+}

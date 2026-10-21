@@ -1,0 +1,237 @@
+<p class="back"><a routerLink="/forms/submissions">← All submissions</a></p>
+
+<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+@switch (status().kind) {
+  @case ('loading') {
+    <p role="status">Loading submission…</p>
+  }
+  @case ('load-failed') {
+    <ui-notice tone="error" heading="This submission couldn’t be loaded">
+      <p>6311arts may be unreachable for a moment.</p>
+      <button uiButton type="button" size="sm" (click)="load()">Try again</button>
+    </ui-notice>
+  }
+  @case ('not-found') {
+    <ui-notice tone="warning" heading="There’s no such submission">
+      <p>The link may be wrong.</p>
+      <a uiButton size="sm" routerLink="/forms/submissions">Back to the submissions</a>
+    </ui-notice>
+  }
+  @default {
+    @if (submission(); as submission) {
+      <header class="title">
+        <h1 #heading class="cms-title" tabindex="-1">{{ submission.name }}</h1>
+        <ui-status-chip
+          [tone]="chips[submission.status].tone"
+          [icon]="chips[submission.status].icon"
+          >{{ chips[submission.status].label }}</ui-status-chip
+        >
+      </header>
+      <p class="meta">
+        Wants to: {{ wants(submission) }} · Received
+        <time [attr.datetime]="submission.receivedAt">{{ instant(submission.receivedAt) }}</time>
+      </p>
+
+      @if (conflict(); as clash) {
+        <div
+          #conflictBox
+          class="conflict"
+          role="region"
+          aria-label="Your changes and the saved version"
+          tabindex="-1"
+        >
+          <ui-notice
+            tone="warning"
+            heading="Someone else saved this submission while you were reviewing it"
+          >
+            <table class="compare">
+              <caption class="sr-only">
+                Your changes and the saved version
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Field</th>
+                  <th scope="col">Yours</th>
+                  <th scope="col">Saved</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Status</th>
+                  <td>{{ chips[clash.mine.status].label }}</td>
+                  <td>{{ chips[clash.theirs.status].label }}</td>
+                </tr>
+                <tr>
+                  <th scope="row">Notes</th>
+                  <td class="multiline">{{ clash.mine.notes.trim() || '—' }}</td>
+                  <td class="multiline">{{ clash.theirs.notes || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="actions">
+              <button
+                uiButton
+                type="button"
+                variant="dark"
+                size="sm"
+                (click)="keepMine(clash.theirs, clash.mine)"
+              >
+                Keep my changes
+              </button>
+              <button uiButton type="button" size="sm" (click)="useTheirs(clash.theirs)">
+                Use the saved version and discard mine
+              </button>
+            </div>
+          </ui-notice>
+        </div>
+      }
+
+      <div class="layout">
+        <div class="answers">
+          @for (group of before(); track group.id) {
+            <section class="group" [attr.aria-labelledby]="group.id">
+              <h2 class="group__heading" [id]="group.id">{{ group.heading }}</h2>
+              <dl class="pairs">
+                @for (answer of group.answers; track answer.label) {
+                  <div class="pair">
+                    <dt>{{ answer.label }}</dt>
+                    <dd [class.multiline]="answer.multiline">
+                      @if (answer.href) {
+                        @if (answer.external) {
+                          <a [href]="answer.href" target="_blank" rel="noopener noreferrer"
+                            >{{ answer.text }}<span class="sr-only"> (opens in a new tab)</span></a
+                          >
+                        } @else {
+                          <a [href]="answer.href">{{ answer.text }}</a>
+                        }
+                      } @else {
+                        {{ answer.text }}
+                      }
+                    </dd>
+                  </div>
+                }
+              </dl>
+            </section>
+          }
+
+          <section class="group" aria-labelledby="submission-images">
+            <h2 class="group__heading" id="submission-images">Images</h2>
+            @if (submission.images.length === 0) {
+              <p class="none">No pictures came with this submission.</p>
+            } @else {
+              <ul class="images">
+                @for (image of submission.images; track image.id; let index = $index) {
+                  <li>
+                    <figure class="image">
+                      <a
+                        class="image__link"
+                        [href]="image.originalUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <img
+                          class="image__img"
+                          [src]="image.thumbnailUrl ?? image.originalUrl"
+                          [alt]="image.fileName || 'Submitted picture ' + (index + 1)"
+                          [attr.width]="image.width"
+                          [attr.height]="image.height"
+                          loading="lazy"
+                          decoding="async"
+                        /><span class="sr-only"> (full size, opens in a new tab)</span>
+                      </a>
+                      <figcaption class="image__caption">
+                        {{ image.fileName || 'Picture ' + (index + 1) }} · {{ image.width }} ×
+                        {{ image.height }}
+                      </figcaption>
+                    </figure>
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+
+          @for (group of after(); track group.id) {
+            <section class="group" [attr.aria-labelledby]="group.id">
+              <h2 class="group__heading" [id]="group.id">{{ group.heading }}</h2>
+              <dl class="pairs">
+                @for (answer of group.answers; track answer.label) {
+                  <div class="pair">
+                    <dt>{{ answer.label }}</dt>
+                    <dd [class.multiline]="answer.multiline">
+                      @if (answer.href) {
+                        <a [href]="answer.href" target="_blank" rel="noopener noreferrer"
+                          >{{ answer.text }}<span class="sr-only"> (opens in a new tab)</span></a
+                        >
+                      } @else {
+                        {{ answer.text }}
+                      }
+                    </dd>
+                  </div>
+                }
+              </dl>
+            </section>
+          }
+        </div>
+
+        <section class="review" aria-labelledby="submission-review">
+          <h2 class="group__heading" id="submission-review">Review</h2>
+
+          @if (formError(); as message) {
+            <ui-notice tone="error">{{ message }}</ui-notice>
+          }
+
+          <form class="form" novalidate (ngSubmit)="save()">
+            <fieldset class="fields" [disabled]="busy()">
+              <legend class="sr-only">Review this submission</legend>
+              <ui-field label="Status">
+                <select
+                  uiControl
+                  name="status"
+                  [ngModel]="draft().status"
+                  (ngModelChange)="patch({ status: $event })"
+                >
+                  @for (option of statuses; track option) {
+                    <option [ngValue]="option">{{ chips[option].label }}</option>
+                  }
+                </select>
+              </ui-field>
+
+              <ui-field
+                label="Notes"
+                hint="For staff only. The artist never sees them."
+                [error]="notesError()"
+              >
+                <textarea
+                  uiControl
+                  name="notes"
+                  rows="8"
+                  [attr.maxlength]="limits.notesMaxLength"
+                  [ngModel]="draft().notes"
+                  (ngModelChange)="patch({ notes: $event })"
+                ></textarea>
+              </ui-field>
+            </fieldset>
+
+            <div class="actions">
+              <button
+                uiButton
+                type="submit"
+                variant="dark"
+                [busy]="status().kind === 'saving'"
+                [disabled]="!dirty() || busy()"
+              >
+                {{ status().kind === 'saving' ? 'Saving…' : 'Save' }}
+              </button>
+              @if (dirty()) {
+                <button uiButton type="button" [disabled]="busy()" (click)="discard()">
+                  Discard changes
+                </button>
+              }
+            </div>
+          </form>
+        </section>
+      </div>
+    }
+  }
+}

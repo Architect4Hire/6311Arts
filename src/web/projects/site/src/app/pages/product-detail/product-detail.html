@@ -1,0 +1,77 @@
+@if (product(); as p) {
+  <section class="band band--white band--after-nav" id="content">
+    <div class="container detail">
+      <div class="detail__media">
+        <app-art-image [src]="p.image" [alt]="p.name" ratio="4 / 5" [priority]="true" />
+      </div>
+      <div class="detail__info">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a routerLink="/shop">Shop</a> /
+          @if (p.artist?.slug) {
+            <a [routerLink]="['/artists', p.artist?.slug]">{{ p.artist?.name }}</a>
+          } @else if (p.artist) {
+            <span>{{ p.artist.name }}</span>
+          }
+        </nav>
+        <h1 class="detail__title">{{ p.name }}</h1>
+        @if (p.artist?.slug) {
+          <p class="detail__by">
+            by <a [routerLink]="['/artists', p.artist?.slug]">{{ p.artist?.name }}</a>
+          </p>
+        } @else if (p.artist) {
+          <p class="detail__by">by {{ p.artist.name }}</p>
+        }
+        @if (p.description) {
+          <p class="detail__lead">{{ p.description }}</p>
+        }
+        <div class="buy">
+          @if (p.price != null) {
+            <span class="buy__price">{{ p.price | money }}</span>
+          } @else {
+            <!-- Square hasn't priced the piece yet (ADR 0042, 0046). -->
+            <p class="buy__note buy__tba">Price to be announced</p>
+          }
+          @if (!p.inStock) {
+            <span class="tag tag--sold">Sold</span>
+          } @else if (p.price != null) {
+            <!-- Until Square has priced a piece it isn't for sale (ADR 0042). -->
+            <a class="btn btn-dark btn-lg" [href]="store.buyUrl(p)">Buy now</a>
+          }
+        </div>
+        <ul class="facts facts--small">
+          <li>
+            <ui-icon name="pin" [size]="20" /><span
+              >See it in person at {{ site.address.street }} during gallery hours</span
+            >
+          </li>
+          <li>
+            <ui-icon name="heart" [size]="20" /><span
+              >Made by a North Side artist within six miles of the gallery</span
+            >
+          </li>
+          <li>
+            <ui-icon name="gift" [size]="20" /><span
+              >Returns within 14 days, undamaged, with receipt</span
+            >
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  @if (more().length) {
+    <section class="band band--light">
+      <div class="container">
+        <h2 class="band__title text-center">
+          More from {{ p.artist?.slug ? p.artist?.name : 'the shop' }}
+        </h2>
+        <div class="grid-products">
+          @for (m of more(); track m.id) {
+            <app-product-card [item]="m" />
+          }
+        </div>
+      </div>
+    </section>
+  }
+} @else if (loaded()) {
+  <app-not-found />
+}

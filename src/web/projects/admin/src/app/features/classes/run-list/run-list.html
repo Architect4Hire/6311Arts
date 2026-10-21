@@ -1,0 +1,190 @@
+<section class="panel" aria-labelledby="runs-heading">
+  <h2 id="runs-heading" class="panel__title">Runs</h2>
+  <p class="panel__hint">
+    Each run is one term of this class — its own instructor, dates, seats and price. A seat is
+    bought in a run, for every session in it.
+  </p>
+
+  <!-- Exists from the start, so what is written into it later is read out. -->
+  <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+  @if (runs().length === 0) {
+    <p class="panel__empty">No runs yet. A class needs at least one to be published.</p>
+  }
+
+  @for (run of runs(); track run.key; let index = $index) {
+    <article class="run" [attr.data-run]="index" [attr.aria-labelledby]="headingId(index)">
+      <header class="run__head">
+        <h3 class="run__title" [id]="headingId(index)">
+          {{ name(run, index) }}
+        </h3>
+        @if (run.squareHasRecord) {
+          @if (run.soldOut) {
+            <ui-status-chip tone="attention" icon="stop">Sold out</ui-status-chip>
+          }
+        } @else {
+          <span class="run__none">Not in Square yet</span>
+        }
+      </header>
+
+      <div class="pair">
+        <ui-field label="Label" hint="Fall 2026, Sunday mornings… Optional.">
+          <input
+            uiControl
+            [attr.name]="'runLabel' + index"
+            autocomplete="off"
+            [attr.maxlength]="limits.runLabelMaxLength"
+            [disabled]="disabled()"
+            [value]="run.label"
+            (input)="patch(index, { label: value($event) })"
+          />
+        </ui-field>
+        <ui-field label="How often it meets" hint="Saturdays, Wednesdays for 5 weeks…">
+          <input
+            uiControl
+            [attr.name]="'runCadence' + index"
+            autocomplete="off"
+            [attr.maxlength]="limits.cadenceMaxLength"
+            [disabled]="disabled()"
+            [value]="run.cadence"
+            (input)="patch(index, { cadence: value($event) })"
+          />
+        </ui-field>
+      </div>
+
+      <cms-instructor-picker
+        [heading]="'Instructor for ' + name(run, index)"
+        [instructor]="run.instructor"
+        (instructorChange)="patch(index, { instructor: $event })"
+        [disabled]="disabled()"
+      />
+
+      <div class="trio">
+        <ui-field label="Seats" [required]="true">
+          <input
+            uiControl
+            type="number"
+            inputmode="numeric"
+            min="1"
+            [attr.max]="limits.capacityMaxSeats"
+            [attr.name]="'runCapacity' + index"
+            [disabled]="disabled()"
+            [value]="run.capacity"
+            (input)="patch(index, { capacity: value($event) })"
+          />
+        </ui-field>
+        <ui-field label="SKU" hint="Suggested; change it if the front desk uses another.">
+          <input
+            uiControl
+            [attr.name]="'runSku' + index"
+            autocomplete="off"
+            spellcheck="false"
+            [attr.maxlength]="limits.skuMaxLength"
+            [disabled]="disabled()"
+            [value]="run.sku"
+            (input)="patch(index, { sku: value($event) })"
+          />
+        </ui-field>
+        @if (run.startingPriceEditable) {
+          <ui-field
+            label="Price per seat"
+            [hint]="'In ' + currency() + '. Enter 0 for a free class. Needed to publish.'"
+          >
+            <input
+              uiControl
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              [attr.max]="limits.startingPriceMaxCents / 100"
+              [attr.name]="'runPrice' + index"
+              [disabled]="disabled()"
+              [value]="run.price"
+              (input)="patch(index, { price: value($event) })"
+            />
+          </ui-field>
+        }
+      </div>
+
+      @if (run.squareHasRecord) {
+        <div class="square">
+          <p class="square__line">
+            @if (run.priceCents !== null) {
+              <span class="square__price">{{ money(run.priceCents) }}</span>
+              a seat in Square.
+            }
+            @if (run.seatsRemaining !== null) {
+              <span class="square__seats"
+                >{{ run.seatsRemaining }} of {{ run.capacity }} seats left.</span
+              >
+            }
+          </p>
+          <!-- 5.4a sends the change as an audited command; until then the figure is Square's to say. -->
+          <div class="actions">
+            <button
+              uiButton
+              type="button"
+              size="sm"
+              [disabled]="true"
+              [attr.aria-label]="'Change price for ' + name(run, index)"
+            >
+              Change price
+            </button>
+          </div>
+          <p class="panel__hint">
+            Square holds this run now: its price changes through Square, and it can’t be removed
+            here because it may have sales. Archive the class instead.
+          </p>
+        </div>
+      }
+
+      <cms-session-grid
+        [sessions]="run.sessions"
+        (sessionsChange)="patch(index, { sessions: $event })"
+        [run]="name(run, index)"
+        [prefix]="'run' + index + 'Session'"
+        [zone]="run.displayTimeZone"
+        [disabled]="disabled()"
+        [invalid]="error() !== null"
+        [errorId]="errorId"
+      />
+
+      <div class="actions">
+        <button
+          uiButton
+          type="button"
+          size="sm"
+          data-action="remove-run"
+          [disabled]="disabled() || run.squareHasRecord"
+          [attr.aria-label]="'Remove ' + name(run, index)"
+          (click)="remove(index)"
+        >
+          Remove run
+        </button>
+      </div>
+    </article>
+  }
+
+  @if (error(); as message) {
+    <p class="error" role="alert" [id]="errorId">{{ message }}</p>
+  }
+
+  @if (full()) {
+    <p class="panel__hint">
+      A class has at most {{ limits.runsMaxCount }} runs. Remove one to add another.
+    </p>
+  } @else {
+    <div class="actions">
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        data-action="add-run"
+        [disabled]="disabled()"
+        (click)="add()"
+      >
+        Add run
+      </button>
+    </div>
+  }
+</section>

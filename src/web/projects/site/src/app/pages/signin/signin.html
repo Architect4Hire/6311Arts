@@ -1,0 +1,88 @@
+<app-account-panel
+  heading="Staff sign-in"
+  lead="For 6311arts staff and volunteers who edit the site."
+>
+  <!-- In the page from the first render, so what appears in it later is announced (see ui-notice). -->
+  <div class="account-panel__status" aria-live="polite">
+    @switch (notice()) {
+      @case ('password-changed') {
+        <ui-notice tone="success" heading="Your password has been changed">
+          <p>Sign in with your new password.</p>
+        </ui-notice>
+      }
+      @case ('email-confirmed') {
+        <ui-notice tone="success" heading="Your email address is confirmed">
+          <p>You can sign in now.</p>
+        </ui-notice>
+      }
+    }
+    @if (signedInAs(); as who) {
+      <ui-notice tone="info" heading="You’re already signed in">
+        <p>
+          You’re signed in as {{ who.displayName }}. <a [href]="destination()">Continue</a>, or sign
+          in below as someone else.
+        </p>
+      </ui-notice>
+    }
+    @switch (status().kind) {
+      @case ('refused') {
+        <ui-notice tone="error" heading="Sign-in didn’t work">
+          <p>Check your email address and password, then try again.</p>
+        </ui-notice>
+      }
+      @case ('rate-limited') {
+        <ui-notice tone="error" heading="Too many attempts">
+          <p>{{ rateLimitedMessage() }}</p>
+        </ui-notice>
+      }
+      @case ('unavailable') {
+        <ui-notice tone="error" heading="Sign-in is unavailable">
+          <p>Something on our side isn’t answering. Try again shortly.</p>
+        </ui-notice>
+      }
+      @case ('not-staff') {
+        <ui-notice tone="warning" heading="This account can’t use the CMS">
+          <p>
+            You’re signed in, but the CMS is for staff accounts. Ask an administrator for access.
+          </p>
+        </ui-notice>
+      }
+    }
+  </div>
+
+  <form method="post" novalidate (ngSubmit)="submit()">
+    <!-- Also disabled while signing in, for the reason in reset-password.ts. -->
+    <fieldset class="account-panel__fields" [disabled]="!ready() || status().kind === 'busy'">
+      <legend class="sr-only">Your staff account</legend>
+      <ui-field label="Email" required [error]="emailError()">
+        <input
+          #emailInput
+          uiControl
+          type="email"
+          name="email"
+          autocomplete="username"
+          spellcheck="false"
+          [(ngModel)]="email"
+        />
+      </ui-field>
+      <ui-field label="Password" required [error]="passwordError()">
+        <input
+          #passwordInput
+          uiControl
+          type="password"
+          name="password"
+          autocomplete="current-password"
+          [(ngModel)]="password"
+        />
+      </ui-field>
+      <p>
+        <button uiButton type="submit" variant="dark" [busy]="status().kind === 'busy'">
+          {{ status().kind === 'busy' ? 'Signing in…' : 'Sign in' }}
+        </button>
+      </p>
+    </fieldset>
+  </form>
+  <p class="account-panel__aside">
+    <a routerLink="/account/forgot-password">Forgot your password?</a>
+  </p>
+</app-account-panel>

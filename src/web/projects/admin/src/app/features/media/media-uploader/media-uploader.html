@@ -1,0 +1,92 @@
+<div
+  class="drop"
+  [class.drop--over]="over()"
+  (dragover)="onDragOver($event)"
+  (dragleave)="over.set(false)"
+  (drop)="onDrop($event)"
+>
+  <ui-icon name="plus" [size]="28" [stroke]="1.6" />
+  <label class="drop__label" for="media-upload-input">
+    Drop images here, or <span class="drop__choose">choose files</span>
+  </label>
+  <span class="drop__hint" id="media-upload-hint"
+    >JPEG, PNG or WebP, up to 25 MB each. Large photos are resized to 2560 px and compressed without
+    visible loss; GPS location is removed.</span
+  >
+  <input
+    #input
+    id="media-upload-input"
+    class="drop__input"
+    type="file"
+    multiple
+    [accept]="accept"
+    aria-describedby="media-upload-hint"
+    (change)="onChoose(input)"
+  />
+</div>
+
+<p class="sr-only" aria-live="polite">{{ announcement() }}</p>
+
+@if (uploads().length > 0) {
+  <ul class="queue" role="list" aria-label="Uploads">
+    @for (upload of uploads(); track upload.key) {
+      <li class="item" [attr.data-state]="upload.state.kind">
+        <span class="item__name">{{ upload.file.name }}</span>
+        <span class="item__size">{{ size(upload.file.size) }}</span>
+        @switch (upload.state.kind) {
+          @case ('queued') {
+            <span class="item__status">Waiting</span>
+          }
+          @case ('uploading') {
+            <progress
+              class="item__bar"
+              max="100"
+              [attr.value]="percentOf(upload)"
+              [attr.aria-label]="'Uploading ' + upload.file.name"
+            ></progress>
+            <span class="item__status">{{ percentText(upload) }}</span>
+            <button
+              uiButton
+              type="button"
+              size="sm"
+              [attr.aria-label]="'Cancel uploading ' + upload.file.name"
+              (click)="cancel(upload.key)"
+            >
+              Cancel
+            </button>
+          }
+          @case ('done') {
+            <span class="item__status">
+              <ui-icon name="check" [size]="16" [stroke]="2.4" /> Uploaded{{ savedText(upload) }}
+            </span>
+          }
+          @case ('cancelled') {
+            <span class="item__status">Cancelled</span>
+          }
+          @case ('failed') {
+            <span class="item__status item__status--error">
+              <ui-icon name="stop" [size]="16" [stroke]="2.4" /><span class="sr-only"
+                >Failed:
+              </span>
+              {{ messageOf(upload) }}
+            </span>
+            @if (existingOf(upload); as existingId) {
+              <button
+                uiButton
+                type="button"
+                size="sm"
+                [attr.aria-label]="'Show the image already in the library for ' + upload.file.name"
+                (click)="showExisting.emit(existingId)"
+              >
+                Show it
+              </button>
+            }
+          }
+        }
+      </li>
+    }
+  </ul>
+  @if (finished()) {
+    <button uiButton type="button" size="sm" (click)="clearFinished()">Clear finished</button>
+  }
+}

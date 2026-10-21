@@ -1,0 +1,402 @@
+<p class="back"><a routerLink="/memberships">← All tiers</a></p>
+
+<!-- Exists from the start, so what is written into it later is read out. -->
+<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+@switch (status().kind) {
+  @case ('loading') {
+    <p role="status">Loading tier…</p>
+  }
+  @case ('load-failed') {
+    <ui-notice tone="error" heading="This tier couldn’t be loaded">
+      <p>6311arts may be unreachable for a moment.</p>
+      <button uiButton type="button" size="sm" (click)="load()">Try again</button>
+    </ui-notice>
+  }
+  @case ('not-found') {
+    <ui-notice tone="warning" heading="There’s no such tier">
+      <p>It may have been removed, or the link is wrong.</p>
+      <a uiButton size="sm" routerLink="/memberships">Back to the tiers</a>
+    </ui-notice>
+  }
+  @default {
+    <header class="title">
+      <h1 #heading class="cms-title" tabindex="-1">{{ plan()?.name || 'New tier' }}</h1>
+      @if (plan(); as plan) {
+        <ui-status-chip [tone]="chips[plan.status].tone" [icon]="chips[plan.status].icon">{{
+          chips[plan.status].label
+        }}</ui-status-chip>
+      }
+    </header>
+
+    @if (conflict(); as theirs) {
+      <div
+        #conflictBox
+        class="conflict"
+        role="region"
+        aria-label="Your changes and the saved version"
+        tabindex="-1"
+      >
+        <ui-notice tone="warning" heading="Someone else saved this tier while you were editing">
+          <table class="compare">
+            <caption class="sr-only">
+              Your changes and the saved version
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Field</th>
+                <th scope="col">Yours</th>
+                <th scope="col">Saved</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Name</th>
+                <td>{{ draft().name || '—' }}</td>
+                <td>{{ theirs.name }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Perks</th>
+                <td>{{ perkSummary(cleanPerks(draft().perks)) }}</td>
+                <td>{{ perkSummary(theirs.perks) }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Class discount</th>
+                <td>{{ draft().discount || '0' }}%</td>
+                <td>{{ theirs.discountPercent }}%</td>
+              </tr>
+              <tr>
+                <th scope="row">Order</th>
+                <td>{{ draft().order || '—' }}</td>
+                <td>{{ theirs.displayOrder }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Key</th>
+                <td>{{ draft().slug || '—' }}</td>
+                <td>{{ theirs.slug }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Featured</th>
+                <td>{{ draft().featured ? 'Yes' : 'No' }}</td>
+                <td>{{ theirs.featured ? 'Yes' : 'No' }}</td>
+              </tr>
+              @if (theirs.startingPriceEditable) {
+                <tr>
+                  <th scope="row">Starting price</th>
+                  <td>{{ draft().price ? '$' + draft().price : '—' }}</td>
+                  <td>{{ savedStartingPrice(theirs) }}</td>
+                </tr>
+                <tr>
+                  <th scope="row">Billing cadence</th>
+                  <td>{{ draft().cadence }}</td>
+                  <td>{{ theirs.startingCadence }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <div class="actions">
+            <button uiButton type="button" variant="dark" size="sm" (click)="keepMine(theirs)">
+              Keep my changes
+            </button>
+            <button uiButton type="button" size="sm" (click)="useTheirs(theirs)">
+              Use the saved version and discard mine
+            </button>
+          </div>
+        </ui-notice>
+      </div>
+    }
+
+    @if (formError(); as message) {
+      <ui-notice tone="error">{{ message }}</ui-notice>
+    }
+
+    <div class="layout">
+      <form class="form" novalidate (ngSubmit)="save()">
+        <fieldset class="fields" [disabled]="busy()">
+          <legend class="sr-only">Tier details</legend>
+          <ui-field label="Name" [required]="true" [error]="errors().name ?? null">
+            <input
+              uiControl
+              name="name"
+              autocomplete="off"
+              [attr.maxlength]="limits.nameMaxLength"
+              [ngModel]="draft().name"
+              (ngModelChange)="setName($event)"
+            />
+          </ui-field>
+
+          <ui-field
+            label="Key"
+            [required]="true"
+            hint="A stable key for this tier, not a web address: every tier is shown on /memberships."
+            [error]="errors().slug ?? null"
+          >
+            <input
+              uiControl
+              name="slug"
+              autocomplete="off"
+              spellcheck="false"
+              [attr.maxlength]="limits.slugMaxLength"
+              [ngModel]="draft().slug"
+              (ngModelChange)="setSlug($event)"
+            />
+          </ui-field>
+
+          <div class="pair">
+            <ui-field
+              label="Class discount (%)"
+              hint="What a member of this tier saves on every class and workshop."
+              [error]="errors().discountPercent ?? null"
+            >
+              <input
+                uiControl
+                name="discountPercent"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                [attr.max]="limits.discountMaxPercent"
+                [ngModel]="draft().discount"
+                (ngModelChange)="setNumber('discount', $event)"
+              />
+            </ui-field>
+            <ui-field
+              label="Order on the page"
+              hint="1 comes first. A new tier goes last."
+              [error]="errors().displayOrder ?? null"
+            >
+              <input
+                uiControl
+                name="displayOrder"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                [attr.max]="limits.displayOrderMax"
+                [ngModel]="draft().order"
+                (ngModelChange)="setNumber('order', $event)"
+              />
+            </ui-field>
+          </div>
+
+          <label class="choice">
+            <input
+              type="checkbox"
+              name="featured"
+              [checked]="draft().featured"
+              (change)="patch({ featured: !draft().featured })"
+            />
+            Highlight this tier on the memberships page
+          </label>
+        </fieldset>
+
+        <fieldset
+          class="panel"
+          [disabled]="busy()"
+          [attr.aria-describedby]="errors().perks ? 'perks-error' : null"
+        >
+          <legend class="panel__title">Perks</legend>
+          <p class="panel__hint">
+            What the tier includes, in the order the page lists them. At least one is needed to
+            publish.
+          </p>
+          @if (errors().perks; as message) {
+            <p id="perks-error" class="error" role="alert">{{ message }}</p>
+          }
+          <ol class="perks">
+            @for (perk of draft().perks; track $index; let index = $index) {
+              <li class="perk">
+                <ui-field [label]="'Perk ' + (index + 1)">
+                  <input
+                    uiControl
+                    [attr.name]="'perk-' + index"
+                    autocomplete="off"
+                    [attr.maxlength]="limits.perkMaxLength"
+                    [ngModel]="perk"
+                    [ngModelOptions]="{ standalone: true }"
+                    (ngModelChange)="setPerk(index, $event)"
+                  />
+                </ui-field>
+                <div class="perk__actions">
+                  <button
+                    uiButton
+                    type="button"
+                    size="sm"
+                    [disabled]="index === 0"
+                    [attr.aria-label]="'Move perk ' + (index + 1) + ' up'"
+                    (click)="movePerk(index, -1)"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    uiButton
+                    type="button"
+                    size="sm"
+                    [disabled]="index === draft().perks.length - 1"
+                    [attr.aria-label]="'Move perk ' + (index + 1) + ' down'"
+                    (click)="movePerk(index, 1)"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    uiButton
+                    type="button"
+                    size="sm"
+                    [attr.aria-label]="'Remove perk ' + (index + 1)"
+                    (click)="removePerk(index)"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </li>
+            }
+          </ol>
+          <div class="actions">
+            <button
+              uiButton
+              type="button"
+              size="sm"
+              [disabled]="draft().perks.length >= limits.perksMaxCount"
+              (click)="addPerk()"
+            >
+              Add a perk
+            </button>
+          </div>
+        </fieldset>
+
+        <fieldset class="panel" [disabled]="busy()">
+          <legend class="panel__title">Price and billing</legend>
+          @if (priceEditable()) {
+            <div class="pair">
+              <ui-field
+                label="Price"
+                hint="What a member pays each time it bills. Needed to publish."
+                [error]="errors().startingPriceCents ?? null"
+              >
+                <input
+                  uiControl
+                  name="price"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  step="0.01"
+                  [attr.max]="limits.startingPriceMaxCents / 100"
+                  [ngModel]="draft().price"
+                  (ngModelChange)="setNumber('price', $event)"
+                />
+              </ui-field>
+              <ui-field
+                label="Bills"
+                hint="Sent to Square once, when the plan is created there."
+                [error]="errors().startingCadence ?? null"
+              >
+                <select
+                  uiControl
+                  name="startingCadence"
+                  [ngModel]="draft().cadence"
+                  (ngModelChange)="patch({ cadence: $event })"
+                >
+                  @for (option of cadences; track option.value) {
+                    <option [value]="option.value">{{ option.label }}</option>
+                  }
+                </select>
+              </ui-field>
+            </div>
+          } @else if (plan(); as plan) {
+            <p class="panel__text price">{{ squarePrice(plan) }}</p>
+            <p class="panel__text">{{ squareCadence(plan) }}</p>
+            <p id="square-holds-hint" class="panel__hint">
+              Square holds this tier’s price and billing now. Change them in Square; the CMS keeps
+              the name, the perks and the class discount.
+            </p>
+          }
+        </fieldset>
+
+        <div class="actions">
+          <button
+            uiButton
+            type="submit"
+            variant="dark"
+            [busy]="status().kind === 'saving'"
+            [disabled]="!dirty() || busy()"
+          >
+            {{ saveLabel() }}
+          </button>
+          @if (plan() && dirty()) {
+            <button uiButton type="button" [disabled]="busy()" (click)="discard()">
+              Discard changes
+            </button>
+          }
+        </div>
+      </form>
+
+      @if (plan(); as plan) {
+        <aside class="side">
+          <section class="panel" aria-labelledby="publishing-heading">
+            <h2 #publishingHeading id="publishing-heading" class="panel__title" tabindex="-1">
+              Publishing
+            </h2>
+            <p class="panel__text">{{ statusText(plan) }}</p>
+            @if (dirty()) {
+              <p class="panel__hint" id="publishing-hint">
+                Save your changes first: these act on the saved version.
+              </p>
+            }
+            <div class="actions">
+              @if (canPublish()) {
+                <button
+                  uiButton
+                  type="button"
+                  variant="dark"
+                  size="sm"
+                  aria-describedby="publishing-hint"
+                  [busy]="commanding() === 'publish'"
+                  [disabled]="dirty() || busy()"
+                  (click)="run('publish')"
+                >
+                  Publish
+                </button>
+              }
+              @if (plan.status === 'Published') {
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  aria-describedby="publishing-hint"
+                  [busy]="commanding() === 'unpublish'"
+                  [disabled]="dirty() || busy()"
+                  (click)="unpublish()"
+                >
+                  Unpublish
+                </button>
+              }
+              @if (canArchive()) {
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  aria-describedby="publishing-hint"
+                  [busy]="commanding() === 'archive'"
+                  [disabled]="dirty() || busy()"
+                  (click)="archive()"
+                >
+                  Archive
+                </button>
+              }
+            </div>
+
+            <cms-schedule-control
+              noun="tier"
+              [status]="plan.status"
+              [scheduledFor]="plan.scheduledFor"
+              [disabled]="dirty() || busy()"
+              [busy]="commanding()"
+              (schedule)="schedule($event)"
+              (unschedule)="unschedule()"
+            />
+
+            <cms-preview-link entityType="membership-plan" [entityId]="plan.id" [dirty]="dirty()" />
+          </section>
+        </aside>
+      }
+    </div>
+  }
+}

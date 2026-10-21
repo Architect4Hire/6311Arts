@@ -1,0 +1,16 @@
+<dialog
+  #dialog
+  class="ui-dialog"
+  [attr.aria-labelledby]="headingId"
+  (close)="onClose()"
+  (click)="onClick($event)"
+>
+  <div class="ui-dialog__head">
+    <h2 class="ui-dialog__title" [id]="headingId">{{ heading() }}</h2>
+    <button type="button" class="ui-dialog__close" aria-label="Close" (click)="dialog.close()">
+      <ui-icon name="close" [size]="18" [stroke]="2.4" />
+    </button>
+  </div>
+  <div class="ui-dialog__body"><ng-content /></div>
+  <div class="ui-dialog__actions"><ng-content select="[uiDialogActions]" /></div>
+</dialog>

@@ -1,0 +1,114 @@
+:host {
+  display: grid;
+  gap: var(--space-5);
+}
+.conflict:focus {
+  outline: none;
+}
+.layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+.preview {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.preview img {
+  width: 100%;
+  height: auto;
+  max-height: 50vh;
+  object-fit: contain;
+  background: var(--light);
+}
+.preview__pending {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  background: var(--light);
+  color: var(--text-soft);
+}
+.facts {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--fs-small);
+  color: var(--text-soft);
+}
+.facts__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+.presets {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.presets legend {
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+.preset {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  cursor: pointer;
+}
+.preset input {
+  margin-top: var(--space-1);
+  accent-color: var(--ink);
+}
+.preset__label {
+  display: block;
+  font-weight: var(--fw-bold);
+}
+.preset__hint,
+.presets__note {
+  display: block;
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--text-soft);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.actions__delete {
+  margin-left: auto;
+}
+.compare,
+.renditions {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-small);
+}
+.compare th,
+.compare td,
+.renditions th,
+.renditions td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-thin) solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.renditions caption {
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-align: left;
+  text-transform: uppercase;
+}

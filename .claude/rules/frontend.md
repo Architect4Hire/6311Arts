@@ -19,13 +19,33 @@ paths:
   - Strict TypeScript and strict templates.
   - Zoneless.
   - `OnPush` everywhere.
+  - **Three files, never one** (ADR 0050), in all three projects. Markup goes in a sibling `.html` named in `templateUrl`, styles in a
+    sibling `.scss` named in `styleUrl`. `template:` and `styles:` never appear in a `@Component`. A component with
+    no styles has no stylesheet. The one exception: a throwaway host component inside a `*.spec.ts` keeps
+    `template:` inline, because its markup is that test's fixture.
+  - **One component per file, one folder per component** (ADR 0051). A `.ts` file declares exactly one
+    `@Component`, and that component owns a folder named after it holding its `.ts`, `.html`, `.scss` and — when
+    the spec covers it alone — its `.spec.ts`. So every file of a component shares its folder's name:
+    `pages/product-detail/product-detail.{ts,html}`. Never two `@Component`s in one file, and never a barrel
+    re-exporting a folder of components (it pulls siblings into the importer's lazy chunk).
+  - **Outside a component folder:** a spec covering several components sits beside its area (the admin area specs,
+    `features/layout/shell.spec.ts`); pipes and directives stay at the root of `shared/` (`format.ts`,
+    `reveal.ts`); and the root `app/app.ts` + `app/app.html` stay put. A folder already named after its component
+    gains no second level (`features/dashboard/dashboard.ts`).
+  - A stylesheet is `.scss`, never `.css`: the styles are SCSS (nested selectors, `//` comments) and a `styleUrl`
+    is compiled according to its extension.
+  - Prettier formats `*.html` with its `angular` parser (`src/web/.prettierrc`), so run it over markup you add.
 - **State.** Signals for local and derived state; RxJS for streams and interop.
 - **HTTP.** Typed services in `src/app/services/` own all HTTP. Components never inject `HttpClient`.
 - **Models.** `src/app/models/` mirrors the API ServiceModels exactly: string ids, integer cents, ISO strings. Check them with `api-contract-checker`.
 - **Folders.**
   - `core/`: session, interceptors, guards, SEO
-  - `shared/`: compositions of `@6311/ui`
-  - `features/` (admin) or `pages/` (site): lazy routes
+  - `shared/`: compositions of `@6311/ui`, grouped by kind where a group has real members — site:
+    `layout/` (header, footer, staff-access), `cards/`, `forms/`, `media/`, then `hero/`, `contact/`,
+    `account-panel/` on their own; admin: `pickers/`, then `preview-link/`, `rich-text-editor/`,
+    `schedule-control/`. No category folder for a single component (ADR 0051).
+  - `features/` (admin) or `pages/` (site): lazy routes, one folder per component. One route per file, so a
+    route ships only its own chunk.
 - **Logic.** Never use `any`. Decode unknown data at boundaries.
 - **Workspace config.** Application tsconfigs live at the workspace root as `src/web/tsconfig.<project>.json` (+ `tsconfig.<project>.spec.json`), never inside `projects/<app>/`. `@angular/build` names lazy routes relative to the tsconfig's folder but keys the SSR manifest by workspace-relative paths, so a tsconfig under the project folder silently drops route modulepreload hints (see the comment in `tsconfig.site.json`). Don't move them. `projects/ui` is a library and uses a library tsconfig.
 

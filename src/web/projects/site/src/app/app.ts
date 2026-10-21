@@ -1,15 +1,11 @@
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { Footer } from './shared/footer';
-import { Header } from './shared/header';
+import { Footer } from './shared/layout/footer/footer';
+import { Header } from './shared/layout/header/header';
 
 @Component({
   selector: 'app-root',
   imports: [RouterOutlet, Header, Footer],
-  template: `
-    <app-header />
-    <main><router-outlet /></main>
-    <app-footer />
-  `,
+  templateUrl: './app.html',
 })
 export class App {}

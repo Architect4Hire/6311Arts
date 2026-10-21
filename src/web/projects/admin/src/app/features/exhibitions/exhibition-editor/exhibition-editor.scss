@@ -1,0 +1,133 @@
+:host {
+  display: grid;
+  gap: var(--space-5);
+}
+.back {
+  margin: 0;
+  font-size: var(--fs-small);
+}
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+.title .cms-title {
+  margin: 0;
+}
+.cms-title:focus,
+.conflict:focus,
+.panel__title:focus {
+  outline: none;
+}
+.layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+.fields,
+.reception {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.reception {
+  padding: var(--space-4);
+  border: var(--border-thin) solid var(--line);
+}
+.reception__legend {
+  padding: 0 var(--space-1);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: var(--space-4);
+}
+.form,
+.side {
+  display: grid;
+  gap: var(--space-4);
+}
+.panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-thin) solid var(--line);
+}
+.panel__title {
+  margin: 0;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+.panel__text,
+.panel__empty,
+.panel__hint {
+  margin: 0;
+}
+.panel__hint,
+.panel__empty,
+.check__hint {
+  font-size: var(--fs-small);
+  color: var(--text-soft);
+}
+.hero {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  background: var(--light);
+}
+.hero--pending {
+  display: grid;
+  place-items: center;
+  color: var(--text-soft);
+}
+.error {
+  margin: 0;
+  color: var(--danger);
+  font-weight: var(--fw-bold);
+}
+.check {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  cursor: pointer;
+}
+.check input {
+  margin-top: var(--space-1);
+  accent-color: var(--ink);
+}
+.check__label,
+.check__hint {
+  display: block;
+}
+.check__label {
+  font-weight: var(--fw-bold);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-small);
+}
+.compare th,
+.compare td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-thin) solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}

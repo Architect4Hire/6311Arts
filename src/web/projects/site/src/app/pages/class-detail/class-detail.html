@@ -1,0 +1,89 @@
+@if (cls(); as c) {
+  <app-hero [title]="c.title" [eyebrow]="c.type + ' · ' + c.level" [images]="studioPhotos" />
+  <section class="band band--white" id="content">
+    <div class="container detail">
+      <div class="detail__media">
+        <app-art-image [src]="c.image" [alt]="c.title + ' flyer'" ratio="1 / 1" [priority]="true" />
+      </div>
+      <div class="detail__info">
+        <p class="eyebrow eyebrow--dark">
+          {{ c.sessions > 1 ? c.sessions + '-week course' : 'One session' }}
+        </p>
+        <h2 class="detail__title">{{ c.title }}</h2>
+        <p class="detail__lead">{{ c.summary }}</p>
+        <ul class="facts">
+          <li>
+            <ui-icon name="clock" [size]="22" />
+            <span
+              ><strong>{{ c.sessions > 1 ? 'Starts ' : '' }}{{ c.start | when: 'long' }}</strong
+              ><br />
+              {{ c.cadence ? c.cadence + ', ' : '' }}{{ c.start | when: 'time' : c.end }}</span
+            >
+          </li>
+          @if (c.instructor) {
+            <li>
+              <ui-icon name="people" [size]="22" />
+              <span
+                >With
+                <a class="linkish" [routerLink]="['/instructors', instructorSlug(c.instructor)]"
+                  ><strong>{{ c.instructor }}</strong></a
+                ></span
+              >
+            </li>
+          }
+          <li>
+            <ui-icon name="pin" [size]="22" /><span
+              >{{ site.name }}, {{ site.address.street }}</span
+            >
+          </li>
+          @if (c.spotsLeft != null) {
+            <li>
+              <ui-icon name="ticket" [size]="22" />
+              <span
+                ><strong>{{
+                  c.spotsLeft === 0 ? 'Sold out' : c.spotsLeft + ' of ' + c.capacity + ' spots left'
+                }}</strong></span
+              >
+            </li>
+          }
+        </ul>
+        <div class="buy">
+          @if (c.price != null) {
+            <span class="buy__price">{{ c.price | money }}</span>
+          } @else {
+            <!-- Square hasn't priced the run yet (ADR 0042, 0046). -->
+            <p class="buy__note buy__tba">Price to be announced</p>
+          }
+          @if (c.spotsLeft === 0) {
+            <a class="btn btn-border-dark btn-lg" routerLink="/classes">Find another date</a>
+          } @else if (c.price != null) {
+            <!-- Until Square has priced a run there is nothing to reserve (ADR 0042). -->
+            <a class="btn btn-dark btn-lg" [href]="store.buyUrl(c)">{{
+              c.price === 0 ? 'RSVP free' : 'Reserve your spot'
+            }}</a>
+          }
+        </div>
+        @if ((c.price ?? 0) > 0 && memberPrice() != null && joinFrom() != null) {
+          <p class="buy__note">
+            Members pay {{ memberPrice() | money }} or less.
+            <a routerLink="/memberships">Join from {{ joinFrom() | money }}/yr</a>.
+          </p>
+        }
+      </div>
+    </div>
+  </section>
+  @if (more().length) {
+    <section class="band band--light">
+      <div class="container">
+        <h2 class="band__title text-center">More coming up</h2>
+        <div class="class-list">
+          @for (m of more(); track m.id) {
+            <app-class-card [item]="m" />
+          }
+        </div>
+      </div>
+    </section>
+  }
+} @else if (loaded()) {
+  <app-not-found />
+}

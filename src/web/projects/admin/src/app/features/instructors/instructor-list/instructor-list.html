@@ -1,0 +1,122 @@
+<div class="head">
+  <div>
+    <h1 class="cms-title">Instructors</h1>
+    <p class="cms-lead">
+      Who teaches at 6311arts: what they teach, their bio, portrait and links. Each class run names
+      one.
+    </p>
+  </div>
+  <a uiButton variant="dark" routerLink="/instructors/new">New instructor</a>
+</div>
+
+<div class="tools">
+  <ui-field label="Find an instructor" class="tools__search">
+    <input
+      #searchInput
+      uiControl
+      type="search"
+      name="search"
+      autocomplete="off"
+      [attr.maxlength]="limits.searchMaxLength"
+      [value]="search()"
+      (input)="onSearch(searchInput.value)"
+    />
+  </ui-field>
+  <div class="filters" role="group" aria-label="Filter by status">
+    @for (option of filters; track option.value) {
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        [variant]="filter() === option.value ? 'dark' : 'border-dark'"
+        [attr.aria-pressed]="filter() === option.value"
+        (click)="filter.set(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    }
+  </div>
+</div>
+
+<!-- Exists from the start, so the counts written into it later are read out. -->
+<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+@switch (state()) {
+  @case ('loading') {
+    <p role="status">Loading instructors…</p>
+  }
+  @case ('failed') {
+    <ui-notice tone="error" heading="The instructors couldn’t be loaded">
+      <p>6311arts may be unreachable for a moment.</p>
+      <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
+    </ui-notice>
+  }
+  @default {
+    @if (items().length === 0) {
+      <ui-empty-state icon="people" [heading]="emptyHeading()">
+        <p>{{ emptyText() }}</p>
+      </ui-empty-state>
+    } @else {
+      @if (refreshing()) {
+        <p role="status" class="refreshing">Updating the list…</p>
+      }
+      <div class="scroll" role="region" aria-label="Instructors" tabindex="0">
+        <table class="roster" [attr.aria-busy]="refreshing() || null">
+          <caption class="sr-only">
+            Instructors, by name
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col" class="wide">Medium</th>
+              <th scope="col">Status</th>
+              <th scope="col">Teaching</th>
+              <th scope="col" class="wide">Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (instructor of items(); track instructor.id; let index = $index) {
+              <tr>
+                <th scope="row">
+                  <a [routerLink]="['/instructors', instructor.id]" [attr.data-row]="index">{{
+                    instructor.name
+                  }}</a>
+                  <span class="slug">/instructors/{{ instructor.slug }}</span>
+                  @if (instructor.medium) {
+                    <span class="narrow-medium">{{ instructor.medium }}</span>
+                  }
+                </th>
+                <td class="wide">{{ instructor.medium ?? '—' }}</td>
+                <td>
+                  <ui-status-chip
+                    [tone]="chips[instructor.status].tone"
+                    [icon]="chips[instructor.status].icon"
+                    >{{ chips[instructor.status].label }}</ui-status-chip
+                  >
+                </td>
+                <td>{{ instructor.active ? 'Yes' : 'No' }}</td>
+                <td class="wide">
+                  <time [attr.datetime]="instructor.updatedAt">{{
+                    updated(instructor.updatedAt)
+                  }}</time>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (moreFailed()) {
+        <ui-notice tone="error" heading="More instructors couldn’t be loaded">
+          <p>The instructors above are still here.</p>
+        </ui-notice>
+      }
+      @if (next()) {
+        <p class="more">
+          <button uiButton type="button" [busy]="loadingMore()" (click)="more()">
+            {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
+          </button>
+        </p>
+      }
+    }
+  }
+}

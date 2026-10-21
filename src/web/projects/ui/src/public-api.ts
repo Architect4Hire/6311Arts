@@ -10,10 +10,5 @@ export { UiEmptyState } from './lib/empty-state/empty-state';
 export { UiControl, UiField } from './lib/field/field';
 export { ICON_NAMES, type IconName, UiIcon } from './lib/icon/icon';
 export { type NoticeTone, UiNotice } from './lib/notice/notice';
-export {
-  type StatusTone,
-  SYNC_STATUS,
-  type SyncStatus,
-  UiStatusChip,
-  UiSyncStatus,
-} from './lib/status-chip/status-chip';
+export { type StatusTone, UiStatusChip } from './lib/status-chip/status-chip';
+export { SYNC_STATUS, type SyncStatus, UiSyncStatus } from './lib/sync-status/sync-status';

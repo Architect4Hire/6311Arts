@@ -1,0 +1,24 @@
+@let e = item();
+<a class="class-card__date" routerLink="/exhibitions" [attr.aria-label]="e.title">
+  <span class="class-card__mon">{{ date() | when: 'mon' }}</span>
+  <span class="class-card__day">{{ date() | when: 'day' }}</span>
+  <span class="class-card__dow">{{ date() | when: 'dow' }}</span>
+</a>
+<div class="class-card__body">
+  <p class="class-card__meta">
+    <span>Exhibition</span><span>{{ label() }}</span>
+  </p>
+  <h3 class="class-card__title">
+    <a routerLink="/exhibitions">{{ e.title }}</a>
+  </h3>
+  <p class="class-card__when">
+    @if (kind() === 'reception' && e.reception) {
+      {{ e.reception.start | when: 'time' : e.reception.end }} ·
+    }
+    On view {{ e.start | when: 'range' : e.end }}
+  </p>
+</div>
+<div class="class-card__cta">
+  <span class="class-card__price">Free</span>
+  <a class="btn btn-dark btn-sm" routerLink="/exhibitions">See the show</a>
+</div>

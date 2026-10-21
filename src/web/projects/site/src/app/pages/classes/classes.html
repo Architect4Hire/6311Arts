@@ -1,0 +1,260 @@
+<app-hero
+  title="Classes, workshops & events"
+  eyebrow="Taught by local artists"
+  lead="Small groups, hands-on, and open to first-timers. Pick a night and make something."
+  [images]="studioPhotos"
+/>
+
+<section class="band band--white" id="content">
+  <div class="container">
+    @let s = soon();
+    @if (s.today.length || s.week.length) {
+      <div class="soon">
+        <h2 class="month" reveal>Today</h2>
+        @if (s.today.length) {
+          <div class="class-list class-list--full">
+            @for (x of s.today; track x.key) {
+              @if (x.c; as c) {
+                <app-class-card [item]="c" reveal />
+              } @else if (x.m; as m) {
+                <app-show-card [item]="m.e" [date]="m.date" [kind]="m.kind" reveal />
+              }
+            }
+          </div>
+        } @else {
+          <p class="soon__none">Nothing left on the calendar today.</p>
+        }
+        @if (s.week.length) {
+          <h2 class="month" reveal>This week</h2>
+          <div class="class-list class-list--full">
+            @for (x of s.week; track x.key) {
+              @if (x.c; as c) {
+                <app-class-card [item]="c" reveal />
+              } @else if (x.m; as m) {
+                <app-show-card [item]="m.e" [date]="m.date" [kind]="m.kind" reveal />
+              }
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <div class="all-head" reveal>
+      <h2 class="month month--all">All events</h2>
+      <div class="view-switch" role="group" aria-label="Choose view">
+        <button
+          type="button"
+          class="chip chip--icon"
+          [class.is-on]="view() === 'grid'"
+          (click)="setView('grid')"
+          [attr.aria-pressed]="view() === 'grid'"
+        >
+          <ui-icon name="grid" [size]="16" [stroke]="2.4" /> Grid
+        </button>
+        <button
+          type="button"
+          class="chip chip--icon"
+          [class.is-on]="view() === 'calendar'"
+          (click)="setView('calendar')"
+          [attr.aria-pressed]="view() === 'calendar'"
+        >
+          <ui-icon name="calendar" [size]="16" [stroke]="2.4" /> Calendar
+        </button>
+      </div>
+    </div>
+    <div class="filters" role="toolbar" aria-label="Filter classes">
+      @for (t of types(); track t) {
+        <button
+          type="button"
+          class="chip"
+          [class.is-on]="type() === t"
+          (click)="setType(t)"
+          [attr.aria-pressed]="type() === t"
+        >
+          {{ t }}
+        </button>
+      }
+      <span class="filters__sep"></span>
+      @for (l of levels; track l) {
+        <button
+          type="button"
+          class="chip chip--ghost"
+          [class.is-on]="level() === l"
+          (click)="setLevel(l)"
+          [attr.aria-pressed]="level() === l"
+        >
+          {{ l }}
+        </button>
+      }
+    </div>
+
+    @if (!filtered().length && !upcomingShows()) {
+      <p class="empty">
+        Nothing on the calendar matches that yet.
+        <button class="linklike" (click)="reset()">Show everything</button> or get notified below
+        when new classes drop.
+      </p>
+    } @else if (view() === 'calendar') {
+      @let cal = calendar();
+      <div class="cal">
+        <div class="cal__head">
+          <button
+            type="button"
+            class="cal__step cal__step--prev"
+            (click)="step(-1)"
+            [disabled]="month() <= thisMonth"
+            aria-label="Previous month"
+          >
+            <ui-icon name="arrow" [size]="20" [stroke]="2.4" />
+          </button>
+          <h3 class="cal__title" aria-live="polite">{{ cal.label }}</h3>
+          <button
+            type="button"
+            class="cal__step"
+            (click)="step(1)"
+            [disabled]="month() >= lastMonth()"
+            aria-label="Next month"
+          >
+            <ui-icon name="arrow" [size]="20" [stroke]="2.4" />
+          </button>
+        </div>
+        @if (shows().length) {
+          <ul class="cal__key" aria-label="Key">
+            <li class="cal__key-item">Class or event</li>
+            <li class="cal__key-item cal__key-item--show">Exhibition</li>
+          </ul>
+        }
+        @if (cal.onView.length) {
+          <div class="cal__onview">
+            <h4 class="cal__onview-title">On view in the gallery</h4>
+            <ul class="cal__onview-list">
+              @for (e of cal.onView; track e.slug) {
+                <li>
+                  <a class="cal__event cal__event--show" routerLink="/exhibitions">
+                    <span class="cal__time"
+                      >Exhibition · {{ e.start | when: 'range' : e.end }}</span
+                    >
+                    {{ e.title }}
+                  </a>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+        <ol class="cal__weekdays" aria-hidden="true">
+          @for (w of weekdays; track w) {
+            <li>{{ w }}</li>
+          }
+        </ol>
+        <ol class="cal__grid">
+          @for (d of cal.days; track d.date) {
+            <li
+              class="cal__day"
+              [class.is-out]="!d.inMonth"
+              [class.is-today]="d.today"
+              [class.has-events]="d.items.length || d.shows.length"
+            >
+              <span class="cal__label" aria-hidden="true">
+                <span class="cal__num">{{ d.num }}</span>
+                <span class="cal__wd">{{ d.date | when: 'dow' }}</span>
+              </span>
+              <span class="sr-only">{{ d.date | when }}</span>
+              @if (d.items.length || d.shows.length) {
+                <span class="cal__events">
+                  @for (m of d.shows; track m.e.slug + m.kind) {
+                    <a class="cal__event cal__event--show" routerLink="/exhibitions">
+                      <span class="cal__time">
+                        @switch (m.kind) {
+                          @case ('opens') {
+                            Exhibition opens
+                          }
+                          @case ('reception') {
+                            Opening reception ·
+                            {{ m.e.reception?.start | when: 'time' : m.e.reception?.end }}
+                          }
+                          @case ('closes') {
+                            Exhibition · last day
+                          }
+                        }
+                      </span>
+                      {{ m.e.title }}
+                    </a>
+                  }
+                  @for (s of d.items; track s.c.id) {
+                    <span class="cal__event">
+                      <a class="cal__event-link" [routerLink]="['/classes', s.c.slug]">
+                        <span class="cal__time">
+                          {{ s.c.start | when: 'time' }}
+                          @if (s.c.sessions > 1) {
+                            · Week {{ s.n }} of {{ s.c.sessions }}
+                          }
+                        </span>
+                        {{ s.c.title }}
+                      </a>
+                      @if (s.c.instructor) {
+                        <span class="cal__by"
+                          >with
+                          <a
+                            class="linkish"
+                            [routerLink]="['/instructors', slug(s.c.instructor)]"
+                            >{{ s.c.instructor }}</a
+                          ></span
+                        >
+                      }
+                    </span>
+                  }
+                </span>
+              }
+            </li>
+          }
+        </ol>
+        @if (!cal.count) {
+          <p class="cal__none">
+            No {{ shows().length ? 'classes or exhibition dates' : 'classes' }} in {{ cal.label }}.
+            @if (cal.next) {
+              <button class="linklike" (click)="goMonth(cal.next)">
+                Jump to {{ monthLabel(cal.next) }}
+              </button>
+            }
+          </p>
+        }
+      </div>
+    } @else {
+      @for (g of grouped(); track g.month) {
+        <h2 class="month" reveal>{{ g.month }}</h2>
+        <div class="class-list class-list--full">
+          @for (x of g.items; track x.key) {
+            @if (x.s; as s) {
+              <app-class-card
+                [item]="s.c"
+                [date]="s.date"
+                [week]="s.c.sessions > 1 ? s.n : undefined"
+                reveal
+              />
+            } @else if (x.m; as m) {
+              <app-show-card [item]="m.e" [date]="m.date" [kind]="m.kind" reveal />
+            }
+          }
+        </div>
+      }
+    }
+  </div>
+</section>
+
+<section class="band band--light text-center">
+  <div class="container container--mid" reveal>
+    <ui-icon name="briefcase" [size]="64" [stroke]="1" />
+    <h2 class="band__title">Free for working artists</h2>
+    <p class="band__lead">
+      Professional development sessions on pricing, portfolios and grants, plus free art therapy,
+      are always free. Want to teach here? We’re always looking for North Side artists to lead
+      classes.
+    </p>
+    <a class="btn btn-dark btn-lg" routerLink="/submit">Pitch a class</a>
+  </div>
+</section>
+
+<app-newsletter
+  heading="New classes drop fast"
+  lead="Screen printing sells out. Get the calendar in your inbox the day it’s posted."
+/>

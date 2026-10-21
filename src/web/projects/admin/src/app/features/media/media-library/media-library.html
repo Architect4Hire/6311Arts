@@ -1,0 +1,72 @@
+<h1 #heading class="cms-title" tabindex="-1">Media</h1>
+<p class="cms-lead">
+  The image library. Every image needs alt text — a description of what’s in it — before it can go
+  on published content.
+</p>
+
+<cms-media-uploader (uploaded)="onUploaded($event)" (showExisting)="openEditor($event)" />
+
+<div class="filters" role="group" aria-label="Show">
+  @for (option of filters; track option.value) {
+    <button
+      uiButton
+      type="button"
+      size="sm"
+      [variant]="filter() === option.value ? 'dark' : 'border-dark'"
+      [attr.aria-pressed]="filter() === option.value"
+      (click)="filter.set(option.value)"
+    >
+      {{ option.label }}
+    </button>
+  }
+</div>
+
+<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+@switch (state()) {
+  @case ('loading') {
+    <p role="status">Loading the library…</p>
+  }
+  @case ('failed') {
+    <ui-notice tone="error" heading="The library couldn’t be loaded">
+      <p>6311arts may be unreachable for a moment.</p>
+      <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
+    </ui-notice>
+  }
+  @default {
+    @if (items().length === 0) {
+      <ui-empty-state icon="frame" [heading]="emptyHeading()">
+        <p>{{ emptyText() }}</p>
+      </ui-empty-state>
+    } @else {
+      <cms-media-grid
+        label="Images in the library"
+        [items]="items()"
+        (chosen)="openEditor($event.id)"
+      />
+      @if (moreFailed()) {
+        <ui-notice tone="error" heading="More images couldn’t be loaded">
+          <p>The images above are still here.</p>
+        </ui-notice>
+      }
+      @if (next()) {
+        <p class="more">
+          <button uiButton type="button" [busy]="loadingMore()" (click)="more()">
+            {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
+          </button>
+        </p>
+      }
+    }
+  }
+}
+
+<ui-dialog [(open)]="editorOpen" (closed)="requestClose()" heading="Image details">
+  @if (editing(); as id) {
+    <cms-media-editor
+      [assetId]="id"
+      (saved)="onSaved($event)"
+      (deleted)="onDeleted($event)"
+      (closed)="requestClose()"
+    />
+  }
+</ui-dialog>

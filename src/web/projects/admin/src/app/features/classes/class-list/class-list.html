@@ -1,0 +1,123 @@
+<div class="head">
+  <div>
+    <h1 class="cms-title">Classes</h1>
+    <p class="cms-lead">
+      Classes and workshops, their runs and instructors. Seats and prices are Square’s record.
+    </p>
+  </div>
+  <a uiButton variant="dark" routerLink="/classes/new">New class</a>
+</div>
+
+<div class="tools">
+  <ui-field label="Find a class" class="tools__search">
+    <input
+      #searchInput
+      uiControl
+      type="search"
+      name="search"
+      autocomplete="off"
+      [attr.maxlength]="limits.searchMaxLength"
+      [value]="search()"
+      (input)="onSearch(searchInput.value)"
+    />
+  </ui-field>
+  <div class="filters" role="group" aria-label="Filter by status">
+    @for (option of filters; track option.value) {
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        [variant]="filter() === option.value ? 'dark' : 'border-dark'"
+        [attr.aria-pressed]="filter() === option.value"
+        (click)="filter.set(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    }
+  </div>
+</div>
+
+<!-- Exists from the start, so the counts written into it later are read out. -->
+<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+@switch (state()) {
+  @case ('loading') {
+    <p role="status">Loading classes…</p>
+  }
+  @case ('failed') {
+    <ui-notice tone="error" heading="The classes couldn’t be loaded">
+      <p>6311arts may be unreachable for a moment.</p>
+      <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
+    </ui-notice>
+  }
+  @default {
+    @if (items().length === 0) {
+      <ui-empty-state icon="calendar" [heading]="emptyHeading()">
+        <p>{{ emptyText() }}</p>
+      </ui-empty-state>
+    } @else {
+      @if (refreshing()) {
+        <p role="status" class="refreshing">Updating the list…</p>
+      }
+      <div class="scroll" role="region" aria-label="Classes" tabindex="0">
+        <table class="classes" [attr.aria-busy]="refreshing() || null">
+          <caption class="sr-only">
+            Classes, by title
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Title</th>
+              <th scope="col">Next session</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="wide">Runs</th>
+              <th scope="col" class="wide">Instructors</th>
+              <th scope="col" class="wide">Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (offering of items(); track offering.id; let index = $index) {
+              <tr>
+                <th scope="row">
+                  <a [routerLink]="['/classes', offering.id]" [attr.data-row]="index">{{
+                    offering.title
+                  }}</a>
+                  <span class="slug">/classes/{{ offering.slug }}</span>
+                  @if (offering.classType || offering.level) {
+                    <span class="kind">{{ kind(offering) }}</span>
+                  }
+                </th>
+                <td>{{ next(offering.nextSessionStartsAt) }}</td>
+                <td>
+                  <ui-status-chip
+                    [tone]="chips[offering.status].tone"
+                    [icon]="chips[offering.status].icon"
+                    >{{ chips[offering.status].label }}</ui-status-chip
+                  >
+                </td>
+                <td class="wide">{{ offering.runCount }}</td>
+                <td class="wide">{{ offering.instructors.join(', ') || '—' }}</td>
+                <td class="wide">
+                  <time [attr.datetime]="offering.updatedAt">{{
+                    updated(offering.updatedAt)
+                  }}</time>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (moreFailed()) {
+        <ui-notice tone="error" heading="More classes couldn’t be loaded">
+          <p>The classes above are still here.</p>
+        </ui-notice>
+      }
+      @if (nextCursor()) {
+        <p class="more">
+          <button uiButton type="button" [busy]="loadingMore()" (click)="more()">
+            {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
+          </button>
+        </p>
+      }
+    }
+  }
+}

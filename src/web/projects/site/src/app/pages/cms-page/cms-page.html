@@ -1,0 +1,14 @@
+<app-hero [title]="page()?.title ?? fallbackTitle()" />
+<section class="band band--white" id="content">
+  <div class="container container--narrow prose">
+    @if (page(); as p) {
+      <div [innerHTML]="p.html"></div>
+    } @else {
+      <p>
+        This page is being updated. For questions in the meantime, email
+        <a [href]="'mailto:' + site.email">{{ site.email }}</a
+        >.
+      </p>
+    }
+  </div>
+</section>

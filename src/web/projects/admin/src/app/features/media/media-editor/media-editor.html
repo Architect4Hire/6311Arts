@@ -1,0 +1,222 @@
+<!-- Exists from the start, so what is written into it later is read out. -->
+<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+@switch (status().kind) {
+  @case ('loading') {
+    <p role="status">Loading image…</p>
+  }
+  @case ('load-failed') {
+    <ui-notice tone="error" heading="This image couldn’t be loaded">
+      <p>It may have been deleted, or 6311arts can’t be reached.</p>
+      <button uiButton type="button" size="sm" (click)="load()">Try again</button>
+    </ui-notice>
+  }
+  @default {
+    @if (asset(); as asset) {
+      <div class="layout">
+        <figure class="preview">
+          @if (previewUrl(); as url) {
+            <img [src]="url" [alt]="draft().altText || ''" />
+          } @else {
+            <div class="preview__pending">
+              {{
+                asset.processingStatus === 'Failed'
+                  ? 'Renditions failed'
+                  : 'Renditions are being made…'
+              }}
+            </div>
+          }
+          <figcaption class="facts">
+            <span>{{ asset.width }}×{{ asset.height }} · {{ asset.mimeType }}</span>
+            <span>
+              Stored {{ size(asset.bytes) }}
+              @if (saving(); as percent) {
+                — {{ percent }}% smaller than the {{ size(asset.uploadedBytes ?? 0) }} upload
+              }
+            </span>
+            <span class="facts__chips">
+              @switch (asset.processingStatus) {
+                @case ('Pending') {
+                  <ui-status-chip tone="pending" icon="clock">Processing</ui-status-chip>
+                }
+                @case ('Failed') {
+                  <ui-status-chip tone="attention" icon="alert">Failed</ui-status-chip>
+                }
+                @default {
+                  <ui-status-chip tone="positive" icon="check">Ready</ui-status-chip>
+                }
+              }
+              <ui-status-chip
+                [tone]="asset.visibility === 'Published' ? 'positive' : 'neutral'"
+                icon="info"
+                >{{ asset.visibility === 'Published' ? 'Published' : 'Draft' }}</ui-status-chip
+              >
+            </span>
+          </figcaption>
+        </figure>
+
+        <form class="form" novalidate (ngSubmit)="save()">
+          @if (conflict(); as theirs) {
+            <div #conflictBox class="conflict" tabindex="-1">
+              <ui-notice
+                tone="warning"
+                heading="Someone else saved this image while you were editing"
+              >
+                <table class="compare">
+                  <caption class="sr-only">
+                    Your changes and the saved version
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Field</th>
+                      <th scope="col">Yours</th>
+                      <th scope="col">Saved</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Alt text</th>
+                      <td>{{ draft().altText || '—' }}</td>
+                      <td>{{ theirs.altText || '—' }}</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Credit</th>
+                      <td>{{ draft().credit || '—' }}</td>
+                      <td>{{ theirs.credit || '—' }}</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Compression</th>
+                      <td>{{ presetLabel(draft().compressionPreset) }}</td>
+                      <td>{{ presetLabel(theirs.compressionPreset) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="actions">
+                  <button
+                    uiButton
+                    type="button"
+                    variant="dark"
+                    size="sm"
+                    (click)="keepMine(theirs)"
+                  >
+                    Keep my changes
+                  </button>
+                  <button uiButton type="button" size="sm" (click)="useTheirs(theirs)">
+                    Use the saved version and discard mine
+                  </button>
+                </div>
+              </ui-notice>
+            </div>
+          }
+
+          @if (formError(); as message) {
+            <ui-notice tone="error">{{ message }}</ui-notice>
+          }
+
+          <ui-field
+            label="Alt text"
+            hint="Describe what’s in the picture for someone who can’t see it. Needed before the image can go on published content."
+            [error]="altTextError()"
+          >
+            <textarea
+              #altTextInput
+              uiControl
+              name="altText"
+              rows="3"
+              [attr.maxlength]="limits.altTextMaxLength"
+              [ngModel]="draft().altText"
+              (ngModelChange)="patch({ altText: $event })"
+            ></textarea>
+          </ui-field>
+
+          <ui-field
+            label="Credit"
+            hint="Who made or owns the image, as it should appear beside it."
+          >
+            <input
+              uiControl
+              name="credit"
+              [attr.maxlength]="limits.creditMaxLength"
+              [ngModel]="draft().credit"
+              (ngModelChange)="patch({ credit: $event })"
+            />
+          </ui-field>
+
+          <fieldset class="presets">
+            <legend>Compression for the website</legend>
+            @for (preset of presets; track preset) {
+              <label class="preset">
+                <input
+                  type="radio"
+                  name="compressionPreset"
+                  [value]="preset"
+                  [checked]="draft().compressionPreset === preset"
+                  (change)="patch({ compressionPreset: preset })"
+                />
+                <span>
+                  <span class="preset__label">{{ labels[preset].label }}</span>
+                  <span class="preset__hint">{{ labels[preset].hint }}</span>
+                </span>
+              </label>
+            }
+            <p class="presets__note">
+              Changing this re-makes the website sizes. The stored master stays as it is.
+            </p>
+          </fieldset>
+
+          <div class="actions">
+            <button
+              uiButton
+              type="submit"
+              variant="dark"
+              [busy]="status().kind === 'saving'"
+              [disabled]="!dirty()"
+            >
+              {{ status().kind === 'saving' ? 'Saving…' : 'Save' }}
+            </button>
+            <button uiButton type="button" (click)="closed.emit()">Close</button>
+            @if (isAdmin()) {
+              <button
+                uiButton
+                type="button"
+                class="actions__delete"
+                [busy]="status().kind === 'deleting'"
+                (click)="remove()"
+              >
+                Delete image
+              </button>
+            }
+          </div>
+        </form>
+      </div>
+
+      @if (asset.renditions.length > 0) {
+        <table class="renditions">
+          <caption>
+            Website sizes
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Size</th>
+              <th scope="col">Dimensions</th>
+              <th scope="col">File</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (rendition of asset.renditions; track rendition.name) {
+              <tr>
+                <th scope="row">
+                  <a [href]="rendition.url" target="_blank" rel="noopener"
+                    >{{ rendition.name }}<span class="sr-only"> (opens in a new tab)</span></a
+                  >
+                </th>
+                <td>{{ rendition.width }}×{{ rendition.height }}</td>
+                <td>{{ size(rendition.bytes) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    }
+  }
+}

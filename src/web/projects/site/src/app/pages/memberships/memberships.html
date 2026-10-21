@@ -1,0 +1,51 @@
+<app-hero
+  title="Become a member"
+  [eyebrow]="joinFrom() != null ? 'From ' + (joinFrom() | money) + ' a year' : 'Memberships'"
+  lead="Members save on every class, party with the artists once a year and keep a free gallery free for the whole neighborhood."
+  [images]="eventPhotos"
+/>
+<section class="band band--light" id="content">
+  <div class="container tiers">
+    @for (t of tiers(); track t.slug; let i = $index) {
+      <article
+        class="tier"
+        [class.tier--featured]="t.featured"
+        [attr.data-tier]="t.name.toLowerCase()"
+        [reveal]="i * 150"
+      >
+        <h2 class="tier__name">{{ t.name }}</h2>
+        <!-- A tier Square has not priced yet can't be joined (ADR 0042, 0046): no figure, no button. -->
+        @if (t.price != null) {
+          <p class="tier__price">{{ t.price | money }}<span>/year</span></p>
+        } @else {
+          <p class="tier__tba">Price to be announced</p>
+        }
+        <p class="tier__save">{{ t.discount }}% off every class</p>
+        <ul class="tier__perks">
+          @for (perk of t.perks; track perk) {
+            <li><ui-icon name="star" [size]="14" [stroke]="2" />{{ perk }}</li>
+          }
+        </ul>
+        @if (t.price != null) {
+          <a
+            class="btn btn-lg"
+            [class.btn-white]="t.featured"
+            [class.btn-dark]="!t.featured"
+            [href]="store.buyUrl(t)"
+            >Join {{ t.name }}</a
+          >
+        }
+      </article>
+    }
+  </div>
+</section>
+<section class="band band--white text-center">
+  <div class="container container--mid" reveal>
+    <h2 class="band__title">Why it matters</h2>
+    <p class="band__lead">
+      6311arts is a nonprofit. Memberships help keep exhibitions free, pay for free career sessions
+      and art therapy, and keep a home on Clark Street for the artists who live around it.
+    </p>
+    <a class="btn btn-dark btn-lg" routerLink="/classes">Browse classes</a>
+  </div>
+</section>

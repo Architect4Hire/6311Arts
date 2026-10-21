@@ -1,0 +1,18 @@
+@for (toast of toasts.toasts(); track toast.id) {
+  <ui-notice
+    class="cms-toast"
+    [tone]="toast.tone"
+    [heading]="toast.heading"
+    dismissible
+    (dismissed)="toasts.dismiss(toast.id)"
+  >
+    @if (toast.message) {
+      <p>{{ toast.message }}</p>
+    }
+    @if (toast.reference) {
+      <p class="cms-toast__ref">
+        Reference: <code>{{ toast.reference }}</code>
+      </p>
+    }
+  </ui-notice>
+}

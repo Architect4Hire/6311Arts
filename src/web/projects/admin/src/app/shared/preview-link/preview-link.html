@@ -1,0 +1,23 @@
+<button uiButton type="button" size="sm" [busy]="asking()" (click)="ask()">
+  {{ link() ? 'New preview link' : 'Preview' }}
+</button>
+
+@if (dirty()) {
+  <p class="preview__hint">A preview shows the saved version, so save your changes first.</p>
+}
+
+<!-- Rendered up front, so a screen reader announces what changes inside it (design-system.md). -->
+<p class="preview__hint" role="status">{{ announcement() }}</p>
+
+@if (link(); as made) {
+  <a uiButton size="sm" [href]="made.path" target="_blank" rel="noopener noreferrer">
+    Open the preview
+  </a>
+  <ui-field label="Link to share" [hint]="'Anyone with it can read this draft until it expires.'">
+    <input uiControl type="text" readonly [value]="address()" (focus)="select($event)" />
+  </ui-field>
+}
+
+@if (failure(); as message) {
+  <ui-notice tone="error">{{ message }}</ui-notice>
+}

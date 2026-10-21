@@ -10,14 +10,6 @@ import { UiButton, UiEmptyState } from '@6311/ui';
   selector: 'cms-forbidden',
   imports: [RouterLink, UiButton, UiEmptyState],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <h1 class="cms-title">Not available</h1>
-    <ui-empty-state icon="stop" heading="Your account can’t open this">
-      <p>Ask an administrator if you need it.</p>
-      <div uiEmptyActions>
-        <a uiButton variant="border-dark" routerLink="/">Back to the dashboard</a>
-      </div>
-    </ui-empty-state>
-  `,
+  templateUrl: './forbidden.html',
 })
 export class Forbidden {}

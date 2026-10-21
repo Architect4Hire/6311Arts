@@ -1,0 +1,48 @@
+<app-hero
+  title="Our artists"
+  eyebrow="All within six miles"
+  lead="Painters, printmakers, jewelers, photographers and sculptors from Edgewater, Rogers Park and the rest of the North Side."
+/>
+<section class="band band--white" id="content">
+  <div class="container">
+    <div class="filters">
+      <label class="search">
+        <span class="sr-only">Find an artist</span>
+        <input
+          type="search"
+          placeholder="Find an artist…"
+          [value]="q()"
+          (input)="q.set($any($event.target).value)"
+        />
+      </label>
+      <span class="filters__count">{{ filtered().length }} artists</span>
+    </div>
+    @for (g of letters(); track g.letter) {
+      <div class="az" reveal>
+        <h2 class="az__letter">{{ g.letter }}</h2>
+        <ul class="az__list">
+          @for (a of g.items; track a.slug) {
+            <li>
+              <a [routerLink]="['/artists', a.slug]">
+                <span class="az__name">{{ a.name }}</span>
+                @if (a.medium) {
+                  <span class="az__medium">{{ a.medium }}</span>
+                }
+                @if (a.productCount) {
+                  <span class="az__count">{{ a.productCount }} works</span>
+                }
+              </a>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+  </div>
+</section>
+<section class="band band--dark text-center">
+  <div class="container container--mid" reveal>
+    <h2 class="band__title">Live on the North Side? Join them.</h2>
+    <p class="band__lead">Teach a class, show in the gallery or sell in the shop.</p>
+    <a class="btn btn-white btn-lg" routerLink="/artists/submit">Submit your work</a>
+  </div>
+</section>

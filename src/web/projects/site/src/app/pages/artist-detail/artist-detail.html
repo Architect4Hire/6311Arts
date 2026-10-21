@@ -1,0 +1,22 @@
+<app-hero
+  [title]="artist()?.name ?? nameFromSlug()"
+  [eyebrow]="artist()?.medium ?? '6311arts artist'"
+  [images]="shopPhotos"
+/>
+<section class="band band--white" id="content">
+  <div class="container">
+    @if (works().length) {
+      <h2 class="band__title text-center">Available work</h2>
+      <div class="grid-products">
+        @for (p of works(); track p.id) {
+          <app-product-card [item]="p" />
+        }
+      </div>
+    } @else {
+      <p class="empty text-center">
+        New work from {{ artist()?.name ?? nameFromSlug() }} is on its way. Stop by the gallery or
+        <a routerLink="/shop">browse the whole shop</a>.
+      </p>
+    }
+  </div>
+</section>

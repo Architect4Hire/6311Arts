@@ -1,0 +1,23 @@
+@if (src() && !failed()) {
+  <img
+    #img
+    [src]="src()"
+    [alt]="alt()"
+    [attr.loading]="priority() ? 'eager' : 'lazy'"
+    [attr.fetchpriority]="priority() ? 'high' : null"
+    decoding="async"
+    (error)="failed.set(true)"
+  />
+} @else {
+  <div
+    class="ph"
+    [style.--a]="hue().a"
+    [style.--b]="hue().b"
+    [style.--h]="hue().h"
+    [style.--h2]="hue().h2"
+    role="img"
+    [attr.aria-label]="alt()"
+  >
+    <span class="ph__mark">{{ initials() }}</span>
+  </div>
+}

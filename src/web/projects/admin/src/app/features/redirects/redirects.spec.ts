@@ -8,8 +8,8 @@ import { ConfirmService } from '../../core/confirm/confirm.service';
 import { SessionService } from '../../core/session/session.service';
 import { Redirect, decodeRedirect, decodeRedirectList } from '../../models/redirect';
 import { RedirectService } from '../../services/redirect.service';
-import { RedirectEditor } from './redirect-editor';
-import { RedirectList } from './redirect-list';
+import { RedirectEditor } from './redirect-editor/redirect-editor';
+import { RedirectList } from './redirect-list/redirect-list';
 
 const BASE = '/api/v1/cms/redirects';
 
@@ -164,10 +164,12 @@ describe('RedirectEditor', () => {
 
     // The retry asks again rather than showing a form built from nothing.
     button(fixture.nativeElement, 'Try again')!.click();
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     expect(text(fixture.nativeElement)).not.toContain('This redirect couldn’t be loaded');
@@ -179,10 +181,12 @@ describe('RedirectEditor', () => {
     fixture.componentRef.setInput('id', REDIRECT.id);
     fixture.detectChanges();
 
-    http.expectOne(ONE).flush(
-      { code: 'resource.not_found', title: 'Not found.' },
-      { status: 404, statusText: 'Not Found' },
-    );
+    http
+      .expectOne(ONE)
+      .flush(
+        { code: 'resource.not_found', title: 'Not found.' },
+        { status: 404, statusText: 'Not Found' },
+      );
     await settle(fixture);
 
     const root = fixture.nativeElement as HTMLElement;

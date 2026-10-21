@@ -1,0 +1,16 @@
+@switch (access().kind) {
+  @case ('anonymous') {
+    <span class="staff-access"> · <a routerLink="/signin">Staff sign-in</a></span>
+  }
+  @case ('staff') {
+    <span class="staff-access">
+      · {{ displayName() }} ·
+      <!-- Another app on this origin, not a route of this one: a plain href, and rel=noopener because the
+           new tab must not get a handle on this one. -->
+      <a [href]="cmsHome" target="_blank" rel="noopener">
+        Open the CMS<ui-icon name="arrow" [size]="14" />
+        <span class="sr-only"> (opens in a new tab)</span>
+      </a>
+    </span>
+  }
+}

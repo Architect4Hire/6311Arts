@@ -12,7 +12,7 @@ Each runbook is written by the build prompt shown here.
 
 | Runbook | Written in |
 |---|---|
-| `wp-discovery.md`: what the live WordPress site exposes | Import I.1 |
+| `wp-discovery.md`: what the live WordPress site exposes — ✅ written 2026-10-21 | Import I.1 |
 | `wp-import.md`: read-only WooCommerce key, importer commands | Import I.2 |
 | `import-report-<run>.md`: per-run import counts, skips and failures | Import I.8 (generated) |
 | `square-sandbox.md`: sandbox app, dev tunnel webhook URL, user-secrets | 5.20 |
