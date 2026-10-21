@@ -53,6 +53,7 @@ description: Add an Angular 22 component to the 6311arts site (SSR), admin (CMS)
 
 - [ ] Right project and folder; reuses `@6311/ui`
 - [ ] Own folder named after the component; one `@Component` per file; no barrel
+- [ ] Styles in a `.scss` (never `.css`); Prettier run over the new `.html`
 - [ ] Markup in a sibling `.html`, styles in a sibling `.scss`; no `template:`/`styles:` in the decorator
 - [ ] All states implemented; keyboard, focus, 200% zoom, reduced motion verified
 - [ ] SSR-safe (site) / conflict- and sync-aware (admin)

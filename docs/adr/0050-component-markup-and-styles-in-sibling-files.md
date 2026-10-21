@@ -4,6 +4,7 @@
 - **Date:** 2026-10-21
 - **Rules affected:** `.claude/rules/frontend.md`, `.claude/rules/design-system.md`,
   `.claude/skills/new-component/SKILL.md`
+- **Amended by:** [0051](0051-one-component-per-folder.md) (the multi-component naming clause below is withdrawn)
 - **Builds on:** [0025](0025-ui-library-tokens-and-primitives.md), [0027](0027-admin-shell-and-staff-sign-in-page.md)
 
 ## Context
@@ -44,14 +45,17 @@ The forces:
 
 A throwaway host declared inside a `*.spec.ts` to drive the component under test keeps `template:` inline. Its
 markup is the test's fixture, it is read next to the assertions that depend on it, and splitting it would scatter
-one test across two files. Nine spec files rely on this.
+one test across two files. Eleven spec files rely on this.
 
 ### Names follow the `.ts` file, and the class when a file holds several components
 
+**Withdrawn by [ADR 0051](0051-one-component-per-folder.md):** no file declares several components any more, so
+only the first rule below is in force. Kept here for the history of how the extracted files were first named.
+
 - One component in the file: the pair takes the file's own stem — `artist-editor.ts` → `artist-editor.html`.
-- Several components in the file: each pair takes the kebab-cased class name — `site/src/app/shared/cards.ts` →
-  `class-card.html`, `show-card.html`, `product-card.html`, `exhibition-card.html`. `pages/info-pages.ts` →
-  `memberships.html`, `about.html`, `visit.html`, `submit.html`, `cms-page.html` (from `site/src/app/pages/info-pages.ts`).
+- ~~Several components in the file: each pair takes the kebab-cased class name~~ — this is how `shared/cards.ts`
+  came to sit beside `class-card.html` and `info-pages.ts` beside `about.html`, which is exactly the confusion
+  0051 removed by giving each component its own file and folder.
 
 The class name rather than an index or a suffix, so a component's markup is findable from the component's name
 without opening the `.ts` first.
@@ -93,7 +97,7 @@ only where Prettier wrote `0.8s` for `.8s` and `cubic-bezier(0.2, 0.7, 0.2, 1)` 
 - Angular's HTML tooling, Prettier's `angular` parser and the editor's tag handling now apply to every template.
 - `npm run build` and `npm test` still pass unchanged: 598 tests across 58 files, as before the change.
 - **What we must not do now:** write `template:` or `styles:` in a `@Component` outside a spec; extract a spec's
-  host component; name an extracted file anything but its `.ts` stem or its component's kebab-cased class; or
-  write an extracted stylesheet as `.css`, which would stop the SCSS in it from compiling.
+  host component; name an extracted file anything but its `.ts` stem (0051 withdrew the kebab-cased-class
+  alternative); or write an extracted stylesheet as `.css`, which would stop the SCSS in it from compiling.
 - Component styles are no longer visible in the same file as the markup they style, so a change to either is a
   two-file read. That is the cost of the split and the reason the two files sit side by side with the same stem.

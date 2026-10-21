@@ -31,18 +31,22 @@ time-to-interactive, not first paint, SEO or LCP. And the sums are tiny: the who
 transferred. Splitting it saves about a kilobyte on `/shop`, which is milliseconds. The reason to split is
 findability and the one-component-per-file rule; the bundling is a consequence worth tidying, not the motive.
 
-**And the flat folders had grown past scanning.** `site/src/app/shared/` held 23 files at one level and
-`pages/` 44, with a component's `.ts`, `.html`, `.scss` and `.spec.ts` interleaved alphabetically with its
-neighbours'. `projects/ui/src/lib/` was already one folder per component and did not have this problem, so the
-repo contained the answer and did not apply it.
+**And the flat folders had grown past scanning.** After ADR 0050's extraction, `site/src/app/shared/` held 23
+files at one level and `pages/` 44 (14 and 24 before it, when markup was still inline), with a component's `.ts`,
+`.html`, `.scss` and `.spec.ts` interleaved alphabetically with its neighbours'. `projects/ui/src/lib/` was already close to the right shape — a folder per component, give or take
+`lib/status-chip/`, which also housed `UiSyncStatus` — so the repo contained the answer and had not applied it
+to the apps.
 
 ## Decision
 
 ### One component per file
 
-A `.ts` file declares exactly one `@Component`. Non-component exports stay with the component that owns them:
-`ShowMoment` with `ShowCard`, `exhibitionStatus` with `ExhibitionCard`, `StatusTone` with `UiStatusChip`,
-`SYNC_STATUS` and `SyncStatus` with `UiSyncStatus`, and `CATEGORIES`/`PAGE_SIZE`/`SORTS`/`plainClick` with `Shop`.
+A `.ts` file declares exactly one `@Component`. The types, constants and helpers around it stay with the
+component that owns them — for example `ShowMoment` with `ShowCard`, `exhibitionStatus` with `ExhibitionCard`,
+`StatusTone` with `UiStatusChip`, `SYNC_STATUS` and `SyncStatus` with `UiSyncStatus`, and the module-private
+`CATEGORIES`, `PAGE_SIZE`, `SORTS` and `plainClick` with `Shop`. Component files keep exporting their own helpers
+this way (`run-list.ts`, `session-grid.ts`, `media-library.ts`, `membership-list.ts`, `forms-tabs.ts` among them);
+what changes is that a file's helpers now belong to the one component in it.
 
 **No barrel file re-exports a group.** A barrel would quietly undo the chunk separation: `pages/classes` needs
 `ClassCard` and `ShowCard` only, and reaching them through a `shared/cards` barrel would pull `ProductCard` and
@@ -61,9 +65,13 @@ shared/layout/header/header.html      pages/product-detail/product-detail.html
 
 Three kinds of file stay outside a component folder:
 
-- **A spec that covers several components** stays beside the area it covers: the admin area specs
-  (`features/artists/artists.spec.ts`, `features/media/media.spec.ts` and the other eight) and
-  `features/layout/shell.spec.ts`, which also tests `sections.ts`.
+- **A spec that covers several components** is not forced into one component's folder. Where the components
+  share an area, it sits beside the area: the ten admin area specs (`features/artists/artists.spec.ts`,
+  `features/media/media.spec.ts` and the rest) and `features/layout/shell.spec.ts`, which also tests
+  `sections.ts`. Where a spec covers a service and the host component that goes with it, it stays beside both:
+  `core/confirm/confirm.spec.ts` and `core/toast/toast.spec.ts`. Otherwise it lives with its main component and
+  imports the other: `pages/shop/shop.spec.ts` covers `Shop` and `ProductDetail`, and
+  `lib/status-chip/status-chip.spec.ts` covers `UiStatusChip` and `UiSyncStatus` through one shared test host.
 - **Directives and pipes**, which are not components: `shared/format.ts` (`MoneyPipe`, `WhenPipe`, `today`) and
   `shared/reveal.ts` stay at the root of `shared/`.
 - **The root component.** `app/app.ts` and `app/app.html` stay at the root of `app/`.
@@ -73,7 +81,9 @@ stays as it is, and so do `forbidden`, `not-found`, `unavailable` and `section-p
 
 ### Shared components are grouped by kind, features by area
 
-`shared/` gets a category layer where a category has real members, and none where it would hold one thing:
+`shared/` gets a category layer for a kind of component, and none for a component that belongs to no kind.
+`media/` holds only `art-image` today and is kept as the home for the site's media components; `hero`, `contact`
+and `account-panel` get no category because there is no kind to name:
 
 ```text
 site/src/app/shared/
@@ -104,11 +114,11 @@ files always share its folder's name. The rest of 0050 stands.
   four components' worth of interleaved files is the flat-folder problem one level down, and it would have left
   the lazy-route bundling in place.
 - **Split the files but keep the folders flat.** Separates the chunks and fixes nothing else; `pages/` would have
-  gone from 44 files to 54.
+  gone from 44 files to 54 at one level.
 - **Add a barrel per group** (`shared/cards/index.ts`) so consumer imports stay short. Rejected: it re-couples
   the chunks and hides which card a page uses.
-- **A category layer for every shared component**, including `hero`, `contact` and `account-panel`. Rejected: a
-  category with one member is a folder that answers no question.
+- **A category layer for every shared component**, including `hero`, `contact` and `account-panel`. Rejected:
+  it would mean inventing kinds that do not exist to hold one component each.
 - **Split the two-component specs** (`shop.spec.ts`, `status-chip.spec.ts`) so every spec sits inside a component
   folder. Rejected: both share a setup block and a test host, and duplicating those to satisfy the layout would
   make the tests worse. `shop.spec.ts` lives in `pages/shop/` and imports `../product-detail/product-detail`.
@@ -116,7 +126,7 @@ files always share its folder's name. The rest of 0050 stands.
 ## Consequences
 
 - A component is one directory: its markup, styles, spec and class in one place, found by name. That is the
-  benefit this ADR is claimed on.
+  benefit this ADR is claimed for.
 - **Each lazy route now ships only its own code**, which is a small win and not a speed one: `/shop` went from a
   4.03 kB transfer to 2.79 kB with `product-detail` as its own 1.92 kB chunk, and the five routes that shared
   `info-pages` each have their own. Under SSR this changes hydration weight, not what the visitor sees. The more

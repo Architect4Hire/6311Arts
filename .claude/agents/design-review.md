@@ -14,7 +14,8 @@ Read `.claude/rules/design-system.md` and `.claude/rules/frontend.md`, the `@631
 - **Imports:** public `@6311/ui` only (no deep imports); reuse before duplication.
 - **Styling:** tokens only (no literal colors); typography and spacing consistent with the spike's direction.
 - **Angular conventions:** standalone, `OnPush`, signals, strict templates; no `HttpClient` in components;
-  markup and styles in sibling `.html`/`.scss` files, never `template:`/`styles:` outside a `*.spec.ts` (ADR 0050).
+  markup and styles in sibling `.html`/`.scss` files, never `template:`/`styles:` outside a `*.spec.ts` (ADR 0050);
+  one `@Component` per file in a folder named after it, and no barrel re-exporting a folder of components (ADR 0051).
 - **States:** loading, empty, error, success and disabled.
 - **SSR safety (site):** no browser globals during SSR; `SeoService` and JSON-LD set; content never hidden from crawlers.
 - **Admin:** Square-held values (price, quantity, seats) never edited in place: current figure + Change command with a Pending/Applied/Rejected state, and a status chip that isn't color alone; conflict view; unsaved-edit guard.
