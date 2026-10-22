@@ -49,6 +49,7 @@ import {
   runName,
   runsEqual,
 } from '../run-list/run-list';
+import { confirmDelete } from '../../../shared/delete-confirm/delete-confirm';
 
 interface Draft {
   readonly title: string;
@@ -477,25 +478,22 @@ export class ClassEditor implements HasUnsavedChanges {
   }
 
   /**
-   * Deletes the class (ADR 0052). Unlike the status commands it is offered while the form is dirty — asking
-   * someone to save a record before throwing it away would be absurd — so the dialog says the unsaved edits go
-   * too. It acts on the saved version's row version, as every write does.
+   * Deletes the class (ADR 0052). Offered while the form is dirty — asking someone to save a record before
+   * throwing it away would be absurd — and the dialogs say so; a record Square holds is asked twice, because that half is not undone by a restore
+   * (<c>confirmDelete</c>). It acts on the saved version's row version, as every write does.
    */
   protected async remove(): Promise<void> {
     const offering = this.offering();
     if (!offering || this.busy()) return;
 
-    const live = offering.status === 'Published';
-    const confirmed = await this.confirm.confirm({
-      heading: 'Delete this class?',
-      message:
-        (live
-          ? 'It leaves the public site within a minute, and leaves the CMS list. '
-          : 'The class leaves the CMS list. ') +
-        (this.dirty() ? 'Your unsaved changes go with it. ' : '') +
-        'Its web address is free for another class straight away. An Admin can restore it from Deleted, as a draft. The deletion is recorded under your name.',
-      confirmLabel: 'Delete class',
-      cancelLabel: 'Keep it',
+    const confirmed = await confirmDelete(this.confirm, {
+      noun: 'class',
+      label: offering.title,
+      slug: offering.slug,
+      live: offering.status === 'Published',
+      dirty: this.dirty(),
+      inSquare: true,
+      keepLabel: 'Keep it',
     });
     if (!confirmed) return;
 

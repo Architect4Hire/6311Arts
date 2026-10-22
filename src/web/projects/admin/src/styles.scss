@@ -65,3 +65,9 @@ body {
   border-color: var(--danger);
   color: var(--danger);
 }
+
+/* The yes of a destructive question (ConfirmRequest.tone), filled rather than outlined so it reads as the weight it is. */
+.cms-confirm--danger {
+  background: var(--danger);
+  border-color: var(--danger);
+}

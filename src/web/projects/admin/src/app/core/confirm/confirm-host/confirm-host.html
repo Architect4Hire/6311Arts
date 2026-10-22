@@ -5,7 +5,13 @@
     <button uiButton type="button" variant="border-dark" autofocus (click)="confirm.answer(false)">
       {{ request()?.cancelLabel }}
     </button>
-    <button uiButton type="button" variant="dark" (click)="confirm.answer(true)">
+    <button
+      uiButton
+      type="button"
+      variant="dark"
+      [class.cms-confirm--danger]="request()?.tone === 'danger'"
+      (click)="confirm.answer(true)"
+    >
       {{ request()?.confirmLabel }}
     </button>
   </div>

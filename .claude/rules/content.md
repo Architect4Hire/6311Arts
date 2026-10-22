@@ -91,6 +91,10 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
     `IContentReferences`, which fans out over each module's `IContentReferenceSource` (Exhibitions, Shop and
     Instructors answer for an artist; Classes for an instructor), and hands Business a `ContentReferenceCheck`.
     A reference from a record that is itself deleted holds nothing up.
+  - **A Square-held type is asked twice before a delete** (`shared/delete-confirm/delete-confirm.ts`): the second
+    dialog says the Square catalogue object goes too and that a CMS restore does not bring it back. Artwork,
+    classes and membership plans get it; the other four are asked once. The Square half is staged by prompt 5.5
+    (`square.catalog-delete-requested`), and until it ships the dialog says the object stays in Square.
   - **A record can name one that has since been deleted** — a credit on a record that was itself deleted, or a
     write that raced the check. Nothing reaches a visitor (a credit resolves through the other module's filtered
     read, so a missing one is simply not named) and a restore returns a Draft. Where the link is *required*,

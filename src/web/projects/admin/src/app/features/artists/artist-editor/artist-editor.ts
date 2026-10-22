@@ -104,6 +104,7 @@ const COMMAND_LABELS: Readonly<
  */
 import { PreviewLinkButton } from '../../../shared/preview-link/preview-link';
 import { ScheduleControl } from '../../../shared/schedule-control/schedule-control';
+import { confirmDelete } from '../../../shared/delete-confirm/delete-confirm';
 
 @Component({
   selector: 'cms-artist-editor',
@@ -424,25 +425,22 @@ export class ArtistEditor implements HasUnsavedChanges {
   }
 
   /**
-   * Deletes the artist (ADR 0052). Unlike the status commands it is offered while the form is dirty — asking
-   * someone to save a record before throwing it away would be absurd — so the dialog says the unsaved edits go
-   * too. It acts on the saved version's row version, as every write does.
+   * Deletes the artist (ADR 0052). Offered while the form is dirty — asking someone to save a record before
+   * throwing it away would be absurd — and the dialogs say so; the wording is shared by every type
+   * (<c>confirmDelete</c>). It acts on the saved version's row version, as every write does.
    */
   protected async remove(): Promise<void> {
     const artist = this.artist();
     if (!artist || this.busy()) return;
 
-    const live = artist.status === 'Published';
-    const confirmed = await this.confirm.confirm({
-      heading: 'Delete this artist?',
-      message:
-        (live
-          ? 'It leaves the public site within a minute, and leaves the CMS list. '
-          : 'The artist leaves the CMS list. ') +
-        (this.dirty() ? 'Your unsaved changes go with it. ' : '') +
-        'Its web address is free for another artist straight away. An Admin can restore it from Deleted, as a draft. The deletion is recorded under your name.',
-      confirmLabel: 'Delete artist',
-      cancelLabel: 'Keep them',
+    const confirmed = await confirmDelete(this.confirm, {
+      noun: 'artist',
+      label: artist.name,
+      slug: artist.slug,
+      live: artist.status === 'Published',
+      dirty: this.dirty(),
+      inSquare: false,
+      keepLabel: 'Keep them',
     });
     if (!confirmed) return;
 

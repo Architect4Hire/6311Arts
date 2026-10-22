@@ -5,6 +5,11 @@ export interface ConfirmRequest {
   readonly message: string;
   readonly confirmLabel: string;
   readonly cancelLabel: string;
+  /**
+   * `danger` for a question whose yes destroys something: the confirm button carries the danger colour as well as
+   * the word (design-system.md rule 3). Omitted for an ordinary question.
+   */
+  readonly tone?: 'danger';
 }
 
 interface Pending extends ConfirmRequest {
