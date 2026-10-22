@@ -67,6 +67,9 @@ internal sealed class ShopRepository(ArtsDbContext context) : IShopRepository
     public async Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         [.. await Items.IgnoreQueryFilters().AsNoTracking().Select(item => item.Slug).ToListAsync(cancellationToken)];
 
+    public async Task<HashSet<string>> GetLiveSlugsAsync(CancellationToken cancellationToken) =>
+        [.. await Items.AsNoTracking().Select(item => item.Slug).ToListAsync(cancellationToken)];
+
     public async Task<int> NextItemNumberAsync(CancellationToken cancellationToken) =>
         (await Items.AsNoTracking().MaxAsync(item => (int?)item.ItemNumber, cancellationToken) ?? 0) + 1;
 

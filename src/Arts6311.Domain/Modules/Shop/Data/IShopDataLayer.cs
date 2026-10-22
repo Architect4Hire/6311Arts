@@ -155,6 +155,16 @@ internal interface IShopDataLayer
     /// <summary>Every slug in use, for the development seed.</summary>
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);
 
+    /// <summary>Every slug a live item holds, for the CSV import (ADR 0053).</summary>
+    Task<HashSet<string>> GetLiveSlugsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Adds every item a CSV import built — each with its categories, its description, its SKU reservation and an
+    /// audit entry naming the file and row — in one save, so the file is imported whole or not at all (ADR 0053).
+    /// </summary>
+    Task<ShopWriteOutcome> ImportAsync(
+        IReadOnlyList<ShopImportedItem> items, SkuChanges skus, string actorUserId, CancellationToken cancellationToken);
+
     /// <summary>Adds the seed items Business chose, with their SKUs and one audit entry, in one save.</summary>
     Task<int> AddSeedAsync(
         IReadOnlyList<ShopItem> items, SkuChanges skus, string actor, CancellationToken cancellationToken);

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Arts6311.Domain.Modules.Media.Managers;
 using Arts6311.Domain.Modules.Memberships.Managers;
@@ -23,6 +24,21 @@ public sealed class AdminConstantContractTests
         var slugs = Slugs(Read("models", "shop.ts"), "SHOP_CATEGORIES", @"slug:\s*'([^']+)'");
 
         Assert.Equal(ShopPolicy.Categories.Select(category => category.Slug), slugs);
+    }
+
+    [Fact]
+    public void TheAdminsImportTemplateHasTheColumnsAndLimitsTheApiReads()
+    {
+        // ADR 0053: the template staff download is built from SHOP_IMPORT_COLUMNS, and the CSV it makes is read by
+        // ShopImportColumns. A column renamed on one side only would make the template itself fail to import.
+        var source = Read("models", "shop.ts");
+
+        Assert.Equal(ShopImportColumns.All, Slugs(source, "SHOP_IMPORT_COLUMNS", @"name:\s*'([^']+)'"));
+        var limits = new Regex(@"export const SHOP_IMPORT_LIMITS = \{\s*maxRows: ([\d_]+),\s*maxCharacters: ([\d_]+),\s*fileNameMaxLength: ([\d_]+),").Match(source);
+        Assert.True(limits.Success, "SHOP_IMPORT_LIMITS is not declared as maxRows, maxCharacters, fileNameMaxLength any more.");
+        Assert.Equal(ShopPolicy.ImportFileNameMaxLength, int.Parse(limits.Groups[3].Value, CultureInfo.InvariantCulture));
+        Assert.Equal(ShopPolicy.ImportMaxRows, int.Parse(limits.Groups[1].Value.Replace("_", string.Empty, StringComparison.Ordinal), CultureInfo.InvariantCulture));
+        Assert.Equal(ShopPolicy.ImportMaxCharacters, int.Parse(limits.Groups[2].Value.Replace("_", string.Empty, StringComparison.Ordinal), CultureInfo.InvariantCulture));
     }
 
     [Fact]

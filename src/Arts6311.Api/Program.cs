@@ -73,6 +73,9 @@ builder.Services.AddClassesModule();
 // credit, so it comes after both.
 builder.Services.AddShopModule();
 
+// Its CSV import (ADR 0053), an idempotent command: here only, beside AddArtsIdempotency above.
+builder.Services.AddShopImport();
+
 // Membership tiers (content.md, ADR 0040). It asks no other module anything: a plan credits nobody and shows no
 // library image.
 builder.Services.AddMembershipsModule();

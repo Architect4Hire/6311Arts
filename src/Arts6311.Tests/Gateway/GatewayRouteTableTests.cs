@@ -20,6 +20,7 @@ public sealed class GatewayRouteTableTests : IDisposable
     [InlineData("media", "api", "/media/{**rest}")]
     [InlineData("cms", "api", "/api/v1/cms/{**rest}")]
     [InlineData("cms-media-upload", "api", "/api/v1/cms/media")]
+    [InlineData("cms-shop-import", "api", "/api/v1/cms/shop/import/{**rest}")]
     [InlineData("forms", "api", "/api/v1/forms/{**rest}")]
     [InlineData("forms-submissions", "api", "/api/v1/forms/submissions")]
     [InlineData("api", "api", "/api/{**rest}")]
@@ -38,7 +39,7 @@ public sealed class GatewayRouteTableTests : IDisposable
     {
         // An extra route is as much a problem as a missing one: it is public surface nobody reviewed.
         Assert.Equal(
-            ["admin", "api", "cms", "cms-media-upload", "forms", "forms-submissions", "media", "site", "webhooks-square"],
+            ["admin", "api", "cms", "cms-media-upload", "cms-shop-import", "forms", "forms-submissions", "media", "site", "webhooks-square"],
             Config().Routes.Select(route => route.RouteId).Order(StringComparer.Ordinal));
     }
 
@@ -66,6 +67,21 @@ public sealed class GatewayRouteTableTests : IDisposable
         Assert.Equal(Arts6311.Domain.Modules.Media.Managers.MediaPolicy.MaxUploadRequestBytes, route.MaxRequestBodySize);
         Assert.Equal(GatewayPolicies.CmsEditor, route.AuthorizationPolicy);
         Assert.Equal(RateLimitExtensions.Policies.Api, route.RateLimiterPolicy);
+    }
+
+    [Fact]
+    public void TheShopImportRouteIsAPostWithTheImportLimit()
+    {
+        // ADR 0053: a thousand rows of CSV as JSON text outgrow the 1 MiB default, so the import (its preview and the
+        // command) has a route of its own, sized from the constant the API's RequestSizeLimit uses. The rest of
+        // /api/v1/cms/shop/** keeps the server default.
+        var route = Route("cms-shop-import");
+
+        Assert.Equal(["POST"], route.Match.Methods);
+        Assert.Equal(Arts6311.Domain.Modules.Shop.Managers.ShopPolicy.ImportMaxRequestBytes, route.MaxRequestBodySize);
+        Assert.Equal(GatewayPolicies.CmsEditor, route.AuthorizationPolicy);
+        Assert.Equal(RateLimitExtensions.Policies.Api, route.RateLimiterPolicy);
+        Assert.Null(Route("cms").MaxRequestBodySize);
     }
 
     [Theory]
@@ -104,6 +120,7 @@ public sealed class GatewayRouteTableTests : IDisposable
     [InlineData("admin")]
     [InlineData("cms")]
     [InlineData("cms-media-upload")]
+    [InlineData("cms-shop-import")]
     public void TheCmsSurfaceNeedsAnEditorSession(string routeId)
     {
         // gateway.md: "/admin/** and /api/v1/cms/** need a CmsEditor session". Declared on the route, so the

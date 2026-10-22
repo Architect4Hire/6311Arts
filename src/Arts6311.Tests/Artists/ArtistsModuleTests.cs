@@ -624,6 +624,24 @@ public sealed class ArtistsModuleTests
     }
 
     [Fact]
+    public async Task TheShopImportLooksArtistsUpByNameWhateverTheCase()
+    {
+        // ADR 0053: staff type a name into a spreadsheet. The match ignores case on SQLite as under SQL Server's
+        // collation, archived artists come back for the caller to refuse, and a name nobody has is simply absent.
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var jane = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+        var john = await CreateAsync(host, new ArtistCreateViewModel("John Doe"));
+        await Ok(host.WithFacadeAsync(facade => facade.ArchiveAsync(john.Id, john.ETag, ArtistsTestHost.AdminId, Ct)));
+
+        var found = await host.WithFacadeAsync(facade => facade.FindByNamesAsync(["JANE DOE", " john doe ", "Nobody", ""], Ct));
+        var none = await host.WithFacadeAsync(facade => facade.FindByNamesAsync([" "], Ct));
+
+        Assert.Equal(new[] { jane.Id, john.Id }.Order(), found.Select(artist => artist.Id).Order());
+        Assert.Equal(PublishStatus.Archived, found.Single(artist => artist.Id == john.Id).Status);
+        Assert.Empty(none);
+    }
+
+    [Fact]
     public async Task ADeletedRecordIsGoneFromEveryReadAndARestoreBringsItBackAsADraft()
     {
         // ADR 0052: one query filter, so "deleted" means gone from every read — and a restore is a decision to

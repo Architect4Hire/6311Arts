@@ -39,6 +39,9 @@ internal interface IArtistsDataLayer
 
     Task<List<ArtistSummaryServiceModel>> FindBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
 
+    /// <param name="upperNames">Names already upper-cased (invariant culture).</param>
+    Task<List<ArtistSummaryServiceModel>> FindByNamesAsync(IReadOnlyCollection<string> upperNames, CancellationToken cancellationToken);
+
     /// <summary>Published artists as site rows: all of them, or the one with <paramref name="slug"/>.</summary>
     Task<List<ArtistSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken);
 

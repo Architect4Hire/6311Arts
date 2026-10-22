@@ -379,6 +379,9 @@ public sealed class CmsArtistsEndpointTests
         public Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<IReadOnlyList<ArtistSummaryServiceModel>> FindByNamesAsync(IReadOnlyCollection<string> names, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<OperationResult<ArtistServiceModel>> CreateAsync(ArtistCreateViewModel create, string actorUserId, CancellationToken cancellationToken)
         {
             (Created, Actor) = (create, actorUserId);

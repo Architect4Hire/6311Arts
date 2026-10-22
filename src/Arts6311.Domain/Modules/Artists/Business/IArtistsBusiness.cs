@@ -41,6 +41,10 @@ internal interface IArtistsBusiness
     Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(
         IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
 
+    /// <summary>The artists named one of <paramref name="names"/>, whatever the case. Empty in, empty out, without a query.</summary>
+    Task<IReadOnlyList<ArtistSummaryServiceModel>> FindByNamesAsync(
+        IReadOnlyCollection<string> names, CancellationToken cancellationToken);
+
     /// <summary>Every published artist, by name, for the site (ADR 0042).</summary>
     Task<IReadOnlyList<ArtistSiteRow>> ListForSiteAsync(CancellationToken cancellationToken);
 

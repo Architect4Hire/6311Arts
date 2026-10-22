@@ -11,6 +11,7 @@ using Arts6311.Domain.Modules.Shop.Data;
 using Arts6311.Domain.Modules.Shop.Data.Entities;
 using Arts6311.Domain.Modules.Shop.Managers;
 using Arts6311.Domain.Modules.Shop.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Shop.Managers.Validation;
 using Arts6311.Domain.Modules.Shop.Managers.ViewModels;
 
 namespace Arts6311.Domain.Modules.Shop.Business;
@@ -24,6 +25,9 @@ namespace Arts6311.Domain.Modules.Shop.Business;
 internal sealed class ShopBusiness(IShopDataLayer dataLayer, IHtmlSanitizer sanitizer, IClock clock) : IShopBusiness
 {
     private const string What = "this item";
+
+    /// <summary>How many SKUs one registry read asks about during an import.</summary>
+    private const int ImportLookupChunk = 500;
 
     public async Task<OperationResult<CursorPage<ShopItemListRow>>> ListAsync(
         ShopItemListViewModel request, CancellationToken cancellationToken)
@@ -673,6 +677,376 @@ internal sealed class ShopBusiness(IShopDataLayer dataLayer, IHtmlSanitizer sani
         return items.Count == 0
             ? 0
             : await dataLayer.AddSeedAsync(items, new SkuChanges(reservations, []), actor, cancellationToken);
+    }
+
+    public async Task<ShopImportPreviewServiceModel> PreviewImportAsync(
+        ShopImportSheet sheet, ShopImportArtistCheck artists, CancellationToken cancellationToken)
+    {
+        var rows = await PlanImportAsync(sheet, artists, cancellationToken);
+        return new ShopImportPreviewServiceModel(
+            rows.Count,
+            rows.Count(row => row.Errors.Count > 0),
+            [.. rows.Select(row => new ShopImportRowServiceModel(
+                row.Line.Row,
+                row.Title,
+                row.Slug,
+                row.Sku,
+                row.SkuSuggested,
+                row.Artist,
+                row.Categories,
+                row.OneOfAKind,
+                row.StartingPriceCents,
+                row.StartingStockQuantity,
+                [.. row.Errors.Select(error => new ShopImportProblemServiceModel(error.Field, error.Message))]))]);
+    }
+
+    public async Task<OperationResult<ShopImportResultServiceModel>> ImportAsync(
+        ShopImportSheet sheet,
+        ShopImportArtistCheck artists,
+        string? fileName,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await PlanImportAsync(sheet, artists, cancellationToken);
+
+        // All or nothing: one row that can't be created stops the file, so nobody has to work out which half of it
+        // went in (ADR 0053). The preview shows the same problems, row by row.
+        var failing = rows.Where(row => row.Errors.Count > 0).ToList();
+        if (failing.Count > 0)
+        {
+            return OperationResult.Failure<ShopImportResultServiceModel>(OperationError.Validation(
+                failing.Count == 1
+                    ? "A row needs fixing before the file can be imported. Nothing was imported."
+                    : string.Create(CultureInfo.InvariantCulture, $"{failing.Count} rows need fixing before the file can be imported. Nothing was imported."),
+                failing.SelectMany(row => row.Errors.Select(error => (
+                    string.Create(CultureInfo.InvariantCulture, $"rows[{row.Line.Row}].{error.Field}"),
+                    error.Message)))));
+        }
+
+        var source = string.IsNullOrWhiteSpace(fileName) ? "a CSV file" : fileName.Trim();
+        var items = new List<ShopImportedItem>(rows.Count);
+        foreach (var row in rows)
+        {
+            var item = new ShopItem
+            {
+                Id = row.Id,
+                Title = row.Title,
+                Slug = row.Slug,
+                ArtistId = row.Artist?.Id,
+                Sku = row.Sku,
+                ItemNumber = row.ItemNumber,
+                OneOfAKind = row.OneOfAKind,
+                StartingPriceCents = row.StartingPriceCents,
+                StartingStockQuantity = row.StartingStockQuantity,
+                Status = PublishStatus.Draft,
+            };
+            SetDescription(item, row.Description);
+            ReplaceCategories(item, row.Categories);
+
+            var action = string.Create(CultureInfo.InvariantCulture, $"Imported as Draft from {source}, row {row.Line.Row}");
+            items.Add(new ShopImportedItem(item, AuditSummary(action, [], row.Description)));
+        }
+
+        var reservations = new SkuChanges([.. items.Select(imported => new SkuReservation(imported.Item.Sku, imported.Item.Id))], []);
+
+        return await dataLayer.ImportAsync(items, reservations, actorUserId, cancellationToken) switch
+        {
+            ShopWriteOutcome.Saved => OperationResult.Success(new ShopImportResultServiceModel(
+                items.Count,
+                [.. rows.Select(row => new ShopImportCreatedServiceModel(row.Line.Row, row.Id, row.Title, row.Slug, row.Sku))])),
+            ShopWriteOutcome.SlugTaken => OperationResult.Failure<ShopImportResultServiceModel>(OperationError.Of(
+                ContentErrorCodes.SlugTaken,
+                "Another piece took one of the file's web addresses while it was importing. Nothing was imported: preview the file again.")),
+            ShopWriteOutcome.SkuTaken => OperationResult.Failure<ShopImportResultServiceModel>(OperationError.Of(
+                CatalogErrorCodes.SkuTaken,
+                "Another record took one of the file's SKUs while it was importing. Nothing was imported: preview the file again.")),
+            _ => OperationResult.Failure<ShopImportResultServiceModel>(EntityTag.Conflict(What)),
+        };
+    }
+
+    /// <summary>
+    /// Every row of an import read and checked, in file order: what it would be created as, and everything wrong with
+    /// it. The rows are read against each other as well as the database — two rows can't share a SKU or an address —
+    /// so each is checked once, in one pass over the whole file, with one read per question.
+    /// </summary>
+    private async Task<List<ShopImportPlan>> PlanImportAsync(
+        ShopImportSheet sheet, ShopImportArtistCheck artists, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(artists);
+
+        var now = clock.UtcNow;
+        var rows = sheet.Lines.Select(line => ReadImportRow(line, artists, now)).ToList();
+
+        // Addresses. One given in the file is the row's to keep or be refused, so those are claimed before any made
+        // from a title; a made one never refuses anybody — it takes the next free number instead, as two prints both
+        // called "Untitled" should.
+        var slugs = await dataLayer.GetLiveSlugsAsync(cancellationToken);
+        var slugRows = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var row in rows.Where(row => row.SlugGiven && row.Slug.Length > 0))
+        {
+            if (slugRows.TryGetValue(row.Slug, out var earlier))
+            {
+                row.Fail(ShopImportColumns.Slug, string.Create(CultureInfo.InvariantCulture, $"Row {earlier} already uses “{row.Slug}”. Each piece needs its own."));
+            }
+            else if (slugs.Contains(row.Slug))
+            {
+                row.Fail(ShopImportColumns.Slug, $"“{row.Slug}” is another piece's web address. Choose another, or leave it blank.");
+            }
+            else
+            {
+                slugRows[row.Slug] = row.Line.Row;
+                slugs.Add(row.Slug);
+            }
+        }
+
+        foreach (var row in rows.Where(row => !row.SlugGiven && row.Slug.Length > 0))
+        {
+            var slug = row.Slug;
+            for (var number = 2; slugs.Contains(slug); number++)
+            {
+                slug = ShopImportCells.Numbered(row.Slug, number);
+            }
+
+            row.Slug = slug;
+            slugs.Add(slug);
+        }
+
+        // SKUs the file gives: free in the registry, and given once.
+        var given = rows.Where(row => !row.SkuSuggested && row.Sku.Length > 0 && SkuPolicy.IsValid(row.Sku)).ToList();
+        var owned = await SkuOwnersAsync(given.Select(row => row.Sku), cancellationToken);
+        var skuRows = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var row in given)
+        {
+            if (skuRows.TryGetValue(row.Sku, out var earlier))
+            {
+                row.Fail(ShopImportColumns.Sku, string.Create(CultureInfo.InvariantCulture, $"Row {earlier} already uses “{row.Sku}”. Each piece needs its own."));
+            }
+            else if (owned.ContainsKey(row.Sku))
+            {
+                row.Fail(ShopImportColumns.Sku, $"“{row.Sku}” belongs to another shop item or class session. Choose another, or leave it blank.");
+            }
+            else
+            {
+                skuRows[row.Sku] = row.Line.Row;
+            }
+        }
+
+        // Every row takes the next item number, in file order, and a row with no SKU the first ART-<n> at or after it
+        // that neither the registry nor another row holds — the suggestion a single create would make (ADR 0037).
+        var first = await dataLayer.NextItemNumberAsync(cancellationToken);
+        for (var index = 0; index < rows.Count; index++)
+        {
+            rows[index].ItemNumber = first + index;
+        }
+
+        var unsuggested = rows.Where(row => row.SkuSuggested).ToList();
+        var end = first + rows.Count + unsuggested.Count + 8;
+        var suggestible = await SkuOwnersAsync(Enumerable.Range(first, end - first).Select(SkuPolicy.ForShopItem), cancellationToken);
+        var next = first;
+        foreach (var row in unsuggested)
+        {
+            var number = Math.Max(row.ItemNumber, next);
+            while (number < end
+                && (suggestible.ContainsKey(SkuPolicy.ForShopItem(number)) || skuRows.ContainsKey(SkuPolicy.ForShopItem(number))))
+            {
+                number++;
+            }
+
+            // Past the numbers asked about, nothing is known to be free: fall back to the item's id, as a single
+            // create does, which nothing else can hold.
+            row.Sku = number < end
+                ? SkuPolicy.ForShopItem(number)
+                : string.Create(CultureInfo.InvariantCulture, $"{SkuPolicy.ArtworkPrefix}-{row.Id.ToString("N")[..8].ToUpperInvariant()}");
+            skuRows[row.Sku] = row.Line.Row;
+            next = number + 1;
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// One row read on its own, before anything is asked of the database: every cell interpreted, and every problem
+    /// a cell has on its own noted — all of them, so the file is fixed in one pass.
+    /// </summary>
+    private ShopImportPlan ReadImportRow(ShopImportLine line, ShopImportArtistCheck artists, DateTimeOffset now)
+    {
+        var row = new ShopImportPlan(line, Guid.CreateVersion7(now)) { Title = line[ShopImportColumns.Title] };
+
+        if (row.Title.Length == 0)
+        {
+            row.Fail(ShopImportColumns.Title, "Enter the piece's title.");
+        }
+        else if (row.Title.Length > ShopPolicy.TitleMaxLength)
+        {
+            row.Fail(ShopImportColumns.Title, $"Keep the title under {ShopPolicy.TitleMaxLength} characters.");
+        }
+
+        var slug = line[ShopImportColumns.Slug];
+        if (slug.Length > 0)
+        {
+            row.SlugGiven = true;
+            if (Slugs.IsValid(slug))
+            {
+                row.Slug = slug;
+            }
+            else
+            {
+                row.Fail(ShopImportColumns.Slug, ShopItemRules.SlugMessage);
+            }
+        }
+        else if (row.Title.Length > 0)
+        {
+            row.Slug = Slugs.FromName(row.Title);
+            if (row.Slug.Length == 0)
+            {
+                row.Fail(ShopImportColumns.Slug, "The title needs a letter or digit to make a web address from. Fill in the slug instead.");
+            }
+        }
+
+        if (SkuPolicy.Normalize(line[ShopImportColumns.Sku]) is { } sku)
+        {
+            row.Sku = sku;
+            row.SkuSuggested = false;
+            if (!SkuPolicy.IsValid(sku))
+            {
+                row.Fail(ShopImportColumns.Sku, $"A SKU is letters, digits, hyphens and dots, up to {SkuPolicy.MaxLength} characters (for example ART-17).");
+            }
+        }
+
+        var reference = line[ShopImportColumns.Artist];
+        if (reference.Length > 0)
+        {
+            var matches = artists.For(reference);
+            if (matches.Count == 0)
+            {
+                row.Fail(ShopImportColumns.Artist, $"No artist on the roster is called “{ShopImportCells.Shorten(reference)}”. Use their name or slug as the Artists screen shows it, or leave it blank.");
+            }
+            else if (matches.Count > 1)
+            {
+                row.Fail(ShopImportColumns.Artist, string.Create(CultureInfo.InvariantCulture, $"{matches.Count} artists are called “{ShopImportCells.Shorten(reference)}”. Use the slug of the one you mean."));
+            }
+            else if (matches[0].Status == PublishStatus.Archived)
+            {
+                row.Fail(ShopImportColumns.Artist, $"{matches[0].Name} is archived, so new work can't be credited to them.");
+            }
+            else
+            {
+                row.Artist = matches[0];
+            }
+        }
+
+        row.Categories = ShopImportCells.ReadCategories(line[ShopImportColumns.Categories], out var unknown);
+        foreach (var category in unknown)
+        {
+            row.Fail(ShopImportColumns.Categories, $"“{ShopImportCells.Shorten(category)}” isn't a category. {ShopItemRules.CategoryMessage}");
+        }
+
+        var flag = line[ShopImportColumns.OneOfAKind];
+        if (ShopImportCells.ReadFlag(flag) is { } oneOfAKind)
+        {
+            row.OneOfAKind = oneOfAKind;
+        }
+        else
+        {
+            row.Fail(ShopImportColumns.OneOfAKind, $"“{ShopImportCells.Shorten(flag)}” isn't yes or no. Write true or false, or leave it blank.");
+        }
+
+        var (cents, priceError) = ShopImportCells.ReadPrice(line[ShopImportColumns.StartingPrice]);
+        row.StartingPriceCents = cents;
+        if (priceError is not null)
+        {
+            row.Fail(ShopImportColumns.StartingPrice, priceError);
+        }
+
+        var (count, stockError) = ShopImportCells.ReadStock(line[ShopImportColumns.StartingStock]);
+        if (stockError is not null)
+        {
+            row.Fail(ShopImportColumns.StartingStock, stockError);
+        }
+        else if (StockConflict(row.OneOfAKind, count) is not null)
+        {
+            row.Fail(ShopImportColumns.StartingStock, "A one-of-a-kind piece is a count of one. Leave starting_stock blank or 1, or set one_of_a_kind to false.");
+        }
+
+        row.StartingStockQuantity = StockFor(row.OneOfAKind, count);
+
+        var text = line[ShopImportColumns.Description];
+        if (text.Length > 0)
+        {
+            var description = sanitizer.Sanitize(ShopImportCells.ToHtml(text));
+            if (description.Refused is { } refusal)
+            {
+                row.Fail(ShopImportColumns.Description, $"{refusal} Simplify it and try again.");
+            }
+            else if (description.Html.Length > ShopPolicy.DescriptionMaxLength)
+            {
+                row.Fail(ShopImportColumns.Description, string.Create(CultureInfo.InvariantCulture, $"Keep the description under {ShopPolicy.DescriptionMaxLength:N0} characters."));
+            }
+            else
+            {
+                row.Description = description;
+            }
+        }
+
+        return row;
+    }
+
+    /// <summary>
+    /// Who holds each of <paramref name="skus"/>, asked a few hundred at a time: a file's worth in one query would
+    /// pass SQL Server's limit of 2,100 parameters.
+    /// </summary>
+    private async Task<Dictionary<string, SkuOwner>> SkuOwnersAsync(IEnumerable<string> skus, CancellationToken cancellationToken)
+    {
+        var owners = new Dictionary<string, SkuOwner>(StringComparer.Ordinal);
+        foreach (var chunk in skus.Distinct(StringComparer.Ordinal).Chunk(ImportLookupChunk))
+        {
+            foreach (var (sku, owner) in await dataLayer.SkuOwnersAsync(chunk, cancellationToken))
+            {
+                owners[sku] = owner;
+            }
+        }
+
+        return owners;
+    }
+
+    /// <summary>One import row on its way to becoming a Draft, and everything wrong with it so far.</summary>
+    private sealed class ShopImportPlan(ShopImportLine line, Guid id)
+    {
+        public ShopImportLine Line { get; } = line;
+
+        /// <summary>Chosen here rather than at the save, so a SKU suggestion that falls back to the id can use it.</summary>
+        public Guid Id { get; } = id;
+
+        public string Title { get; set; } = string.Empty;
+
+        public string Slug { get; set; } = string.Empty;
+
+        /// <summary>The file gave the slug, so it is kept or refused, never numbered.</summary>
+        public bool SlugGiven { get; set; }
+
+        public string Sku { get; set; } = string.Empty;
+
+        /// <summary>The file left the SKU blank, so the plan suggests one.</summary>
+        public bool SkuSuggested { get; set; } = true;
+
+        public int ItemNumber { get; set; }
+
+        public ShopItemArtistServiceModel? Artist { get; set; }
+
+        public IReadOnlyList<string> Categories { get; set; } = [];
+
+        public bool OneOfAKind { get; set; }
+
+        public long? StartingPriceCents { get; set; }
+
+        public int? StartingStockQuantity { get; set; }
+
+        public SanitizedHtml? Description { get; set; }
+
+        public List<(string Field, string Message)> Errors { get; } = [];
+
+        public void Fail(string field, string message) => Errors.Add((field, message));
     }
 
     /// <summary>

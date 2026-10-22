@@ -41,6 +41,12 @@ internal interface IArtistsRepository
     Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The artists whose upper-cased name is one of <paramref name="upperNames"/>, projected to list rows, in no
+    /// particular order.
+    /// </summary>
+    Task<List<ArtistSummaryServiceModel>> ListByNamesAsync(IReadOnlyCollection<string> upperNames, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Published artists in (Name, Id) order, projected straight to site rows — every one, or only the one with
     /// <paramref name="slug"/> (ADR 0042).
     /// </summary>

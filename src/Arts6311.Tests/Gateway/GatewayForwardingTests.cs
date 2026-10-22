@@ -146,7 +146,7 @@ public sealed class GatewayForwardingTests : IAsyncLifetime
 
         // cms, the media upload, media and webhooks also target the api cluster; what matters is that site and admin
         // do not.
-        Assert.Equal(["api", "cms", "cms-media-upload", "forms", "forms-submissions", "media", "webhooks-square"], tokenBearingClusters);
+        Assert.Equal(["api", "cms", "cms-media-upload", "cms-shop-import", "forms", "forms-submissions", "media", "webhooks-square"], tokenBearingClusters);
     }
 
     [Theory]

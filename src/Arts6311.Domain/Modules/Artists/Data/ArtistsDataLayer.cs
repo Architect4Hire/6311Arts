@@ -53,6 +53,10 @@ internal sealed class ArtistsDataLayer(
         IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
         repository.ListBySlugsAsync(slugs, cancellationToken);
 
+    public Task<List<ArtistSummaryServiceModel>> FindByNamesAsync(
+        IReadOnlyCollection<string> upperNames, CancellationToken cancellationToken) =>
+        repository.ListByNamesAsync(upperNames, cancellationToken);
+
     public Task<List<ArtistSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) =>
         repository.ListPublishedAsync(slug, cancellationToken);
 

@@ -15,7 +15,7 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
 |---|---|---|
 | Public site reads | `GET /api/v1/site/classes` (`?instructor=`), `/site/classes/{slug}`, `/site/instructors`, `/site/instructors/{slug}`, `/site/exhibitions`, `/site/exhibitions/{slug}`, `/site/artists`, `/site/artists/{slug}`, `/site/shop` (`?category=&artist=&sort=&cursor=&limit=`; a cursor page plus `totalCount`, ADR 0046), `/site/shop/{slug}`, `/site/memberships`, `/site/pages/{slug}`, `/site/sitemap`, `/site/redirects` | `[AllowAnonymous]`; Published records only, except that a credit names its artist whatever their status (`slug` is `null` unless they are published); the site's own `Site*ServiceModel`s (no status, bookkeeping, SKU or stock count); `Cache-Control: public, max-age=60`, a 404 `no-store` (ADR 0042) |
 | Preview | `GET /api/v1/site/preview/{token}` | `[AllowAnonymous]`; the signed, expiring token is the credential (ADR 0036). `no-store`, `X-Robots-Tag: noindex`, read-only; anything unusable is 404 |
-| CMS | `GET/POST /api/v1/cms/classes`, `PATCH /cms/classes/{id}`, `POST /cms/classes/{id}/publish`; the same shape for `/cms/artists`, `/cms/instructors`, `/cms/exhibitions`, `/cms/pages`, `/cms/shop` (artwork; `?category=` filters it), `/cms/memberships` (tiers, in display order) and `/cms/media` | `CmsEditor` (deletes `CmsAdmin`) |
+| CMS | `GET/POST /api/v1/cms/classes`, `PATCH /cms/classes/{id}`, `POST /cms/classes/{id}/publish`; the same shape for `/cms/artists`, `/cms/instructors`, `/cms/exhibitions`, `/cms/pages`, `/cms/shop` (artwork; `?category=` filters it; `POST /cms/shop/import/preview` and `/cms/shop/import` take a CSV, ADR 0053), `/cms/memberships` (tiers, in display order) and `/cms/media` | `CmsEditor` (deletes `CmsAdmin`) |
 | CMS status commands | `POST /api/v1/cms/{type}/{id}/publish`, `/unpublish`, `/schedule` (body `ContentScheduleViewModel`), `/unschedule`, `/archive` (`CmsAdmin`) | `CmsEditor`; every one carries `If-Match` |
 | CMS delete and restore (ADR 0052) | `DELETE /api/v1/cms/{type}/{id}` → `204`, `POST /api/v1/cms/{type}/{id}/restore` → the record as a Draft, `GET /api/v1/cms/{type}/deleted` → a cursor page of `{type}DeletedServiceModel` (`id`, name or title, `slug`, the `status` it had, `deletedAt`, `etag`) | `CmsAdmin`, audited; delete and restore carry `If-Match` (missing → 428) |
 | CMS previews | `POST /api/v1/cms/preview` → `{ token, path, expiresAt }` | `CmsEditor`; mints a link for one record, changes nothing |
@@ -59,8 +59,9 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
 
   A new code with any other status is added to that map deliberately. `code`, `correlationId` and `errors` are `ProblemDetails` extensions, which a generator can't infer, so the `ProblemDetails` component is hand-written to declare them. `correlationId` is the W3C trace id as 32 lower-case hex digits.
 - **Concurrency.** Editable CMS records use a row version (`ETag` / `If-Match`). A stale write gets a 409 with code `concurrency.conflict`.
-- **Idempotency.** Retryable commands require an `Idempotency-Key` header: checkout pay, membership signup, seat adjustment. A replay returns the original result and carries `Idempotent-Replayed: true`. A different body with the same key gets a 422 (`idempotency.key_reused`). Several `Idempotency-Key` values on one request count as none.
-- **Long work.** Imports and full reconciliation return `202` with an operation resource.
+- **Idempotency.** Retryable commands require an `Idempotency-Key` header: checkout pay, membership signup, seat adjustment, the shop CSV import. A replay returns the original result and carries `Idempotent-Replayed: true`. A different body with the same key gets a 422 (`idempotency.key_reused`). Several `Idempotency-Key` values on one request count as none.
+- **Long work.** Imports and full reconciliation return `202` with an operation resource. The shop CSV import is the
+  exception: it is bounded at 1,000 rows in a single save, so it answers synchronously (ADR 0053).
 
 ## Compatibility
 

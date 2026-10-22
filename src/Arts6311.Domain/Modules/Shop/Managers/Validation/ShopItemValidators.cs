@@ -83,6 +83,37 @@ internal sealed class ShopItemUpdateValidator : AbstractValidator<ShopItemUpdate
     }
 }
 
+/// <summary>
+/// Shape only: some text, not too much of it, and a file name fit for an audit line. What the rows say is read in
+/// Business, row by row, so every problem in the file is reported at once.
+/// </summary>
+internal sealed class ShopImportValidator : AbstractValidator<ShopImportViewModel>
+{
+    public ShopImportValidator()
+    {
+        RuleFor(import => import.Csv)
+            .Must(csv => !string.IsNullOrWhiteSpace(csv)).WithMessage("The file is empty.")
+            .MaximumLength(ShopPolicy.ImportMaxCharacters)
+            .WithMessage(string.Create(
+                CultureInfo.InvariantCulture,
+                $"The file is too long: keep it under {ShopPolicy.ImportMaxCharacters:N0} characters, or split it in two."))
+
+            // What a browser decodes bytes that are not UTF-8 into. Imported, they would be stored as U+FFFD for good.
+            .Must(csv => csv is null || !csv.Contains('\uFFFD', StringComparison.Ordinal))
+            .WithMessage("The file isn't UTF-8 text. In Excel, choose Save As, then “CSV UTF-8”.")
+
+            // A spreadsheet writes tabs and line breaks, never the other control characters. Refused here so none
+            // reaches a title, and so the request-size limit's arithmetic holds (ShopPolicy.ImportMaxRequestBytes).
+            .Must(csv => csv is null || !csv.Any(c => char.IsControl(c) && c is not ('\t' or '\r' or '\n')))
+            .WithMessage("The file has a control character in it, so it isn't a spreadsheet's CSV. Save it from the spreadsheet as CSV UTF-8.");
+
+        RuleFor(import => import.FileName!)
+            .MaximumLength(ShopPolicy.ImportFileNameMaxLength)
+            .Must(name => !name.Any(char.IsControl)).WithMessage("The file name has a control character in it.")
+            .When(import => import.FileName is not null);
+    }
+}
+
 internal sealed class ShopItemListValidator : AbstractValidator<ShopItemListViewModel>
 {
     public ShopItemListValidator()

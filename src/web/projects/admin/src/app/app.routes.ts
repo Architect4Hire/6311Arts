@@ -26,6 +26,9 @@ const pageEditor = () =>
 const shopItemEditor = () =>
   import('./features/shop/shop-item-editor/shop-item-editor').then((m) => m.ShopItemEditor);
 
+const shopImport = () =>
+  import('./features/shop/shop-import/shop-import').then((m) => m.ShopImport);
+
 const membershipPlanEditor = () =>
   import('./features/memberships/membership-plan-editor/membership-plan-editor').then(
     (m) => m.MembershipPlanEditor,
@@ -165,6 +168,8 @@ const DETAIL_ROUTES: Routes = [
   { path: 'classes/new', title: 'New class', section: 'classes', loadComponent: classEditor },
   { path: 'classes/:id', title: 'Class', section: 'classes', loadComponent: classEditor },
   { path: 'shop/new', title: 'New piece', section: 'shop', loadComponent: shopItemEditor },
+  // Before `shop/:id`, which would otherwise read "import" as a piece's id.
+  { path: 'shop/import', title: 'Import artwork', section: 'shop', loadComponent: shopImport },
   { path: 'shop/:id', title: 'Piece', section: 'shop', loadComponent: shopItemEditor },
   {
     path: 'memberships/new',

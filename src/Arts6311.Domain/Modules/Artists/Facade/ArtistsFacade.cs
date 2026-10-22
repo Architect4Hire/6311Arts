@@ -72,6 +72,14 @@ internal sealed class ArtistsFacade(
         return business.FindBySlugsAsync(slugs, cancellationToken);
     }
 
+    public Task<IReadOnlyList<ArtistSummaryServiceModel>> FindByNamesAsync(
+        IReadOnlyCollection<string> names, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(names.Count, ArtistPolicy.LookupMaxCount, nameof(names));
+        return business.FindByNamesAsync(names, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<SiteArtistServiceModel>> ListForSiteAsync(CancellationToken cancellationToken)
     {
         var rows = await business.ListForSiteAsync(cancellationToken);

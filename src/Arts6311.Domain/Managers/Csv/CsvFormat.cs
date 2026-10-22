@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Arts6311.Domain.Modules.Forms.Managers;
+namespace Arts6311.Domain.Managers.Csv;
 
 /// <summary>
 /// RFC 4180 CSV, safe to open in a spreadsheet: every field is quoted, and one a spreadsheet would read as a formula

@@ -30,10 +30,10 @@
   </ItemGroup>
 
   <ItemGroup Label="AppHost">
-    <PackageVersion Include="Aspire.Hosting.Azure.Sql" Version="13.6.2" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.2" />
-    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.6.2" />
-    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.6.2" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Sql" Version="13.6.3" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.3" />
+    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.6.3" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.6.3" />
     <PackageVersion Include="Aspire.Hosting.Testing" Version="$(AspireVersion)" />
     <PackageVersion Include="CommunityToolkit.Aspire.Hosting.MailPit" Version="13.6.0" />
     <PackageVersion Include="CommunityToolkit.Aspire.Hosting.Redis.Extensions" Version="13.6.0" />
@@ -53,12 +53,12 @@
       Redis is the gateway's one piece of state: a ring under the user profile would make every antiforgery token
       die with the process and disagree between replicas.
     -->
-    <PackageVersion Include="Aspire.StackExchange.Redis" Version="13.6.2" />
+    <PackageVersion Include="Aspire.StackExchange.Redis" Version="13.6.3" />
     <!--
       The IDistributedCache HybridCache uses as its L2, in the API and the Worker (ADR 0036): without a shared,
       out-of-process cache, a revalidation in the Worker could not reach the API's entries at all.
     -->
-    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.6.2" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.6.3" />
     <!--
       The Domain's cache-invalidation channel (ADR 0049): HybridCache reads a tag's invalidation time from L2 once per
       process and keeps it, so the Worker's invalidations reach the API only as a Redis pub/sub message. Pinned to the
@@ -94,8 +94,8 @@
   </ItemGroup>
 
   <ItemGroup Label="Data and caching">
-    <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="13.6.2" />
-    <PackageVersion Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" Version="13.6.2" />
+    <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="13.6.3" />
+    <PackageVersion Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" Version="13.6.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />

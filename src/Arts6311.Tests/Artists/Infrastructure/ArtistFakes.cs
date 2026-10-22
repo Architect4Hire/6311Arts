@@ -105,6 +105,9 @@ internal sealed class FakeArtistsRepository(CallLog log) : IArtistsRepository
     public Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
         Task.FromResult(Rows.Where(row => slugs.Contains(row.Slug)).Select(Summary).ToList());
 
+    public Task<List<ArtistSummaryServiceModel>> ListByNamesAsync(IReadOnlyCollection<string> upperNames, CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.Where(row => upperNames.Contains(row.Name.ToUpperInvariant())).Select(Summary).ToList());
+
     public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
     {
         log.Add("list-due");
@@ -182,6 +185,9 @@ internal sealed class FakeArtistsDataLayer : IArtistsDataLayer
 
     public Task<List<ArtistSummaryServiceModel>> FindBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
         Task.FromResult(Rows.Values.Where(row => slugs.Contains(row.Slug)).Select(FakeArtistsRepository.Summary).ToList());
+
+    public Task<List<ArtistSummaryServiceModel>> FindByNamesAsync(IReadOnlyCollection<string> upperNames, CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.Values.Where(row => upperNames.Contains(row.Name.ToUpperInvariant())).Select(FakeArtistsRepository.Summary).ToList());
 
     public Task<ArtistWriteOutcome> CreateAsync(Artist artist, string actorUserId, CancellationToken cancellationToken)
     {
@@ -318,6 +324,12 @@ internal sealed class RecordingArtistsBusiness : IArtistsBusiness
     public Task<IReadOnlyList<ArtistSummaryServiceModel>> FindBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken)
     {
         Calls.Add("by-slugs");
+        return Task.FromResult<IReadOnlyList<ArtistSummaryServiceModel>>([]);
+    }
+
+    public Task<IReadOnlyList<ArtistSummaryServiceModel>> FindByNamesAsync(IReadOnlyCollection<string> names, CancellationToken cancellationToken)
+    {
+        Calls.Add("by-names");
         return Task.FromResult<IReadOnlyList<ArtistSummaryServiceModel>>([]);
     }
 
@@ -508,6 +520,13 @@ internal sealed class FakeArtistsFacade : IArtistsFacade
     {
         Lookups++;
         return Task.FromResult<IReadOnlyList<ArtistSummaryServiceModel>>([.. Roster.Values.Where(artist => slugs.Contains(artist.Slug))]);
+    }
+
+    public Task<IReadOnlyList<ArtistSummaryServiceModel>> FindByNamesAsync(IReadOnlyCollection<string> names, CancellationToken cancellationToken)
+    {
+        Lookups++;
+        return Task.FromResult<IReadOnlyList<ArtistSummaryServiceModel>>(
+            [.. Roster.Values.Where(artist => names.Contains(artist.Name, StringComparer.OrdinalIgnoreCase))]);
     }
 
     public Task<OperationResult<CursorPage<ArtistSummaryServiceModel>>> ListAsync(ArtistListViewModel request, CancellationToken cancellationToken) =>

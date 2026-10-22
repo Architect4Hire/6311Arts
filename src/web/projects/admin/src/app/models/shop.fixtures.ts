@@ -1,4 +1,4 @@
-import { ShopItem, ShopItemSummary } from './shop';
+import { ShopImportPreview, ShopImportResult, ShopItem, ShopItemSummary } from './shop';
 
 /** One draft piece as the API returns it, for specs: a one-of-a-kind cuff with a credited artist. */
 export const SHOP_ITEM: ShopItem = {
@@ -66,3 +66,55 @@ export function toShopItemSummary(item: ShopItem): ShopItemSummary {
     updatedAt: item.updatedAt,
   };
 }
+
+/** A preview of a two-row file as the API returns it: one row ready, one with two problems. */
+export const SHOP_IMPORT_PREVIEW: ShopImportPreview = {
+  rowCount: 2,
+  errorCount: 1,
+  rows: [
+    {
+      row: 2,
+      title: 'Blue Heron',
+      slug: 'blue-heron',
+      sku: 'ART-12',
+      skuSuggested: true,
+      artist: SHOP_ITEM.artist,
+      categories: ['prints'],
+      oneOfAKind: false,
+      startingPriceCents: 4500,
+      startingStockQuantity: 10,
+      errors: [],
+    },
+    {
+      row: 3,
+      title: 'Raku Bowl',
+      slug: 'raku-bowl',
+      sku: 'CER-001',
+      skuSuggested: false,
+      artist: null,
+      categories: ['ceramics'],
+      oneOfAKind: true,
+      startingPriceCents: null,
+      startingStockQuantity: 1,
+      errors: [
+        { field: 'sku', message: '“CER-001” belongs to another shop item or class session.' },
+        { field: 'starting_price', message: 'Enter the price in dollars, such as 45 or 45.00.' },
+      ],
+    },
+  ],
+};
+
+/** The same file with its problems fixed. */
+export const READY_IMPORT_PREVIEW: ShopImportPreview = {
+  ...SHOP_IMPORT_PREVIEW,
+  errorCount: 0,
+  rows: SHOP_IMPORT_PREVIEW.rows.map((row) => ({ ...row, errors: [] })),
+};
+
+export const SHOP_IMPORT_RESULT: ShopImportResult = {
+  createdCount: 2,
+  items: [
+    { row: 2, id: 'n1', title: 'Blue Heron', slug: 'blue-heron', sku: 'ART-12' },
+    { row: 3, id: 'n2', title: 'Raku Bowl', slug: 'raku-bowl', sku: 'CER-001' },
+  ],
+};

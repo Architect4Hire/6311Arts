@@ -9,6 +9,12 @@
   align-items: flex-end;
   justify-content: space-between;
 }
+.head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 .cms-lead {
   margin-bottom: 0;
 }

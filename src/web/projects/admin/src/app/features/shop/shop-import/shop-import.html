@@ -1,0 +1,186 @@
+<div class="head">
+  <div>
+    <p class="back"><a routerLink="/shop">← All artwork</a></p>
+    <h1 class="cms-title">Import artwork</h1>
+    <p class="cms-lead">
+      Add many pieces at once from a spreadsheet saved as CSV, up to
+      {{ limits.maxRows.toLocaleString('en-US') }} rows. Every piece is created as a draft without
+      photographs: add its photographs and publish it from its editor.
+    </p>
+  </div>
+  <button uiButton type="button" (click)="downloadTemplate()">Download template</button>
+</div>
+
+<!-- Exists from the start, so the counts written into it later are read out. -->
+<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+<details class="columns">
+  <summary>The columns</summary>
+  <p>
+    The first row names the columns, in any order. Only <code>title</code> is required; a column
+    left out is the same as a blank one. Rows are imported all together or not at all.
+  </p>
+  <div class="scroll" role="region" aria-label="The columns" tabindex="0">
+    <table class="grid">
+      <caption class="sr-only">
+        The columns a CSV may have
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Column</th>
+          <th scope="col">What goes in it</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (column of columns; track column.name) {
+          <tr>
+            <th scope="row">
+              <code>{{ column.name }}</code>
+              @if (column.required) {
+                <span class="required"><span class="sr-only">, </span>required</span>
+              }
+            </th>
+            <td>{{ column.rule }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</details>
+
+@if (result()) {
+  <div class="result" tabindex="-1">
+    <ui-notice tone="success" [heading]="createdMessage()">
+      <p>
+        They are drafts, so nothing shows on the site yet.
+        <a routerLink="/shop">Go to the shop list</a> to add their photographs and publish them.
+      </p>
+    </ui-notice>
+  </div>
+  <p>
+    <button uiButton type="button" (click)="reset()">Import another file</button>
+  </p>
+} @else {
+  <ui-field
+    label="CSV file"
+    hint="Saved as CSV UTF-8. Choosing a file checks it; nothing is imported yet."
+    [error]="fileProblem()?.heading ?? null"
+  >
+    <input
+      #fileInput
+      uiControl
+      type="file"
+      name="file"
+      accept=".csv,text/csv"
+      [disabled]="phase() === 'checking' || phase() === 'importing'"
+      (change)="onChoose(fileInput)"
+    />
+  </ui-field>
+
+  @if (phase() === 'checking') {
+    <!-- Announced through the live region above: a status inserted now would not reliably be read. -->
+    <p class="checking">Checking {{ fileName() }}…</p>
+  }
+
+  @if (fileProblem(); as problem) {
+    <div class="file-problem" tabindex="-1">
+      <ui-notice tone="error" [heading]="problem.heading">
+        <ul>
+          @for (reason of problem.reasons; track $index) {
+            <li>{{ reason }}</li>
+          }
+        </ul>
+      </ui-notice>
+    </div>
+  }
+
+  @if (importError(); as message) {
+    <div class="import-error" tabindex="-1">
+      <ui-notice tone="error" heading="The import didn’t happen">
+        <p>{{ message }}</p>
+      </ui-notice>
+    </div>
+  }
+
+  @if (preview(); as checked) {
+    <p class="summary" tabindex="-1">
+      <strong>{{ fileName() }}:</strong> {{ summary() }}
+    </p>
+
+    <div class="scroll" role="region" aria-label="What the file would import" tabindex="0">
+      <table class="grid rows">
+        <caption class="sr-only">
+          Each row of the file, as it would be imported
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Row</th>
+            <th scope="col">Title</th>
+            <th scope="col">Check</th>
+            <th scope="col">SKU</th>
+            <th scope="col">Artist</th>
+            <th scope="col" class="wide">Categories</th>
+            <th scope="col">Starting price</th>
+            <th scope="col">Starting stock</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of checked.rows; track row.row) {
+            <tr [class.row--problem]="row.errors.length > 0">
+              <td>{{ row.row }}</td>
+              <th scope="row">
+                {{ row.title || '(no title)' }}
+                <span class="meta">{{ row.slug }}</span>
+              </th>
+              <td>
+                @if (row.errors.length === 0) {
+                  <ui-status-chip tone="positive" icon="check">Ready</ui-status-chip>
+                } @else {
+                  <ui-status-chip tone="attention" icon="stop">Needs fixing</ui-status-chip>
+                  <ul class="problems">
+                    @for (problem of row.errors; track $index) {
+                      <li>
+                        <code>{{ problem.field }}</code
+                        >: {{ problem.message }}
+                      </li>
+                    }
+                  </ul>
+                }
+              </td>
+              <td>
+                {{ row.sku }}
+                @if (row.skuSuggested) {
+                  <span class="meta">suggested</span>
+                }
+              </td>
+              <td>{{ row.artist?.name || '—' }}</td>
+              <td class="wide">{{ categories(row) }}</td>
+              <td>
+                {{ price(row.startingPriceCents) }}
+              </td>
+              <td>
+                {{ row.oneOfAKind ? '1 (one of a kind)' : (row.startingStockQuantity ?? '—') }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="actions">
+      <button
+        uiButton
+        type="button"
+        variant="dark"
+        [disabled]="!canImport()"
+        [busy]="phase() === 'importing'"
+        (click)="importAll()"
+      >
+        {{ importLabel() }}
+      </button>
+      <button uiButton type="button" [disabled]="phase() === 'importing'" (click)="reset()">
+        Choose another file
+      </button>
+    </div>
+  }
+}

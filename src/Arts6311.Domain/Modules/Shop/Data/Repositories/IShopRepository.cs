@@ -30,6 +30,12 @@ internal interface IShopRepository
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);
 
     /// <summary>
+    /// Every slug a live item holds — the ones a new item can't take — for the CSV import, which checks a whole file
+    /// at once (ADR 0053). Unlike <see cref="GetSlugsAsync"/>, a deleted item's address is free (ADR 0052).
+    /// </summary>
+    Task<HashSet<string>> GetLiveSlugsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
     /// The number a new item takes: one past the highest in use, for its suggested SKU (ADR 0037). A suggestion
     /// aid, so a race that hands two items the same number costs nothing.
     /// </summary>

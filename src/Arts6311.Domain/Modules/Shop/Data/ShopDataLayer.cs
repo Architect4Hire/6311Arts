@@ -220,6 +220,69 @@ internal sealed class ShopDataLayer(
     public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         repository.GetSlugsAsync(cancellationToken);
 
+    public Task<HashSet<string>> GetLiveSlugsAsync(CancellationToken cancellationToken) =>
+        repository.GetLiveSlugsAsync(cancellationToken);
+
+    /// <remarks>
+    /// Nothing is staged for the outbox: a Draft is on no page to revalidate, and nothing goes to Square until it is
+    /// published — exactly as a single create (ADR 0053).
+    /// </remarks>
+    public async Task<ShopWriteOutcome> ImportAsync(
+        IReadOnlyList<ShopImportedItem> items, SkuChanges skuChanges, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        var now = clock.UtcNow;
+        foreach (var (item, summary) in items)
+        {
+            item.CreatedAt = now;
+            Stamp(item, actorUserId, now);
+            repository.Add(item);
+
+            audit.Record(new AuditEntry(
+                actorUserId, ShopAudit.Imported, ShopAudit.ResourceType, item.Id.ToString(), correlation.Current,
+                summary, AfterReference: $"slug:{item.Slug}"));
+        }
+
+        await StageSkusAsync(skuChanges, cancellationToken);
+
+        try
+        {
+            await repository.SaveChangesAsync(cancellationToken);
+            return ShopWriteOutcome.Saved;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            repository.DiscardChanges();
+            return ShopWriteOutcome.Conflict;
+        }
+        catch (DbUpdateException)
+        {
+            // A unique index refused an insert: an address or a SKU another write took after Business checked. Asked
+            // again rather than assumed, as a single create does, so a genuine fault is not reported as a clash.
+            repository.DiscardChanges();
+
+            var live = await repository.GetLiveSlugsAsync(cancellationToken);
+            if (items.Any(imported => live.Contains(imported.Item.Slug)))
+            {
+                return ShopWriteOutcome.SlugTaken;
+            }
+
+            foreach (var reservation in skuChanges.Reserve)
+            {
+                if (await skus.IsTakenAsync(
+                    reservation.Sku,
+                    new SkuOwner(CatalogOwnerTypes.ShopItem, reservation.OwnerId),
+                    cancellationToken))
+                {
+                    return ShopWriteOutcome.SkuTaken;
+                }
+            }
+
+            throw;
+        }
+    }
+
     public async Task<int> AddSeedAsync(
         IReadOnlyList<ShopItem> items, SkuChanges skuChanges, string actor, CancellationToken cancellationToken)
     {

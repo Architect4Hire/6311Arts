@@ -20,7 +20,7 @@ internal static class GatewayTransforms
     /// <c>GatewayRouteTableTests</c> asserts exactly that, so adding an authorized route cannot miss this list.
     /// </para>
     /// </remarks>
-    internal static readonly string[] TokenBearingRoutes = ["cms", "cms-media-upload", "api", "media"];
+    internal static readonly string[] TokenBearingRoutes = ["cms", "cms-media-upload", "cms-shop-import", "api", "media"];
 
     /// <summary>Headers a client must never be able to set on a request the API will trust.</summary>
     /// <remarks>

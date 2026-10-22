@@ -56,6 +56,15 @@ public sealed record ShopItemUpdateViewModel(
     bool? RemoveStartingPrice = null,
     int? StartingStockQuantity = null);
 
+/// <summary>
+/// A spreadsheet of new pieces, as CSV text (ADR 0053): each row becomes a Draft, all of them or none. The columns
+/// are <c>ShopImportColumns</c>; the admin offers a template.
+/// </summary>
+/// <remarks>Text in a JSON body rather than a file upload: the admin reads the file, and this binds like any other model.</remarks>
+/// <param name="Csv">The whole file, decoded as UTF-8. A header row, then up to <c>ShopPolicy.ImportMaxRows</c> rows.</param>
+/// <param name="FileName">The file's name, for the audit trail only.</param>
+public sealed record ShopImportViewModel(string Csv, string? FileName = null);
+
 /// <summary>A page of shop items, by title.</summary>
 /// <param name="Search">Part of a title, matched without regard to case.</param>
 /// <param name="Category">One category slug, to show only what is filed under it.</param>

@@ -54,6 +54,14 @@ public interface IArtistsFacade
         IReadOnlyCollection<string> slugs, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The artists whose name is one of <paramref name="names"/>, matched without regard to case: for the shop's CSV
+    /// import, where staff type a name (ADR 0053). Several artists may share a name, so a name can match more than
+    /// one. At most <see cref="Managers.ArtistPolicy.LookupMaxCount"/> names.
+    /// </summary>
+    Task<IReadOnlyList<ArtistSummaryServiceModel>> FindByNamesAsync(
+        IReadOnlyCollection<string> names, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Every published artist, by name, as the site shows them. Not cached here: the one caller, the Site module,
     /// caches what it composes from this (ADR 0042).
     /// </summary>

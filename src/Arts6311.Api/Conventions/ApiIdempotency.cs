@@ -16,8 +16,9 @@ namespace Arts6311.Api.Conventions;
 /// places to keep in step.
 /// </para>
 /// <para>
-/// No route is idempotent yet: the first is checkout pay in 5.14. This ships unused and unit-tested so the
-/// mapping exists before a route needs it, as ADR 0020 requires.
+/// The first idempotent route is the shop's CSV import (ADR 0053); checkout pay follows in 5.14. A route binds the
+/// header with <c>[FromHeader]</c> only so OpenAPI declares it, and reads it through <see cref="IdempotencyKey"/>,
+/// which treats several values as none where model binding would join them.
 /// </para>
 /// </remarks>
 internal static class ApiIdempotency

@@ -184,6 +184,22 @@ internal sealed class ArtistsBusiness(IArtistsDataLayer dataLayer, IClock clock)
             : await dataLayer.FindBySlugsAsync([.. slugs.Distinct(StringComparer.Ordinal)], cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ArtistSummaryServiceModel>> FindByNamesAsync(
+        IReadOnlyCollection<string> names, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+
+        // Upper-cased here and in the query for SQLite's sake: SQL Server's collation already ignores case. SQLite's
+        // UPPER() changes ASCII letters only, so there a name differing in the case of an accented letter is missed —
+        // the tests' database, not production's.
+        var wanted = names
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        return wanted.Count == 0 ? [] : await dataLayer.FindByNamesAsync(wanted, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ArtistSiteRow>> ListForSiteAsync(CancellationToken cancellationToken) =>
         await dataLayer.ListPublishedAsync(null, cancellationToken);
 

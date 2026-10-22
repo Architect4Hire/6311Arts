@@ -62,6 +62,9 @@ internal sealed class FakeShopRepository(CallLog log) : IShopRepository
     public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
         Task.FromResult(Rows.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
 
+    public Task<HashSet<string>> GetLiveSlugsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
+
     public Task<int> NextItemNumberAsync(CancellationToken cancellationToken) => Task.FromResult(NextItemNumber);
 
     public Task<List<ShopItemListRow>> ListAsync(
@@ -233,6 +236,13 @@ internal sealed class FakeShopDataLayer : IShopDataLayer
         LastSkuChanges = skus;
         return Task.FromResult(items.Count);
     }
+
+    public Task<HashSet<string>> GetLiveSlugsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.Values.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
+
+    public Task<ShopWriteOutcome> ImportAsync(
+        IReadOnlyList<ShopImportedItem> items, SkuChanges skus, string actorUserId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 
     /// <summary>One item in the store, with a photograph when one is given.</summary>
     public ShopItem Add(
@@ -434,4 +444,16 @@ internal sealed class RecordingShopBusiness : IShopBusiness
 
     public Task<int> SeedAsync(IReadOnlyList<ShopItemSeed> seeds, string actor, CancellationToken cancellationToken) =>
         Task.FromResult(0);
+
+    public Task<ShopImportPreviewServiceModel> PreviewImportAsync(
+        ShopImportSheet sheet, ShopImportArtistCheck artists, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<OperationResult<ShopImportResultServiceModel>> ImportAsync(
+        ShopImportSheet sheet,
+        ShopImportArtistCheck artists,
+        string? fileName,
+        string actorUserId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 }

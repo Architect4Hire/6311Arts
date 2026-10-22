@@ -162,5 +162,10 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
 - **One of a kind means a starting quantity of one** (ADR 0032): a count other than one sent with the flag is
   refused rather than quietly replaced, and the flag and the count freeze together once Square holds the record
   (`startingStockEditable`, ADR 0038).
+- **Shop CSV import** (ADR 0053), a staff tool and not the WordPress importer: `POST /api/v1/cms/shop/import/preview`
+  then `/import`. Every row becomes a **new Draft** (never an update, never published, no photographs), all in one
+  save or none, as an idempotent command. It reads each row against the rules a single create applies, so a rule
+  added to create belongs in the import's row reader too. The columns (`ShopImportColumns`) are a contract with
+  staff's spreadsheets, mirrored by the admin's `SHOP_IMPORT_COLUMNS`.
 - **Import.** `Arts6311.Importer` creates Draft records with legacy WordPress ids for idempotent re-runs and provenance. It never overwrites a record a staff member has edited since import (compares `UpdatedBy`).
 - **Copy and SEO.** Editors write titles and descriptions. The site's `SeoService` and JSON-LD come from these fields, so required SEO fields are validated at publish, not at draft.

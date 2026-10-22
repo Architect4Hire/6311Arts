@@ -424,6 +424,7 @@ public sealed class ArtistsLayerTests
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => facade.GetSummariesAsync(ids, Ct));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => facade.FindBySlugsAsync(slugs, Ct));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => facade.FindByNamesAsync(slugs, Ct));
         Assert.Empty(business.Calls);
     }
 

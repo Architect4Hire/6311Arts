@@ -114,6 +114,16 @@ internal sealed class ArtistsRepository(ArtsDbContext context) : IArtistsReposit
     public Task<List<ArtistSummaryServiceModel>> ListBySlugsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken) =>
         Artists.AsNoTracking().Where(artist => slugs.Contains(artist.Slug)).Select(ToSummary).ToListAsync(cancellationToken);
 
+    public Task<List<ArtistSummaryServiceModel>> ListByNamesAsync(IReadOnlyCollection<string> upperNames, CancellationToken cancellationToken) =>
+        Artists.AsNoTracking()
+            // Translated to SQL's UPPER(), which has no culture to pass: the overload EF translates is the parameterless
+            // one. Business upper-cases the names with the invariant culture to match.
+#pragma warning disable CA1304, CA1311
+            .Where(artist => upperNames.Contains(artist.Name.ToUpper()))
+#pragma warning restore CA1304, CA1311
+            .Select(ToSummary)
+            .ToListAsync(cancellationToken);
+
     public Task<List<ArtistSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken)
     {
         var query = Artists.AsNoTracking().Where(artist => artist.Status == PublishStatus.Published);

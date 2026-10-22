@@ -76,6 +76,25 @@ public static class ShopPolicy
     /// </summary>
     public const int SiteCursorMaxLength = 2_048;
 
+    /// <summary>The most pieces one CSV import creates (ADR 0053): a season's stock, not the whole catalogue.</summary>
+    public const int ImportMaxRows = 1_000;
+
+    /// <summary>
+    /// The longest CSV an import accepts, in characters: a thousand rows with a few paragraphs of description each.
+    /// </summary>
+    public const int ImportMaxCharacters = 2_000_000;
+
+    /// <summary>
+    /// The import routes' request limit, in bytes: <see cref="ImportMaxCharacters"/> as UTF-8 JSON, where a character
+    /// can take three bytes and a quote, tab or line break two. Other control characters, which JSON escapes in six,
+    /// are refused by <c>ShopImportValidator</c>, so they never need the room. The gateway's <c>cms-shop-import</c> route allows the same,
+    /// in place of the 1 MiB every other route has.
+    /// </summary>
+    public const int ImportMaxRequestBytes = 8 * 1024 * 1024;
+
+    /// <summary>The longest file name an import records in the audit trail.</summary>
+    public const int ImportFileNameMaxLength = 255;
+
     /// <summary>Identity's user id column length, so <c>UpdatedBy</c> can hold any user id.</summary>
     internal const int UserIdMaxLength = 450;
 }

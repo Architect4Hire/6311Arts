@@ -118,4 +118,25 @@ internal interface IShopBusiness
     /// a rerun.
     /// </summary>
     Task<int> SeedAsync(IReadOnlyList<ShopItemSeed> seeds, string actor, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// What a CSV import would create (ADR 0053): every row read against the rules a single create applies and the
+    /// database as it stands, with all of each row's problems. Writes nothing.
+    /// </summary>
+    /// <param name="artists">What the Artists module said about the references in the <c>artist</c> column.</param>
+    Task<ShopImportPreviewServiceModel> PreviewImportAsync(
+        ShopImportSheet sheet, ShopImportArtistCheck artists, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A Draft for every row, in one save, or nothing at all (ADR 0053). Refusals: <c>validation.failed</c> when any
+    /// row has a problem (keyed <c>rows[n].column</c>, n the spreadsheet row), <c>cms.slug_taken</c> or
+    /// <c>cms.sku_taken</c> when another write took one between the checks and the save, <c>concurrency.conflict</c>.
+    /// </summary>
+    /// <param name="fileName">The file's name, for the audit trail.</param>
+    Task<OperationResult<ShopImportResultServiceModel>> ImportAsync(
+        ShopImportSheet sheet,
+        ShopImportArtistCheck artists,
+        string? fileName,
+        string actorUserId,
+        CancellationToken cancellationToken);
 }

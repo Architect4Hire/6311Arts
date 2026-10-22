@@ -142,6 +142,25 @@ public sealed class ShopItemValidatorTests
         Assert.False((await validator.ValidateAsync(new ShopItemListViewModel(Search: new string('x', ShopPolicy.SearchMaxLength + 1)), Ct)).IsValid);
     }
 
+    [Fact]
+    public async Task AnImportNeedsSomeTextWithinTheLimitAndAFileNameFitForTheAuditTrail()
+    {
+        var validator = new ShopImportValidator();
+
+        Assert.Null(await validator.ValidateOrErrorAsync(new ShopImportViewModel("title\nBowl", "artwork.csv"), Ct));
+        Assert.Null(await validator.ValidateOrErrorAsync(new ShopImportViewModel(new string('x', ShopPolicy.ImportMaxCharacters)), Ct));
+        Assert.Equal(["csv"], await FieldsAsync(validator, new ShopImportViewModel(" ")));
+        Assert.Equal(["csv"], await FieldsAsync(validator, new ShopImportViewModel(new string('x', ShopPolicy.ImportMaxCharacters + 1))));
+        Assert.Equal(["csv"], await FieldsAsync(validator, new ShopImportViewModel("title\nGicl\uFFFDe")));
+        Assert.Equal(["csv"], await FieldsAsync(validator, new ShopImportViewModel("title\nBo\0wl")));
+        Assert.Null(await validator.ValidateOrErrorAsync(new ShopImportViewModel("title,sku\r\n\"Bowl\tone\",A-1\n"), Ct));
+        Assert.Equal(["fileName"], await FieldsAsync(validator, new ShopImportViewModel("title\nBowl", "art\nwork.csv")));
+        Assert.Equal(["fileName"], await FieldsAsync(validator, new ShopImportViewModel("title\nBowl", new string('a', ShopPolicy.ImportFileNameMaxLength + 1))));
+    }
+
+    private static async Task<List<string>?> FieldsAsync(ShopImportValidator validator, ShopImportViewModel import) =>
+        (await validator.ValidateOrErrorAsync(import, Ct))?.FieldErrors.Keys.ToList();
+
     private static async Task<List<string>?> FieldsAsync(ShopItemCreateViewModel create) =>
         (await new ShopItemCreateValidator().ValidateOrErrorAsync(create, Ct))?.FieldErrors.Keys.ToList();
 

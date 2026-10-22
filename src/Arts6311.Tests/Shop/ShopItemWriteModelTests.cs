@@ -27,6 +27,10 @@ public sealed class ShopItemWriteModelTests
         typeof(ShopItemUpdateViewModel),
         typeof(ShopItemListViewModel),
         typeof(SiteShopListViewModel),
+
+        // The CSV import's text carries only the starting figures, never Square's record: its columns are
+        // ShopImportColumns, and no Square-owned field has one (ADR 0053).
+        typeof(ShopImportViewModel),
     ];
 
     public static TheoryData<Type> WriteModels => [.. Covered];

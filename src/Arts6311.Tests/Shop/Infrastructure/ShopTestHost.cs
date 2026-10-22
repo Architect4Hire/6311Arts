@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers;
 using Arts6311.Domain.Managers.Catalog;
+using Arts6311.Domain.Managers.Idempotency;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Artists;
@@ -18,6 +19,7 @@ using Arts6311.Tests.Kernel;
 using Arts6311.Tests.Media.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -31,8 +33,11 @@ namespace Arts6311.Tests.Shop.Infrastructure;
 /// container faked.
 /// </summary>
 /// <remarks>
+/// The CSV import is composed as the API composes it, with the idempotency kernel only the API has (ADR 0053).
+/// <para>
 /// Classes is composed too, which no production host needs for Shop's sake: it is how the cross-type SKU rule is
 /// tested with two real owners rather than two rows written by hand (ADR 0037, 0038).
+/// </para>
 /// </remarks>
 internal sealed class ShopTestHost : IAsyncDisposable
 {
@@ -69,6 +74,13 @@ internal sealed class ShopTestHost : IAsyncDisposable
         collection.AddInstructorsModule();
         collection.AddClassesModule();
         collection.AddShopModule();
+        collection.AddArtsIdempotency(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Idempotency:FingerprintKey"] = Convert.ToBase64String(new byte[32]),
+            })
+            .Build());
+        collection.AddShopImport();
         if (withSeeders)
         {
             collection.AddArtistsDevelopmentSeeder();
@@ -86,6 +98,12 @@ internal sealed class ShopTestHost : IAsyncDisposable
     {
         using var scope = CreateScope();
         return await action(scope.ServiceProvider.GetRequiredService<IShopFacade>());
+    }
+
+    public async Task<T> WithImportFacadeAsync<T>(Func<IShopImportFacade, Task<T>> action)
+    {
+        using var scope = CreateScope();
+        return await action(scope.ServiceProvider.GetRequiredService<IShopImportFacade>());
     }
 
     /// <summary>For the cross-type SKU rule: a class session's SKU comes from the Classes module's own facade.</summary>

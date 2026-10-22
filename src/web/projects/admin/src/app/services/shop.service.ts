@@ -13,6 +13,11 @@ import {
   decodeShopPage,
   ShopItemDeletedList,
   decodeShopItemDeletedList,
+  ShopImportPreview,
+  ShopImportRequest,
+  ShopImportResult,
+  decodeShopImportPreview,
+  decodeShopImportResult,
 } from '../models/shop';
 
 const BASE = '/api/v1/cms/shop';
@@ -95,7 +100,9 @@ export class ShopService {
   }
 
   /** The Deleted view (ADR 0052). Admin only; its own cursor, not the list's. */
-  listDeleted(query: { cursor?: string | null; limit?: number; search?: string } = {}): Observable<ShopItemDeletedList> {
+  listDeleted(
+    query: { cursor?: string | null; limit?: number; search?: string } = {},
+  ): Observable<ShopItemDeletedList> {
     let params = new HttpParams();
     if (query.cursor) params = params.set('cursor', query.cursor);
     if (query.limit) params = params.set('limit', query.limit);
@@ -127,6 +134,25 @@ export class ShopService {
       .pipe(map((body) => decoded(decodeShopItem(body), 'piece')));
   }
 
+  /** What a CSV would create, row by row, with each row's problems. Writes nothing. */
+  previewImport(request: ShopImportRequest): Observable<ShopImportPreview> {
+    return this.http
+      .post<unknown>(`${BASE}/import/preview`, request, { context: quiet() })
+      .pipe(map((body) => decoded(decodeShopImportPreview(body), 'import preview')));
+  }
+
+  /**
+   * Creates every row of the CSV as a Draft, or none of them. The key makes a retry of the same file safe: the
+   * API answers it with the first result rather than importing twice (api-contract.md "Idempotency").
+   */
+  importItems(request: ShopImportRequest, idempotencyKey: string): Observable<ShopImportResult> {
+    return this.http
+      .post<unknown>(`${BASE}/import`, request, {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        context: quiet(),
+      })
+      .pipe(map((body) => decoded(decodeShopImportResult(body), 'import result')));
+  }
 }
 
 function quiet(): HttpContext {

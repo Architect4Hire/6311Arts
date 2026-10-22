@@ -1,0 +1,110 @@
+:host {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.back {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-small);
+}
+
+.cms-lead {
+  margin-bottom: 0;
+  max-width: 70ch;
+}
+
+.columns summary {
+  cursor: pointer;
+  font-weight: var(--fw-bold);
+}
+
+.columns > p {
+  max-width: 70ch;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.grid th,
+.grid td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-thin) solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.grid thead th {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+.grid tbody th {
+  font-weight: var(--fw-bold);
+}
+
+.required,
+.meta {
+  display: block;
+  font-size: var(--fs-small);
+  font-weight: normal;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+// A row that needs fixing carries a rule down its edge as well as its chip and its words, never colour alone.
+.row--problem > :first-child {
+  box-shadow: inset var(--border-accent) 0 0 var(--danger);
+}
+
+.problems {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  font-size: var(--fs-small);
+}
+
+.summary {
+  margin: 0;
+}
+
+.result,
+.file-problem,
+.import-error,
+.summary {
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: var(--border-thin) solid var(--focus);
+    outline-offset: var(--focus-offset);
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+// On a phone the categories go; the row's check and its figures stay, and the table scrolls.
+@media (max-width: 600px) {
+  .wide {
+    display: none;
+  }
+}

@@ -36,6 +36,17 @@ public static class ShopServiceCollectionExtensions
     }
 
     /// <summary>
+    /// The CSV import (ADR 0053), for the API only: an idempotent command, so it needs
+    /// <c>IIdempotentCommandExecutor</c>, which only the API registers
+    /// (<c>AddArtsIdempotency</c>). Requires <see cref="AddShopModule"/> and <c>AddArtistsModule</c>.
+    /// </summary>
+    public static IServiceCollection AddShopImport(this IServiceCollection services)
+    {
+        services.TryAddScoped<IShopImportFacade, ShopImportFacade>();
+        return services;
+    }
+
+    /// <summary>
     /// The development shop seed, for MigrationService in Development only: the real catalogue comes from the
     /// WooCommerce import (4.x). Registers Business and below, which decide and add what is seeded. The seeder
     /// resolves artists through <c>IArtistsFacade</c>, so the host also needs <c>AddArtistsModule</c> (and Media

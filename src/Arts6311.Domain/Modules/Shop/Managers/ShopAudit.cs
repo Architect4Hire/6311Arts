@@ -19,6 +19,9 @@ internal static class ShopAudit
 
     public const string Seeded = "shop-item.seeded";
 
+    /// <summary>A Draft a CSV import created (ADR 0053): one row per piece, naming the file and its row.</summary>
+    public const string Imported = "shop-item.imported";
+
     /// <summary>
     /// A record staff deleted (ADR 0052). Admin-only and audited, as every delete is (auth.md "Sensitive
     /// operations"); the row is what says it existed at all, since nothing else shows it any more.

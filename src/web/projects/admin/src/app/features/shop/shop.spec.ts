@@ -124,6 +124,15 @@ describe('ShopList', () => {
     expect(text(rows[0])).toContain('Not in Square yet');
     expect(text(rows[1])).toContain('$120.00 · 1 in stock');
     expect(rows[0].querySelector('a')?.getAttribute('href')).toBe(`/shop/${SHOP_ITEM.id}`);
+
+    // Many pieces at once come from a CSV, beside the one-at-a-time "New piece".
+    const actions = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('.head__actions a'),
+    ];
+    expect(actions.map((link) => [text(link), link.getAttribute('href')])).toEqual([
+      ['Import CSV', '/shop/import'],
+      ['New piece', '/shop/new'],
+    ]);
   });
 
   it('asks again with the category chosen, and says when nothing matches', async () => {
