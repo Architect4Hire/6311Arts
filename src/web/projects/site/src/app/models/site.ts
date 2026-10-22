@@ -115,6 +115,26 @@ export interface SiteArtistSummary {
   readonly workCount: number;
 }
 
+/** One published artist as their page shows them. `bioText` is plain text; blank lines separate paragraphs. */
+export interface SiteArtist {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly medium: string | null;
+  readonly active: boolean;
+  readonly portrait: SiteImage | null;
+  readonly bioText: string | null;
+}
+
+/** `GET /site/artists/{slug}`: the artist, and the first page of their work, which continues at `/site/shop?artist=`. */
+export interface SiteArtistPage {
+  readonly artist: SiteArtist;
+  readonly works: {
+    readonly items: readonly SiteShopItemSummary[];
+    readonly nextCursor: string | null;
+  };
+}
+
 export interface SiteShopItemSummary {
   readonly id: string;
   readonly slug: string;
@@ -330,6 +350,31 @@ export function decodeSiteArtistSummary(body: unknown): SiteArtistSummary | null
     isNumber(workCount)
     ? { id, slug, name, medium, active, portrait, workCount }
     : null;
+}
+
+function decodeSiteArtist(body: unknown): SiteArtist | null {
+  const f = fields(body);
+  if (!f) return null;
+  const portrait = decodeNullable(f['portrait'], decodeSiteImage);
+  const { id, slug, name, medium, active, bioText } = f;
+  return isString(id) &&
+    isString(slug) &&
+    isString(name) &&
+    isNullableString(medium) &&
+    isBoolean(active) &&
+    portrait !== undefined &&
+    isNullableString(bioText)
+    ? { id, slug, name, medium, active, portrait, bioText }
+    : null;
+}
+
+export function decodeSiteArtistPage(body: unknown): SiteArtistPage | null {
+  const f = fields(body);
+  const works = f && fields(f['works']);
+  if (!f || !works || !isNullableString(works['nextCursor'])) return null;
+  const artist = decodeSiteArtist(f['artist']);
+  const items = decodeArray(works['items'], decodeSiteShopItemSummary);
+  return artist && items ? { artist, works: { items, nextCursor: works['nextCursor'] } } : null;
 }
 
 export function decodeSiteShopItemSummary(body: unknown): SiteShopItemSummary | null {

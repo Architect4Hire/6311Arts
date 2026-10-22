@@ -1,6 +1,7 @@
 import {
   ArtClass,
   Artist,
+  ArtistPage,
   ClassLevel,
   ClassType,
   CmsPage,
@@ -11,6 +12,7 @@ import {
   ProductPage,
 } from '../core/models';
 import {
+  SiteArtistPage,
   SiteArtistSummary,
   SiteClassSummary,
   SiteCredit,
@@ -166,6 +168,29 @@ export function toArtist(a: SiteArtistSummary): Artist {
     productCount: a.workCount,
     image: a.portrait?.src,
   };
+}
+
+export function toArtistPage({ artist: a, works }: SiteArtistPage): ArtistPage {
+  return {
+    artist: {
+      slug: a.slug,
+      name: a.name,
+      medium: orUndefined(a.medium),
+      image: a.portrait?.src,
+      bio: paragraphs(a.bioText),
+      active: a.active,
+    },
+    works: works.items.map(toProduct),
+    nextCursor: works.nextCursor,
+  };
+}
+
+/** Plain text split at its blank lines (ADR 0031), each paragraph trimmed, the empty ones dropped. */
+export function paragraphs(text: string | null): string[] {
+  return (text ?? '')
+    .split(/\r?\n\s*\r?\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 }
 
 export function toProduct(p: SiteShopItemSummary | SiteShopItem): Product {

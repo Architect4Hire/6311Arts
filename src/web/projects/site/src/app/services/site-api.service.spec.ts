@@ -124,6 +124,55 @@ describe('SiteApi', () => {
     expect((await piece)?.description).toBe('Hammered.');
   });
 
+  it('reads one artist with their CMS profile and the first page of their work', async () => {
+    const { api, http } = setup();
+
+    const page = firstValueFrom(api.artist('carrie haase'));
+    http.expectOne('/api/v1/site/artists/carrie%20haase').flush({
+      artist: {
+        id: 'a1',
+        slug: 'carrie-haase',
+        name: 'Carrie Haase',
+        medium: 'Jewelry',
+        active: true,
+        portrait: null,
+        bioText: 'Metalsmith.\n\nEdgewater.',
+      },
+      works: { items: [PIECE], nextCursor: 'def' },
+    });
+
+    const result = await page;
+    expect(result?.artist).toMatchObject({
+      name: 'Carrie Haase',
+      bio: ['Metalsmith.', 'Edgewater.'],
+      active: true,
+    });
+    expect(result?.works.map((p) => p.slug)).toEqual(['copper-cuff']);
+    expect(result?.nextCursor).toBe('def');
+  });
+
+  it('makes a missing artist undefined, and a failed read a work-less page named from the slug', async () => {
+    const { api, http, response } = setup();
+
+    const gone = firstValueFrom(api.artist('gone'));
+    http
+      .expectOne('/api/v1/site/artists/gone')
+      .flush({ code: 'resource.not_found' }, { status: 404, statusText: 'Not Found' });
+    expect(await gone).toBeUndefined();
+    expect(response.status).toBe(200);
+
+    const down = firstValueFrom(api.artist('jane-doe'));
+    http
+      .expectOne('/api/v1/site/artists/jane-doe')
+      .flush({ artist: { id: 'a1' }, works: { items: [], nextCursor: null } });
+    expect(await down).toEqual({
+      artist: { slug: 'jane-doe', name: 'Jane Doe' },
+      works: [],
+      nextCursor: null,
+    });
+    expect(response.status).toBe(503);
+  });
+
   it('treats a real 404 as a missing record, and leaves the page’s status to the page', async () => {
     const { api, http, response } = setup();
 

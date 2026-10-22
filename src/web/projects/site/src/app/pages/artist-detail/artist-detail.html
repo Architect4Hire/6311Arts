@@ -1,22 +1,104 @@
-<app-hero
-  [title]="artist()?.name ?? nameFromSlug()"
-  [eyebrow]="artist()?.medium ?? '6311arts artist'"
-  [images]="shopPhotos"
-/>
-<section class="band band--white" id="content">
-  <div class="container">
-    @if (works().length) {
-      <h2 class="band__title text-center">Available work</h2>
-      <div class="grid-products">
-        @for (p of works(); track p.id) {
-          <app-product-card [item]="p" />
+@if (artist(); as a) {
+  <app-hero [title]="a.name" [eyebrow]="a.medium ?? '6311arts artist'" [images]="shopPhotos" />
+
+  <section class="band band--white" id="content">
+    <div class="container detail">
+      <div class="detail__media">
+        @if (a.image) {
+          <app-art-image [src]="a.image" [alt]="a.name" ratio="1 / 1" [priority]="true" />
+        } @else {
+          <div class="tutor__photo" aria-hidden="true">{{ initials() }}</div>
         }
       </div>
-    } @else {
-      <p class="empty text-center">
-        New work from {{ artist()?.name ?? nameFromSlug() }} is on its way. Stop by the gallery or
-        <a routerLink="/shop">browse the whole shop</a>.
-      </p>
-    }
-  </div>
-</section>
+      <div class="detail__info">
+        <p class="crumbs"><a routerLink="/artists">Artists</a> · Artist</p>
+        <h2 class="detail__title">{{ a.name }}</h2>
+        @for (para of a.bio ?? []; track $index) {
+          <p class="detail__lead">{{ para }}</p>
+        } @empty {
+          <p class="detail__lead">
+            {{ a.name }} is one of the North Side artists who show and sell at 6311arts. We’re still
+            writing their profile.
+          </p>
+        }
+        <ul class="facts">
+          @if (a.medium) {
+            <li>
+              <ui-icon name="brush" [size]="22" /><span
+                >Works in <strong>{{ a.medium }}</strong></span
+              >
+            </li>
+          }
+          @if (a.active) {
+            <li>
+              <ui-icon name="pin" [size]="22" /><span
+                >Showing now at the gallery, {{ site.address.street }}</span
+              >
+            </li>
+          }
+          <li>
+            <ui-icon name="cart" [size]="22" />
+            <span>
+              @if (works().length) {
+                <strong>{{ works().length }}{{ nextCursor() ? '+' : '' }}</strong>
+                {{ works().length === 1 && !nextCursor() ? 'piece' : 'pieces' }} in the shop
+              } @else {
+                Nothing in the shop right now
+              }
+            </span>
+          </li>
+          @if (teaches(); as t) {
+            <li>
+              <ui-icon name="people" [size]="22" />
+              <span
+                >Also teaches here —
+                <a class="linkish" [routerLink]="['/instructors', t.slug]"
+                  >see their classes</a
+                ></span
+              >
+            </li>
+          }
+        </ul>
+        <p class="btn-row" style="justify-content: flex-start">
+          @if (works().length) {
+            <a class="btn btn-dark" routerLink="." fragment="work">Shop their work</a>
+          }
+          <a class="btn btn-border-dark" routerLink="/artists">All artists</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band--light" id="work">
+    <div class="container">
+      @if (works().length) {
+        <h2 class="band__title text-center">Available work</h2>
+        <div class="grid-products">
+          @for (p of works(); track p.id) {
+            <app-product-card [item]="p" />
+          }
+        </div>
+        @if (nextCursor()) {
+          <p class="btn-row">
+            <button
+              class="btn btn-border-dark"
+              type="button"
+              [disabled]="loadingMore()"
+              [attr.aria-busy]="loadingMore()"
+              (click)="loadMore()"
+            >
+              {{ loadingMore() ? 'Loading…' : 'More work' }}
+            </button>
+          </p>
+        }
+      } @else {
+        <p class="empty text-center">
+          New work from {{ a.name }} is on its way. Stop by the gallery or
+          <a routerLink="/shop">browse the whole shop</a>.
+        </p>
+      }
+    </div>
+  </section>
+} @else if (loaded()) {
+  <app-not-found />
+}

@@ -76,6 +76,18 @@ export interface Artist {
   medium?: string;
   productCount?: number;
   image?: string;
+  /** The bio, one string per paragraph; empty when staff have not written one. */
+  bio?: string[];
+  /** Whether they currently show at the gallery. */
+  active?: boolean;
+}
+
+/** One artist's page: who they are, and the first page of their work in the shop. */
+export interface ArtistPage {
+  artist: Artist;
+  works: Product[];
+  /** Where the rest of their work resumes in the shop list, or `null` when this is all of it. */
+  nextCursor: string | null;
 }
 
 export interface MembershipTier {

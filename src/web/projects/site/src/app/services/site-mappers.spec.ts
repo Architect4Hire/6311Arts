@@ -7,8 +7,10 @@ import {
   SiteShopItemSummary,
 } from '../models/site';
 import {
+  paragraphs,
   stripTags,
   toArtClasses,
+  toArtistPage,
   toExhibitions,
   toMembershipTier,
   toProduct,
@@ -283,6 +285,65 @@ describe('toProduct', () => {
       total: 312,
       nextCursor: 'abc',
     });
+  });
+});
+
+describe('toArtistPage', () => {
+  it('carries the CMS’s portrait, medium, bio and gallery status beside the first page of their work', () => {
+    const page = toArtistPage({
+      artist: {
+        id: 'a1',
+        slug: 'carrie-haase',
+        name: 'Carrie Haase',
+        medium: 'Jewelry',
+        active: true,
+        portrait: IMAGE,
+        bioText: 'Metalsmith in Edgewater.\n\nShe hammers copper.',
+      },
+      works: { items: [item()], nextCursor: 'abc' },
+    });
+    expect(page).toEqual({
+      artist: {
+        slug: 'carrie-haase',
+        name: 'Carrie Haase',
+        medium: 'Jewelry',
+        image: IMAGE.src,
+        bio: ['Metalsmith in Edgewater.', 'She hammers copper.'],
+        active: true,
+      },
+      works: [toProduct(item())],
+      nextCursor: 'abc',
+    });
+  });
+
+  it('leaves out what staff have not filled in', () => {
+    const { artist } = toArtistPage({
+      artist: {
+        id: 'a2',
+        slug: 'zed',
+        name: 'Zed',
+        medium: null,
+        active: false,
+        portrait: null,
+        bioText: null,
+      },
+      works: { items: [], nextCursor: null },
+    });
+    expect(artist.medium).toBeUndefined();
+    expect(artist.image).toBeUndefined();
+    expect(artist.bio).toEqual([]);
+  });
+});
+
+describe('paragraphs', () => {
+  it('splits at blank lines, Windows ones and whitespace-only ones included, and drops the empty', () => {
+    expect(paragraphs('One\nstill one.\r\n\r\nTwo.\n  \nThree.\n\n\n')).toEqual([
+      'One\nstill one.',
+      'Two.',
+      'Three.',
+    ]);
+    expect(paragraphs('   ')).toEqual([]);
+    expect(paragraphs(null)).toEqual([]);
   });
 });
 

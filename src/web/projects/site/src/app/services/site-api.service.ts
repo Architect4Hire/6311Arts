@@ -4,6 +4,7 @@ import { Observable, catchError, map, of, timeout } from 'rxjs';
 import {
   ArtClass,
   Artist,
+  ArtistPage,
   CmsPage,
   Exhibition,
   Instructor,
@@ -17,6 +18,7 @@ import { MOCK_INSTRUCTORS } from '../data/instructors';
 import { MEMBERSHIPS, MOCK_ARTISTS, MOCK_PRODUCTS } from '../data/mock-shop';
 import { decodeArray } from '../models/decode';
 import {
+  decodeSiteArtistPage,
   decodeSiteArtistSummary,
   decodeSiteClassSummary,
   decodeSiteExhibitionSummary,
@@ -30,6 +32,7 @@ import { SITE_API_CONFIG } from './site-api.config';
 import {
   toArtClasses,
   toArtist,
+  toArtistPage,
   toCmsPage,
   toExhibitions,
   toInstructor,
@@ -110,6 +113,26 @@ export class SiteApi {
   artists(): Observable<Artist[]> {
     return this.read('/artists', (body) => decodeArray(body, decodeSiteArtistSummary)).pipe(
       map((r) => (r.kind === 'ok' ? r.value.map(toArtist) : this.fallback(() => MOCK_ARTISTS, []))),
+    );
+  }
+
+  /**
+   * One artist and the first page of their work, or `undefined` when there is no such published artist. A failed read
+   * is a page built from the slug alone, with no work, so the page renders while the server answers 503.
+   */
+  artist(slug: string): Observable<ArtistPage | undefined> {
+    return this.read(`/artists/${encodeURIComponent(slug)}`, decodeSiteArtistPage).pipe(
+      map((r) =>
+        r.kind === 'ok'
+          ? toArtistPage(r.value)
+          : r.kind === 'not-found'
+            ? undefined
+            : this.fallback(() => mockArtistPage(slug), {
+                artist: { slug, name: nameFromSlug(slug) },
+                works: [],
+                nextCursor: null,
+              }),
+      ),
     );
   }
 
@@ -204,6 +227,21 @@ export class SiteApi {
 
 function sortByStart(list: ArtClass[]): ArtClass[] {
   return list.slice().sort((a, b) => a.start.localeCompare(b.start));
+}
+
+/** "jane-doe" as "Jane Doe": the best name a page has for an artist it could not read. */
+function nameFromSlug(slug: string): string {
+  return slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** A sample artist's page: their roster entry, else one named from the slug, with their sample work. */
+function mockArtistPage(slug: string): ArtistPage {
+  const works = mockProducts({ artist: slug });
+  return {
+    artist: MOCK_ARTISTS.find((a) => a.slug === slug) ?? { slug, name: nameFromSlug(slug) },
+    works: works.items,
+    nextCursor: works.nextCursor,
+  };
 }
 
 /** The sample shop, filtered and paged the way the API pages it; the cursor is just an offset here. */
