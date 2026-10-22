@@ -127,6 +127,7 @@ const COMMAND_LABELS: Readonly<
  */
 import { PreviewLinkButton } from '../../../shared/preview-link/preview-link';
 import { ScheduleControl } from '../../../shared/schedule-control/schedule-control';
+import { confirmDelete } from '../../../shared/delete-confirm/delete-confirm';
 
 @Component({
   selector: 'cms-instructor-editor',
@@ -455,25 +456,22 @@ export class InstructorEditor implements HasUnsavedChanges {
   }
 
   /**
-   * Deletes the instructor (ADR 0052). Unlike the status commands it is offered while the form is dirty — asking
-   * someone to save a record before throwing it away would be absurd — so the dialog says the unsaved edits go
-   * too. It acts on the saved version's row version, as every write does.
+   * Deletes the instructor (ADR 0052). Offered while the form is dirty — asking someone to save a record before
+   * throwing it away would be absurd — and the dialogs say so; the wording is shared by every type
+   * (<c>confirmDelete</c>). It acts on the saved version's row version, as every write does.
    */
   protected async remove(): Promise<void> {
     const instructor = this.instructor();
     if (!instructor || this.busy()) return;
 
-    const live = instructor.status === 'Published';
-    const confirmed = await this.confirm.confirm({
-      heading: 'Delete this instructor?',
-      message:
-        (live
-          ? 'It leaves the public site within a minute, and leaves the CMS list. '
-          : 'The instructor leaves the CMS list. ') +
-        (this.dirty() ? 'Your unsaved changes go with it. ' : '') +
-        'Its web address is free for another instructor straight away. An Admin can restore it from Deleted, as a draft. The deletion is recorded under your name.',
-      confirmLabel: 'Delete instructor',
-      cancelLabel: 'Keep them',
+    const confirmed = await confirmDelete(this.confirm, {
+      noun: 'instructor',
+      label: instructor.name,
+      slug: instructor.slug,
+      live: instructor.status === 'Published',
+      dirty: this.dirty(),
+      inSquare: false,
+      keepLabel: 'Keep them',
     });
     if (!confirmed) return;
 

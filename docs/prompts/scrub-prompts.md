@@ -922,17 +922,32 @@ BEHAVIOR: Plan, wait, implement; tests: set count applied, a fake sale dated aft
 subtracts, replay, duplicate delivery, one-of-a-kind refused. Demo on the fake.
 ```
 
-## 5.5 — Outbound archive
+## 5.5 — Outbound archive and delete
 
 ```
-SCOPE: Archive stages `square.catalog-delete-requested`; handler applies the ADR'd archive policy
-(delete vs. mark unavailable — write ADR 0011 with the trade-offs first).
+SCOPE: Two CMS acts reach Square through one message, `square.catalog-delete-requested {entityType,
+entityId, intent}`:
+  - **Archive** → the ADR'd archive policy (delete vs. mark unavailable: write ADR 0011 with the
+    trade-offs first).
+  - **Delete** (ADR 0052) → the Square object goes. The DataLayer's DeleteAsync stages it in the same
+    save as the soft delete and the SKU release, for ShopItem and ClassOffering (a run's variations with
+    the item) — the admin's second confirm dialog already tells staff this will happen
+    (`shared/delete-confirm/delete-confirm.ts`).
+Handler: reload through the facade past the query filter (the record is deleted by the time it runs —
+add a `FindDeletedAsync`-backed facade read for the handler, or carry what it needs on
+`SquareCatalogLink`), delete/archive in Square under the message id as the idempotency key, then clear
+the link row. Already gone in Square counts as success. On the last attempt record NeedsAttention.
 
-CONSTRAINT/UTILIZATION: as 5.4.
+CONSTRAINT/UTILIZATION: as 5.4; outbox.md (handlers reload current state, at-least-once, poison on a
+malformed payload); ADR 0052 for what a delete means on this side.
 
-RESTRICTION: Never hard-delete CMS content because of Square.
+RESTRICTION: Never hard-delete CMS content because of Square. A delete is staged by the CMS delete only,
+never by the inbound pull. Square-owned projections are untouched.
 
-BEHAVIOR: ADR draft, wait, implement, tests, demo.
+BEHAVIOR: ADR draft (0011, plus the amendment ADR 0052 asks for), wait, implement, tests on the fake —
+archive, delete, a replay that finds the object already gone, a delete whose link row was never created —
+then **delete the "Until the Square sync ships" sentence from `delete-confirm.ts`** and its spec
+assertion, because the dialog's promise is true from here on.
 ```
 
 ## 5.6 — Webhook intake
@@ -1014,7 +1029,13 @@ starting price once); price/cadence pulled back. Record Square limits (no ACH, $
 
 CONSTRAINT: add-square-sync; verify plan/variation/phase shapes on Square docs.
 
-RESTRICTION: No subscriptions created here.
+Also settle what ADR 0052 left open: **may a plan Square has subscribers for be deleted at all?** Decide
+in ADR 0012 — refuse the delete with `cms.in_use` while a subscription references it (the Members module
+answers through an `IContentReferenceSource`, as Exhibitions answers for artists), or allow it and leave
+billing alone. Whichever it is, a plan's delete must not strand a live subscription. Until this lands,
+deleting a plan is a local act and the dialog says so.
+
+RESTRICTION: No subscriptions created here. Never cancel a subscription as a side effect of a CMS delete.
 
 UTILIZATION: as 5.4.
 
@@ -1029,6 +1050,8 @@ values with their Change actions and the latest change request's state (Pending/
 reason). Sync screen (CmsAdmin): outbox counts by status/type, Poisoned list with Replay
 (reset to Pending, attempts kept, audited) and Discard (audited, reason required), webhook inbox recent
 events, catalog cursor, NeedsAttention / NeedsReview queues, Pending/NeedsAttention change requests.
+A deleted record whose Square delete never landed (5.5) shows here too, named and restorable, because
+nothing else in the CMS lists it any more (ADR 0052).
 
 CONSTRAINT: outbox.md (documented recovery path); add-endpoint; new-component.
 

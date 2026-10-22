@@ -160,10 +160,20 @@ restore for every type; each list screen passes a `DeletedRecordsSource` adaptin
 `name`/`title` field) to the shared row. The alternative — threading a deleted mode through seven bespoke list
 components — would have been seven places to fix the same bug.
 
-Delete is an Admin-only action in the editor, apart from the publishing buttons and behind the confirm dialog,
-whose wording says what will happen: the address stops working, the unsaved edits go too, the address is free at
-once, and an Admin can restore it as a draft. Unlike the status commands it is offered while the form is dirty —
-asking someone to save a page before throwing it away would be absurd.
+Delete is an Admin-only action in the editor, apart from the publishing buttons and behind a confirm dialog whose
+wording says what will happen: the address stops working, the unsaved edits go too, the address is free at once,
+and an Admin can restore it as a draft. Unlike the status commands it is offered while the form is dirty — asking
+someone to save a page before throwing it away would be absurd. Both dialogs carry `tone: 'danger'`, so the yes
+button is coloured as well as worded.
+
+**A record Square holds is asked twice** (`shared/delete-confirm/delete-confirm.ts`). The second dialog says that
+the Square catalogue object goes too and that a CMS restore does not bring it back, because that is the half of
+the act the Deleted view cannot undo. The three types that get it are the Square-synced ones — artwork, classes
+and membership plans; a page or an artist is asked once, since a second "are you sure" that says nothing new is
+the kind of prompt people learn to click through.
+
+Until prompt 5.5 ships the Square side, that dialog's one extra sentence says the object stays in Square and has
+to be retired there; 5.5 deletes the sentence as it makes the promise true.
 
 The Deleted view is a filter beside All / Drafts / Published / Archived, shown only to Admins, with **Restore** per
 row and no link to an editor (there is no editor for a record nothing else can see). It is read in the same
@@ -190,12 +200,13 @@ first: it is searched by name far more often than it is browsed by date, and the
 - **A released SKU can be reused at once**, including the number the CMS suggests (`ART-<n>`, `CLS-<offering>-<n>`),
   because the suggestion counts live rows. That is intended: the deleted record is holding nothing. The restore
   that then meets its own SKU is refused with `cms.sku_taken`, which `ShopModuleTests` holds.
-- **DECIDE — Square and a deleted record.** This is the one open question this ADR leaves. A delete releases the
-  SKU locally and tells Square nothing: a `ShopItem`, a `ClassRun` or a `MembershipPlan` that Square holds stays
-  sellable there, and a plan with live subscribers would keep billing. The delete will stage
-  `square.catalog-delete-requested` when 5.x lands, and square.md already requires an ADR for the
-  archive-versus-delete policy that message carries; **that ADR must also say whether a plan Square has
-  subscribers for may be deleted at all.** Until then, deleting a Square-held record is a local act only, and
-  staff retire it in Square themselves.
+- **Square is told in 5.5, and the CMS already promises it.** A delete releases the SKU locally and, today, tells
+  Square nothing: a `ShopItem`, a `ClassRun` or a `MembershipPlan` that Square holds stays sellable there. The
+  decision is that **a CMS delete deletes the Square object too**, and the admin's second dialog says so now, so
+  staff are never surprised by it later. Prompt 5.5 (*Outbound archive and delete*) stages
+  `square.catalog-delete-requested` from the delete's own save and carries the handler; the dialog's interim
+  sentence goes with it. **Still DECIDE, in prompt 5.10:** whether a plan Square has subscribers for may be
+  deleted at all. Nothing here cancels a subscription, and nothing may: orders, payments and member billing are
+  Square's (square.md).
 - **Still to come:** the importer's per-type legacy-id lookups (4.x) must read past the filter as the placeholder
   seed now does — the index is in place, the caller is not yet written.
