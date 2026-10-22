@@ -32,6 +32,13 @@ internal sealed class MembershipsDataLayer(
     public Task<MembershipPlan?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         repository.FindAsync(id, cancellationToken);
 
+    public Task<MembershipPlan?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.FindDeletedAsync(id, cancellationToken);
+
+    public Task<List<MembershipPlanDeletedRow>> ListDeletedAsync(
+        MembershipPlanListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
+        repository.ListDeletedAsync(after, take, search, cancellationToken);
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         repository.SlugExistsAsync(slug, exceptId, cancellationToken);
 
@@ -105,6 +112,47 @@ internal sealed class MembershipsDataLayer(
             actorUserId, MembershipAudit.For(command), MembershipAudit.ResourceType, plan.Id.ToString(),
             correlation.Current, $"{from} → {plan.Status}.",
             BeforeReference: $"status:{from}", AfterReference: $"status:{plan.Status}"));
+
+        return await SaveAsync(plan, cancellationToken);
+    }
+
+    public async Task<MembershipWriteOutcome> DeleteAsync(
+        MembershipPlan plan, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        var now = clock.UtcNow;
+        var deletedAs = plan.Status;
+        SoftDelete.Stamp(plan, actorUserId, now);
+        Stamp(plan, actorUserId, now);
+
+        // Only while the site was showing it. A Draft or Scheduled record is rendered nowhere, and an Archived one
+        // had its revalidation when it was archived, so there is nothing cached to clear (content.md, ADR 0036).
+        if (deletedAs == PublishStatus.Published)
+        {
+            StageRevalidation(plan);
+        }
+
+        audit.Record(new AuditEntry(
+            actorUserId, MembershipAudit.Deleted, MembershipAudit.ResourceType, plan.Id.ToString(), correlation.Current,
+            $"Deleted while {deletedAs.ToString().ToLowerInvariant()}. Its web address is free again.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"slug:{plan.Slug}"));
+
+        return await SaveAsync(plan, cancellationToken);
+    }
+
+    public async Task<MembershipWriteOutcome> RestoreAsync(
+        MembershipPlan plan, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        SoftDelete.Clear(plan);
+        Stamp(plan, actorUserId, clock.UtcNow);
+        // Nothing is revalidated: Business brings a record back as a Draft, and nothing public renders one.
+        audit.Record(new AuditEntry(
+            actorUserId, MembershipAudit.Restored, MembershipAudit.ResourceType, plan.Id.ToString(), correlation.Current,
+            $"Restored as draft; it was {deletedAs.ToString().ToLowerInvariant()} when it was deleted.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"status:{plan.Status}"));
 
         return await SaveAsync(plan, cancellationToken);
     }

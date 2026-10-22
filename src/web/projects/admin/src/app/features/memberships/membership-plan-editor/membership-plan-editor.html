@@ -394,6 +394,25 @@
             />
 
             <cms-preview-link entityType="membership-plan" [entityId]="plan.id" [dirty]="dirty()" />
+            @if (canDelete()) {
+              <div class="cms-danger">
+                <h3 class="cms-danger__title">Delete</h3>
+                <p class="panel__text">
+                  The plan leaves the site and the list, and its web address is free again. An Admin
+                  can restore it from Deleted, as a draft.
+                </p>
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  [busy]="deleting()"
+                  [disabled]="busy()"
+                  (click)="remove()"
+                >
+                  Delete plan
+                </button>
+              </div>
+            }
           </section>
         </aside>
       }

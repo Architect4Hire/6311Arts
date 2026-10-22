@@ -30,6 +30,8 @@ export const CONTENT_CODES = {
   /** No longer returned since 2.7: a published slug may change, and the old address is redirected (ADR 0035). */
   slugLocked: 'cms.slug_locked',
   transitionInvalid: 'cms.status_transition_invalid',
+  /** Another record still names this one, so it can't be deleted yet (ADR 0052). */
+  inUse: 'cms.in_use',
   concurrencyConflict: 'concurrency.conflict',
   notFound: 'resource.not_found',
   validationFailed: 'validation.failed',

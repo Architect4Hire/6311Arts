@@ -19,6 +19,13 @@ namespace Arts6311.Tests.Classes.Infrastructure;
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeClassesRepository(CallLog log) : IClassesRepository
 {
+    public Task<ClassOffering?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<ClassDeletedRow>> ListDeletedAsync(
+        ClassListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<string>> ListNamingInstructorAsync(Guid id, int take, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Classes.Data.Entities.ClassOffering>> ListPublishedAsync(string? slug, DateTimeOffset? endingAfter, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public List<ClassOffering> Rows { get; } = [];
@@ -92,6 +99,19 @@ internal sealed class FakeClassesRepository(CallLog log) : IClassesRepository
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeClassesDataLayer : IClassesDataLayer
 {
+    public Task<List<string>> ListNamingInstructorAsync(Guid instructorId, int take, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ClassOffering?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<ClassDeletedRow>> ListDeletedAsync(
+        ClassListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ClassWriteOutcome> DeleteAsync(
+        ClassOffering entity, SkuChanges skuChanges, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ClassWriteOutcome> RestoreAsync(
+        ClassOffering entity, SkuChanges skuChanges, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Classes.Data.Entities.ClassOffering>> ListPublishedAsync(string? slug, DateTimeOffset? endingAfter, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Dictionary<Guid, ClassOffering> Rows { get; } = [];
@@ -262,6 +282,15 @@ internal sealed class FakeClassesDataLayer : IClassesDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingClassesBusiness : IClassesBusiness
 {
+    public Task<OperationResult<CursorPage<ClassDeletedServiceModel>>> ListDeletedAsync(
+        ClassListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult<ClassDetail>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Classes.Managers.ClassSiteRow>> ListForSiteAsync(Guid? instructorId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Modules.Classes.Managers.ClassSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -367,16 +396,25 @@ internal sealed class RecordingClassesBusiness : IClassesBusiness
         return Task.FromResult(OperationResult.Success(Detail));
     }
 
+    /// <summary>What the facade said about the instructors the runs name, on each path that asks (ADR 0052).</summary>
+    public ClassInstructorCheck? TransitionInstructors { get; private set; }
+
+    public ClassInstructorCheck? ScheduleInstructors { get; private set; }
+
+    public ClassInstructorCheck? ScheduledPublishInstructors { get; private set; }
+
     public Task<OperationResult<ClassDetail>> TransitionAsync(
         Guid id,
         PublishCommand command,
         string? ifMatch,
         ClassMediaCheck? media,
+        ClassInstructorCheck? instructors,
         string actorUserId,
         CancellationToken cancellationToken)
     {
         Calls.Add($"transition:{command}");
         LastTransition = (command, media);
+        TransitionInstructors = instructors;
         return Task.FromResult(OperationResult.Success(Detail));
     }
 
@@ -385,12 +423,14 @@ internal sealed class RecordingClassesBusiness : IClassesBusiness
         DateTimeOffset scheduledFor,
         string? ifMatch,
         ClassMediaCheck? media,
+        ClassInstructorCheck? instructors,
         string actorUserId,
         CancellationToken cancellationToken)
     {
         Calls.Add("schedule");
         LastScheduledFor = scheduledFor;
         ScheduleMedia = media;
+        ScheduleInstructors = instructors;
         return Task.FromResult(OperationResult.Success(Detail));
     }
 
@@ -408,10 +448,12 @@ internal sealed class RecordingClassesBusiness : IClassesBusiness
     }
 
     public Task<ScheduledPublishOutcome> PublishScheduledAsync(
-        Guid id, DateTimeOffset asOf, ClassMediaCheck? media, CancellationToken cancellationToken)
+        Guid id, DateTimeOffset asOf, ClassMediaCheck? media, ClassInstructorCheck? instructors,
+        CancellationToken cancellationToken)
     {
         Calls.Add("publish-scheduled");
         ScheduledPublishMedia = media;
+        ScheduledPublishInstructors = instructors;
         return Task.FromResult(ScheduledOutcome);
     }
 

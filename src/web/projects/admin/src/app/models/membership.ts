@@ -266,3 +266,51 @@ export function decodeMembershipPlanList(body: unknown): MembershipPlanList | nu
 export type MembershipProblem = ApiProblem;
 
 export const decodeMembershipProblem = decodeApiProblem;
+
+/** One row of the Deleted view (`MembershipPlanDeletedServiceModel`, ADR 0052). Admin only. */
+export interface MembershipPlanDeletedRow {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string;
+  /** What it was when it was deleted, not where it is now. */
+  readonly status: PublishStatus;
+  readonly deletedAt: string;
+  /** The row version, sent back as `If-Match` when restoring it. */
+  readonly etag: string;
+}
+
+export interface MembershipPlanDeletedList {
+  readonly items: readonly MembershipPlanDeletedRow[];
+  readonly nextCursor: string | null;
+}
+
+export function decodeMembershipPlanDeletedRow(body: unknown): MembershipPlanDeletedRow | null {
+  const f = fields(body);
+  if (
+    !f ||
+    !isString(f['id']) ||
+    !isString(f['name']) ||
+    !isString(f['slug']) ||
+    !isStatus(f['status']) ||
+    !isString(f['deletedAt']) ||
+    !isString(f['etag'])
+  ) {
+    return null;
+  }
+  return {
+    id: f['id'],
+    name: f['name'],
+    slug: f['slug'],
+    status: f['status'],
+    deletedAt: f['deletedAt'],
+    etag: f['etag'],
+  };
+}
+
+export function decodeMembershipPlanDeletedList(body: unknown): MembershipPlanDeletedList | null {
+  const f = fields(body);
+  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
+  const items = f['items'].map(decodeMembershipPlanDeletedRow);
+  if (items.some((item) => item === null)) return null;
+  return { items: items as MembershipPlanDeletedRow[], nextCursor: f['nextCursor'] };
+}

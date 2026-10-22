@@ -23,6 +23,7 @@ import { SessionService } from '../../../core/session/session.service';
 import { STATUS_CHIPS, isSlug, slugFromName } from '../../../models/content';
 import {
   PAGE_CODES,
+  PAGE_DELETED_STATE,
   PAGE_LIMITS,
   Page,
   PageCommand,
@@ -51,6 +52,7 @@ type Status =
   | { readonly kind: 'ready' }
   | { readonly kind: 'saving' }
   | { readonly kind: 'commanding'; readonly command: PageCommand }
+  | { readonly kind: 'deleting' }
   | { readonly kind: 'conflict'; readonly theirs: Page };
 
 type FieldErrors = Partial<Record<'title' | 'slug' | 'body', string>>;
@@ -132,8 +134,10 @@ export class PageEditor implements HasUnsavedChanges {
   protected readonly isAdmin = computed(() => this.session.hasAnyRole([ROLES.admin]));
   protected readonly busy = computed(() => {
     const kind = this.status().kind;
-    return kind === 'saving' || kind === 'commanding';
+    return kind === 'saving' || kind === 'commanding' || kind === 'deleting';
   });
+
+  protected readonly deleting = computed(() => this.status().kind === 'deleting');
   protected readonly commanding = computed(() => {
     const status = this.status();
     return status.kind === 'commanding' ? status.command : null;
@@ -151,6 +155,9 @@ export class PageEditor implements HasUnsavedChanges {
     const status = this.page()?.status;
     return this.isAdmin() && status !== undefined && status !== 'Archived';
   });
+
+  /** A saved page an Admin can delete, whatever its status (ADR 0052). */
+  protected readonly canDelete = computed(() => this.isAdmin() && this.page() !== null);
 
   protected readonly saveLabel = computed(() => {
     if (this.status().kind === 'saving') return this.page() ? 'Saving…' : 'Creating…';
@@ -359,6 +366,52 @@ export class PageEditor implements HasUnsavedChanges {
       cancelLabel: 'Keep it',
     });
     if (confirmed) await this.run('archive');
+  }
+
+  /**
+   * Deletes the page (ADR 0052). Unlike the status commands it is offered while the form is dirty — asking someone
+   * to save a page before throwing it away would be absurd — so the dialog says the unsaved edits go too. It acts
+   * on the saved version's row version, as every write does.
+   */
+  protected async remove(): Promise<void> {
+    const page = this.page();
+    if (!page || this.busy()) return;
+
+    const live = page.status === 'Published';
+    const confirmed = await this.confirm.confirm({
+      heading: 'Delete this page?',
+      message:
+        (live
+          ? `6311arts.com/${page.slug} stops working within a minute, and the page leaves the CMS list. `
+          : 'The page leaves the CMS list. ') +
+        (this.dirty() ? 'Your unsaved changes go with it. ' : '') +
+        'Its web address is free for another page straight away. An Admin can restore it from Deleted, as a draft. The deletion is recorded under your name.',
+      confirmLabel: 'Delete page',
+      cancelLabel: 'Keep it',
+    });
+    if (!confirmed) return;
+
+    this.errors.set({});
+    this.formError.set(null);
+    this.status.set({ kind: 'deleting' });
+    this.announce('Deleting…');
+    try {
+      await firstValueFrom(this.pages.delete(page.id, page.etag));
+
+      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
+      this.draft.set(draftOf(page));
+      this.status.set({ kind: 'ready' });
+      await this.router.navigate(['/pages'], { state: { [PAGE_DELETED_STATE]: page.title } });
+    } catch (error: unknown) {
+      const problem = problemOf(error);
+      this.status.set({ kind: 'ready' });
+      this.showErrors(
+        {},
+        problem?.code === PAGE_CODES.concurrencyConflict
+          ? 'Someone else changed this page a moment ago. Reload it, check it, and try again.'
+          : messageOf(problem, 'The page couldn’t be deleted. Try again.'),
+      );
+    }
   }
 
   /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */

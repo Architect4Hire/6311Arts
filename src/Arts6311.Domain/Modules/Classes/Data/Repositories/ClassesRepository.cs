@@ -21,12 +21,50 @@ internal sealed class ClassesRepository(ArtsDbContext context) : IClassesReposit
             .AsSplitQuery()
             .FirstOrDefaultAsync(offering => offering.Id == id, cancellationToken);
 
+    public Task<ClassOffering?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        Offerings.IgnoreQueryFilters()
+            .Include(offering => offering.Runs).ThenInclude(run => run.Sessions)
+            .Include(offering => offering.Images)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(offering => offering.Id == id && offering.DeletedAt != null, cancellationToken);
+
+    public Task<List<ClassDeletedRow>> ListDeletedAsync(
+        ClassListPosition? after, int take, string? search, CancellationToken cancellationToken)
+    {
+        // The one list that asks past the query filter, and then for the deleted rows alone (ADR 0052).
+        var query = Offerings.IgnoreQueryFilters().AsNoTracking().Where(offering => offering.DeletedAt != null);
+
+        if (!string.IsNullOrEmpty(search))
+        {
+            var pattern = $"%{EscapeLike(search)}%";
+            query = query.Where(offering => EF.Functions.Like(offering.Title, pattern, LikeEscape.ToString()));
+        }
+
+        if (after is not null)
+        {
+            // The same order as the main list, so one cursor shape serves both.
+            #pragma warning disable CA1309
+            query = query.Where(offering => string.Compare(offering.Title, after.Title) > 0
+                || (offering.Title == after.Title && offering.Id.CompareTo(after.Id) > 0));
+#pragma warning restore CA1309
+        }
+
+        return query
+            .OrderBy(offering => offering.Title)
+            .ThenBy(offering => offering.Id)
+            .Take(take)
+            .Select(offering => new ClassDeletedRow(
+                offering.Id, offering.Title, offering.Slug, offering.Status, offering.DeletedAt!.Value, offering.RowVersion))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         Offerings.AsNoTracking().AnyAsync(
             offering => offering.Slug == slug && (exceptId == null || offering.Id != exceptId), cancellationToken);
 
+    /// <remarks>Deleted records included, so a seed or a re-import never recreates one (ADR 0052).</remarks>
     public async Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
-        [.. await Offerings.AsNoTracking().Select(offering => offering.Slug).ToListAsync(cancellationToken)];
+        [.. await Offerings.IgnoreQueryFilters().AsNoTracking().Select(offering => offering.Slug).ToListAsync(cancellationToken)];
 
     public async Task<int> NextOfferingNumberAsync(CancellationToken cancellationToken) =>
         (await Offerings.AsNoTracking().MaxAsync(offering => (int?)offering.OfferingNumber, cancellationToken) ?? 0) + 1;
@@ -118,6 +156,14 @@ internal sealed class ClassesRepository(ArtsDbContext context) : IClassesReposit
 
         return query.OrderBy(offering => offering.Id).ToListAsync(cancellationToken);
     }
+
+    public Task<List<string>> ListNamingInstructorAsync(Guid instructorId, int take, CancellationToken cancellationToken) =>
+        Offerings.AsNoTracking()
+            .Where(offering => offering.Runs.Any(run => run.InstructorId == instructorId))
+            .OrderBy(offering => offering.Title)
+            .Take(take)
+            .Select(offering => offering.Title)
+            .ToListAsync(cancellationToken);
 
     public void DiscardChanges() => context.ChangeTracker.Clear();
 

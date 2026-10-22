@@ -36,7 +36,8 @@ internal sealed class ArtistsFacade(
     IValidator<ArtistCreateViewModel> createValidator,
     IValidator<ArtistUpdateViewModel> updateValidator,
     IValidator<ArtistListViewModel> listValidator,
-    IValidator<ContentScheduleViewModel> scheduleValidator) : IArtistsFacade
+    IValidator<ContentScheduleViewModel> scheduleValidator,
+    IContentReferences references) : IArtistsFacade
 {
     private const string What = "this artist";
 
@@ -267,6 +268,47 @@ internal sealed class ArtistsFacade(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
         business.TransitionAsync(id, PublishCommand.Archive, ifMatch, portrait: null, actorUserId, cancellationToken);
 
+
+    public async Task<OperationResult<CursorPage<ArtistDeletedServiceModel>>> ListDeletedAsync(
+        ArtistListViewModel request, CancellationToken cancellationToken)
+    {
+        if (await listValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<CursorPage<ArtistDeletedServiceModel>>(error);
+        }
+
+        return await business.ListDeletedAsync(request, cancellationToken);
+    }
+
+    /// <remarks>
+    /// Nothing is evicted here. A delete that takes a record off the site stages <c>site.revalidate-requested</c>
+    /// in its own save, exactly as a status command does, and the Worker's handler clears the tags (ADR 0036,
+    /// 0049) — no cache call follows a save (outbox.md).
+    /// </remarks>
+    public async Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure(preconditionError);
+        }
+
+        // Asked here, not in Business: who else names this record is another module's to answer, and the facade is
+        // where cross-module questions belong (backend.md, ADR 0052).
+        var naming = new ContentReferenceCheck(await references.ToAsync(SiteContentTypes.Artist, id, cancellationToken));
+        return await business.DeleteAsync(id, naming, ifMatch, actorUserId, cancellationToken);
+    }
+
+    public async Task<OperationResult<ArtistServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<ArtistServiceModel>(preconditionError);
+        }
+
+        return await business.RestoreAsync(id, ifMatch, actorUserId, cancellationToken);
+    }
     /// <summary>What Media says about one image: whether it is an original in the library, and whether it has alt text.</summary>
     private async Task<ArtistPortraitCheck> AskMediaAsync(Guid portraitId, CancellationToken cancellationToken)
     {

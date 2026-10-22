@@ -26,6 +26,11 @@ internal sealed class MembershipPlanConfiguration : IEntityTypeConfiguration<Mem
 
         builder.Property(plan => plan.UpdatedBy).IsRequired().HasMaxLength(MembershipPolicy.UserIdMaxLength);
         builder.Property(plan => plan.RowVersion).IsConcurrencyToken();
+        builder.Property(plan => plan.DeletedBy).HasMaxLength(MembershipPolicy.UserIdMaxLength);
+
+        // A deleted record is not there: hidden from the CMS lists, the site reads, the sitemap, previews and the
+        // scheduled publisher alike, unless a query asks for deleted rows by name (ADR 0052).
+        SoftDelete.Apply(builder);
 
         // Not mapped: it is read from the projection columns, which the inbound pull owns (ADR 0005).
         builder.Ignore(plan => plan.HasSquareRecord);
@@ -36,9 +41,16 @@ internal sealed class MembershipPlanConfiguration : IEntityTypeConfiguration<Mem
             .HasForeignKey(perk => perk.MembershipPlanId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Live rows only, so deleting a record releases its web address for the next one (ADR 0052). The
+        // constraint has to say so itself: a unique index knows nothing of the query filter above.
         builder.HasIndex(plan => plan.Slug)
             .IsUnique()
+            .HasFilter(SoftDelete.LiveRowsOnly)
             .HasDatabaseName("IX_MembershipPlans_Slug");
+
+        // The Deleted view: the deleted rows, in the same order as the main list.
+        builder.HasIndex(plan => new { plan.DeletedAt, plan.Id })
+            .HasDatabaseName("IX_MembershipPlans_DeletedAt_Id");
 
         // The importer's idempotency key: unique where present, and most rows have none.
         builder.HasIndex(plan => plan.LegacyWordPressId)

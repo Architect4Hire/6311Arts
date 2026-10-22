@@ -11,6 +11,18 @@ internal interface IClassesRepository
     /// <summary>One offering with its runs, their sessions and its body images, tracked, for a read, an edit or a status command.</summary>
     Task<ClassOffering?> FindAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// One deleted class, tracked, for a restore (ADR 0052). The one read that looks past the query filter for
+    /// a single row, so a live record is <c>null</c> here just as a deleted one is <c>null</c> everywhere else.
+    /// </summary>
+    Task<ClassOffering?> FindDeletedAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One page of the Deleted view, in the same order as the list above so the two share their cursor (ADR 0052).
+    /// </summary>
+    Task<List<ClassDeletedRow>> ListDeletedAsync(
+        ClassListPosition? after, int take, string? search, CancellationToken cancellationToken);
+
     /// <summary>Whether another offering than <paramref name="exceptId"/> already has this slug.</summary>
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 
@@ -48,6 +60,13 @@ internal interface IClassesRepository
     /// (ADR 0042).
     /// </summary>
     Task<List<ClassOffering>> ListPublishedAsync(string? slug, DateTimeOffset? endingAfter, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// What to call the live records that name instructor <paramref name="instructorId"/>, at most
+    /// <paramref name="take"/> of them: the classes whose runs name an instructor (ADR 0044). The query filter leaves out records that are themselves
+    /// deleted, which is what makes a deleted one hold nothing up (ADR 0052).
+    /// </summary>
+    Task<List<string>> ListNamingInstructorAsync(Guid instructorId, int take, CancellationToken cancellationToken);
 
     /// <summary>Throws away every unsaved change, after a save that failed, so the next save starts clean.</summary>
     void DiscardChanges();

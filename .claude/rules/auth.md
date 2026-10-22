@@ -113,7 +113,7 @@ paths:
 - Route policies: `CmsEditor` (Admin or Editor), `CmsAdmin` (Admin), `Member`.
 - Data-dependent rules live in Business. Example: a member reads only their own subscription.
 - **Sensitive operations need an explicit policy and an audit row:**
-  - deleting or archiving content
+  - deleting, restoring or archiving content (ADR 0052: the delete, the restore and the Deleted view are all `CmsAdmin`)
   - adjusting seats
   - replaying or discarding a poisoned outbox message
   - user and role changes

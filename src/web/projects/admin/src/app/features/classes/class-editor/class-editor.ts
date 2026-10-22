@@ -81,6 +81,7 @@ type Status =
   | { readonly kind: 'ready' }
   | { readonly kind: 'saving' }
   | { readonly kind: 'commanding'; readonly command: ClassCommand }
+  | { readonly kind: 'deleting' }
   | { readonly kind: 'conflict'; readonly theirs: ClassOffering };
 
 type FieldName =
@@ -183,7 +184,7 @@ export class ClassEditor implements HasUnsavedChanges {
   protected readonly isAdmin = computed(() => this.session.hasAnyRole([ROLES.admin]));
   protected readonly busy = computed(() => {
     const kind = this.status().kind;
-    return kind === 'saving' || kind === 'commanding';
+    return kind === 'saving' || kind === 'commanding' || kind === 'deleting';
   });
   protected readonly commanding = computed(() => {
     const status = this.status();
@@ -202,6 +203,11 @@ export class ClassEditor implements HasUnsavedChanges {
     const status = this.offering()?.status;
     return this.isAdmin() && status !== undefined && status !== 'Archived';
   });
+
+  protected readonly deleting = computed(() => this.status().kind === 'deleting');
+
+  /** A saved class an Admin can delete, whatever its status (ADR 0052). */
+  protected readonly canDelete = computed(() => this.isAdmin() && this.offering() !== null);
 
   /** The currency the API returns amounts in: every run's is the same. */
   protected readonly currency = computed(() => this.offering()?.runs[0]?.currency ?? 'USD');
@@ -468,6 +474,51 @@ export class ClassEditor implements HasUnsavedChanges {
       cancelLabel: 'Keep it',
     });
     if (confirmed) await this.run('archive');
+  }
+
+  /**
+   * Deletes the class (ADR 0052). Unlike the status commands it is offered while the form is dirty — asking
+   * someone to save a record before throwing it away would be absurd — so the dialog says the unsaved edits go
+   * too. It acts on the saved version's row version, as every write does.
+   */
+  protected async remove(): Promise<void> {
+    const offering = this.offering();
+    if (!offering || this.busy()) return;
+
+    const live = offering.status === 'Published';
+    const confirmed = await this.confirm.confirm({
+      heading: 'Delete this class?',
+      message:
+        (live
+          ? 'It leaves the public site within a minute, and leaves the CMS list. '
+          : 'The class leaves the CMS list. ') +
+        (this.dirty() ? 'Your unsaved changes go with it. ' : '') +
+        'Its web address is free for another class straight away. An Admin can restore it from Deleted, as a draft. The deletion is recorded under your name.',
+      confirmLabel: 'Delete class',
+      cancelLabel: 'Keep it',
+    });
+    if (!confirmed) return;
+
+    this.errors.set({});
+    this.formError.set(null);
+    this.status.set({ kind: 'deleting' });
+    try {
+      await firstValueFrom(this.classes.delete(offering.id, offering.etag));
+
+      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
+      this.draft.set(draftOf(offering));
+      this.status.set({ kind: 'ready' });
+      await this.router.navigate(['/classes']);
+    } catch (error: unknown) {
+      const problem = problemOf(error);
+      this.status.set({ kind: 'ready' });
+      this.showErrors(
+        {},
+        problem?.code === CLASS_CODES.concurrencyConflict
+          ? 'Someone else changed this class a moment ago. Reload it, check it, and try again.'
+          : messageOf(problem, 'The class couldn’t be deleted. Try again.'),
+      );
+    }
   }
 
   /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */

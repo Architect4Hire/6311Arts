@@ -10,6 +10,7 @@ using Arts6311.Domain.Modules.Shop.Managers.ViewModels;
 using Arts6311.Tests.Media.Infrastructure;
 using Arts6311.Tests.Shop.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Arts6311.Domain.Managers.Concurrency;
 
 namespace Arts6311.Tests.Shop;
 
@@ -21,6 +22,8 @@ namespace Arts6311.Tests.Shop;
 public sealed class ShopModuleTests
 {
     private const string Editor = ShopTestHost.EditorId;
+
+    private const string Admin = ShopTestHost.AdminId;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -437,6 +440,42 @@ public sealed class ShopModuleTests
         Assert.Single(await host.AuditActionsAsync(), action => action == "shop-item.seeded");
     }
 
+    [Fact]
+    public async Task ADeletedRecordIsGoneFromEveryReadAndARestoreBringsItBackAsADraft()
+    {
+        // ADR 0052: one query filter, so "deleted" means gone from every read — and a restore is a decision to
+        // look at the record again, not to publish it.
+        await using var host = await ShopTestHost.CreateAsync(Ct);
+        var created = await CreateAsync(host, new ShopItemCreateViewModel("Copper Cuff"));
+
+        var deleted = await host.WithFacadeAsync(facade => facade.DeleteAsync(created.Id, created.ETag, ShopTestHost.AdminId, Ct));
+
+        Assert.True(deleted.Succeeded, deleted.Error?.Code);
+        Assert.Equal(ErrorCodes.NotFound, (await host.WithFacadeAsync(facade => facade.GetAsync(created.Id, Ct))).Error!.Code);
+        Assert.Empty((await Ok(host.WithFacadeAsync(facade => facade.ListAsync(new ShopItemListViewModel(), Ct)))).Items);
+        Assert.Null(await host.StoredAsync(created.Id));
+
+        // The address is free at once, which is the point: the mistake stops standing in the way.
+        var replacement = await CreateAsync(host, new ShopItemCreateViewModel("Copper Cuff"));
+        Assert.Equal("copper-cuff", replacement.Slug);
+
+        var trash = await Ok(host.WithFacadeAsync(facade => facade.ListDeletedAsync(new ShopItemListViewModel(), Ct)));
+        var row = Assert.Single(trash.Items);
+        Assert.Equal("Copper Cuff", row.Title);
+
+        // The replacement holds the address now, so the restore is refused until it does not.
+        var refused = await host.WithFacadeAsync(facade => facade.RestoreAsync(created.Id, row.ETag, ShopTestHost.AdminId, Ct));
+        Assert.Equal(ContentErrorCodes.SlugTaken, refused.Error!.Code);
+
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(replacement.Id, replacement.ETag, ShopTestHost.AdminId, Ct));
+        var restored = await Ok(host.WithFacadeAsync(facade => facade.RestoreAsync(created.Id, row.ETag, ShopTestHost.AdminId, Ct)));
+
+        Assert.Equal(PublishStatus.Draft, restored.Status);
+        Assert.Null(restored.ScheduledFor);
+        Assert.Contains("shop-item.deleted", await host.AuditActionsAsync());
+        Assert.Contains("shop-item.restored", await host.AuditActionsAsync());
+    }
+
     /// <summary>A draft with everything publishing requires: copy, a price, a count and a described photograph.</summary>
     private static async Task<ShopItemServiceModel> Ready(ShopTestHost host)
     {
@@ -449,6 +488,48 @@ public sealed class ShopModuleTests
             OneOfAKind: true,
             StartingPriceCents: 11000));
     }
+
+    [Fact]
+    public async Task DeletingReleasesTheSkuAndRestoringTakesItBackOrSaysWhoHasIt()
+    {
+        // ADR 0037, 0052: the SKU is the catalog's unique key, and a deleted piece holds nothing. The piece that
+        // replaces it may take the SKU, and then the restore has to say so rather than break the unique key.
+        await using var host = await ShopTestHost.CreateAsync(Ct);
+        var first = await CreateAsync(host, new ShopItemCreateViewModel("Copper Cuff"));
+
+        Assert.Equal([first.Sku], await SkusAsync(host));
+
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(first.Id, first.ETag, Admin, Ct));
+        Assert.Empty(await SkusAsync(host));
+
+        // Free, so the replacement is offered and takes the same SKU.
+        var second = await CreateAsync(host, new ShopItemCreateViewModel("Copper Cuff II", Sku: first.Sku));
+        Assert.Equal([first.Sku], await SkusAsync(host));
+
+        var tag = EntityTag.Format(await host.QueryAsync(context => context.Set<ShopItem>()
+            .IgnoreQueryFilters().AsNoTracking().Where(row => row.Id == first.Id)
+            .Select(row => row.RowVersion).SingleAsync(Ct)));
+        var refused = await host.WithFacadeAsync(facade => facade.RestoreAsync(first.Id, tag, Admin, Ct));
+
+        Assert.Equal(CatalogErrorCodes.SkuTaken, refused.Error!.Code);
+        Assert.Contains(first.Sku, refused.Error.FieldErrors["sku"][0], StringComparison.Ordinal);
+
+        // With the replacement gone the SKU is free again, and the restore takes it back.
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(second.Id, second.ETag, Admin, Ct));
+        var restored = await Ok(host.WithFacadeAsync(facade => facade.RestoreAsync(first.Id, tag, Admin, Ct)));
+
+        Assert.Equal(first.Sku, restored.Sku);
+        Assert.Equal([first.Sku], await SkusAsync(host));
+        Assert.Equal(
+            [new SkuOwner(CatalogOwnerTypes.ShopItem, first.Id)],
+            await host.QueryAsync(context => context.Set<CatalogSku>().AsNoTracking()
+                .Select(row => new SkuOwner(row.OwnerType, row.OwnerId)).ToListAsync(Ct)));
+    }
+
+    /// <summary>Every SKU the registry holds: what a delete releases and a restore takes back.</summary>
+    private static Task<List<string>> SkusAsync(ShopTestHost host) =>
+        host.QueryAsync(context => context.Set<CatalogSku>().AsNoTracking()
+            .OrderBy(row => row.Sku).Select(row => row.Sku).ToListAsync(Ct));
 
     private static async Task<ShopItemServiceModel> CreateAsync(ShopTestHost host, ShopItemCreateViewModel create) =>
         await Ok(host.WithFacadeAsync(facade => facade.CreateAsync(create, Editor, Ct)));

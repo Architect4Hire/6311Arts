@@ -62,6 +62,118 @@ internal sealed class ShopBusiness(IShopDataLayer dataLayer, IHtmlSanitizer sani
         return OperationResult.Success(new CursorPage<ShopItemListRow>(rows, next));
     }
 
+    /// <remarks>
+    /// Its own cursor scope, so a cursor from the status list is not valid here and the other way about. Status is
+    /// not part of it: the Deleted view shows every deleted record, whatever it was when it went (ADR 0052).
+    /// </remarks>
+    public async Task<OperationResult<CursorPage<ShopItemDeletedServiceModel>>> ListDeletedAsync(
+        ShopItemListViewModel request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim();
+        var scope = string.Create(CultureInfo.InvariantCulture, $"shop|deleted|search={search}");
+
+        ShopItemListPosition? after = null;
+        if (request.Cursor is not null)
+        {
+            var decoded = PageCursor.Decode(request.Cursor, scope);
+            if (!decoded.Succeeded || !Guid.TryParseExact(decoded.Value!.TieBreaker, "N", out var afterId))
+            {
+                return OperationResult.Failure<CursorPage<ShopItemDeletedServiceModel>>(
+                    OperationError.Of(ErrorCodes.CursorInvalid, "The cursor is not valid for this list."));
+            }
+
+            after = new ShopItemListPosition(decoded.Value.SortValue, afterId);
+        }
+
+        var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
+        var rows = await dataLayer.ListDeletedAsync(after, limit + 1, search, cancellationToken);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            rows.RemoveAt(limit);
+            var last = rows[^1];
+            next = new PageCursor(last.Title, last.Id.ToString("N")).Encode(scope);
+        }
+
+        return OperationResult.Success(new CursorPage<ShopItemDeletedServiceModel>([.. rows.Select(row => row.ToServiceModel())], next));
+    }
+
+    public async Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var item = await dataLayer.FindAsync(id, cancellationToken);
+        if (item is null)
+        {
+            return OperationResult.Failure(OperationError.Of(ErrorCodes.NotFound, "There is no such item."));
+        }
+
+        if (EntityTag.Verify(item.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure(versionError);
+        }
+
+        // The SKU goes back to the pool with the record: the piece that replaces this one can use it (ADR 0037).
+        var released = new SkuChanges([], [new SkuReservation(item.Sku, item.Id)]);
+
+        // From any status, Published included: "this was a mistake" is not a lifecycle step, and the delete stages
+        // the revalidation that takes it off the site (ADR 0052).
+        return await dataLayer.DeleteAsync(item, released, actorUserId, cancellationToken) switch
+        {
+            ShopWriteOutcome.Saved => OperationResult.Success(),
+            _ => OperationResult.Failure(EntityTag.Conflict(What)),
+        };
+    }
+
+    public async Task<OperationResult<ShopItemDetail>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var item = await dataLayer.FindDeletedAsync(id, cancellationToken);
+        if (item is null)
+        {
+            return NotFound();
+        }
+
+        if (EntityTag.Verify(item.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure<ShopItemDetail>(versionError);
+        }
+
+        // The delete freed the address, so another record may be living there now. Refused rather than renamed for
+        // the staff member: which of the two keeps it is their decision (ADR 0052).
+        if (await dataLayer.SlugExistsAsync(item.Slug, item.Id, cancellationToken))
+        {
+            return OperationResult.Failure<ShopItemDetail>(SlugTaken(item.Slug));
+        }
+
+        // The delete released the SKU, so it may be someone else's now.
+        var owners = await dataLayer.SkuOwnersAsync([item.Sku], cancellationToken);
+        if (owners.TryGetValue(item.Sku, out var owner) && owner.OwnerId != item.Id)
+        {
+            return OperationResult.Failure<ShopItemDetail>(SkuTaken(item.Sku));
+        }
+
+        var reserved = new SkuChanges([new SkuReservation(item.Sku, item.Id)], []);
+
+        var deletedAs = item.Status;
+
+        // Back as a Draft, never straight back onto the site: what publishing requires may no longer hold, and a
+        // restore is a decision to look at the record again, not to publish it (ADR 0052).
+        item.Status = PublishStatus.Draft;
+        item.ScheduledFor = null;
+
+        return await dataLayer.RestoreAsync(item, reserved, deletedAs, actorUserId, cancellationToken) switch
+        {
+            ShopWriteOutcome.Saved => OperationResult.Success(ToDetail(item)),
+            ShopWriteOutcome.SlugTaken => OperationResult.Failure<ShopItemDetail>(SlugTaken(item.Slug)),
+            ShopWriteOutcome.SkuTaken => OperationResult.Failure<ShopItemDetail>(SkuTaken(item.Sku)),
+            _ => Conflict(),
+        };
+    }
+
+
     public async Task<OperationResult<ShopItemDetail>> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         var item = await dataLayer.FindAsync(id, cancellationToken);

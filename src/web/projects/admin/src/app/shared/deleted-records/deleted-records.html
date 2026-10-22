@@ -1,0 +1,89 @@
+<!-- Exists from the start, so the counts written into it later are read out. -->
+<p #heading class="sr-only" aria-live="polite" tabindex="-1">{{ liveMessage() }}</p>
+
+@if (failure(); as message) {
+  <ui-notice tone="error" heading="That didn’t work">
+    <p>{{ message }}</p>
+  </ui-notice>
+}
+
+@switch (state()) {
+  @case ('loading') {
+    <p role="status">Loading deleted {{ plural() }}…</p>
+  }
+  @case ('failed') {
+    <ui-notice tone="error" heading="The deleted {{ plural() }} couldn’t be loaded">
+      <p>6311arts may be unreachable for a moment.</p>
+      <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
+    </ui-notice>
+  }
+  @default {
+    @if (items().length === 0) {
+      <ui-empty-state icon="info" heading="Nothing deleted">
+        <p>{{ emptyText() }}</p>
+      </ui-empty-state>
+    } @else {
+      <p class="lead">
+        A deleted {{ noun() }} is off the site and out of the list above. Restoring one brings it
+        back as a draft.
+      </p>
+      <div class="scroll" role="region" attr.aria-label="Deleted {{ plural() }}" tabindex="0">
+        <table class="rows">
+          <caption class="sr-only">
+            Deleted
+            {{
+              plural()
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Status when deleted</th>
+              <th scope="col">Deleted</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of items(); track row.id) {
+              <tr>
+                <!-- No link: there is no editor to open for a record nothing else can see (ADR 0052). -->
+                <th scope="row">
+                  {{ row.label }}
+                  <span class="slug">/{{ row.slug }}</span>
+                </th>
+                <td>
+                  <ui-status-chip [tone]="chips[row.status].tone" [icon]="chips[row.status].icon">{{
+                    chips[row.status].label
+                  }}</ui-status-chip>
+                </td>
+                <td>
+                  <time [attr.datetime]="row.deletedAt">{{ deleted(row.deletedAt) }}</time>
+                </td>
+                <td>
+                  @if (canRestore()) {
+                    <button
+                      uiButton
+                      type="button"
+                      size="sm"
+                      [busy]="restoring() === row.id"
+                      [disabled]="restoring() !== null"
+                      [attr.aria-label]="'Restore ' + row.label"
+                      (click)="restore(row)"
+                    >
+                      Restore
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (next()) {
+        <p class="more">
+          <button uiButton type="button" [busy]="loadingMore()" (click)="more()">Load more</button>
+        </p>
+      }
+    }
+  }
+}

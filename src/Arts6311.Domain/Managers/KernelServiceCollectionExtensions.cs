@@ -4,6 +4,7 @@ using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Correlation;
 using Arts6311.Domain.Managers.Html;
 using Arts6311.Domain.Managers.Outbox;
+using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Managers.Validation;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +15,7 @@ public static class KernelServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the shared kernel services every host uses: <c>IClock</c>, <c>IAppCache</c>, <c>IAuditWriter</c>,
-    /// <c>ICorrelationContext</c>, <c>IOutboxWriter</c>, <c>IOutboxDispatcher</c>, <c>IHtmlSanitizer</c>, <c>ISkuRegistry</c>
+    /// <c>ICorrelationContext</c>, <c>IOutboxWriter</c>, <c>IOutboxDispatcher</c>, <c>IHtmlSanitizer</c>, <c>ISkuRegistry</c>, <c>IContentReferences</c>
     /// and the module validators.
     /// The <c>ArtsDbContext</c> itself is registered by each host through the Aspire SQL Server EF integration.
     /// </summary>
@@ -28,6 +29,7 @@ public static class KernelServiceCollectionExtensions
         services.AddArtsValidation();
         services.AddArtsHtml();
         services.AddArtsCatalog();
+        services.AddArtsPublishing();
         return services;
     }
 }

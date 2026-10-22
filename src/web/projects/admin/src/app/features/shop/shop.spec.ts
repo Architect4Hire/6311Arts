@@ -454,4 +454,27 @@ describe('ShopItemEditor', () => {
     expect(text(root)).toContain('Save your changes first');
     http.expectNone(`${ONE}/publish`);
   });
+
+  it('offers delete to Admins only, and returns to the list', async () => {
+    // ADR 0052: Admin only, like archive, and offered whatever the status.
+    const editor = await openEditor(SHOP_ITEM);
+    expect(button(editor.root, 'Delete piece')).toBeUndefined();
+    TestBed.resetTestingModule();
+
+    const { http, fixture, root, confirm, router } = await openEditor(SHOP_ITEM, ['Admin']);
+    const ask = vi.spyOn(confirm, 'confirm').mockResolvedValue(true);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    button(root, 'Delete piece')!.click();
+    await settle(fixture);
+
+    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ heading: 'Delete this piece?' }));
+    const deleted = http.expectOne(ONE);
+    expect(deleted.request.method).toBe('DELETE');
+    expect(deleted.request.headers.get('If-Match')).toBe(SHOP_ITEM.etag);
+    deleted.flush(null, { status: 204, statusText: 'No Content' });
+    await settle(fixture);
+
+    expect(navigate).toHaveBeenCalled();
+  });
 });

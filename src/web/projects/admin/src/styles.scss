@@ -39,3 +39,29 @@ body {
 .btn-sm {
   min-block-size: 40px;
 }
+
+/*
+ * A destructive action, set apart from the ones beside it: its own block under a rule, and the danger colour on
+ * the button itself, so it never reads as the button someone meant to press (design-system.md rule 3: the word
+ * "Delete" carries the meaning, the colour only reinforces it).
+ */
+.cms-danger {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding-top: var(--space-3);
+  border-top: var(--border-thin) solid var(--line);
+}
+
+.cms-danger__title {
+  margin: 0;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+.cms-danger .btn {
+  border-color: var(--danger);
+  color: var(--danger);
+}

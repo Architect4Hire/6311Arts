@@ -11,6 +11,18 @@ internal interface IShopRepository
     /// <summary>One item with its categories, gallery and description images, tracked.</summary>
     Task<ShopItem?> FindAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// One deleted piece, tracked, for a restore (ADR 0052). The one read that looks past the query filter for
+    /// a single row, so a live record is <c>null</c> here just as a deleted one is <c>null</c> everywhere else.
+    /// </summary>
+    Task<ShopItem?> FindDeletedAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One page of the Deleted view, in the same order as the list above so the two share their cursor (ADR 0052).
+    /// </summary>
+    Task<List<ShopItemDeletedRow>> ListDeletedAsync(
+        ShopItemListPosition? after, int take, string? search, CancellationToken cancellationToken);
+
     /// <summary>Whether another item than <paramref name="exceptId"/> already has this slug.</summary>
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 
@@ -55,6 +67,13 @@ internal interface IShopRepository
 
     /// <summary>Every published item's slug and last change, by slug, for the sitemap. No descriptions.</summary>
     Task<List<(string Slug, DateTimeOffset UpdatedAt)>> ListPublishedAddressesAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// What to call the live records that name artist <paramref name="artistId"/>, at most
+    /// <paramref name="take"/> of them: the artwork that credits an artist (ADR 0038). The query filter leaves out records that are themselves
+    /// deleted, which is what makes a deleted one hold nothing up (ADR 0052).
+    /// </summary>
+    Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken);
 
     /// <summary>Throws away every unsaved change, after a save that failed, so the next save starts clean.</summary>
     void DiscardChanges();

@@ -25,6 +25,8 @@ public sealed class PagesModuleTests
 {
     private const string Editor = PagesTestHost.EditorId;
 
+    private const string Admin = PagesTestHost.AdminId;
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -430,6 +432,163 @@ public sealed class PagesModuleTests
         await host.SeedAsync(Ct);
 
         Assert.Equal(2, await host.QueryAsync(context => context.Set<Page>().CountAsync(Ct)));
+    }
+
+    [Fact]
+    public async Task ADeletedPageIsGoneFromTheCmsTheSiteTheSitemapAndAPreview()
+    {
+        // ADR 0052: one query filter, so "deleted" means gone from every read — not a status every read has to
+        // remember to exclude.
+        await using var host = await PagesTestHost.CreateAsync(Ct);
+        var page = await CreateAsync(host, new PageCreateViewModel("Privacy", Body: "<p>P.</p>"));
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(page.Id, page.ETag, Editor, Ct)));
+
+        // The sitemap is read straight through, so it says what the site knows now; the page read itself is cached
+        // until the Worker handles the delete's revalidation, exactly as an unpublish is (ADR 0036, 0049), which
+        // is why the site read below is this test's first.
+        Assert.Equal(["/privacy"], (await host.WithFacadeAsync(facade => facade.ListSitemapAsync(Ct))).Select(entry => entry.Path));
+
+        var deleted = await host.WithFacadeAsync(facade => facade.DeleteAsync(page.Id, published.ETag, Admin, Ct));
+
+        Assert.True(deleted.Succeeded, deleted.Error?.Code);
+        Assert.Equal(ErrorCodes.NotFound, (await host.WithFacadeAsync(facade => facade.GetAsync(page.Id, Ct))).Error!.Code);
+        Assert.Equal(ErrorCodes.NotFound, (await host.WithFacadeAsync(facade => facade.GetForSiteAsync("privacy", Ct))).Error!.Code);
+        Assert.Equal(ErrorCodes.NotFound, (await host.WithFacadeAsync(facade => facade.GetForPreviewAsync(page.Id, Ct))).Error!.Code);
+        Assert.Empty((await Ok(host.WithFacadeAsync(facade => facade.ListAsync(new PageListViewModel(), Ct)))).Items);
+        Assert.Empty(await host.WithFacadeAsync(facade => facade.ListSitemapAsync(Ct)));
+
+        // The row is still there, marked, which is what a restore and the audit trail need.
+        var row = (await host.RowAsync(page.Id))!;
+        Assert.Equal(Admin, row.DeletedBy);
+        Assert.Equal(host.Time.GetUtcNow(), row.DeletedAt);
+        Assert.Null(await host.StoredAsync(page.Id));
+
+        var trash = await Ok(host.WithFacadeAsync(facade => facade.ListDeletedAsync(new PageListViewModel(), Ct)));
+        var deletedRow = Assert.Single(trash.Items);
+        Assert.Equal(("Privacy", "privacy", PublishStatus.Published), (deletedRow.Title, deletedRow.Slug, deletedRow.Status));
+        Assert.Equal(EntityTag.Format(row.RowVersion), deletedRow.ETag);
+    }
+
+    [Fact]
+    public async Task DeletingAPublishedPageRevalidatesItsAddressAndDeletingADraftStagesNothing()
+    {
+        await using var host = await PagesTestHost.CreateAsync(Ct);
+        var live = await CreateAsync(host, new PageCreateViewModel("Privacy", Body: "<p>P.</p>"));
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(live.Id, live.ETag, Editor, Ct)));
+        var draft = await CreateAsync(host, new PageCreateViewModel("Terms", Body: "<p>T.</p>"));
+
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(live.Id, published.ETag, Admin, Ct));
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(draft.Id, draft.ETag, Admin, Ct));
+
+        // Two messages: the publish's and the delete's. The draft's delete added none — nothing public showed it.
+        var staged = await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
+            .Where(message => message.Type == SiteRevalidateRequested.MessageType)
+            .Select(message => message.PayloadJson).ToListAsync(Ct));
+
+        Assert.Equal(2, staged.Count);
+        Assert.All(staged, payload => Assert.Equal(["/privacy"], SiteRevalidateRequested.TryParse(payload)!.Paths));
+    }
+
+    [Fact]
+    public async Task DeletingFreesTheAddressAndARestoreIsRefusedUntilItIsFreeAgain()
+    {
+        await using var host = await PagesTestHost.CreateAsync(Ct);
+        var first = await CreateAsync(host, new PageCreateViewModel("Privacy", Body: "<p>First.</p>"));
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(first.Id, first.ETag, Admin, Ct));
+
+        // The address is free at once, which is the point: the mistake stops standing in the way (ADR 0052).
+        var second = await CreateAsync(host, new PageCreateViewModel("Privacy", Body: "<p>Second.</p>"));
+
+        // The delete rotated the row version, as every write does, so a restore sends back the one the Deleted
+        // view is showing.
+        var tag = EntityTag.Format((await host.RowAsync(first.Id))!.RowVersion);
+        var refused = await host.WithFacadeAsync(facade => facade.RestoreAsync(first.Id, tag, Admin, Ct));
+
+        var moved = await Ok(host.WithFacadeAsync(facade => facade.UpdateAsync(
+            second.Id, new PageUpdateViewModel(Slug: "privacy-policy"), second.ETag, Editor, Ct)));
+        var restored = await Ok(host.WithFacadeAsync(facade => facade.RestoreAsync(first.Id, tag, Admin, Ct)));
+
+        Assert.Equal("privacy", second.Slug);
+        Assert.Equal(ContentErrorCodes.SlugTaken, refused.Error!.Code);
+        Assert.Equal("privacy-policy", moved.Slug);
+        Assert.Equal("privacy", restored.Slug);
+    }
+
+    [Fact]
+    public async Task ARestoreBringsThePageBackAsADraftTheSiteStillDoesNotShow()
+    {
+        await using var host = await PagesTestHost.CreateAsync(Ct);
+        var page = await CreateAsync(host, new PageCreateViewModel("Privacy", Body: "<p>P.</p>"));
+        var published = await Ok(host.WithFacadeAsync(facade => facade.PublishAsync(page.Id, page.ETag, Editor, Ct)));
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(page.Id, published.ETag, Admin, Ct));
+        var tag = EntityTag.Format((await host.RowAsync(page.Id))!.RowVersion);
+
+        var restored = await Ok(host.WithFacadeAsync(facade => facade.RestoreAsync(page.Id, tag, Admin, Ct)));
+
+        Assert.Equal(PublishStatus.Draft, restored.Status);
+        Assert.Equal(published.PublishedAt, restored.PublishedAt);
+        Assert.Equal(ErrorCodes.NotFound, (await host.WithFacadeAsync(facade => facade.GetForSiteAsync("privacy", Ct))).Error!.Code);
+        Assert.Empty((await Ok(host.WithFacadeAsync(facade => facade.ListDeletedAsync(new PageListViewModel(), Ct)))).Items);
+        Assert.Equal(
+            ["page.created", "page.deleted", "page.published", "page.restored"],
+            (await host.AuditActionsAsync()).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task TheScheduledPublisherNeverPublishesADeletedPage()
+    {
+        await using var host = await PagesTestHost.CreateAsync(Ct);
+        var page = await CreateAsync(host, new PageCreateViewModel("Terms", Body: "<p>T.</p>"));
+        var asOf = host.Time.GetUtcNow();
+        var scheduled = await Ok(host.WithFacadeAsync(facade => facade.ScheduleAsync(
+            page.Id, new ContentScheduleViewModel(asOf.AddMinutes(1)), page.ETag, Editor, Ct)));
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(page.Id, scheduled.ETag, Admin, Ct));
+
+        var passTime = asOf.AddMinutes(2);
+        var due = await host.WithFacadeAsync(facade => facade.ListDueAsync(passTime, 50, Ct));
+        var outcome = await host.WithFacadeAsync(facade => facade.PublishScheduledAsync(page.Id, passTime, Ct));
+
+        Assert.Empty(due);
+        Assert.Equal(ScheduledPublishOutcome.Skipped, outcome);
+        Assert.Equal(PublishStatus.Scheduled, (await host.RowAsync(page.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task ThePlaceholderSeedDoesNotBringADeletedPageBack()
+    {
+        // The seeder adds the slugs that are missing. A deleted page is missing to every other read, so without
+        // reading past the filter the next MigrationService run would undo the delete (ADR 0052).
+        await using var host = await PagesTestHost.CreateAsync(Ct, withSeeder: true);
+        await host.SeedAsync(Ct);
+        var privacy = await host.QueryAsync(context => context.Set<Page>().AsNoTracking().SingleAsync(page => page.Slug == "privacy", Ct));
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(privacy.Id, EntityTag.Format(privacy.RowVersion), Admin, Ct));
+
+        await host.SeedAsync(Ct);
+
+        Assert.Equal(["terms"], await host.QueryAsync(context => context.Set<Page>().AsNoTracking()
+            .OrderBy(page => page.Slug).Select(page => page.Slug).ToListAsync(Ct)));
+        Assert.Single(await host.AuditActionsAsync(), action => action == "page.seeded");
+    }
+
+    [Fact]
+    public async Task ADeletedPageStillHoldsItsPicturesSoMediaRefusesToDeleteThem()
+    {
+        // The delete guard mirrors a Restrict foreign key and the database has not forgotten the deleted row
+        // (ADR 0052). ADR 0045 keeps pictures out of a body, so the reference is written here directly — the
+        // behaviour this pins down belongs to whichever soft-deletable type attaches an image next.
+        await using var host = await PagesTestHost.CreateAsync(Ct);
+        var image = await host.AddImageAsync();
+        var page = await CreateAsync(host, new PageCreateViewModel("Privacy", Body: "<p>P.</p>"));
+        await host.ExecuteAsync(async context =>
+        {
+            context.Add(new PageMediaReference { PageId = page.Id, MediaAssetId = image });
+            await context.SaveChangesAsync(Ct);
+        });
+
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(page.Id, page.ETag, Admin, Ct));
+        var refused = await DeleteImageAsync(host, image);
+
+        Assert.Equal(MediaErrorCodes.InUse, refused.Error!.Code);
     }
 
     private static async Task<PageServiceModel> CreateAsync(PagesTestHost host, PageCreateViewModel create) =>

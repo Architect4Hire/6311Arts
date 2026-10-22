@@ -18,6 +18,27 @@ public interface IInstructorsFacade
     Task<OperationResult<InstructorServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The Deleted view (ADR 0052): the records staff deleted, Admin only at the route. Its own cursor scope, so a
+    /// cursor from the list above is not valid here.
+    /// </summary>
+    Task<OperationResult<CursorPage<InstructorDeletedServiceModel>>> ListDeletedAsync(
+        InstructorListViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes the instructor from any status (ADR 0052): it leaves the site within the Worker's next pass, leaves
+    /// the CMS list, and releases its web address. Admin only at the route (auth.md "Sensitive operations");
+    /// audited. Refusals: <c>resource.not_found</c>, <c>concurrency.*</c>, <c>cms.in_use</c> while another record still names it.
+    /// </summary>
+    Task<OperationResult> DeleteAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Brings a deleted instructor back as a Draft, with any schedule cleared. Admin only at the route; audited.
+    /// Refusals: <c>resource.not_found</c>, <c>concurrency.*</c>, <c>cms.slug_taken</c>.
+    /// </summary>
+    Task<OperationResult<InstructorServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// For another module (Classes' runs): the instructors among <paramref name="ids"/> that exist, whatever their
     /// status, in no particular order. An id with no instructor is simply absent. At most
     /// <see cref="Managers.InstructorPolicy.LookupMaxCount"/> ids.

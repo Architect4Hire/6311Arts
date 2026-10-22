@@ -18,6 +18,27 @@ public interface IPagesFacade
     Task<OperationResult<PageServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The Deleted view (ADR 0052): the pages staff deleted, Admin only at the route. Its own cursor scope, so a
+    /// cursor from the list above is not valid here.
+    /// </summary>
+    Task<OperationResult<CursorPage<PageDeletedServiceModel>>> ListDeletedAsync(
+        PageListViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes the page from any status (ADR 0052): it leaves the site within the Worker's next pass, leaves the
+    /// CMS list, and releases its web address. Admin only at the route (auth.md "Sensitive operations"); audited.
+    /// Refusals: <c>resource.not_found</c>, <c>concurrency.*</c>.
+    /// </summary>
+    Task<OperationResult> DeleteAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Brings a deleted page back as a Draft, with any schedule cleared. Admin only at the route; audited.
+    /// Refusals: <c>resource.not_found</c>, <c>concurrency.*</c>, <c>cms.slug_taken</c>.
+    /// </summary>
+    Task<OperationResult<PageServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// A new Draft, its body sanitized. Refusals: <c>validation.failed</c> (including a picture without alt text or not
     /// in the library), <c>cms.slug_taken</c>.
     /// </summary>

@@ -17,6 +17,15 @@ internal static class PageAudit
     public const string Seeded = "page.seeded";
 
     /// <summary>
+    /// A page staff deleted (ADR 0052). Admin-only and audited, as every delete is (auth.md "Sensitive
+    /// operations"); the row is what says the page existed at all, since nothing else shows it any more.
+    /// </summary>
+    public const string Deleted = "page.deleted";
+
+    /// <summary>An Admin brought a deleted page back, as a Draft (ADR 0052).</summary>
+    public const string Restored = "page.restored";
+
+    /// <summary>
     /// The scheduled publisher gave up on a page: what publishing needs was no longer true, so it is a Draft
     /// again (ADR 0036). Its own action, so the trail tells it apart from a person unscheduling.
     /// </summary>

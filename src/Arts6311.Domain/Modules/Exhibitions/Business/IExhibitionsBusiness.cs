@@ -18,6 +18,25 @@ internal interface IExhibitionsBusiness
 
     Task<OperationResult<ExhibitionDetail>> GetAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The Deleted view: the records staff deleted, on this list's own cursor scope (ADR 0052).</summary>
+    Task<OperationResult<CursorPage<ExhibitionDeletedServiceModel>>> ListDeletedAsync(
+        ExhibitionListViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes the exhibition, whatever its status: it leaves the site, leaves the CMS list and releases its web
+    /// address, and only the Deleted view and the audit trail still name it (ADR 0052). Refusals:
+    /// <c>resource.not_found</c>, <c>concurrency.*</c>.
+    /// </summary>
+    Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Brings a deleted exhibition back as a Draft, with any schedule cleared: nothing returns to the site by being
+    /// restored (ADR 0052). Refusals: <c>resource.not_found</c>, <c>concurrency.*</c>, <c>cms.slug_taken</c>.
+    /// </summary>
+    Task<OperationResult<ExhibitionDetail>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
     /// <summary>The facade has already confirmed the hero is in the library and every credited artist is on the roster.</summary>
     Task<OperationResult<ExhibitionDetail>> CreateAsync(
         ExhibitionCreateViewModel create, string actorUserId, CancellationToken cancellationToken);

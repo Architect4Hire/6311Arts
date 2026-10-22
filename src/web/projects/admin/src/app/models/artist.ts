@@ -211,3 +211,51 @@ export function decodeArtistPage(body: unknown): ArtistPage | null {
 export type ArtistProblem = ApiProblem;
 
 export const decodeArtistProblem = decodeApiProblem;
+
+/** One row of the Deleted view (`ArtistDeletedServiceModel`, ADR 0052). Admin only. */
+export interface ArtistDeletedRow {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string;
+  /** What it was when it was deleted, not where it is now. */
+  readonly status: PublishStatus;
+  readonly deletedAt: string;
+  /** The row version, sent back as `If-Match` when restoring it. */
+  readonly etag: string;
+}
+
+export interface ArtistDeletedList {
+  readonly items: readonly ArtistDeletedRow[];
+  readonly nextCursor: string | null;
+}
+
+export function decodeArtistDeletedRow(body: unknown): ArtistDeletedRow | null {
+  const f = fields(body);
+  if (
+    !f ||
+    !isString(f['id']) ||
+    !isString(f['name']) ||
+    !isString(f['slug']) ||
+    !isStatus(f['status']) ||
+    !isString(f['deletedAt']) ||
+    !isString(f['etag'])
+  ) {
+    return null;
+  }
+  return {
+    id: f['id'],
+    name: f['name'],
+    slug: f['slug'],
+    status: f['status'],
+    deletedAt: f['deletedAt'],
+    etag: f['etag'],
+  };
+}
+
+export function decodeArtistDeletedList(body: unknown): ArtistDeletedList | null {
+  const f = fields(body);
+  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
+  const items = f['items'].map(decodeArtistDeletedRow);
+  if (items.some((item) => item === null)) return null;
+  return { items: items as ArtistDeletedRow[], nextCursor: f['nextCursor'] };
+}

@@ -52,6 +52,44 @@ internal sealed class PagesFacade(
     public Task<OperationResult<PageServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken) =>
         business.GetAsync(id, cancellationToken);
 
+    public async Task<OperationResult<CursorPage<PageDeletedServiceModel>>> ListDeletedAsync(
+        PageListViewModel request, CancellationToken cancellationToken)
+    {
+        if (await listValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<CursorPage<PageDeletedServiceModel>>(error);
+        }
+
+        return await business.ListDeletedAsync(request, cancellationToken);
+    }
+
+    /// <remarks>
+    /// Nothing is evicted here. A delete that takes a page off the site stages <c>site.revalidate-requested</c> in
+    /// its own save, exactly as a status command does, and the Worker's handler clears the tags (ADR 0036, 0049) —
+    /// no cache call follows a save (outbox.md).
+    /// </remarks>
+    public async Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure(preconditionError);
+        }
+
+        return await business.DeleteAsync(id, ifMatch, actorUserId, cancellationToken);
+    }
+
+    public async Task<OperationResult<PageServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<PageServiceModel>(preconditionError);
+        }
+
+        return await business.RestoreAsync(id, ifMatch, actorUserId, cancellationToken);
+    }
+
     public async Task<OperationResult<PageServiceModel>> CreateAsync(
         PageCreateViewModel create, string actorUserId, CancellationToken cancellationToken)
     {

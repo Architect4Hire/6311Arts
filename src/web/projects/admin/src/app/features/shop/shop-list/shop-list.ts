@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   ElementRef,
   Injector,
@@ -11,7 +12,7 @@ import {
   untracked,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import { UiButton, UiControl, UiEmptyState, UiField, UiNotice, UiStatusChip } from '@6311/ui';
 import { GALLERY_TIME_ZONE } from '../../../core/time/gallery-time';
 import { PublishStatus, STATUS_CHIPS } from '../../../models/content';
@@ -23,8 +24,14 @@ import {
   categoryLabel,
 } from '../../../models/shop';
 import { ShopService } from '../../../services/shop.service';
+import {
+  DeletedRecords,
+  DeletedRecordsSource,
+} from '../../../shared/deleted-records/deleted-records';
+import { SessionService } from '../../../core/session/session.service';
+import { ROLES } from '../../../models/session';
 
-type Filter = 'all' | PublishStatus;
+type Filter = 'all' | PublishStatus | 'deleted';
 
 const FILTERS: readonly { readonly value: Filter; readonly label: string }[] = [
   { value: 'all', label: 'All artwork' },
@@ -32,6 +39,9 @@ const FILTERS: readonly { readonly value: Filter; readonly label: string }[] = [
   { value: 'Scheduled', label: 'Scheduled' },
   { value: 'Published', label: 'Published' },
   { value: 'Archived', label: 'Archived' },
+
+  // Admins only (ADR 0052): the same people who can delete and restore.
+  { value: 'deleted', label: 'Deleted' },
 ];
 
 /** How long typing pauses before the search is sent. */
@@ -57,7 +67,16 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
  */
 @Component({
   selector: 'cms-shop-list',
-  imports: [RouterLink, UiButton, UiControl, UiEmptyState, UiField, UiNotice, UiStatusChip],
+  imports: [
+    RouterLink,
+    UiButton,
+    UiControl,
+    UiEmptyState,
+    UiField,
+    UiNotice,
+    UiStatusChip,
+    DeletedRecords,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './shop-list.html',
   styleUrl: './shop-list.scss',
@@ -66,12 +85,29 @@ export class ShopList {
   private readonly shop = inject(ShopService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly session = inject(SessionService);
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Bumped by every new list request, so an answer to an older one (a filter since changed) is dropped. */
   private generation = 0;
 
-  protected readonly filters = FILTERS;
+  protected readonly isAdmin = computed(() => this.session.hasAnyRole([ROLES.admin]));
+  protected readonly filters = computed(() =>
+    FILTERS.filter((option) => option.value !== 'deleted' || this.isAdmin()),
+  );
+  protected readonly showingDeleted = computed(() => this.filter() === 'deleted');
+
+  /** Where the shared Deleted view reads its rows and how it puts one back (ADR 0052). */
+  protected readonly deletedSource: DeletedRecordsSource = {
+    list: (query) =>
+      this.shop.listDeleted({ cursor: query.cursor ?? null, search: query.search }).pipe(
+        map((page) => ({
+          items: page.items.map((row) => ({ ...row, label: row.title })),
+          nextCursor: page.nextCursor,
+        })),
+      ),
+    restore: (id, etag) => this.shop.restore(id, etag),
+  };
   protected readonly categories = SHOP_CATEGORIES;
   protected readonly chips = STATUS_CHIPS;
   protected readonly limits = SHOP_LIMITS;
@@ -79,7 +115,7 @@ export class ShopList {
   protected readonly category = signal('');
   protected readonly search = signal('');
   /** The search as last sent: `search` settles into it after a pause in typing. */
-  private readonly query = signal('');
+  protected readonly query = signal('');
   protected readonly state = signal<'loading' | 'failed' | 'ready'>('loading');
   protected readonly items = signal<readonly ShopItemSummary[]>([]);
   protected readonly nextCursor = signal<string | null>(null);
@@ -151,6 +187,9 @@ export class ShopList {
   }
 
   async reload(): Promise<void> {
+    // The shared Deleted view fetches and announces its own rows, so the live list stays where it is.
+    if (this.showingDeleted()) return;
+
     const generation = ++this.generation;
     const showing = this.state() === 'ready' && this.items().length > 0;
     if (showing) this.refreshing.set(true);
@@ -205,7 +244,7 @@ export class ShopList {
     const category = this.category();
     return {
       limit: PAGE_SIZE,
-      ...(filter === 'all' ? {} : { status: filter }),
+      ...(filter === 'all' || filter === 'deleted' ? {} : { status: filter }),
       ...(search ? { search } : {}),
       ...(category ? { category } : {}),
     };

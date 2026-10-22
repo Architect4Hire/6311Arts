@@ -31,6 +31,11 @@ internal sealed class InstructorConfiguration : IEntityTypeConfiguration<Instruc
             .HasColumnType($"varchar({InstructorPolicy.InstagramMaxLength})");
         builder.Property(instructor => instructor.UpdatedBy).IsRequired().HasMaxLength(InstructorPolicy.UserIdMaxLength);
         builder.Property(instructor => instructor.RowVersion).IsConcurrencyToken();
+        builder.Property(instructor => instructor.DeletedBy).HasMaxLength(InstructorPolicy.UserIdMaxLength);
+
+        // A deleted record is not there: hidden from the CMS lists, the site reads, the sitemap, previews and the
+        // scheduled publisher alike, unless a query asks for deleted rows by name (ADR 0052).
+        SoftDelete.Apply(builder);
 
         // media.md: anything that uses an image declares a Restrict foreign key to it, which is how Media's delete
         // guard finds this table without naming the module.
@@ -49,9 +54,16 @@ internal sealed class InstructorConfiguration : IEntityTypeConfiguration<Instruc
         builder.HasIndex(instructor => instructor.ArtistId)
             .HasDatabaseName("IX_Instructors_ArtistId");
 
+        // Live rows only, so deleting a record releases its web address for the next one (ADR 0052). The
+        // constraint has to say so itself: a unique index knows nothing of the query filter above.
         builder.HasIndex(instructor => instructor.Slug)
             .IsUnique()
+            .HasFilter(SoftDelete.LiveRowsOnly)
             .HasDatabaseName("IX_Instructors_Slug");
+
+        // The Deleted view: the deleted rows, in the same order as the main list.
+        builder.HasIndex(instructor => new { instructor.DeletedAt, instructor.Id })
+            .HasDatabaseName("IX_Instructors_DeletedAt_Id");
 
         // The importer's idempotency key: unique where present, and most rows have none.
         builder.HasIndex(instructor => instructor.LegacyWordPressId)

@@ -42,7 +42,8 @@ internal sealed class InstructorsFacade(
     IValidator<InstructorUpdateViewModel> updateValidator,
     IValidator<InstructorListViewModel> listValidator,
     IValidator<ContentScheduleViewModel> scheduleValidator,
-    IAppCache cache) : IInstructorsFacade
+    IAppCache cache,
+    IContentReferences references) : IInstructorsFacade
 {
     private const string What = "this instructor";
 
@@ -295,6 +296,48 @@ internal sealed class InstructorsFacade(
         await CompleteAsync(
             await business.TransitionAsync(id, PublishCommand.Archive, ifMatch, portrait: null, actorUserId, cancellationToken),
             cancellationToken);
+
+    public async Task<OperationResult<CursorPage<InstructorDeletedServiceModel>>> ListDeletedAsync(
+        InstructorListViewModel request, CancellationToken cancellationToken)
+    {
+        if (await listValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<CursorPage<InstructorDeletedServiceModel>>(error);
+        }
+
+        return await business.ListDeletedAsync(request, cancellationToken);
+    }
+
+    /// <remarks>
+    /// Nothing is evicted here. A delete that takes a record off the site stages <c>site.revalidate-requested</c>
+    /// in its own save, exactly as a status command does, and the Worker's handler clears the tags (ADR 0036,
+    /// 0049) — no cache call follows a save (outbox.md).
+    /// </remarks>
+    public async Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure(preconditionError);
+        }
+
+        // Asked here, not in Business: who else names this record is another module's to answer, and the facade is
+        // where cross-module questions belong (backend.md, ADR 0052).
+        var naming = new ContentReferenceCheck(await references.ToAsync(SiteContentTypes.Instructor, id, cancellationToken));
+        return await business.DeleteAsync(id, naming, ifMatch, actorUserId, cancellationToken);
+    }
+
+    public async Task<OperationResult<InstructorServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<InstructorServiceModel>(preconditionError);
+        }
+
+        return await CompleteAsync(
+            await business.RestoreAsync(id, ifMatch, actorUserId, cancellationToken), cancellationToken);
+    }
 
     public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
     {

@@ -63,6 +63,123 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         return OperationResult.Success(new CursorPage<ClassListRow>(rows, next));
     }
 
+    /// <remarks>
+    /// Its own cursor scope, so a cursor from the status list is not valid here and the other way about. Status is
+    /// not part of it: the Deleted view shows every deleted record, whatever it was when it went (ADR 0052).
+    /// </remarks>
+    public async Task<OperationResult<CursorPage<ClassDeletedServiceModel>>> ListDeletedAsync(
+        ClassListViewModel request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim();
+        var scope = string.Create(CultureInfo.InvariantCulture, $"classes|deleted|search={search}");
+
+        ClassListPosition? after = null;
+        if (request.Cursor is not null)
+        {
+            var decoded = PageCursor.Decode(request.Cursor, scope);
+            if (!decoded.Succeeded || !Guid.TryParseExact(decoded.Value!.TieBreaker, "N", out var afterId))
+            {
+                return OperationResult.Failure<CursorPage<ClassDeletedServiceModel>>(
+                    OperationError.Of(ErrorCodes.CursorInvalid, "The cursor is not valid for this list."));
+            }
+
+            after = new ClassListPosition(decoded.Value.SortValue, afterId);
+        }
+
+        var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
+        var rows = await dataLayer.ListDeletedAsync(after, limit + 1, search, cancellationToken);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            rows.RemoveAt(limit);
+            var last = rows[^1];
+            next = new PageCursor(last.Title, last.Id.ToString("N")).Encode(scope);
+        }
+
+        return OperationResult.Success(new CursorPage<ClassDeletedServiceModel>([.. rows.Select(row => row.ToServiceModel())], next));
+    }
+
+    public async Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var offering = await dataLayer.FindAsync(id, cancellationToken);
+        if (offering is null)
+        {
+            return OperationResult.Failure(OperationError.Of(ErrorCodes.NotFound, "There is no such class."));
+        }
+
+        if (EntityTag.Verify(offering.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure(versionError);
+        }
+
+        // Every run's SKU goes back to the pool with the class: the one that replaces it can use them (ADR 0037).
+        var released = new SkuChanges([], [.. offering.Runs.Select(run => new SkuReservation(run.Sku, run.Id))]);
+
+        // From any status, Published included: "this was a mistake" is not a lifecycle step, and the delete stages
+        // the revalidation that takes it off the site (ADR 0052).
+        return await dataLayer.DeleteAsync(offering, released, actorUserId, cancellationToken) switch
+        {
+            ClassWriteOutcome.Saved => OperationResult.Success(),
+            _ => OperationResult.Failure(EntityTag.Conflict(What)),
+        };
+    }
+
+    public async Task<OperationResult<ClassDetail>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var offering = await dataLayer.FindDeletedAsync(id, cancellationToken);
+        if (offering is null)
+        {
+            return NotFound();
+        }
+
+        if (EntityTag.Verify(offering.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure<ClassDetail>(versionError);
+        }
+
+        // The delete freed the address, so another record may be living there now. Refused rather than renamed for
+        // the staff member: which of the two keeps it is their decision (ADR 0052).
+        if (await dataLayer.SlugExistsAsync(offering.Slug, offering.Id, cancellationToken))
+        {
+            return OperationResult.Failure<ClassDetail>(SlugTaken(offering.Slug));
+        }
+
+        // The delete released each run's SKU, so they may be someone else's now.
+        var wanted = offering.Runs.Select(run => run.Sku).ToList();
+        var owners = await dataLayer.SkuOwnersAsync(wanted, cancellationToken);
+        var clashes = offering.Runs
+            .Where(run => owners.TryGetValue(run.Sku, out var owner) && owner.OwnerId != run.Id)
+            .Select(run => run.Sku)
+            .ToList();
+        if (clashes.Count > 0)
+        {
+            return OperationResult.Failure<ClassDetail>(SkuTaken(clashes));
+        }
+
+        var reserved = new SkuChanges([.. offering.Runs.Select(run => new SkuReservation(run.Sku, run.Id))], []);
+
+        var deletedAs = offering.Status;
+
+        // Back as a Draft, never straight back onto the site: what publishing requires may no longer hold, and a
+        // restore is a decision to look at the record again, not to publish it (ADR 0052).
+        offering.Status = PublishStatus.Draft;
+        offering.ScheduledFor = null;
+
+        return await dataLayer.RestoreAsync(offering, reserved, deletedAs, actorUserId, cancellationToken) switch
+        {
+            ClassWriteOutcome.Saved => OperationResult.Success(ToDetail(offering)),
+            ClassWriteOutcome.SlugTaken => OperationResult.Failure<ClassDetail>(SlugTaken(offering.Slug)),
+            ClassWriteOutcome.SkuTaken => OperationResult.Failure<ClassDetail>(SkuTaken(wanted)),
+            _ => Conflict(),
+        };
+    }
+
+
     public async Task<OperationResult<ClassDetail>> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         var offering = await dataLayer.FindAsync(id, cancellationToken);
@@ -273,6 +390,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         PublishCommand command,
         string? ifMatch,
         ClassMediaCheck? media,
+        ClassInstructorCheck? instructors,
         string actorUserId,
         CancellationToken cancellationToken)
     {
@@ -295,7 +413,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         if (command == PublishCommand.Publish)
         {
-            if (PublishRequirementError(offering, media) is { } requirementError)
+            if (PublishRequirementError(offering, media, instructors) is { } requirementError)
             {
                 return OperationResult.Failure<ClassDetail>(requirementError);
             }
@@ -324,6 +442,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         DateTimeOffset scheduledFor,
         string? ifMatch,
         ClassMediaCheck? media,
+        ClassInstructorCheck? instructors,
         string actorUserId,
         CancellationToken cancellationToken)
     {
@@ -355,7 +474,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
 
         // Checked now as well as at publish, so staff hear about a missing summary, instructor or session while they
         // are looking at the screen rather than at midnight, when only the audit trail is watching (ADR 0036).
-        if (PublishRequirementError(offering, media) is { } requirementError)
+        if (PublishRequirementError(offering, media, instructors) is { } requirementError)
         {
             return OperationResult.Failure<ClassDetail>(requirementError);
         }
@@ -404,7 +523,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         dataLayer.ListDueAsync(asOf, take, cancellationToken);
 
     public async Task<ScheduledPublishOutcome> PublishScheduledAsync(
-        Guid id, DateTimeOffset asOf, ClassMediaCheck? media, CancellationToken cancellationToken)
+        Guid id, DateTimeOffset asOf, ClassMediaCheck? media, ClassInstructorCheck? instructors, CancellationToken cancellationToken)
     {
         var offering = await dataLayer.FindAsync(id, cancellationToken);
 
@@ -426,7 +545,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         }
 
         var from = offering.Status;
-        if (PublishRequirementError(offering, media) is { } requirementError)
+        if (PublishRequirementError(offering, media, instructors) is { } requirementError)
         {
             // Back to Draft rather than left Scheduled: a record whose time has passed would otherwise be retried
             // every minute for ever, and nobody would be told (ADR 0036).
@@ -820,7 +939,8 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
     /// price, and the hero's alt text, are what a draft may leave unfinished. All are reported at once, so the editor
     /// fixes everything in one pass.
     /// </summary>
-    private static OperationError? PublishRequirementError(ClassOffering offering, ClassMediaCheck? media)
+    private static OperationError? PublishRequirementError(
+        ClassOffering offering, ClassMediaCheck? media, ClassInstructorCheck? instructors)
     {
         var problems = new List<(string Field, string Error)>();
 
@@ -841,6 +961,12 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             if (run.InstructorId is null)
             {
                 problems.Add(("runs", $"{name} needs an instructor."));
+            }
+            else if (instructors is not null && !instructors.Known.ContainsKey(run.InstructorId.Value))
+            {
+                // The instructor was deleted since the run named them (ADR 0052). Publishing needs a real one, and
+                // the site would otherwise show the run with no teacher.
+                problems.Add(("runs", $"{name}'s instructor has been deleted. Choose another, or restore them."));
             }
 
             if (run.Sessions.Count == 0)

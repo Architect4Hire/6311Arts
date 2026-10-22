@@ -30,12 +30,47 @@ internal sealed class ArtistsRepository(ArtsDbContext context) : IArtistsReposit
     public Task<Artist?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         Artists.FirstOrDefaultAsync(artist => artist.Id == id, cancellationToken);
 
+    public Task<Artist?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        Artists.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(artist => artist.Id == id && artist.DeletedAt != null, cancellationToken);
+
+    public Task<List<ArtistDeletedRow>> ListDeletedAsync(
+        ArtistListPosition? after, int take, string? search, CancellationToken cancellationToken)
+    {
+        // The one list that asks past the query filter, and then for the deleted rows alone (ADR 0052).
+        var query = Artists.IgnoreQueryFilters().AsNoTracking().Where(artist => artist.DeletedAt != null);
+
+        if (!string.IsNullOrEmpty(search))
+        {
+            var pattern = $"%{EscapeLike(search)}%";
+            query = query.Where(artist => EF.Functions.Like(artist.Name, pattern, LikeEscape.ToString()));
+        }
+
+        if (after is not null)
+        {
+            // The same order as the main list, so one cursor shape serves both.
+            #pragma warning disable CA1309
+            query = query.Where(artist => string.Compare(artist.Name, after.Name) > 0
+                || (artist.Name == after.Name && artist.Id.CompareTo(after.Id) > 0));
+#pragma warning restore CA1309
+        }
+
+        return query
+            .OrderBy(artist => artist.Name)
+            .ThenBy(artist => artist.Id)
+            .Take(take)
+            .Select(artist => new ArtistDeletedRow(
+                artist.Id, artist.Name, artist.Slug, artist.Status, artist.DeletedAt!.Value, artist.RowVersion))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         Artists.AsNoTracking().AnyAsync(
             artist => artist.Slug == slug && (exceptId == null || artist.Id != exceptId), cancellationToken);
 
+    /// <remarks>Deleted records included, so a seed or a re-import never recreates one (ADR 0052).</remarks>
     public async Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
-        [.. await Artists.AsNoTracking().Select(artist => artist.Slug).ToListAsync(cancellationToken)];
+        [.. await Artists.IgnoreQueryFilters().AsNoTracking().Select(artist => artist.Slug).ToListAsync(cancellationToken)];
 
     public Task<List<ArtistSummaryServiceModel>> ListAsync(
         ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken)

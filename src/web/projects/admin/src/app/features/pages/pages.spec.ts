@@ -7,7 +7,7 @@ import { vi } from 'vitest';
 import { ConfirmService } from '../../core/confirm/confirm.service';
 import { SessionService } from '../../core/session/session.service';
 import { Page } from '../../models/page';
-import { PAGE, toPageSummary } from '../../models/page.fixtures';
+import { PAGE, toPageDeletedRow, toPageSummary } from '../../models/page.fixtures';
 import { RichTextEditor } from '../../shared/rich-text-editor/rich-text-editor';
 import { PageEditor } from './page-editor/page-editor';
 import { PageList } from './page-list/page-list';
@@ -123,6 +123,83 @@ describe('PageList', () => {
 
     expect(fixture.nativeElement.querySelector('ui-empty-state')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('tbody')).toBeNull();
+  });
+
+  it('shows Deleted to Admins only, and restores a page from it', async () => {
+    // ADR 0052: the Deleted view and the restore are the Admin's, like the delete itself.
+    const { http } = await configure();
+    const asEditor = TestBed.createComponent(PageList);
+    asEditor.detectChanges();
+    http.expectOne((r) => r.url === BASE).flush({ items: [], nextCursor: null });
+    await settle(asEditor);
+
+    expect(button(asEditor.nativeElement, 'Deleted')).toBeUndefined();
+    TestBed.resetTestingModule();
+
+    const admin = await configure(['Admin']);
+    const fixture = TestBed.createComponent(PageList);
+    const root = fixture.nativeElement as HTMLElement;
+    fixture.detectChanges();
+    admin.http.expectOne((r) => r.url === BASE).flush({ items: [], nextCursor: null });
+    await settle(fixture);
+
+    button(root, 'Deleted')!.click();
+    await settle(fixture);
+
+    // The live list is not fetched behind the Deleted view: it would announce its own count over this one.
+    admin.http.expectNone((r) => r.url === BASE);
+
+    const deleted = admin.http.expectOne((r) => r.url === `${BASE}/deleted`);
+    expect(deleted.request.params.has('status')).toBe(false);
+    deleted.flush({ items: [toPageDeletedRow(PAGE)], nextCursor: null });
+    await settle(fixture);
+
+    // No link: there is no editor to open for a page nothing else can see.
+    expect(root.querySelector('tbody th a')).toBeNull();
+    expect(text(root.querySelector('tbody tr'))).toContain('Privacy Policy');
+
+    const ask = vi.spyOn(admin.confirm, 'confirm').mockResolvedValue(true);
+    button(root, 'Restore')!.click();
+    await settle(fixture);
+
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({ heading: 'Restore “Privacy Policy”?' }),
+    );
+    const restore = admin.http.expectOne(`${ONE}/restore`);
+    expect(restore.request.headers.get('If-Match')).toBe(PAGE.etag);
+    restore.flush(PAGE);
+    await settle(fixture);
+
+    admin.http.expectOne((r) => r.url === `${BASE}/deleted`).flush({ items: [], nextCursor: null });
+    await settle(fixture);
+    expect(text(root)).toContain('No page has been deleted.');
+  });
+
+  it('says so when a restore is refused because the address was taken', async () => {
+    const { http, confirm } = await configure(['Admin']);
+    const fixture = TestBed.createComponent(PageList);
+    const root = fixture.nativeElement as HTMLElement;
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === BASE).flush({ items: [], nextCursor: null });
+    await settle(fixture);
+
+    button(root, 'Deleted')!.click();
+    await settle(fixture);
+    http
+      .expectOne((r) => r.url === `${BASE}/deleted`)
+      .flush({ items: [toPageDeletedRow(PAGE)], nextCursor: null });
+    await settle(fixture);
+
+    vi.spyOn(confirm, 'confirm').mockResolvedValue(true);
+    button(root, 'Restore')!.click();
+    await settle(fixture);
+    http
+      .expectOne(`${ONE}/restore`)
+      .flush({ code: 'cms.slug_taken' }, { status: 409, statusText: 'Conflict' });
+    await settle(fixture);
+
+    expect(text(root)).toContain('couldn’t be restored');
+    expect(text(root)).toContain('/privacy');
   });
 });
 
@@ -300,6 +377,70 @@ describe('PageEditor', () => {
     http.expectOne(`${ONE}/archive`).flush({ ...published, status: 'Archived', etag: '"v2"' });
     await settle(fixture);
     expect(text(root.querySelector('header'))).toContain('Archived');
+  });
+
+  it('offers delete to Admins only, warns what it does, and returns to the list', async () => {
+    // ADR 0052: Admin only, and offered from any status — including Published, which the dialog says will stop
+    // working.
+    const published: Page = {
+      ...PAGE,
+      status: 'Published',
+      slugLocked: true,
+      publishedAt: PAGE.createdAt,
+    };
+    const editor = await openEditor(published);
+    expect(button(editor.root, 'Delete page')).toBeUndefined();
+    TestBed.resetTestingModule();
+
+    const { http, fixture, root, confirm, router } = await openEditor(published, ['Admin']);
+    const ask = vi.spyOn(confirm, 'confirm').mockResolvedValue(true);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    button(root, 'Delete page')!.click();
+    await settle(fixture);
+
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        heading: 'Delete this page?',
+        message: expect.stringContaining('6311arts.com/privacy stops working'),
+      }),
+    );
+    const deleted = http.expectOne(ONE);
+    expect(deleted.request.method).toBe('DELETE');
+    expect(deleted.request.headers.get('If-Match')).toBe(published.etag);
+    deleted.flush(null, { status: 204, statusText: 'No Content' });
+    await settle(fixture);
+
+    expect(navigate).toHaveBeenCalledWith(['/pages'], {
+      state: { pageDeleted: 'Privacy Policy' },
+    });
+  });
+
+  it('keeps the page when the delete dialog is cancelled', async () => {
+    const { http, fixture, root, confirm } = await openEditor(PAGE, ['Admin']);
+    vi.spyOn(confirm, 'confirm').mockResolvedValue(false);
+
+    button(root, 'Delete page')!.click();
+    await settle(fixture);
+
+    // Nothing was sent, and the editor is still showing the page.
+    http.expectNone(ONE);
+    expect(button(root, 'Delete page')).toBeDefined();
+  });
+
+  it('keeps the page and says why when the delete is refused', async () => {
+    const { http, fixture, root, confirm } = await openEditor(PAGE, ['Admin']);
+    vi.spyOn(confirm, 'confirm').mockResolvedValue(true);
+
+    button(root, 'Delete page')!.click();
+    await settle(fixture);
+    http
+      .expectOne(ONE)
+      .flush({ code: 'concurrency.conflict' }, { status: 409, statusText: 'Conflict' });
+    await settle(fixture);
+
+    expect(text(root)).toContain('Someone else changed this page a moment ago');
+    expect(button(root, 'Delete page')).toBeDefined();
   });
 
   it('schedules the page and offers a preview link', async () => {

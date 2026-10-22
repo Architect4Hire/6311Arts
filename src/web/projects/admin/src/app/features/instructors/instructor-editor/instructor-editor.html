@@ -379,6 +379,25 @@
               [entityId]="instructor.id"
               [dirty]="dirty()"
             />
+            @if (canDelete()) {
+              <div class="cms-danger">
+                <h3 class="cms-danger__title">Delete</h3>
+                <p class="panel__text">
+                  The instructor leaves the site and the list, and their web address is free again. An
+                  Admin can restore them from Deleted, as a draft.
+                </p>
+                <button
+                  uiButton
+                  type="button"
+                  size="sm"
+                  [busy]="deleting()"
+                  [disabled]="busy()"
+                  (click)="remove()"
+                >
+                  Delete instructor
+                </button>
+              </div>
+            }
           </section>
         }
       </aside>

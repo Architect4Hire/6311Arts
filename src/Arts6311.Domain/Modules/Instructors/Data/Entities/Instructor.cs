@@ -7,7 +7,7 @@ namespace Arts6311.Domain.Modules.Instructors.Data.Entities;
 /// portrait and links, and, when they also sell work in the shop, the artist record that work is credited to. A class
 /// run names its instructor by id. Not Square-synced: an instructor has no price, stock or catalog object of its own.
 /// </summary>
-public sealed class Instructor
+public sealed class Instructor : ISoftDeletable
 {
     public Guid Id { get; set; }
 
@@ -58,6 +58,15 @@ public sealed class Instructor
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>
+    /// When staff deleted the instructor, or <c>null</c> while it is live (ADR 0052). A deleted record is invisible
+    /// to every query — the site included — and only an Admin's restore brings it back, as a Draft.
+    /// </summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>The user id behind the delete. <c>null</c> while the record is live.</summary>
+    public string? DeletedBy { get; set; }
 
     /// <summary>The user id behind the last write. The importer compares it to tell staff edits from its own (content.md).</summary>
     public string UpdatedBy { get; set; } = string.Empty;

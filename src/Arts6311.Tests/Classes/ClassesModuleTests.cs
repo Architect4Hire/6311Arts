@@ -10,6 +10,9 @@ using Arts6311.Domain.Modules.Instructors.Data.Entities;
 using Arts6311.Tests.Classes.Infrastructure;
 using Arts6311.Tests.Media.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Arts6311.Domain.Modules.Instructors.Facade;
+using Microsoft.Extensions.DependencyInjection;
+using Arts6311.Domain.Managers.Concurrency;
 
 namespace Arts6311.Tests.Classes;
 
@@ -21,6 +24,8 @@ namespace Arts6311.Tests.Classes;
 public sealed class ClassesModuleTests
 {
     private const string Editor = ClassesTestHost.EditorId;
+
+    private const string Admin = ClassesTestHost.AdminId;
 
     private static readonly DateTimeOffset FirstSession = new(2026, 10, 24, 19, 0, 0, TimeSpan.Zero);
 
@@ -604,6 +609,87 @@ public sealed class ClassesModuleTests
         run.DisplayTimeZone,
         run.StartingPriceCents,
         [.. run.Sessions.Select(session => new ClassSessionViewModel(session.StartsAt, session.EndsAt, session.Id))]);
+
+    [Fact]
+    public async Task ADeletedRecordIsGoneFromEveryReadAndARestoreBringsItBackAsADraft()
+    {
+        // ADR 0052: one query filter, so "deleted" means gone from every read — and a restore is a decision to
+        // look at the record again, not to publish it.
+        await using var host = await ClassesTestHost.CreateAsync(Ct);
+        var created = await CreateAsync(host, new ClassCreateViewModel("Intro to Scratchboard"));
+
+        var deleted = await host.WithFacadeAsync(facade => facade.DeleteAsync(created.Id, created.ETag, ClassesTestHost.AdminId, Ct));
+
+        Assert.True(deleted.Succeeded, deleted.Error?.Code);
+        Assert.Equal(ErrorCodes.NotFound, (await host.WithFacadeAsync(facade => facade.GetAsync(created.Id, Ct))).Error!.Code);
+        Assert.Empty((await Ok(host.WithFacadeAsync(facade => facade.ListAsync(new ClassListViewModel(), Ct)))).Items);
+        Assert.Null(await host.StoredAsync(created.Id));
+
+        // The address is free at once, which is the point: the mistake stops standing in the way.
+        var replacement = await CreateAsync(host, new ClassCreateViewModel("Intro to Scratchboard"));
+        Assert.Equal("intro-to-scratchboard", replacement.Slug);
+
+        var trash = await Ok(host.WithFacadeAsync(facade => facade.ListDeletedAsync(new ClassListViewModel(), Ct)));
+        var row = Assert.Single(trash.Items);
+        Assert.Equal("Intro to Scratchboard", row.Title);
+
+        // The replacement holds the address now, so the restore is refused until it does not.
+        var refused = await host.WithFacadeAsync(facade => facade.RestoreAsync(created.Id, row.ETag, ClassesTestHost.AdminId, Ct));
+        Assert.Equal(ContentErrorCodes.SlugTaken, refused.Error!.Code);
+
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(replacement.Id, replacement.ETag, ClassesTestHost.AdminId, Ct));
+        var restored = await Ok(host.WithFacadeAsync(facade => facade.RestoreAsync(created.Id, row.ETag, ClassesTestHost.AdminId, Ct)));
+
+        Assert.Equal(PublishStatus.Draft, restored.Status);
+        Assert.Null(restored.ScheduledFor);
+        Assert.Contains("class-offering.deleted", await host.AuditActionsAsync());
+        Assert.Contains("class-offering.restored", await host.AuditActionsAsync());
+    }
+
+    [Fact]
+    public async Task AnInstructorAClassRunNamesCannotBeDeletedAndAClassCannotPublishWithoutThem()
+    {
+        // The two halves of the same rule (ADR 0052, 0044): while a live class names the instructor, the delete is
+        // refused; and if the class was itself deleted when the instructor went, publishing it again is refused
+        // rather than showing a run with no teacher.
+        await using var host = await ClassesTestHost.CreateAsync(Ct);
+        var gwen = await host.AddInstructorAsync("Gwen Schilling");
+        var offering = await CreateAsync(host, new ClassCreateViewModel(
+            "Intro to Screen Printing",
+            Summary: "Burn your first screen.",
+            Runs: [Run(0) with { InstructorId = gwen, StartingPriceCents = 30000 }]));
+
+        var refused = await DeleteInstructorAsync(host, gwen);
+
+        Assert.Equal(ContentErrorCodes.InUse, refused.Error!.Code);
+        Assert.Contains("“Intro to Screen Printing”", refused.Error.Message, StringComparison.Ordinal);
+
+        // With the class itself deleted, nothing live names her, so she goes.
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(offering.Id, offering.ETag, Admin, Ct));
+        Assert.True((await DeleteInstructorAsync(host, gwen)).Succeeded);
+
+        // Restoring the class brings back a run naming an instructor who is gone. It comes back as a Draft, and
+        // publishing it says so rather than going live without a teacher.
+        var tag = EntityTag.Format((await host.QueryAsync(context => context.Set<ClassOffering>()
+            .IgnoreQueryFilters().AsNoTracking().Where(row => row.Id == offering.Id)
+            .Select(row => row.RowVersion).SingleAsync(Ct))));
+        var restored = await Ok(host.WithFacadeAsync(facade => facade.RestoreAsync(offering.Id, tag, Admin, Ct)));
+
+        var cannotPublish = await host.WithFacadeAsync(facade => facade.PublishAsync(restored.Id, restored.ETag, Editor, Ct));
+
+        Assert.Equal(ErrorCodes.ValidationFailed, cannotPublish.Error!.Code);
+        Assert.Contains("instructor has been deleted", cannotPublish.Error.FieldErrors["runs"][0], StringComparison.Ordinal);
+    }
+
+    private static async Task<OperationResult> DeleteInstructorAsync(ClassesTestHost host, Guid instructorId)
+    {
+        var version = await host.QueryAsync(context => context.Set<Instructor>().AsNoTracking()
+            .Where(row => row.Id == instructorId).Select(row => row.RowVersion).SingleAsync(Ct));
+
+        using var scope = host.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<IInstructorsFacade>()
+            .DeleteAsync(instructorId, EntityTag.Format(version), Admin, Ct);
+    }
 
     /// <summary>A draft with everything publishing requires, taught by Gwen.</summary>
     private static async Task<ClassServiceModel> ReadyAsync(ClassesTestHost host)

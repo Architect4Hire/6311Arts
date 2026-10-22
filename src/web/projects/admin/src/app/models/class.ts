@@ -418,3 +418,51 @@ export function decodeClassPage(body: unknown): ClassPage | null {
 export type ClassProblem = ApiProblem;
 
 export const decodeClassProblem = decodeApiProblem;
+
+/** One row of the Deleted view (`ClassDeletedServiceModel`, ADR 0052). Admin only. */
+export interface ClassDeletedRow {
+  readonly id: string;
+  readonly title: string;
+  readonly slug: string;
+  /** What it was when it was deleted, not where it is now. */
+  readonly status: PublishStatus;
+  readonly deletedAt: string;
+  /** The row version, sent back as `If-Match` when restoring it. */
+  readonly etag: string;
+}
+
+export interface ClassDeletedList {
+  readonly items: readonly ClassDeletedRow[];
+  readonly nextCursor: string | null;
+}
+
+export function decodeClassDeletedRow(body: unknown): ClassDeletedRow | null {
+  const f = fields(body);
+  if (
+    !f ||
+    !isString(f['id']) ||
+    !isString(f['title']) ||
+    !isString(f['slug']) ||
+    !isStatus(f['status']) ||
+    !isString(f['deletedAt']) ||
+    !isString(f['etag'])
+  ) {
+    return null;
+  }
+  return {
+    id: f['id'],
+    title: f['title'],
+    slug: f['slug'],
+    status: f['status'],
+    deletedAt: f['deletedAt'],
+    etag: f['etag'],
+  };
+}
+
+export function decodeClassDeletedList(body: unknown): ClassDeletedList | null {
+  const f = fields(body);
+  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
+  const items = f['items'].map(decodeClassDeletedRow);
+  if (items.some((item) => item === null)) return null;
+  return { items: items as ClassDeletedRow[], nextCursor: f['nextCursor'] };
+}

@@ -31,6 +31,16 @@ internal sealed class InstructorsDataLayer(
     public Task<Instructor?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         repository.FindAsync(id, cancellationToken);
 
+    public Task<Instructor?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.FindDeletedAsync(id, cancellationToken);
+
+    public Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken) =>
+        repository.ListNamingArtistAsync(artistId, take, cancellationToken);
+
+    public Task<List<InstructorDeletedRow>> ListDeletedAsync(
+        InstructorListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
+        repository.ListDeletedAsync(after, take, search, cancellationToken);
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         repository.SlugExistsAsync(slug, exceptId, cancellationToken);
 
@@ -106,6 +116,47 @@ internal sealed class InstructorsDataLayer(
         audit.Record(new AuditEntry(
             actorUserId, InstructorAudit.For(command), InstructorAudit.ResourceType, instructor.Id.ToString(), correlation.Current,
             $"{from} → {instructor.Status}.", BeforeReference: $"status:{from}", AfterReference: $"status:{instructor.Status}"));
+
+        return await SaveAsync(instructor, cancellationToken);
+    }
+
+    public async Task<InstructorWriteOutcome> DeleteAsync(
+        Instructor instructor, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(instructor);
+
+        var now = clock.UtcNow;
+        var deletedAs = instructor.Status;
+        SoftDelete.Stamp(instructor, actorUserId, now);
+        Stamp(instructor, actorUserId, now);
+
+        // Whatever its status, as every write to an instructor is: an unpublished instructor is still named on published
+        // classes (ADR 0042, 0043), so a delete changes what the site shows whatever the record was.
+        StageRevalidation(instructor);
+
+        audit.Record(new AuditEntry(
+            actorUserId, InstructorAudit.Deleted, InstructorAudit.ResourceType, instructor.Id.ToString(), correlation.Current,
+            $"Deleted while {deletedAs.ToString().ToLowerInvariant()}. Its web address is free again.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"slug:{instructor.Slug}"));
+
+        return await SaveAsync(instructor, cancellationToken);
+    }
+
+    public async Task<InstructorWriteOutcome> RestoreAsync(
+        Instructor instructor, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(instructor);
+
+        SoftDelete.Clear(instructor);
+        Stamp(instructor, actorUserId, clock.UtcNow);
+
+        // The same revalidation as any other write to this type, for the reason the delete above gives.
+        StageRevalidation(instructor);
+
+        audit.Record(new AuditEntry(
+            actorUserId, InstructorAudit.Restored, InstructorAudit.ResourceType, instructor.Id.ToString(), correlation.Current,
+            $"Restored as draft; it was {deletedAs.ToString().ToLowerInvariant()} when it was deleted.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"status:{instructor.Status}"));
 
         return await SaveAsync(instructor, cancellationToken);
     }

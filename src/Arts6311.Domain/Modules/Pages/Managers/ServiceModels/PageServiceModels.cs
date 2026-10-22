@@ -35,6 +35,18 @@ public sealed record PageSummaryServiceModel(
     PublishStatus Status,
     DateTimeOffset UpdatedAt);
 
+/// <summary>One row of the Deleted view (ADR 0052). Admin only; restoring it brings the page back as a Draft.</summary>
+/// <param name="Status">What the page was when it was deleted — Draft, Published, Archived — not where it is now.</param>
+/// <param name="DeletedAt">When it was deleted (UTC).</param>
+/// <param name="ETag">The row version, to send back as <c>If-Match</c> when restoring it.</param>
+public sealed record PageDeletedServiceModel(
+    Guid Id,
+    string Title,
+    string Slug,
+    PublishStatus Status,
+    DateTimeOffset DeletedAt,
+    [property: JsonPropertyName("etag")] string ETag);
+
 /// <summary>One published page as the public site shows it (ADR 0042): no status, no staff bookkeeping.</summary>
 /// <param name="BodyHtml">Sanitized HTML (ADR 0034): exactly what is stored, which is all the site renders.</param>
 /// <param name="UpdatedAt">When it last changed (UTC), for a "last updated" line on a policy.</param>

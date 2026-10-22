@@ -130,8 +130,14 @@ internal sealed class PagesTestHost : IAsyncDisposable
         await action(context);
     }
 
+    /// <summary>The page as a query sees it: <c>null</c> once it is deleted, like every other read (ADR 0052).</summary>
     public Task<Page?> StoredAsync(Guid id) =>
         QueryAsync(context => context.Set<Page>().AsNoTracking().Include(page => page.Images)
+            .SingleOrDefaultAsync(page => page.Id == id));
+
+    /// <summary>The row itself, deleted or not: what the database still holds after a delete.</summary>
+    public Task<Page?> RowAsync(Guid id) =>
+        QueryAsync(context => context.Set<Page>().IgnoreQueryFilters().AsNoTracking().Include(page => page.Images)
             .SingleOrDefaultAsync(page => page.Id == id));
 
     public Task<List<string>> AuditActionsAsync() =>

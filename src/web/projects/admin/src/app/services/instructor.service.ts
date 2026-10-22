@@ -11,6 +11,8 @@ import {
   InstructorUpdate,
   decodeInstructor,
   decodeInstructorPage,
+  InstructorDeletedList,
+  decodeInstructorDeletedList,
 } from '../models/instructor';
 
 const BASE = '/api/v1/cms/instructors';
@@ -80,6 +82,40 @@ export class InstructorService {
       )
       .pipe(map((body) => decoded(decodeInstructor(body), 'instructor')));
   }
+
+  /** The Deleted view (ADR 0052). Admin only; its own cursor, not the list's. */
+  listDeleted(query: { cursor?: string | null; limit?: number; search?: string } = {}): Observable<InstructorDeletedList> {
+    let params = new HttpParams();
+    if (query.cursor) params = params.set('cursor', query.cursor);
+    if (query.limit) params = params.set('limit', query.limit);
+    if (query.search) params = params.set('search', query.search);
+
+    return this.http
+      .get<unknown>(`${BASE}/deleted`, { params, context: quiet() })
+      .pipe(map((body) => decoded(decodeInstructorDeletedList(body), 'list of deleted instructors')));
+  }
+
+  /**
+   * Deletes the instructor, under the row version the editor read (ADR 0052): it leaves the site and the list, and
+   * an Admin can restore it from the Deleted view. Admin only.
+   */
+  delete(id: string, etag: string): Observable<void> {
+    return this.http.delete<void>(`${BASE}/${encodeURIComponent(id)}`, {
+      headers: new HttpHeaders({ 'If-Match': etag }),
+      context: quiet(),
+    });
+  }
+
+  /** Brings a deleted instructor back as a Draft, under the row version the Deleted view read. Admin only. */
+  restore(id: string, etag: string): Observable<Instructor> {
+    return this.http
+      .post<unknown>(`${BASE}/${encodeURIComponent(id)}/restore`, null, {
+        headers: new HttpHeaders({ 'If-Match': etag }),
+        context: quiet(),
+      })
+      .pipe(map((body) => decoded(decodeInstructor(body), 'instructor')));
+  }
+
 }
 
 function quiet(): HttpContext {

@@ -64,6 +64,42 @@ public sealed class PagesLayerTests
             log.Calls);
     }
 
+    [Fact]
+    public async Task DeletingAPublishedPageStagesItsRevalidationAndDeletingADraftStagesNone()
+    {
+        // ADR 0052: the delete takes a live page off the site, so it clears what was showing it. Nothing public
+        // renders a Draft, so that delete spends no outbox row (content.md).
+        var (dataLayer, _, audit, log) = DataLayer();
+
+        await dataLayer.DeleteAsync(NewPage(PublishStatus.Published), "admin-1", Ct);
+        await dataLayer.DeleteAsync(NewPage(), "admin-1", Ct);
+
+        Assert.Equal(
+            ["outbox:site.revalidate-requested", "audit:page.deleted", "save", "audit:page.deleted", "save"],
+            log.Calls);
+        Assert.Equal("status:Published", audit.Entries[0].BeforeReference);
+    }
+
+    [Fact]
+    public async Task ADeleteMarksTheRowAndARestoreClearsItWithoutRevalidating()
+    {
+        var (dataLayer, _, audit, log) = DataLayer();
+        var page = NewPage(PublishStatus.Published);
+
+        await dataLayer.DeleteAsync(page, "admin-1", Ct);
+        Assert.Equal((Now, "admin-1"), (page.DeletedAt, page.DeletedBy));
+
+        page.Status = PublishStatus.Draft;
+        await dataLayer.RestoreAsync(page, PublishStatus.Published, "admin-1", Ct);
+
+        Assert.Equal((null, null), (page.DeletedAt, page.DeletedBy));
+
+        // One revalidation in all: the delete's. A restore brings the page back as a Draft, which nothing renders.
+        Assert.Equal(1, log.Calls.Count(call => call == "outbox:site.revalidate-requested"));
+        Assert.Equal(["page.deleted", "page.restored"], audit.Entries.Select(entry => entry.Action));
+        Assert.Equal(("status:Published", "status:Draft"), (audit.Entries[^1].BeforeReference, audit.Entries[^1].AfterReference));
+    }
+
     [Theory]
     [InlineData("admin")]
     [InlineData("signin")]
@@ -176,6 +212,105 @@ public sealed class PagesLayerTests
         Assert.Equal(("terms", PublishStatus.Draft, "<p>T</p>"), (terms.Slug, terms.Status, terms.Body));
     }
 
+    [Theory]
+    [InlineData(PublishStatus.Draft)]
+    [InlineData(PublishStatus.Scheduled)]
+    [InlineData(PublishStatus.Published)]
+    [InlineData(PublishStatus.Archived)]
+    public async Task APageIsDeletedFromAnyStatus(PublishStatus status)
+    {
+        // ADR 0052: "this was a mistake" is not a lifecycle step, so unlike the status commands there is no
+        // transition table to satisfy — Published goes straight out, taking its revalidation with it.
+        var (business, dataLayer) = Business();
+        var page = dataLayer.Add(NewPage(status));
+
+        var result = await business.DeleteAsync(page.Id, EntityTag.Format(page.RowVersion), "admin-1", Ct);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(["delete"], dataLayer.Writes);
+    }
+
+    [Fact]
+    public async Task ADeletedPageIsGoneToEveryOtherOperation()
+    {
+        var (business, dataLayer) = Business();
+        var page = dataLayer.Add(NewPage(PublishStatus.Published));
+        var tag = EntityTag.Format(page.RowVersion);
+        await business.DeleteAsync(page.Id, tag, "admin-1", Ct);
+
+        var read = await business.GetAsync(page.Id, Ct);
+        var edited = await business.UpdateAsync(page.Id, new PageUpdateViewModel(Title: "New"), tag, null, "e", Ct);
+        var unpublished = await business.TransitionAsync(page.Id, PublishCommand.Unpublish, tag, "e", Ct);
+        var deletedAgain = await business.DeleteAsync(page.Id, tag, "admin-1", Ct);
+
+        foreach (var result in new[] { read.Error, edited.Error, unpublished.Error, deletedAgain.Error })
+        {
+            Assert.Equal(ErrorCodes.NotFound, result!.Code);
+        }
+
+        // Only the delete itself was written: nothing above it reached the DataLayer.
+        Assert.Equal(["delete"], dataLayer.Writes);
+    }
+
+    [Fact]
+    public async Task ARestoreComesBackAsADraftWithItsScheduleClearedAndItsFirstPublishKept()
+    {
+        var (business, dataLayer) = Business();
+        var page = dataLayer.Add(NewPage(PublishStatus.Scheduled));
+        page.PublishedAt = Now.AddDays(-7);
+        page.ScheduledFor = Now.AddDays(1);
+        await business.DeleteAsync(page.Id, EntityTag.Format(page.RowVersion), "admin-1", Ct);
+
+        var restored = await business.RestoreAsync(page.Id, EntityTag.Format(page.RowVersion), "admin-1", Ct);
+
+        Assert.True(restored.Succeeded, restored.Error?.Code);
+        Assert.Equal(PublishStatus.Draft, restored.Value!.Status);
+        Assert.Null(restored.Value.ScheduledFor);
+
+        // PublishedAt is the first publish, which the delete did not undo: it is still what makes a later slug
+        // change owe a redirect (ADR 0035).
+        Assert.Equal(Now.AddDays(-7), restored.Value.PublishedAt);
+        Assert.True(restored.Value.SlugLocked);
+        Assert.Equal(PublishStatus.Scheduled, dataLayer.LastDeletedAs);
+    }
+
+    [Fact]
+    public async Task ARestoreIsRefusedWhenAnotherPageTookTheAddressAndAllowedOnceItIsFree()
+    {
+        var (business, dataLayer) = Business();
+        var page = dataLayer.Add(NewPage(PublishStatus.Published, slug: "privacy"));
+        await business.DeleteAsync(page.Id, EntityTag.Format(page.RowVersion), "admin-1", Ct);
+
+        // The delete freed "privacy", so a new page could take it — and did.
+        var replacement = dataLayer.Add(NewPage(slug: "privacy"));
+
+        var refused = await business.RestoreAsync(page.Id, EntityTag.Format(page.RowVersion), "admin-1", Ct);
+        replacement.Slug = "privacy-2";
+        var allowed = await business.RestoreAsync(page.Id, EntityTag.Format(page.RowVersion), "admin-1", Ct);
+
+        Assert.Equal(ContentErrorCodes.SlugTaken, refused.Error!.Code);
+        Assert.Contains("slug", refused.Error.FieldErrors.Keys);
+        Assert.True(allowed.Succeeded, allowed.Error?.Code);
+        Assert.Equal(["delete", "restore"], dataLayer.Writes);
+    }
+
+    [Fact]
+    public async Task ALivePageCannotBeRestoredAndAStaleTagIsAConflict()
+    {
+        var (business, dataLayer) = Business();
+        var page = dataLayer.Add(NewPage(PublishStatus.Published));
+
+        var live = await business.RestoreAsync(page.Id, EntityTag.Format(page.RowVersion), "admin-1", Ct);
+        var staleDelete = await business.DeleteAsync(page.Id, EntityTag.Format(Guid.NewGuid()), "admin-1", Ct);
+        await business.DeleteAsync(page.Id, EntityTag.Format(page.RowVersion), "admin-1", Ct);
+        var staleRestore = await business.RestoreAsync(page.Id, EntityTag.Format(Guid.NewGuid()), "admin-1", Ct);
+
+        Assert.Equal(ErrorCodes.NotFound, live.Error!.Code);
+        Assert.Equal(ErrorCodes.ConcurrencyConflict, staleDelete.Error!.Code);
+        Assert.Equal(ErrorCodes.ConcurrencyConflict, staleRestore.Error!.Code);
+        Assert.Equal(["delete"], dataLayer.Writes);
+    }
+
     // ---- Facade ----
 
     [Fact]
@@ -215,9 +350,13 @@ public sealed class PagesLayerTests
             await facade.PublishAsync(Guid.NewGuid(), null, "e", Ct),
             await facade.UnpublishAsync(Guid.NewGuid(), " ", "e", Ct),
             await facade.ArchiveAsync(Guid.NewGuid(), null, "admin-1", Ct),
+            await facade.RestoreAsync(Guid.NewGuid(), null, "admin-1", Ct),
         };
 
+        var deleted = await facade.DeleteAsync(Guid.NewGuid(), null, "admin-1", Ct);
+
         Assert.All(results, result => Assert.Equal(ErrorCodes.PreconditionRequired, result.Error!.Code));
+        Assert.Equal(ErrorCodes.PreconditionRequired, deleted.Error!.Code);
         Assert.Empty(business.Calls);
         Assert.Equal(0, media.Checks);
     }
@@ -287,7 +426,11 @@ public sealed class PagesLayerTests
             Rows.Add(page);
         }
 
-        public Task<Page?> FindAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(Rows.FirstOrDefault(row => row.Id == id));
+        public Task<Page?> FindAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(Rows.FirstOrDefault(row => row.Id == id && row.DeletedAt is null));
+
+        public Task<Page?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(Rows.FirstOrDefault(row => row.Id == id && row.DeletedAt is not null));
 
         public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) => Task.FromResult(SlugExists);
 
@@ -296,6 +439,10 @@ public sealed class PagesLayerTests
         public Task<List<PageSummaryServiceModel>> ListAsync(
             PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
             Task.FromResult(new List<PageSummaryServiceModel>());
+
+        public Task<List<PageDeletedRow>> ListDeletedAsync(
+            PageListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
+            Task.FromResult(new List<PageDeletedRow>());
 
         public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
         {
@@ -345,14 +492,30 @@ public sealed class PagesLayerTests
             return page;
         }
 
-        public Task<Page?> FindAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(rows.GetValueOrDefault(id));
+        public Task<Page?> FindAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.GetValueOrDefault(id) is { DeletedAt: null } live ? live : null);
+
+        public Task<Page?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(rows.GetValueOrDefault(id) is { DeletedAt: not null } deleted ? deleted : null);
 
         public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
-            Task.FromResult(rows.Values.Any(row => row.Slug == slug && row.Id != exceptId));
+            Task.FromResult(rows.Values.Any(row => row.Slug == slug && row.Id != exceptId && row.DeletedAt is null));
 
         public Task<List<PageSummaryServiceModel>> ListAsync(
             PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
             Task.FromResult(new List<PageSummaryServiceModel>());
+
+        public Task<List<PageDeletedRow>> ListDeletedAsync(
+            PageListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
+            Task.FromResult<List<PageDeletedRow>>(
+            [
+                .. rows.Values
+                    .Where(row => row.DeletedAt is not null)
+                    .OrderBy(row => row.Title, StringComparer.Ordinal)
+                    .Take(take)
+                    .Select(row => new PageDeletedRow(
+                        row.Id, row.Title, row.Slug, row.Status, row.DeletedAt!.Value, row.RowVersion)),
+            ]);
 
         public Task<PageWriteOutcome> CreateAsync(Page page, string actorUserId, string summary, CancellationToken cancellationToken)
         {
@@ -374,6 +537,36 @@ public sealed class PagesLayerTests
         {
             Writes.Add($"transition:{command}");
             return Task.FromResult(PageWriteOutcome.Saved);
+        }
+
+        public PageWriteOutcome DeleteOutcome { get; set; } = PageWriteOutcome.Saved;
+
+        public Task<PageWriteOutcome> DeleteAsync(Page page, string actorUserId, CancellationToken cancellationToken)
+        {
+            Writes.Add("delete");
+            if (DeleteOutcome == PageWriteOutcome.Saved)
+            {
+                SoftDelete.Stamp(page, actorUserId, Now);
+            }
+
+            return Task.FromResult(DeleteOutcome);
+        }
+
+        public PublishStatus? LastDeletedAs { get; private set; }
+
+        public PageWriteOutcome RestoreOutcome { get; set; } = PageWriteOutcome.Saved;
+
+        public Task<PageWriteOutcome> RestoreAsync(
+            Page page, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken)
+        {
+            Writes.Add("restore");
+            LastDeletedAs = deletedAs;
+            if (RestoreOutcome == PageWriteOutcome.Saved)
+            {
+                SoftDelete.Clear(page);
+            }
+
+            return Task.FromResult(RestoreOutcome);
         }
 
         public (PublishStatus From, string Reason)? LastAbandon { get; private set; }
@@ -431,6 +624,26 @@ public sealed class PagesLayerTests
         public Task<OperationResult<PageServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken)
         {
             Calls.Add("get");
+            return Task.FromResult(OperationResult.Success(Page));
+        }
+
+        public Task<OperationResult<CursorPage<PageDeletedServiceModel>>> ListDeletedAsync(
+            PageListViewModel request, CancellationToken cancellationToken)
+        {
+            Calls.Add("list-deleted");
+            return Task.FromResult(OperationResult.Success(new CursorPage<PageDeletedServiceModel>([], null)));
+        }
+
+        public Task<OperationResult> DeleteAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+        {
+            Calls.Add("delete");
+            return Task.FromResult(OperationResult.Success());
+        }
+
+        public Task<OperationResult<PageServiceModel>> RestoreAsync(
+            Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+        {
+            Calls.Add("restore");
             return Task.FromResult(OperationResult.Success(Page));
         }
 

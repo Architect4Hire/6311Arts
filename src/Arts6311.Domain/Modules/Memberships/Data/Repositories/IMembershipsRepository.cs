@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Memberships.Data.Entities;
+using Arts6311.Domain.Modules.Memberships.Managers;
 using Arts6311.Domain.Modules.Memberships.Managers.ServiceModels;
 
 namespace Arts6311.Domain.Modules.Memberships.Data.Repositories;
@@ -10,6 +11,18 @@ internal interface IMembershipsRepository
 
     /// <summary>One plan with its perks, tracked, for a read, an edit or a status command.</summary>
     Task<MembershipPlan?> FindAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One deleted membership plan, tracked, for a restore (ADR 0052). The one read that looks past the query filter for
+    /// a single row, so a live record is <c>null</c> here just as a deleted one is <c>null</c> everywhere else.
+    /// </summary>
+    Task<MembershipPlan?> FindDeletedAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One page of the Deleted view, in the same order as the list above so the two share their cursor (ADR 0052).
+    /// </summary>
+    Task<List<MembershipPlanDeletedRow>> ListDeletedAsync(
+        MembershipPlanListPosition? after, int take, string? search, CancellationToken cancellationToken);
 
     /// <summary>Whether another plan than <paramref name="exceptId"/> already has this slug.</summary>
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);

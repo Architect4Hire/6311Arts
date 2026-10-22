@@ -66,6 +66,7 @@ type Status =
   | { readonly kind: 'ready' }
   | { readonly kind: 'saving' }
   | { readonly kind: 'commanding'; readonly command: ArtistCommand }
+  | { readonly kind: 'deleting' }
   | { readonly kind: 'conflict'; readonly theirs: Artist };
 
 type FieldErrors = Partial<Record<'name' | 'slug' | 'medium' | 'bio' | 'portraitMediaId', string>>;
@@ -158,7 +159,7 @@ export class ArtistEditor implements HasUnsavedChanges {
   protected readonly isAdmin = computed(() => this.session.hasAnyRole([ROLES.admin]));
   protected readonly busy = computed(() => {
     const kind = this.status().kind;
-    return kind === 'saving' || kind === 'commanding';
+    return kind === 'saving' || kind === 'commanding' || kind === 'deleting';
   });
   protected readonly commanding = computed(() => {
     const status = this.status();
@@ -177,6 +178,11 @@ export class ArtistEditor implements HasUnsavedChanges {
     const status = this.artist()?.status;
     return this.isAdmin() && status !== undefined && status !== 'Archived';
   });
+
+  protected readonly deleting = computed(() => this.status().kind === 'deleting');
+
+  /** A saved artist an Admin can delete, whatever its status (ADR 0052). */
+  protected readonly canDelete = computed(() => this.isAdmin() && this.artist() !== null);
 
   protected readonly saveLabel = computed(() => {
     if (this.status().kind === 'saving') return this.artist() ? 'Saving…' : 'Creating…';
@@ -415,6 +421,56 @@ export class ArtistEditor implements HasUnsavedChanges {
       cancelLabel: 'Keep them',
     });
     if (confirmed) await this.run('archive');
+  }
+
+  /**
+   * Deletes the artist (ADR 0052). Unlike the status commands it is offered while the form is dirty — asking
+   * someone to save a record before throwing it away would be absurd — so the dialog says the unsaved edits go
+   * too. It acts on the saved version's row version, as every write does.
+   */
+  protected async remove(): Promise<void> {
+    const artist = this.artist();
+    if (!artist || this.busy()) return;
+
+    const live = artist.status === 'Published';
+    const confirmed = await this.confirm.confirm({
+      heading: 'Delete this artist?',
+      message:
+        (live
+          ? 'It leaves the public site within a minute, and leaves the CMS list. '
+          : 'The artist leaves the CMS list. ') +
+        (this.dirty() ? 'Your unsaved changes go with it. ' : '') +
+        'Its web address is free for another artist straight away. An Admin can restore it from Deleted, as a draft. The deletion is recorded under your name.',
+      confirmLabel: 'Delete artist',
+      cancelLabel: 'Keep them',
+    });
+    if (!confirmed) return;
+
+    this.errors.set({});
+    this.formError.set(null);
+    this.status.set({ kind: 'deleting' });
+    try {
+      await firstValueFrom(this.artists.delete(artist.id, artist.etag));
+
+      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
+      this.draft.set(draftOf(artist));
+      this.status.set({ kind: 'ready' });
+      await this.router.navigate(['/artists']);
+    } catch (error: unknown) {
+      const problem = problemOf(error);
+      this.status.set({ kind: 'ready' });
+      // cms.in_use names the records that still name this one, which is exactly what the editor needs to read,
+      // so its detail is shown as it came (ADR 0052).
+      this.showErrors(
+        {},
+        problem?.code === ARTIST_CODES.concurrencyConflict
+          ? 'Someone else changed this artist a moment ago. Reload it, check it, and try again.'
+          : problem?.code === ARTIST_CODES.inUse
+            ? (problem.detail ??
+              'Another record still names this artist. Take it off that record first.')
+            : messageOf(problem, 'The artist couldn’t be deleted. Try again.'),
+      );
+    }
   }
 
   /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */

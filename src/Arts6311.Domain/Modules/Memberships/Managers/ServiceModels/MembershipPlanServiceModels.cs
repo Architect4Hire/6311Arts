@@ -84,3 +84,15 @@ public sealed record SiteMembershipPlanServiceModel(
     long? PriceCents,
     string Currency,
     string? Cadence);
+
+/// <summary>One row of the Deleted view (ADR 0052). Admin only; restoring it brings the membership plan back as a Draft.</summary>
+/// <param name="Status">What it was when it was deleted — Draft, Published, Archived — not where it is now.</param>
+/// <param name="DeletedAt">When it was deleted (UTC).</param>
+/// <param name="ETag">The row version, to send back as <c>If-Match</c> when restoring it.</param>
+public sealed record MembershipPlanDeletedServiceModel(
+    Guid Id,
+    string Name,
+    string Slug,
+    PublishStatus Status,
+    DateTimeOffset DeletedAt,
+    [property: JsonPropertyName("etag")] string ETag);

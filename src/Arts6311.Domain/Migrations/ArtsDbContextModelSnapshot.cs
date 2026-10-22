@@ -272,6 +272,13 @@ namespace Arts6311.Domain.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<long?>("LegacyWordPressId")
                         .HasColumnType("bigint");
 
@@ -323,7 +330,11 @@ namespace Arts6311.Domain.Migrations
 
                     b.HasIndex("Slug")
                         .IsUnique()
-                        .HasDatabaseName("IX_Artists_Slug");
+                        .HasDatabaseName("IX_Artists_Slug")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.HasIndex("DeletedAt", "Id")
+                        .HasDatabaseName("IX_Artists_DeletedAt_Id");
 
                     b.HasIndex("Name", "Id")
                         .HasDatabaseName("IX_Artists_Name_Id");
@@ -352,6 +363,13 @@ namespace Arts6311.Domain.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<Guid?>("HeroMediaId")
                         .HasColumnType("uniqueidentifier");
@@ -415,7 +433,11 @@ namespace Arts6311.Domain.Migrations
 
                     b.HasIndex("Slug")
                         .IsUnique()
-                        .HasDatabaseName("IX_ClassOfferings_Slug");
+                        .HasDatabaseName("IX_ClassOfferings_Slug")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.HasIndex("DeletedAt", "Id")
+                        .HasDatabaseName("IX_ClassOfferings_DeletedAt_Id");
 
                     b.HasIndex("Status", "ScheduledFor")
                         .HasDatabaseName("IX_ClassOfferings_Status_ScheduledFor");
@@ -537,6 +559,13 @@ namespace Arts6311.Domain.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");
 
@@ -604,7 +633,11 @@ namespace Arts6311.Domain.Migrations
 
                     b.HasIndex("Slug")
                         .IsUnique()
-                        .HasDatabaseName("IX_Exhibitions_Slug");
+                        .HasDatabaseName("IX_Exhibitions_Slug")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.HasIndex("DeletedAt", "Id")
+                        .HasDatabaseName("IX_Exhibitions_DeletedAt_Id");
 
                     b.HasIndex("StartDate", "Id")
                         .IsDescending()
@@ -916,6 +949,13 @@ namespace Arts6311.Domain.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("Instagram")
                         .HasColumnType("varchar(30)");
 
@@ -977,7 +1017,11 @@ namespace Arts6311.Domain.Migrations
 
                     b.HasIndex("Slug")
                         .IsUnique()
-                        .HasDatabaseName("IX_Instructors_Slug");
+                        .HasDatabaseName("IX_Instructors_Slug")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.HasIndex("DeletedAt", "Id")
+                        .HasDatabaseName("IX_Instructors_DeletedAt_Id");
 
                     b.HasIndex("Name", "Id")
                         .HasDatabaseName("IX_Instructors_Name_Id");
@@ -1099,6 +1143,13 @@ namespace Arts6311.Domain.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<int>("DiscountPercent")
                         .HasColumnType("int");
 
@@ -1159,7 +1210,11 @@ namespace Arts6311.Domain.Migrations
 
                     b.HasIndex("Slug")
                         .IsUnique()
-                        .HasDatabaseName("IX_MembershipPlans_Slug");
+                        .HasDatabaseName("IX_MembershipPlans_Slug")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.HasIndex("DeletedAt", "Id")
+                        .HasDatabaseName("IX_MembershipPlans_DeletedAt_Id");
 
                     b.HasIndex("DisplayOrder", "Id")
                         .HasDatabaseName("IX_MembershipPlans_DisplayOrder_Id");
@@ -1203,6 +1258,13 @@ namespace Arts6311.Domain.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<long?>("LegacyWordPressId")
                         .HasColumnType("bigint");
 
@@ -1245,13 +1307,17 @@ namespace Arts6311.Domain.Migrations
 
                     b.HasIndex("Slug")
                         .IsUnique()
-                        .HasDatabaseName("IX_Pages_Slug");
+                        .HasDatabaseName("IX_Pages_Slug")
+                        .HasFilter("[DeletedAt] IS NULL");
 
                     b.HasIndex("Status", "ScheduledFor")
                         .HasDatabaseName("IX_Pages_Status_ScheduledFor");
 
                     b.HasIndex("Title", "Id")
                         .HasDatabaseName("IX_Pages_Title_Id");
+
+                    b.HasIndex("DeletedAt", "Title", "Id")
+                        .HasDatabaseName("IX_Pages_DeletedAt_Title_Id");
 
                     b.HasIndex("Status", "Title", "Id")
                         .HasDatabaseName("IX_Pages_Status_Title_Id");
@@ -1349,6 +1415,13 @@ namespace Arts6311.Domain.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("Description")
                         .HasMaxLength(100000)
                         .HasColumnType("nvarchar(max)");
@@ -1430,7 +1503,11 @@ namespace Arts6311.Domain.Migrations
 
                     b.HasIndex("Slug")
                         .IsUnique()
-                        .HasDatabaseName("IX_ShopItems_Slug");
+                        .HasDatabaseName("IX_ShopItems_Slug")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.HasIndex("DeletedAt", "Id")
+                        .HasDatabaseName("IX_ShopItems_DeletedAt_Id");
 
                     b.HasIndex("Status", "ScheduledFor")
                         .HasDatabaseName("IX_ShopItems_Status_ScheduledFor");

@@ -207,6 +207,11 @@ internal sealed class MediaRepository(ArtsDbContext context) : IMediaRepository
         var predicate = Expression.Lambda<Func<TDependent, bool>>(
             Expression.Equal(property, Expression.Constant((TKey)(object)id, typeof(TKey))), entity);
 
-        return context.Set<TDependent>().AnyAsync(predicate, cancellationToken);
+        // Past the soft-delete query filter (ADR 0052), because this guard stands in for a Restrict foreign key and
+        // the database does not forget a deleted row: a deleted page still points at its pictures. Filtered, the
+        // guard would answer "nothing references it", the delete would then break on the constraint, and
+        // media.in_use would reach staff as a 500. So a deleted record keeps hold of its images — restore it,
+        // clear the image, delete it again.
+        return context.Set<TDependent>().IgnoreQueryFilters().AnyAsync(predicate, cancellationToken);
     }
 }

@@ -31,12 +31,19 @@ internal sealed class PagesDataLayer(
     public Task<Page?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         repository.FindAsync(id, cancellationToken);
 
+    public Task<Page?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.FindDeletedAsync(id, cancellationToken);
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         repository.SlugExistsAsync(slug, exceptId, cancellationToken);
 
     public Task<List<PageSummaryServiceModel>> ListAsync(
         PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         repository.ListAsync(after, take, status, search, cancellationToken);
+
+    public Task<List<PageDeletedRow>> ListDeletedAsync(
+        PageListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
+        repository.ListDeletedAsync(after, take, search, cancellationToken);
 
     public Task<SitePageServiceModel?> FindPublishedAsync(string slug, CancellationToken cancellationToken) =>
         repository.FindPublishedAsync(slug, cancellationToken);
@@ -105,6 +112,49 @@ internal sealed class PagesDataLayer(
         audit.Record(new AuditEntry(
             actorUserId, PageAudit.For(command), PageAudit.ResourceType, page.Id.ToString(), correlation.Current,
             $"{from} → {page.Status}.", BeforeReference: $"status:{from}", AfterReference: $"status:{page.Status}"));
+
+        return await SaveAsync(page, cancellationToken);
+    }
+
+    public async Task<PageWriteOutcome> DeleteAsync(Page page, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+
+        var now = clock.UtcNow;
+        var deletedAs = page.Status;
+        SoftDelete.Stamp(page, actorUserId, now);
+        Stamp(page, actorUserId, now);
+
+        // Only while the site was showing it. A Draft or Scheduled page is rendered nowhere, and an Archived one
+        // had its revalidation when it was archived, so there is nothing cached to clear and nothing to spend an
+        // outbox row on (content.md, ADR 0036). Staged before the one save either way, so the delete and the
+        // invalidation commit together or neither does (outbox.md).
+        if (deletedAs == PublishStatus.Published)
+        {
+            StageRevalidation(page);
+        }
+
+        audit.Record(new AuditEntry(
+            actorUserId, PageAudit.Deleted, PageAudit.ResourceType, page.Id.ToString(), correlation.Current,
+            $"Deleted while {deletedAs.ToString().ToLowerInvariant()}. Its web address is free again.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"slug:{page.Slug}"));
+
+        return await SaveAsync(page, cancellationToken);
+    }
+
+    public async Task<PageWriteOutcome> RestoreAsync(
+        Page page, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+
+        SoftDelete.Clear(page);
+        Stamp(page, actorUserId, clock.UtcNow);
+
+        // Nothing is revalidated: Business brings a page back as a Draft, and nothing public renders one.
+        audit.Record(new AuditEntry(
+            actorUserId, PageAudit.Restored, PageAudit.ResourceType, page.Id.ToString(), correlation.Current,
+            $"Restored as draft; it was {deletedAs.ToString().ToLowerInvariant()} when it was deleted.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"status:{page.Status}"));
 
         return await SaveAsync(page, cancellationToken);
     }

@@ -303,6 +303,45 @@ internal sealed class ExhibitionsFacade(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
         TransitionAsync(id, PublishCommand.Archive, ifMatch, actorUserId, cancellationToken);
 
+    public async Task<OperationResult<CursorPage<ExhibitionDeletedServiceModel>>> ListDeletedAsync(
+        ExhibitionListViewModel request, CancellationToken cancellationToken)
+    {
+        if (await listValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<CursorPage<ExhibitionDeletedServiceModel>>(error);
+        }
+
+        return await business.ListDeletedAsync(request, cancellationToken);
+    }
+
+    /// <remarks>
+    /// Nothing is evicted here. A delete that takes a record off the site stages <c>site.revalidate-requested</c>
+    /// in its own save, exactly as a status command does, and the Worker's handler clears the tags (ADR 0036,
+    /// 0049) — no cache call follows a save (outbox.md).
+    /// </remarks>
+    public async Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure(preconditionError);
+        }
+
+        return await business.DeleteAsync(id, ifMatch, actorUserId, cancellationToken);
+    }
+
+    public async Task<OperationResult<ExhibitionServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<ExhibitionServiceModel>(preconditionError);
+        }
+
+        return await CompleteAsync(
+            await business.RestoreAsync(id, ifMatch, actorUserId, cancellationToken), cancellationToken);
+    }
+
     /// <summary>A command that asks no other module. Without If-Match it is a 428 before anything is read.</summary>
     private async Task<OperationResult<ExhibitionServiceModel>> TransitionAsync(
         Guid id, PublishCommand command, string? ifMatch, string actorUserId, CancellationToken cancellationToken)

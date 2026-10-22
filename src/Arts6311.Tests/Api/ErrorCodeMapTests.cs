@@ -131,7 +131,8 @@ public sealed class ErrorCodeMapTests
     [Fact]
     public void EveryContentCodeIsAConflict()
     {
-        // ADR 0031: a taken or locked slug, or a command that does not apply, is a state the editor resolves.
+        // ADR 0031: a taken or locked slug, or a command that does not apply, is a state the editor resolves. So is
+        // a record another one still names, which stops it being deleted (ADR 0052).
         var codes = typeof(ContentErrorCodes)
             .GetFields(BindingFlags.Public | BindingFlags.Static)
             .Select(field => (string)field.GetRawConstantValue()!)
@@ -139,7 +140,10 @@ public sealed class ErrorCodeMapTests
             .ToList();
 
         Assert.Equal(
-            [ContentErrorCodes.SlugLocked, ContentErrorCodes.SlugTaken, ContentErrorCodes.StatusTransitionInvalid],
+            [
+                ContentErrorCodes.InUse, ContentErrorCodes.SlugLocked, ContentErrorCodes.SlugTaken,
+                ContentErrorCodes.StatusTransitionInvalid,
+            ],
             codes);
         Assert.All(codes, code =>
         {

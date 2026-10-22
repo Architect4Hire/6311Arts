@@ -283,3 +283,51 @@ export function decodeExhibitionPage(body: unknown): ExhibitionPage | null {
 export type ExhibitionProblem = ApiProblem;
 
 export const decodeExhibitionProblem = decodeApiProblem;
+
+/** One row of the Deleted view (`ExhibitionDeletedServiceModel`, ADR 0052). Admin only. */
+export interface ExhibitionDeletedRow {
+  readonly id: string;
+  readonly title: string;
+  readonly slug: string;
+  /** What it was when it was deleted, not where it is now. */
+  readonly status: PublishStatus;
+  readonly deletedAt: string;
+  /** The row version, sent back as `If-Match` when restoring it. */
+  readonly etag: string;
+}
+
+export interface ExhibitionDeletedList {
+  readonly items: readonly ExhibitionDeletedRow[];
+  readonly nextCursor: string | null;
+}
+
+export function decodeExhibitionDeletedRow(body: unknown): ExhibitionDeletedRow | null {
+  const f = fields(body);
+  if (
+    !f ||
+    !isString(f['id']) ||
+    !isString(f['title']) ||
+    !isString(f['slug']) ||
+    !isStatus(f['status']) ||
+    !isString(f['deletedAt']) ||
+    !isString(f['etag'])
+  ) {
+    return null;
+  }
+  return {
+    id: f['id'],
+    title: f['title'],
+    slug: f['slug'],
+    status: f['status'],
+    deletedAt: f['deletedAt'],
+    etag: f['etag'],
+  };
+}
+
+export function decodeExhibitionDeletedList(body: unknown): ExhibitionDeletedList | null {
+  const f = fields(body);
+  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
+  const items = f['items'].map(decodeExhibitionDeletedRow);
+  if (items.some((item) => item === null)) return null;
+  return { items: items as ExhibitionDeletedRow[], nextCursor: f['nextCursor'] };
+}

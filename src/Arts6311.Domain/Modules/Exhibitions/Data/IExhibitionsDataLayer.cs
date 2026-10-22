@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Exhibitions.Data.Entities;
+using Arts6311.Domain.Modules.Exhibitions.Managers;
 using Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels;
 
 namespace Arts6311.Domain.Modules.Exhibitions.Data;
@@ -23,6 +24,20 @@ internal interface IExhibitionsDataLayer
     /// <summary>One exhibition with its credits, tracked.</summary>
     Task<Exhibition?> FindAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// What to call the live records this module holds that name artist <paramref name="artistId"/>, at most
+    /// <paramref name="take"/> of them: the answer this module's <c>IContentReferenceSource</c> gives the kernel
+    /// before that artist is deleted (ADR 0052).
+    /// </summary>
+    Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken);
+
+    /// <summary>One deleted exhibition, tracked, for a restore (ADR 0052). A live record is <c>null</c> here.</summary>
+    Task<Exhibition?> FindDeletedAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>One page of the Deleted view, in the same order and on the same cursor as the list.</summary>
+    Task<List<ExhibitionDeletedRow>> ListDeletedAsync(
+        ExhibitionListPosition? after, int take, string? search, CancellationToken cancellationToken);
+
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 
     Task<List<ExhibitionSummaryServiceModel>> ListAsync(
@@ -44,6 +59,20 @@ internal interface IExhibitionsDataLayer
     /// </summary>
     Task<ExhibitionWriteOutcome> TransitionAsync(
         Exhibition exhibition, PublishCommand command, PublishStatus from, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Marks the exhibition deleted — who and when, a new row version, its audit entry and,
+    /// when the site was showing it, <c>site.revalidate-requested</c> — in one save (ADR 0052).
+    /// </summary>
+    Task<ExhibitionWriteOutcome> DeleteAsync(Exhibition exhibition, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Saves a restore Business already applied (back to Draft), clearing the delete marks, with its audit entry,
+    /// in one save (ADR 0052).
+    /// </summary>
+    /// <param name="deletedAs">What the record was when it was deleted, for the audit line.</param>
+    Task<ExhibitionWriteOutcome> RestoreAsync(
+        Exhibition exhibition, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Saves the scheduled publisher giving up: the Draft that Business already applied, its revalidation, and an

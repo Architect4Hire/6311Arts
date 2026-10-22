@@ -17,6 +17,13 @@ namespace Arts6311.Tests.Shop.Infrastructure;
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeShopRepository(CallLog log) : IShopRepository
 {
+    public Task<ShopItem?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<ShopItemDeletedRow>> ListDeletedAsync(
+        ShopItemListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<string>> ListNamingArtistAsync(Guid id, int take, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow>> ListPublishedAsync(global::Arts6311.Domain.Modules.Shop.Data.ShopSiteQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -97,6 +104,19 @@ internal sealed class FakeShopRepository(CallLog log) : IShopRepository
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeShopDataLayer : IShopDataLayer
 {
+    public Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ShopItem?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<ShopItemDeletedRow>> ListDeletedAsync(
+        ShopItemListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ShopWriteOutcome> DeleteAsync(
+        ShopItem entity, SkuChanges skuChanges, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ShopWriteOutcome> RestoreAsync(
+        ShopItem entity, SkuChanges skuChanges, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow>> ListPublishedAsync(global::Arts6311.Domain.Modules.Shop.Data.ShopSiteQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow?> FindPublishedAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -256,6 +276,15 @@ internal sealed class FakeShopDataLayer : IShopDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingShopBusiness : IShopBusiness
 {
+    public Task<OperationResult<CursorPage<ShopItemDeletedServiceModel>>> ListDeletedAsync(
+        ShopItemListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult<ShopItemDetail>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Paging.CountedCursorPage<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow>>> ListForSiteAsync(global::Arts6311.Domain.Modules.Shop.Managers.ViewModels.SiteShopListViewModel request, Guid? artistId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Modules.Shop.Managers.ShopItemSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();

@@ -62,6 +62,11 @@ internal sealed class RecordingAuditWriter(CallLog log) : IAuditWriter
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeArtistsRepository(CallLog log) : IArtistsRepository
 {
+    public Task<Artist?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<ArtistDeletedRow>> ListDeletedAsync(
+        ArtistListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Artists.Managers.ArtistSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public List<Artist> Rows { get; } = [];
@@ -134,6 +139,17 @@ internal sealed class FakeArtistsRepository(CallLog log) : IArtistsRepository
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeArtistsDataLayer : IArtistsDataLayer
 {
+    public Task<Artist?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<ArtistDeletedRow>> ListDeletedAsync(
+        ArtistListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ArtistWriteOutcome> DeleteAsync(
+        Artist entity, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ArtistWriteOutcome> RestoreAsync(
+        Artist entity, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Artists.Managers.ArtistSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Dictionary<Guid, Artist> Rows { get; } = [];
@@ -249,6 +265,15 @@ internal sealed class FakeArtistsDataLayer : IArtistsDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingArtistsBusiness : IArtistsBusiness
 {
+    public Task<OperationResult<CursorPage<ArtistDeletedServiceModel>>> ListDeletedAsync(
+        ArtistListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult> DeleteAsync(
+        Guid id, ContentReferenceCheck references, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult<ArtistServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Artists.Managers.ArtistSiteRow>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Modules.Artists.Managers.ArtistSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -432,6 +457,15 @@ internal sealed class FakeMediaFacade : IMediaFacade
 /// </summary>
 internal sealed class FakeArtistsFacade : IArtistsFacade
 {
+    public Task<OperationResult<CursorPage<ArtistDeletedServiceModel>>> ListDeletedAsync(
+        ArtistListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult<ArtistServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistServiceModel>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Modules.Artists.Managers.ServiceModels.SiteArtistServiceModel?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();

@@ -9,6 +9,7 @@ using Arts6311.Domain.Modules.Artists.Managers.Validation;
 using Arts6311.Domain.Modules.Artists.Managers.ViewModels;
 using Arts6311.Tests.Artists.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Arts6311.Tests.Infrastructure;
 
 namespace Arts6311.Tests.Artists;
 
@@ -289,7 +290,7 @@ public sealed class ArtistsLayerTests
     [Fact]
     public async Task TheFacadeStopsAnInvalidRequestBeforeBusinessOrMedia()
     {
-        var (facade, business, media) = Facade();
+        var (facade, business, media, _) = Facade();
 
         var result = await facade.CreateAsync(new ArtistCreateViewModel(" ", PortraitMediaId: Guid.NewGuid()), "editor-1", Ct);
 
@@ -301,7 +302,7 @@ public sealed class ArtistsLayerTests
     [Fact]
     public async Task TheFacadeRefusesAPortraitMediaDoesNotKnow()
     {
-        var (facade, business, media) = Facade();
+        var (facade, business, media, _) = Facade();
         var unknown = Guid.NewGuid();
         media.Missing.Add(unknown);
 
@@ -317,7 +318,7 @@ public sealed class ArtistsLayerTests
     [Fact]
     public async Task TheFacadeLetsADraftTakeAPortraitWithoutAltText()
     {
-        var (facade, business, media) = Facade();
+        var (facade, business, media, _) = Facade();
         var bare = Guid.NewGuid();
         media.MissingAltText.Add(bare);
 
@@ -330,7 +331,7 @@ public sealed class ArtistsLayerTests
     [Fact]
     public async Task PublishAsksMediaAboutTheArtistsCurrentPortraitAndPassesTheAnswerOn()
     {
-        var (facade, business, media) = Facade();
+        var (facade, business, media, _) = Facade();
         var portrait = Guid.NewGuid();
         business.Current = RecordingArtistsBusiness.Artist with { PortraitMediaId = portrait };
         media.MissingAltText.Add(portrait);
@@ -344,7 +345,7 @@ public sealed class ArtistsLayerTests
     [Fact]
     public async Task PublishWithoutAPortraitDoesNotAskMediaAndUnpublishNeverDoes()
     {
-        var (facade, business, media) = Facade();
+        var (facade, business, media, _) = Facade();
 
         await facade.PublishAsync(business.Current.Id, business.Current.ETag, "editor-1", Ct);
         Assert.Equal(ArtistPortraitCheck.None, business.LastTransition!.Value.Portrait);
@@ -359,7 +360,7 @@ public sealed class ArtistsLayerTests
     [Fact]
     public async Task PublishOfAnUnknownArtistStopsAtTheRead()
     {
-        var (facade, business, _) = Facade();
+        var (facade, business, _, _) = Facade();
 
         var result = await facade.PublishAsync(Guid.NewGuid(), "\"0123456789abcdef0123456789abcdef\"", "editor-1", Ct);
 
@@ -371,7 +372,7 @@ public sealed class ArtistsLayerTests
     public async Task AWriteWithoutIfMatchIsA428BeforeAnythingElseIsAsked()
     {
         // api-contract.md: no If-Match is a 428, even when the body is also wrong or names an unknown image.
-        var (facade, business, media) = Facade();
+        var (facade, business, media, _) = Facade();
         var unknown = Guid.NewGuid();
         media.Missing.Add(unknown);
 
@@ -390,7 +391,7 @@ public sealed class ArtistsLayerTests
     [Fact]
     public async Task AnEditNamingAPortraitHandsMediasAnswerToBusiness()
     {
-        var (facade, business, media) = Facade();
+        var (facade, business, media, _) = Facade();
         var bare = Guid.NewGuid();
         media.MissingAltText.Add(bare);
 
@@ -417,7 +418,7 @@ public sealed class ArtistsLayerTests
     [Fact]
     public async Task ALookupLargerThanThePolicyIsACallersBug()
     {
-        var (facade, business, _) = Facade();
+        var (facade, business, _, _) = Facade();
         var ids = Enumerable.Range(0, ArtistPolicy.LookupMaxCount + 1).Select(_ => Guid.NewGuid()).ToList();
         var slugs = ids.Select(id => id.ToString("N")).ToList();
 
@@ -440,13 +441,14 @@ public sealed class ArtistsLayerTests
         return (new ArtistsBusiness(dataLayer, new FixedClock(Now)), dataLayer);
     }
 
-    private static (ArtistsFacade, RecordingArtistsBusiness, FakeMediaFacade) Facade()
+    private static (ArtistsFacade, RecordingArtistsBusiness, FakeMediaFacade, FakeContentReferences) Facade()
     {
         var business = new RecordingArtistsBusiness();
         var media = new FakeMediaFacade();
+        var references = new FakeContentReferences();
         var facade = new ArtistsFacade(
             business, media, new ArtistCreateValidator(), new ArtistUpdateValidator(), new ArtistListValidator(),
-            new ContentScheduleValidator());
-        return (facade, business, media);
+            new ContentScheduleValidator(), references);
+        return (facade, business, media, references);
     }
 }

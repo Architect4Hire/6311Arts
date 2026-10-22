@@ -68,6 +68,7 @@ type Status =
   | { readonly kind: 'ready' }
   | { readonly kind: 'saving' }
   | { readonly kind: 'commanding'; readonly command: ShopCommand }
+  | { readonly kind: 'deleting' }
   | { readonly kind: 'conflict'; readonly theirs: ShopItem };
 
 type FieldName =
@@ -176,7 +177,7 @@ export class ShopItemEditor implements HasUnsavedChanges {
   protected readonly isAdmin = computed(() => this.session.hasAnyRole([ROLES.admin]));
   protected readonly busy = computed(() => {
     const kind = this.status().kind;
-    return kind === 'saving' || kind === 'commanding';
+    return kind === 'saving' || kind === 'commanding' || kind === 'deleting';
   });
   protected readonly commanding = computed(() => {
     const status = this.status();
@@ -195,6 +196,11 @@ export class ShopItemEditor implements HasUnsavedChanges {
     const status = this.item()?.status;
     return this.isAdmin() && status !== undefined && status !== 'Archived';
   });
+
+  protected readonly deleting = computed(() => this.status().kind === 'deleting');
+
+  /** A saved piece an Admin can delete, whatever its status (ADR 0052). */
+  protected readonly canDelete = computed(() => this.isAdmin() && this.item() !== null);
 
   /** ADR 0032, 0038: the starting figures are ordinary fields only until Square holds the record. */
   protected readonly priceEditable = computed(() => this.item()?.startingPriceEditable ?? true);
@@ -474,6 +480,51 @@ export class ShopItemEditor implements HasUnsavedChanges {
       cancelLabel: 'Keep it',
     });
     if (confirmed) await this.run('archive');
+  }
+
+  /**
+   * Deletes the piece (ADR 0052). Unlike the status commands it is offered while the form is dirty — asking
+   * someone to save a record before throwing it away would be absurd — so the dialog says the unsaved edits go
+   * too. It acts on the saved version's row version, as every write does.
+   */
+  protected async remove(): Promise<void> {
+    const item = this.item();
+    if (!item || this.busy()) return;
+
+    const live = item.status === 'Published';
+    const confirmed = await this.confirm.confirm({
+      heading: 'Delete this piece?',
+      message:
+        (live
+          ? 'It leaves the public site within a minute, and leaves the CMS list. '
+          : 'The piece leaves the CMS list. ') +
+        (this.dirty() ? 'Your unsaved changes go with it. ' : '') +
+        'Its web address is free for another piece straight away. An Admin can restore it from Deleted, as a draft. The deletion is recorded under your name.',
+      confirmLabel: 'Delete piece',
+      cancelLabel: 'Keep it',
+    });
+    if (!confirmed) return;
+
+    this.errors.set({});
+    this.formError.set(null);
+    this.status.set({ kind: 'deleting' });
+    try {
+      await firstValueFrom(this.shop.delete(item.id, item.etag));
+
+      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
+      this.draft.set(draftOf(item));
+      this.status.set({ kind: 'ready' });
+      await this.router.navigate(['/shop']);
+    } catch (error: unknown) {
+      const problem = problemOf(error);
+      this.status.set({ kind: 'ready' });
+      this.showErrors(
+        {},
+        problem?.code === SHOP_CODES.concurrencyConflict
+          ? 'Someone else changed this piece a moment ago. Reload it, check it, and try again.'
+          : messageOf(problem, 'The piece couldn’t be deleted. Try again.'),
+      );
+    }
   }
 
   /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */

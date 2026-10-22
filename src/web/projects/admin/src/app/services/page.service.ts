@@ -6,10 +6,12 @@ import {
   Page,
   PageCommand,
   PageCreate,
+  PageDeletedList,
   PageList,
   PageListQuery,
   PageUpdate,
   decodePage,
+  decodePageDeletedList,
   decodePageList,
 } from '../models/page';
 
@@ -33,6 +35,18 @@ export class PageService {
     return this.http
       .get<unknown>(BASE, { params, context: quiet() })
       .pipe(map((body) => decoded(decodePageList(body), 'list of pages')));
+  }
+
+  /** The Deleted view (ADR 0052). Admin only; its own cursor, not the list's. */
+  listDeleted(query: PageListQuery = {}): Observable<PageDeletedList> {
+    let params = new HttpParams();
+    if (query.cursor) params = params.set('cursor', query.cursor);
+    if (query.limit) params = params.set('limit', query.limit);
+    if (query.search) params = params.set('search', query.search);
+
+    return this.http
+      .get<unknown>(`${BASE}/deleted`, { params, context: quiet() })
+      .pipe(map((body) => decoded(decodePageDeletedList(body), 'list of deleted pages')));
   }
 
   get(id: string): Observable<Page> {
@@ -61,6 +75,27 @@ export class PageService {
   command(id: string, command: PageCommand, etag: string): Observable<Page> {
     return this.http
       .post<unknown>(`${BASE}/${encodeURIComponent(id)}/${command}`, null, {
+        headers: new HttpHeaders({ 'If-Match': etag }),
+        context: quiet(),
+      })
+      .pipe(map((body) => decoded(decodePage(body), 'page')));
+  }
+
+  /**
+   * Deletes the page, under the row version the editor read (ADR 0052): it leaves the site and the list, and an
+   * Admin can restore it from the Deleted view. Admin only.
+   */
+  delete(id: string, etag: string): Observable<void> {
+    return this.http.delete<void>(`${BASE}/${encodeURIComponent(id)}`, {
+      headers: new HttpHeaders({ 'If-Match': etag }),
+      context: quiet(),
+    });
+  }
+
+  /** Brings a deleted page back as a Draft, under the row version the Deleted view read. Admin only. */
+  restore(id: string, etag: string): Observable<Page> {
+    return this.http
+      .post<unknown>(`${BASE}/${encodeURIComponent(id)}/restore`, null, {
         headers: new HttpHeaders({ 'If-Match': etag }),
         context: quiet(),
       })

@@ -2,6 +2,7 @@ using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Memberships.Data.Entities;
+using Arts6311.Domain.Modules.Memberships.Managers;
 using Arts6311.Domain.Modules.Memberships.Managers.ServiceModels;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,12 +21,46 @@ internal sealed class MembershipsRepository(ArtsDbContext context) : IMembership
             .Include(plan => plan.Perks)
             .FirstOrDefaultAsync(plan => plan.Id == id, cancellationToken);
 
+    public Task<MembershipPlan?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        Plans.IgnoreQueryFilters()
+            .Include(plan => plan.Perks)
+            .FirstOrDefaultAsync(plan => plan.Id == id && plan.DeletedAt != null, cancellationToken);
+
+    public Task<List<MembershipPlanDeletedRow>> ListDeletedAsync(
+        MembershipPlanListPosition? after, int take, string? search, CancellationToken cancellationToken)
+    {
+        // The one list that asks past the query filter, and then for the deleted rows alone (ADR 0052).
+        var query = Plans.IgnoreQueryFilters().AsNoTracking().Where(plan => plan.DeletedAt != null);
+
+        if (!string.IsNullOrEmpty(search))
+        {
+            var pattern = $"%{EscapeLike(search)}%";
+            query = query.Where(plan => EF.Functions.Like(plan.Name, pattern, LikeEscape.ToString()));
+        }
+
+        if (after is not null)
+        {
+            // The same order as the main list, so one cursor shape serves both.
+            query = query.Where(plan => plan.DisplayOrder > after.DisplayOrder
+                || (plan.DisplayOrder == after.DisplayOrder && plan.Id.CompareTo(after.Id) > 0));
+        }
+
+        return query
+            .OrderBy(plan => plan.DisplayOrder)
+            .ThenBy(plan => plan.Id)
+            .Take(take)
+            .Select(plan => new MembershipPlanDeletedRow(
+                plan.Id, plan.Name, plan.Slug, plan.Status, plan.DisplayOrder, plan.DeletedAt!.Value, plan.RowVersion))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         Plans.AsNoTracking().AnyAsync(
             plan => plan.Slug == slug && (exceptId == null || plan.Id != exceptId), cancellationToken);
 
+    /// <remarks>Deleted records included, so a seed or a re-import never recreates one (ADR 0052).</remarks>
     public async Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
-        [.. await Plans.AsNoTracking().Select(plan => plan.Slug).ToListAsync(cancellationToken)];
+        [.. await Plans.IgnoreQueryFilters().AsNoTracking().Select(plan => plan.Slug).ToListAsync(cancellationToken)];
 
     public async Task<int> NextDisplayOrderAsync(CancellationToken cancellationToken) =>
         (await Plans.AsNoTracking().MaxAsync(plan => (int?)plan.DisplayOrder, cancellationToken) ?? 0) + 1;

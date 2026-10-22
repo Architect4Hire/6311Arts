@@ -61,6 +61,108 @@ internal sealed class MembershipsBusiness(IMembershipsDataLayer dataLayer, ICloc
         return OperationResult.Success(new CursorPage<MembershipPlanSummaryServiceModel>(rows, next));
     }
 
+    /// <remarks>
+    /// Its own cursor scope, so a cursor from the status list is not valid here and the other way about. Status is
+    /// not part of it: the Deleted view shows every deleted record, whatever it was when it went (ADR 0052).
+    /// </remarks>
+    public async Task<OperationResult<CursorPage<MembershipPlanDeletedServiceModel>>> ListDeletedAsync(
+        MembershipPlanListViewModel request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim();
+        var scope = string.Create(CultureInfo.InvariantCulture, $"memberships|deleted|search={search}");
+
+        MembershipPlanListPosition? after = null;
+        if (request.Cursor is not null)
+        {
+            var decoded = PageCursor.Decode(request.Cursor, scope);
+            if (!decoded.Succeeded
+                || !int.TryParse(decoded.Value!.SortValue, CultureInfo.InvariantCulture, out var afterOrder)
+                || !Guid.TryParseExact(decoded.Value.TieBreaker, "N", out var afterId))
+            {
+                return OperationResult.Failure<CursorPage<MembershipPlanDeletedServiceModel>>(
+                    OperationError.Of(ErrorCodes.CursorInvalid, "The cursor is not valid for this list."));
+            }
+
+            after = new MembershipPlanListPosition(afterOrder, afterId);
+        }
+
+        var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
+        var rows = await dataLayer.ListDeletedAsync(after, limit + 1, search, cancellationToken);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            rows.RemoveAt(limit);
+            var last = rows[^1];
+            next = new PageCursor(
+                last.DisplayOrder.ToString(CultureInfo.InvariantCulture), last.Id.ToString("N")).Encode(scope);
+        }
+
+        return OperationResult.Success(new CursorPage<MembershipPlanDeletedServiceModel>([.. rows.Select(row => row.ToServiceModel())], next));
+    }
+
+    public async Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var plan = await dataLayer.FindAsync(id, cancellationToken);
+        if (plan is null)
+        {
+            return OperationResult.Failure(OperationError.Of(ErrorCodes.NotFound, "There is no such plan."));
+        }
+
+        if (EntityTag.Verify(plan.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure(versionError);
+        }
+
+        // From any status, Published included: "this was a mistake" is not a lifecycle step, and the delete stages
+        // the revalidation that takes it off the site (ADR 0052).
+        return await dataLayer.DeleteAsync(plan, actorUserId, cancellationToken) switch
+        {
+            MembershipWriteOutcome.Saved => OperationResult.Success(),
+            _ => OperationResult.Failure(EntityTag.Conflict(What)),
+        };
+    }
+
+    public async Task<OperationResult<MembershipPlanServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var plan = await dataLayer.FindDeletedAsync(id, cancellationToken);
+        if (plan is null)
+        {
+            return NotFound();
+        }
+
+        if (EntityTag.Verify(plan.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure<MembershipPlanServiceModel>(versionError);
+        }
+
+        // The delete freed the address, so another record may be living there now. Refused rather than renamed for
+        // the staff member: which of the two keeps it is their decision (ADR 0052).
+        if (await dataLayer.SlugExistsAsync(plan.Slug, plan.Id, cancellationToken))
+        {
+            return OperationResult.Failure<MembershipPlanServiceModel>(SlugTaken(plan.Slug));
+        }
+
+        var deletedAs = plan.Status;
+
+        // Back as a Draft, never straight back onto the site: what publishing requires may no longer hold, and a
+        // restore is a decision to look at the record again, not to publish it (ADR 0052).
+        plan.Status = PublishStatus.Draft;
+        plan.ScheduledFor = null;
+
+        return await dataLayer.RestoreAsync(plan, deletedAs, actorUserId, cancellationToken) switch
+        {
+            MembershipWriteOutcome.Saved => OperationResult.Success(ToServiceModel(plan)),
+            MembershipWriteOutcome.SlugTaken => OperationResult.Failure<MembershipPlanServiceModel>(SlugTaken(plan.Slug)),
+            _ => Conflict(),
+        };
+    }
+
+
     public async Task<OperationResult<MembershipPlanServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         var plan = await dataLayer.FindAsync(id, cancellationToken);

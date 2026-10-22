@@ -12,6 +12,18 @@ internal interface IArtistsRepository
     /// <summary>One artist, tracked, for an edit or a status command.</summary>
     Task<Artist?> FindAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// One deleted artist, tracked, for a restore (ADR 0052). The one read that looks past the query filter for
+    /// a single row, so a live record is <c>null</c> here just as a deleted one is <c>null</c> everywhere else.
+    /// </summary>
+    Task<Artist?> FindDeletedAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One page of the Deleted view, in the same order as the list above so the two share their cursor (ADR 0052).
+    /// </summary>
+    Task<List<ArtistDeletedRow>> ListDeletedAsync(
+        ArtistListPosition? after, int take, string? search, CancellationToken cancellationToken);
+
     /// <summary>Whether another artist than <paramref name="exceptId"/> already has this slug.</summary>
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 

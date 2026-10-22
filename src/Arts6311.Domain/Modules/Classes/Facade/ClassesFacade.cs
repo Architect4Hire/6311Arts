@@ -32,8 +32,8 @@ namespace Arts6311.Domain.Modules.Classes.Facade;
 /// means for each run (ADR 0044).
 /// </para>
 /// <para>
-/// <strong>Publish calls Business twice</strong>: once to learn which hero the offering has, then to publish with
-/// Media's answer about it. The publish is checked against the editor's <c>If-Match</c>, so a hero changed in
+/// <strong>Publish calls Business twice</strong>: once to learn which hero the offering has and which instructors
+/// its runs name, then to publish with Media's and Instructors' answers about them. The publish is checked against the editor's <c>If-Match</c>, so a hero changed in
 /// between moves the row version and the publish is refused as a conflict (ADR 0031).
 /// </para>
 /// <para>
@@ -153,14 +153,16 @@ internal sealed class ClassesFacade(
             return OperationResult.Failure<ClassServiceModel>(preconditionError);
         }
 
-        var hero = await HeroOfAsync(id, cancellationToken);
-        if (!hero.Succeeded)
+        var checks = await ChecksOfAsync(id, cancellationToken);
+        if (!checks.Succeeded)
         {
-            return OperationResult.Failure<ClassServiceModel>(hero.Error!);
+            return OperationResult.Failure<ClassServiceModel>(checks.Error!);
         }
 
         return await CompleteAsync(
-            await business.TransitionAsync(id, PublishCommand.Publish, ifMatch, hero.Value, actorUserId, cancellationToken),
+            await business.TransitionAsync(
+                id, PublishCommand.Publish, ifMatch, checks.Value!.Media, checks.Value.Instructors, actorUserId,
+                cancellationToken),
             cancellationToken);
     }
 
@@ -171,6 +173,45 @@ internal sealed class ClassesFacade(
     public Task<OperationResult<ClassServiceModel>> ArchiveAsync(
         Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
         TransitionAsync(id, PublishCommand.Archive, ifMatch, actorUserId, cancellationToken);
+
+    public async Task<OperationResult<CursorPage<ClassDeletedServiceModel>>> ListDeletedAsync(
+        ClassListViewModel request, CancellationToken cancellationToken)
+    {
+        if (await listValidator.ValidateOrErrorAsync(request, cancellationToken) is { } error)
+        {
+            return OperationResult.Failure<CursorPage<ClassDeletedServiceModel>>(error);
+        }
+
+        return await business.ListDeletedAsync(request, cancellationToken);
+    }
+
+    /// <remarks>
+    /// Nothing is evicted here. A delete that takes a record off the site stages <c>site.revalidate-requested</c>
+    /// in its own save, exactly as a status command does, and the Worker's handler clears the tags (ADR 0036,
+    /// 0049) — no cache call follows a save (outbox.md).
+    /// </remarks>
+    public async Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure(preconditionError);
+        }
+
+        return await business.DeleteAsync(id, ifMatch, actorUserId, cancellationToken);
+    }
+
+    public async Task<OperationResult<ClassServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        if (EntityTag.Precondition(ifMatch, What) is { } preconditionError)
+        {
+            return OperationResult.Failure<ClassServiceModel>(preconditionError);
+        }
+
+        return await CompleteAsync(
+            await business.RestoreAsync(id, ifMatch, actorUserId, cancellationToken), cancellationToken);
+    }
 
     public async Task<OperationResult<ClassServiceModel>> ScheduleAsync(
         Guid id,
@@ -191,14 +232,16 @@ internal sealed class ClassesFacade(
 
         // Scheduling is a publish with a delay, so the hero is vouched for now as well: the same two Business calls,
         // safe for the same reason — the If-Match covers anything that changed in between (ADR 0031).
-        var hero = await HeroOfAsync(id, cancellationToken);
-        if (!hero.Succeeded)
+        var checks = await ChecksOfAsync(id, cancellationToken);
+        if (!checks.Succeeded)
         {
-            return OperationResult.Failure<ClassServiceModel>(hero.Error!);
+            return OperationResult.Failure<ClassServiceModel>(checks.Error!);
         }
 
         return await CompleteAsync(
-            await business.ScheduleAsync(id, schedule.ScheduledFor, ifMatch, hero.Value, actorUserId, cancellationToken),
+            await business.ScheduleAsync(
+                id, schedule.ScheduledFor, ifMatch, checks.Value!.Media, checks.Value.Instructors, actorUserId,
+                cancellationToken),
             cancellationToken);
     }
 
@@ -222,18 +265,19 @@ internal sealed class ClassesFacade(
     public async Task<ScheduledPublishOutcome> PublishScheduledAsync(
         Guid id, DateTimeOffset asOf, CancellationToken cancellationToken)
     {
-        var hero = await HeroOfAsync(id, cancellationToken);
-        if (hero.Succeeded)
+        var checks = await ChecksOfAsync(id, cancellationToken);
+        if (checks.Succeeded)
         {
-            return await business.PublishScheduledAsync(id, asOf, hero.Value, cancellationToken);
+            return await business.PublishScheduledAsync(
+                id, asOf, checks.Value!.Media, checks.Value.Instructors, cancellationToken);
         }
 
         // Gone since the due list was read: nothing for this pass to do. Anything else — Media unreachable, say — is
         // a failure the pass logs and counts, not a quiet "nothing due" that would repeat for ever (ADR 0036).
-        return hero.Error!.Code == ErrorCodes.NotFound
+        return checks.Error!.Code == ErrorCodes.NotFound
             ? ScheduledPublishOutcome.Skipped
             : throw new InvalidOperationException(
-                $"Reading class {id} for its scheduled publish failed ({hero.Error.Code}).");
+                $"Reading class {id} for its scheduled publish failed ({checks.Error.Code}).");
     }
 
     public async Task<OperationResult<IReadOnlyList<SiteClassSummaryServiceModel>>> ListForSiteAsync(
@@ -341,7 +385,8 @@ internal sealed class ClassesFacade(
         }
 
         return await CompleteAsync(
-            await business.TransitionAsync(id, command, ifMatch, media: null, actorUserId, cancellationToken),
+            await business.TransitionAsync(
+                id, command, ifMatch, media: null, instructors: null, actorUserId, cancellationToken),
             cancellationToken);
     }
 
@@ -386,20 +431,32 @@ internal sealed class ClassesFacade(
     }
 
     /// <summary>
-    /// What Media says about the offering's current hero, or <see cref="ClassMediaCheck.None"/> when there is none.
-    /// Business checks the answer is about the hero the offering still has.
+    /// What Media says about the offering's current hero and what Instructors says about the instructors its runs
+    /// name: the two questions a publish or a schedule has to ask about the record as it stands. Business checks
+    /// each answer is about what the offering still holds.
     /// </summary>
-    private async Task<OperationResult<ClassMediaCheck>> HeroOfAsync(Guid id, CancellationToken cancellationToken)
+    private async Task<OperationResult<ClassPublishChecks>> ChecksOfAsync(Guid id, CancellationToken cancellationToken)
     {
         var current = await business.GetAsync(id, cancellationToken);
         if (!current.Succeeded)
         {
-            return OperationResult.Failure<ClassMediaCheck>(current.Error!);
+            return OperationResult.Failure<ClassPublishChecks>(current.Error!);
         }
 
-        return OperationResult.Success(current.Value!.Model.HeroMediaId is { } heroId
+        var detail = current.Value!;
+        var media = detail.Model.HeroMediaId is { } heroId
             ? await AskHeroCheckAsync(heroId, cancellationToken)
-            : ClassMediaCheck.None);
+            : ClassMediaCheck.None;
+
+        // An instructor a run names may have been deleted since (ADR 0052), and publishing needs a real one. The
+        // ids come from the detail, not the model: the model's Instructor is what this answer fills in.
+        var named = detail.RunInstructors.Values.Distinct().ToList();
+        var teaching = named.Count == 0
+            ? ClassInstructorCheck.None
+            : new ClassInstructorCheck((await instructors.GetSummariesAsync(named, cancellationToken))
+                .ToDictionary(found => found.Id, found => new ClassInstructorFact(found.Name, found.Status)));
+
+        return OperationResult.Success(new ClassPublishChecks(media, teaching));
     }
 
     /// <summary>

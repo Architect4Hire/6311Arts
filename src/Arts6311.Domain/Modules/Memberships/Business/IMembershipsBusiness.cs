@@ -18,6 +18,25 @@ internal interface IMembershipsBusiness
 
     Task<OperationResult<MembershipPlanServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The Deleted view: the records staff deleted, on this list's own cursor scope (ADR 0052).</summary>
+    Task<OperationResult<CursorPage<MembershipPlanDeletedServiceModel>>> ListDeletedAsync(
+        MembershipPlanListViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes the plan, whatever its status: it leaves the site, leaves the CMS list and releases its web
+    /// address, and only the Deleted view and the audit trail still name it (ADR 0052). Refusals:
+    /// <c>resource.not_found</c>, <c>concurrency.*</c>.
+    /// </summary>
+    Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Brings a deleted plan back as a Draft, with any schedule cleared: nothing returns to the site by being
+    /// restored (ADR 0052). Refusals: <c>resource.not_found</c>, <c>concurrency.*</c>, <c>cms.slug_taken</c>.
+    /// </summary>
+    Task<OperationResult<MembershipPlanServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
     Task<OperationResult<MembershipPlanServiceModel>> CreateAsync(
         MembershipPlanCreateViewModel create, string actorUserId, CancellationToken cancellationToken);
 

@@ -17,6 +17,15 @@ internal static class ExhibitionAudit
     public const string Seeded = "exhibition.seeded";
 
     /// <summary>
+    /// A record staff deleted (ADR 0052). Admin-only and audited, as every delete is (auth.md "Sensitive
+    /// operations"); the row is what says it existed at all, since nothing else shows it any more.
+    /// </summary>
+    public const string Deleted = "exhibition.deleted";
+
+    /// <summary>An Admin brought a deleted record back, as a Draft (ADR 0052).</summary>
+    public const string Restored = "exhibition.restored";
+
+    /// <summary>
     /// The scheduled publisher gave up on an exhibition: what publishing needs was no longer true, so it is a
     /// Draft again (ADR 0036). Its own action, so the trail tells it apart from a person unscheduling.
     /// </summary>

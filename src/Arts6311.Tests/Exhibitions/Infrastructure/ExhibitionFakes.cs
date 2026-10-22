@@ -19,6 +19,13 @@ namespace Arts6311.Tests.Exhibitions.Infrastructure;
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeExhibitionsRepository(CallLog log) : IExhibitionsRepository
 {
+    public Task<Exhibition?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<ExhibitionDeletedRow>> ListDeletedAsync(
+        ExhibitionListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<string>> ListNamingArtistAsync(Guid id, int take, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Exhibitions.Data.Entities.Exhibition>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public List<Exhibition> Rows { get; } = [];
@@ -82,6 +89,19 @@ internal sealed class FakeExhibitionsRepository(CallLog log) : IExhibitionsRepos
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeExhibitionsDataLayer : IExhibitionsDataLayer
 {
+    public Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Exhibition?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<ExhibitionDeletedRow>> ListDeletedAsync(
+        ExhibitionListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ExhibitionWriteOutcome> DeleteAsync(
+        Exhibition entity, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ExhibitionWriteOutcome> RestoreAsync(
+        Exhibition entity, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Exhibitions.Data.Entities.Exhibition>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Dictionary<Guid, Exhibition> Rows { get; } = [];
@@ -192,6 +212,15 @@ internal sealed class FakeExhibitionsDataLayer : IExhibitionsDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingExhibitionsBusiness : IExhibitionsBusiness
 {
+    public Task<OperationResult<CursorPage<ExhibitionDeletedServiceModel>>> ListDeletedAsync(
+        ExhibitionListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult<ExhibitionDetail>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Exhibitions.Managers.ExhibitionSiteRow>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Modules.Exhibitions.Managers.ExhibitionSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();

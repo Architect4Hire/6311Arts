@@ -276,6 +276,54 @@ public sealed class CmsClassesEndpointTests
         return [.. document.RootElement.GetProperty("errors").EnumerateObject().Select(field => field.Name)];
     }
 
+    [Fact]
+    public async Task DeleteRestoreAndTheDeletedViewAreForAdminsOnly()
+    {
+        // auth.md "Sensitive operations": deleting content is Admin's, like archiving (ADR 0052).
+        var facade = new RecordingClassesFacade();
+        using var api = Factory(facade);
+
+        using (var editor = Client(api, "Editor"))
+        {
+            using var refusedDelete = await editor.SendAsync(Remove("\"v1\""), Ct);
+            using var refusedRestore = await editor.SendAsync(Restore("\"v1\""), Ct);
+            using var refusedList = await editor.GetAsync($"{Base}/deleted", Ct);
+
+            Assert.Equal(HttpStatusCode.Forbidden, refusedDelete.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, refusedRestore.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, refusedList.StatusCode);
+            Assert.Null(facade.Deleted);
+        }
+
+        using var admin = Client(api, "Admin");
+        using var deleted = await admin.SendAsync(Remove("\"v1\""), Ct);
+        using var restored = await admin.SendAsync(Restore("\"v2\""), Ct);
+        using var list = await admin.GetAsync($"{Base}/deleted?limit=5", Ct);
+
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Equal("\"v1\"", facade.Deleted);
+        Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+        Assert.Equal("\"v2\"", facade.Restored);
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+
+        // The Deleted view takes no status: it shows every deleted record, whatever it was when it went.
+        Assert.Null(facade.ListedDeleted!.Status);
+    }
+
+    private static HttpRequestMessage Remove(string ifMatch)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"{Base}/{RecordingClassesFacade.Offering.Id}");
+        request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        return request;
+    }
+
+    private static HttpRequestMessage Restore(string ifMatch)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{Base}/{RecordingClassesFacade.Offering.Id}/restore");
+        request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        return request;
+    }
+
     private static ApiFactory Factory(RecordingClassesFacade facade) =>
         new(configureServices: services => services.Replace(ServiceDescriptor.Scoped<IClassesFacade>(_ => facade)));
 
@@ -289,6 +337,32 @@ public sealed class CmsClassesEndpointTests
     /// <summary>The facade as far as the controller is concerned: what it was handed, and one chosen answer.</summary>
     private sealed class RecordingClassesFacade : IClassesFacade
     {
+        public ClassListViewModel? ListedDeleted { get; private set; }
+
+        public Task<OperationResult<CursorPage<ClassDeletedServiceModel>>> ListDeletedAsync(
+            ClassListViewModel request, CancellationToken cancellationToken)
+        {
+            ListedDeleted = request;
+            return Task.FromResult(OperationResult.Success(new CursorPage<ClassDeletedServiceModel>([], null)));
+        }
+
+        public string? Deleted { get; private set; }
+
+        public Task<OperationResult> DeleteAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+        {
+            Deleted = ifMatch;
+            return Task.FromResult(OperationResult.Success());
+        }
+
+        public string? Restored { get; private set; }
+
+        public Task<OperationResult<ClassServiceModel>> RestoreAsync(
+            Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+        {
+            Restored = ifMatch;
+            return Task.FromResult(OperationResult.Success(Offering));
+        }
+
         public Task<global::Arts6311.Domain.Managers.Results.OperationResult<IReadOnlyList<global::Arts6311.Domain.Modules.Classes.Managers.ServiceModels.SiteClassSummaryServiceModel>>> ListForSiteAsync(SiteClassListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Modules.Classes.Managers.ServiceModels.SiteClassServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();

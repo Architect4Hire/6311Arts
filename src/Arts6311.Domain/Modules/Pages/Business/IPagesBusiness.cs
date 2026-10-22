@@ -14,6 +14,25 @@ internal interface IPagesBusiness
 
     Task<OperationResult<PageServiceModel>> GetAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The Deleted view: the pages staff deleted, newest cursor rules as the list (ADR 0052).</summary>
+    Task<OperationResult<CursorPage<PageDeletedServiceModel>>> ListDeletedAsync(
+        PageListViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes the page, whatever its status: it leaves the site, leaves the CMS list, and releases its web
+    /// address, and only the Deleted view and the audit trail still name it (ADR 0052). Refusals:
+    /// <c>resource.not_found</c>, <c>concurrency.*</c>.
+    /// </summary>
+    Task<OperationResult> DeleteAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Brings a deleted page back as a Draft, with any schedule cleared: nothing returns to the site by being
+    /// restored (ADR 0052). Refusals: <c>resource.not_found</c>, <c>concurrency.*</c>, and
+    /// <c>cms.slug_taken</c> when another page took its web address while it was deleted.
+    /// </summary>
+    Task<OperationResult<PageServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
     /// <summary>The published page at <paramref name="slug"/>, or <c>resource.not_found</c>: a draft is not there to the site.</summary>
     Task<OperationResult<SitePageServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken);
 

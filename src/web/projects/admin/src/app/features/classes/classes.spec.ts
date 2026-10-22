@@ -555,4 +555,27 @@ describe('run drafts', () => {
     // 2 p.m. Chicago is 19:00 UTC in October and 20:00 UTC in November.
     expect(inputs[0].startsAt).toBe('2026-11-07T20:00:00+00:00');
   });
+
+  it('offers delete to Admins only, and returns to the list', async () => {
+    // ADR 0052: Admin only, like archive, and offered whatever the status.
+    const editor = await openEditor(CLASS_OFFERING);
+    expect(button(editor.root, 'Delete class')).toBeUndefined();
+    TestBed.resetTestingModule();
+
+    const { http, fixture, root, confirm, router } = await openEditor(CLASS_OFFERING, ['Admin']);
+    const ask = vi.spyOn(confirm, 'confirm').mockResolvedValue(true);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    button(root, 'Delete class')!.click();
+    await settle(fixture);
+
+    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ heading: 'Delete this class?' }));
+    const deleted = http.expectOne(ONE);
+    expect(deleted.request.method).toBe('DELETE');
+    expect(deleted.request.headers.get('If-Match')).toBe(CLASS_OFFERING.etag);
+    deleted.flush(null, { status: 204, statusText: 'No Content' });
+    await settle(fixture);
+
+    expect(navigate).toHaveBeenCalled();
+  });
 });

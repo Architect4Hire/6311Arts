@@ -119,6 +119,58 @@ public sealed class CmsPagesEndpointTests
     }
 
     [Fact]
+    public async Task DeleteRestoreAndTheDeletedViewAreForAdminsOnly()
+    {
+        // auth.md "Sensitive operations": deleting content is Admin's, like archiving (ADR 0052).
+        var facade = new RecordingPagesFacade();
+        using var api = Factory(facade);
+
+        using (var editor = Client(api, "Editor"))
+        {
+            using var refusedDelete = await editor.SendAsync(Delete("\"v1\""), Ct);
+            using var refusedRestore = await editor.SendAsync(Command("restore", "\"v1\""), Ct);
+            using var refusedList = await editor.GetAsync($"{Base}/deleted", Ct);
+
+            Assert.Equal(HttpStatusCode.Forbidden, refusedDelete.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, refusedRestore.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, refusedList.StatusCode);
+            Assert.Null(facade.Command);
+        }
+
+        using var admin = Client(api, "Admin");
+        using var deleted = await admin.SendAsync(Delete("\"v1\""), Ct);
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Equal(("delete", "\"v1\"", Subject), (facade.Command, facade.IfMatch, facade.Actor));
+
+        using var restored = await admin.SendAsync(Command("restore", "\"v2\""), Ct);
+        Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+        Assert.Equal(("restore", "\"v2\""), (facade.Command, facade.IfMatch));
+        Assert.Equal(RecordingPagesFacade.Page.ETag, restored.Headers.ETag?.ToString());
+
+        using var list = await admin.GetAsync($"{Base}/deleted?cursor=abc&limit=5&search=priv", Ct);
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+
+        // The Deleted view takes no status: it shows every deleted page, whatever it was when it went.
+        Assert.Equal(new PageListViewModel("abc", 5, null, "priv"), facade.ListedDeleted);
+    }
+
+    [Theory]
+    [InlineData(ErrorCodes.PreconditionRequired, (HttpStatusCode)428)]
+    [InlineData(ErrorCodes.NotFound, HttpStatusCode.NotFound)]
+    [InlineData(ErrorCodes.ConcurrencyConflict, HttpStatusCode.Conflict)]
+    public async Task ADeleteRefusalAnswersWithItsCodesStatusAndNoBodilessSuccess(string code, HttpStatusCode status)
+    {
+        var facade = new RecordingPagesFacade { Error = OperationError.Of(code, "Refused.") };
+        using var api = Factory(facade);
+        using var client = Client(api, "Admin");
+
+        using var response = await client.SendAsync(Delete(ifMatch: null), Ct);
+
+        Assert.Equal(status, response.StatusCode);
+        Assert.Equal(code, await CodeAsync(response));
+    }
+
+    [Fact]
     public async Task AMemberAndAnAnonymousCallerAreKeptOut()
     {
         using var api = Factory(new RecordingPagesFacade());
@@ -189,6 +241,17 @@ public sealed class CmsPagesEndpointTests
         Assert.Equal("unschedule", facade.Command);
         Assert.Equal("\"v2\"", facade.IfMatch);
         Assert.Equal(RecordingPagesFacade.Page.ETag, unscheduled.Headers.ETag?.ToString());
+    }
+
+    private static HttpRequestMessage Delete(string? ifMatch)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"{Base}/{RecordingPagesFacade.Page.Id}");
+        if (ifMatch is not null)
+        {
+            request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        }
+
+        return request;
     }
 
     private static HttpRequestMessage Command(string command, string ifMatch)
@@ -293,6 +356,27 @@ public sealed class CmsPagesEndpointTests
         public Task<OperationResult<PageServiceModel>> UnscheduleAsync(
             Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
             Run("unschedule", ifMatch, actorUserId);
+
+        public PageListViewModel? ListedDeleted { get; private set; }
+
+        public Task<OperationResult<CursorPage<PageDeletedServiceModel>>> ListDeletedAsync(
+            PageListViewModel request, CancellationToken cancellationToken)
+        {
+            ListedDeleted = request;
+            return Task.FromResult(Error is null
+                ? OperationResult.Success(new CursorPage<PageDeletedServiceModel>([], null))
+                : OperationResult.Failure<CursorPage<PageDeletedServiceModel>>(Error));
+        }
+
+        public Task<OperationResult> DeleteAsync(Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+        {
+            (Command, IfMatch, Actor) = ("delete", ifMatch, actorUserId);
+            return Task.FromResult(Error is null ? OperationResult.Success() : OperationResult.Failure(Error));
+        }
+
+        public Task<OperationResult<PageServiceModel>> RestoreAsync(
+            Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) =>
+            Run("restore", ifMatch, actorUserId);
 
         // The Worker's, not a route's.
         public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken) =>

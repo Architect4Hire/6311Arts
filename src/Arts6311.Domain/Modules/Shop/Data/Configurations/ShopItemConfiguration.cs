@@ -29,6 +29,11 @@ internal sealed class ShopItemConfiguration : IEntityTypeConfiguration<ShopItem>
 
         builder.Property(item => item.UpdatedBy).IsRequired().HasMaxLength(ShopPolicy.UserIdMaxLength);
         builder.Property(item => item.RowVersion).IsConcurrencyToken();
+        builder.Property(item => item.DeletedBy).HasMaxLength(ShopPolicy.UserIdMaxLength);
+
+        // A deleted record is not there: hidden from the CMS lists, the site reads, the sitemap, previews and the
+        // scheduled publisher alike, unless a query asks for deleted rows by name (ADR 0052).
+        SoftDelete.Apply(builder);
 
         // Not mapped: it is read from the projection columns, which the inbound pull owns (ADR 0037).
         builder.Ignore(item => item.HasSquareRecord);
@@ -57,9 +62,16 @@ internal sealed class ShopItemConfiguration : IEntityTypeConfiguration<ShopItem>
             .HasForeignKey(reference => reference.ShopItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Live rows only, so deleting a record releases its web address for the next one (ADR 0052). The
+        // constraint has to say so itself: a unique index knows nothing of the query filter above.
         builder.HasIndex(item => item.Slug)
             .IsUnique()
+            .HasFilter(SoftDelete.LiveRowsOnly)
             .HasDatabaseName("IX_ShopItems_Slug");
+
+        // The Deleted view: the deleted rows, in the same order as the main list.
+        builder.HasIndex(item => new { item.DeletedAt, item.Id })
+            .HasDatabaseName("IX_ShopItems_DeletedAt_Id");
 
         // The importer's idempotency key: unique where present, and most rows have none.
         builder.HasIndex(item => item.LegacyWordPressId)

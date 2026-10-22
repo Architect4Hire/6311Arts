@@ -35,6 +35,16 @@ internal sealed class ShopDataLayer(
     public Task<ShopItem?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         repository.FindAsync(id, cancellationToken);
 
+    public Task<ShopItem?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.FindDeletedAsync(id, cancellationToken);
+
+    public Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken) =>
+        repository.ListNamingArtistAsync(artistId, take, cancellationToken);
+
+    public Task<List<ShopItemDeletedRow>> ListDeletedAsync(
+        ShopItemListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
+        repository.ListDeletedAsync(after, take, search, cancellationToken);
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         repository.SlugExistsAsync(slug, exceptId, cancellationToken);
 
@@ -127,6 +137,49 @@ internal sealed class ShopDataLayer(
             BeforeReference: $"status:{from}", AfterReference: $"status:{item.Status}"));
 
         return await SaveAsync(item, SkuChanges.None, cancellationToken);
+    }
+
+    public async Task<ShopWriteOutcome> DeleteAsync(
+        ShopItem item, SkuChanges skuChanges, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        var now = clock.UtcNow;
+        var deletedAs = item.Status;
+        SoftDelete.Stamp(item, actorUserId, now);
+        Stamp(item, actorUserId, now);
+        await StageSkusAsync(skuChanges, cancellationToken);
+
+        // Only while the site was showing it. A Draft or Scheduled record is rendered nowhere, and an Archived one
+        // had its revalidation when it was archived, so there is nothing cached to clear (content.md, ADR 0036).
+        if (deletedAs == PublishStatus.Published)
+        {
+            StageRevalidation(item);
+        }
+
+        audit.Record(new AuditEntry(
+            actorUserId, ShopAudit.Deleted, ShopAudit.ResourceType, item.Id.ToString(), correlation.Current,
+            $"Deleted while {deletedAs.ToString().ToLowerInvariant()}. Its web address is free again.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"slug:{item.Slug}"));
+
+        return await SaveAsync(item, skuChanges, cancellationToken);
+    }
+
+    public async Task<ShopWriteOutcome> RestoreAsync(
+        ShopItem item, SkuChanges skuChanges, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        SoftDelete.Clear(item);
+        Stamp(item, actorUserId, clock.UtcNow);
+        await StageSkusAsync(skuChanges, cancellationToken);
+        // Nothing is revalidated: Business brings a record back as a Draft, and nothing public renders one.
+        audit.Record(new AuditEntry(
+            actorUserId, ShopAudit.Restored, ShopAudit.ResourceType, item.Id.ToString(), correlation.Current,
+            $"Restored as draft; it was {deletedAs.ToString().ToLowerInvariant()} when it was deleted.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"status:{item.Status}"));
+
+        return await SaveAsync(item, skuChanges, cancellationToken);
     }
 
     public async Task<ShopWriteOutcome> AbandonScheduleAsync(

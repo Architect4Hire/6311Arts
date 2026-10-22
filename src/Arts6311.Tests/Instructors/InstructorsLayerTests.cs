@@ -456,7 +456,8 @@ public sealed class InstructorsLayerTests
         var media = new FakeMediaFacade();
         var facade = new InstructorsFacade(
             business, media, artists, new InstructorCreateValidator(), new InstructorUpdateValidator(),
-            new InstructorListValidator(), new ContentScheduleValidator(), TestAppCache.Create());
+            new InstructorListValidator(), new ContentScheduleValidator(), TestAppCache.Create(),
+            new FakeContentReferences());
         return (facade, business, media);
     }
 }

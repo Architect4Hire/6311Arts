@@ -31,6 +31,16 @@ internal sealed class ExhibitionsDataLayer(
     public Task<Exhibition?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         repository.FindAsync(id, cancellationToken);
 
+    public Task<Exhibition?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.FindDeletedAsync(id, cancellationToken);
+
+    public Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken) =>
+        repository.ListNamingArtistAsync(artistId, take, cancellationToken);
+
+    public Task<List<ExhibitionDeletedRow>> ListDeletedAsync(
+        ExhibitionListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
+        repository.ListDeletedAsync(after, take, search, cancellationToken);
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         repository.SlugExistsAsync(slug, exceptId, cancellationToken);
 
@@ -102,6 +112,47 @@ internal sealed class ExhibitionsDataLayer(
             actorUserId, ExhibitionAudit.For(command), ExhibitionAudit.ResourceType, exhibition.Id.ToString(),
             correlation.Current, $"{from} → {exhibition.Status}.",
             BeforeReference: $"status:{from}", AfterReference: $"status:{exhibition.Status}"));
+
+        return await SaveAsync(exhibition, cancellationToken);
+    }
+
+    public async Task<ExhibitionWriteOutcome> DeleteAsync(
+        Exhibition exhibition, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exhibition);
+
+        var now = clock.UtcNow;
+        var deletedAs = exhibition.Status;
+        SoftDelete.Stamp(exhibition, actorUserId, now);
+        Stamp(exhibition, actorUserId, now);
+
+        // Only while the site was showing it. A Draft or Scheduled record is rendered nowhere, and an Archived one
+        // had its revalidation when it was archived, so there is nothing cached to clear (content.md, ADR 0036).
+        if (deletedAs == PublishStatus.Published)
+        {
+            StageRevalidation(exhibition);
+        }
+
+        audit.Record(new AuditEntry(
+            actorUserId, ExhibitionAudit.Deleted, ExhibitionAudit.ResourceType, exhibition.Id.ToString(), correlation.Current,
+            $"Deleted while {deletedAs.ToString().ToLowerInvariant()}. Its web address is free again.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"slug:{exhibition.Slug}"));
+
+        return await SaveAsync(exhibition, cancellationToken);
+    }
+
+    public async Task<ExhibitionWriteOutcome> RestoreAsync(
+        Exhibition exhibition, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exhibition);
+
+        SoftDelete.Clear(exhibition);
+        Stamp(exhibition, actorUserId, clock.UtcNow);
+        // Nothing is revalidated: Business brings a record back as a Draft, and nothing public renders one.
+        audit.Record(new AuditEntry(
+            actorUserId, ExhibitionAudit.Restored, ExhibitionAudit.ResourceType, exhibition.Id.ToString(), correlation.Current,
+            $"Restored as draft; it was {deletedAs.ToString().ToLowerInvariant()} when it was deleted.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"status:{exhibition.Status}"));
 
         return await SaveAsync(exhibition, cancellationToken);
     }

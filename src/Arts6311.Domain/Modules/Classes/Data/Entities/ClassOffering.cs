@@ -8,7 +8,7 @@ namespace Arts6311.Domain.Modules.Classes.Data.Entities;
 /// <strong>Square-synced</strong> (ADR 0032): the CMS owns this content and each run's SKU and capacity; Square owns
 /// the record of money and seats.
 /// </summary>
-public sealed class ClassOffering
+public sealed class ClassOffering : ISoftDeletable
 {
     public Guid Id { get; set; }
 
@@ -64,6 +64,15 @@ public sealed class ClassOffering
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>
+    /// When staff deleted the class, or <c>null</c> while it is live (ADR 0052). A deleted record is invisible
+    /// to every query — the site included — and only an Admin's restore brings it back, as a Draft.
+    /// </summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>The user id behind the delete. <c>null</c> while the record is live.</summary>
+    public string? DeletedBy { get; set; }
 
     /// <summary>The user id behind the last write. The importer compares it to tell staff edits from its own (content.md).</summary>
     public string UpdatedBy { get; set; } = string.Empty;

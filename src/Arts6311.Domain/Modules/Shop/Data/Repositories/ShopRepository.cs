@@ -22,12 +22,50 @@ internal sealed class ShopRepository(ArtsDbContext context) : IShopRepository
             .Include(item => item.DescriptionImages)
             .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
 
+    public Task<ShopItem?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        Items.IgnoreQueryFilters()
+            .Include(item => item.Categories)
+            .Include(item => item.Images)
+            .Include(item => item.DescriptionImages)
+            .FirstOrDefaultAsync(item => item.Id == id && item.DeletedAt != null, cancellationToken);
+
+    public Task<List<ShopItemDeletedRow>> ListDeletedAsync(
+        ShopItemListPosition? after, int take, string? search, CancellationToken cancellationToken)
+    {
+        // The one list that asks past the query filter, and then for the deleted rows alone (ADR 0052).
+        var query = Items.IgnoreQueryFilters().AsNoTracking().Where(item => item.DeletedAt != null);
+
+        if (!string.IsNullOrEmpty(search))
+        {
+            var pattern = $"%{EscapeLike(search)}%";
+            query = query.Where(item => EF.Functions.Like(item.Title, pattern, LikeEscape.ToString()));
+        }
+
+        if (after is not null)
+        {
+            // The same order as the main list, so one cursor shape serves both.
+            #pragma warning disable CA1309
+            query = query.Where(item => string.Compare(item.Title, after.Title) > 0
+                || (item.Title == after.Title && item.Id.CompareTo(after.Id) > 0));
+#pragma warning restore CA1309
+        }
+
+        return query
+            .OrderBy(item => item.Title)
+            .ThenBy(item => item.Id)
+            .Take(take)
+            .Select(item => new ShopItemDeletedRow(
+                item.Id, item.Title, item.Slug, item.Status, item.DeletedAt!.Value, item.RowVersion))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         Items.AsNoTracking().AnyAsync(
             item => item.Slug == slug && (exceptId == null || item.Id != exceptId), cancellationToken);
 
+    /// <remarks>Deleted records included, so a seed or a re-import never recreates one (ADR 0052).</remarks>
     public async Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
-        [.. await Items.AsNoTracking().Select(item => item.Slug).ToListAsync(cancellationToken)];
+        [.. await Items.IgnoreQueryFilters().AsNoTracking().Select(item => item.Slug).ToListAsync(cancellationToken)];
 
     public async Task<int> NextItemNumberAsync(CancellationToken cancellationToken) =>
         (await Items.AsNoTracking().MaxAsync(item => (int?)item.ItemNumber, cancellationToken) ?? 0) + 1;
@@ -232,6 +270,14 @@ internal sealed class ShopRepository(ArtsDbContext context) : IShopRepository
         item.SoldOut,
         item.PublishedAt,
         item.UpdatedAt);
+
+    public Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken) =>
+        Items.AsNoTracking()
+            .Where(item => item.ArtistId == artistId)
+            .OrderBy(item => item.Title)
+            .Take(take)
+            .Select(item => item.Title)
+            .ToListAsync(cancellationToken);
 
     public void DiscardChanges() => context.ChangeTracker.Clear();
 

@@ -36,6 +36,23 @@ public sealed class CmsInstructorsController(IInstructorsFacade facade) : Contro
         CancellationToken cancellationToken) =>
         this.ToActionResult(await facade.ListAsync(new InstructorListViewModel(cursor, limit, status, search), cancellationToken));
 
+
+    /// <summary>
+    /// The instructors staff deleted (ADR 0052), cursor-paged. Admin only, like the delete itself. Each row carries
+    /// the <c>etag</c> that restoring it sends back as <c>If-Match</c>.
+    /// </summary>
+    [HttpGet("deleted")]
+    [Authorize(Policy = ApiPolicies.CmsAdmin)]
+    [ProducesResponseType<CursorPage<InstructorDeletedServiceModel>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ListDeletedAsync(
+        [FromQuery(Name = "cursor")] string? cursor,
+        [FromQuery(Name = "limit")] int? limit,
+        [FromQuery(Name = "search")] string? search,
+        CancellationToken cancellationToken) =>
+        this.ToActionResult(await facade.ListDeletedAsync(
+            new InstructorListViewModel(cursor, limit, Status: null, search), cancellationToken));
+
     /// <summary>One instructor. The <c>ETag</c> header is what a write sends back as <c>If-Match</c>.</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType<InstructorServiceModel>(StatusCodes.Status200OK)]
@@ -110,6 +127,34 @@ public sealed class CmsInstructorsController(IInstructorsFacade facade) : Contro
     public async Task<IActionResult> ArchiveAsync(
         Guid id, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken cancellationToken) =>
         WithETag(await facade.ArchiveAsync(id, ifMatch, User.UserId(), cancellationToken));
+
+    /// <summary>
+    /// Deletes the instructor, from any status (ADR 0052). It leaves the site, leaves the list, and releases its web
+    /// address; an Admin can restore it from the Deleted view. Admin only; audited.
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = ApiPolicies.CmsAdmin)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status428PreconditionRequired)]
+    public async Task<IActionResult> DeleteAsync(
+        Guid id, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken cancellationToken) =>
+        this.ToNoContentResult(await facade.DeleteAsync(id, ifMatch, User.UserId(), cancellationToken));
+
+    /// <summary>
+    /// Brings a deleted instructor back as a Draft, with any schedule cleared (ADR 0052). Admin only; audited.
+    /// Refused with <c>cms.slug_taken</c> when another record took its web address while it was deleted.
+    /// </summary>
+    [HttpPost("{id:guid}/restore")]
+    [Authorize(Policy = ApiPolicies.CmsAdmin)]
+    [ProducesResponseType<InstructorServiceModel>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status428PreconditionRequired)]
+    public async Task<IActionResult> RestoreAsync(
+        Guid id, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken cancellationToken) =>
+        WithETag(await facade.RestoreAsync(id, ifMatch, User.UserId(), cancellationToken));
 
 
     /// <summary>

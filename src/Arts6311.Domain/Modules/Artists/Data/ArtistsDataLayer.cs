@@ -31,6 +31,13 @@ internal sealed class ArtistsDataLayer(
     public Task<Artist?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         repository.FindAsync(id, cancellationToken);
 
+    public Task<Artist?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.FindDeletedAsync(id, cancellationToken);
+
+    public Task<List<ArtistDeletedRow>> ListDeletedAsync(
+        ArtistListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
+        repository.ListDeletedAsync(after, take, search, cancellationToken);
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         repository.SlugExistsAsync(slug, exceptId, cancellationToken);
 
@@ -106,6 +113,47 @@ internal sealed class ArtistsDataLayer(
         audit.Record(new AuditEntry(
             actorUserId, ArtistAudit.For(command), ArtistAudit.ResourceType, artist.Id.ToString(), correlation.Current,
             $"{from} → {artist.Status}.", BeforeReference: $"status:{from}", AfterReference: $"status:{artist.Status}"));
+
+        return await SaveAsync(artist, cancellationToken);
+    }
+
+    public async Task<ArtistWriteOutcome> DeleteAsync(
+        Artist artist, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(artist);
+
+        var now = clock.UtcNow;
+        var deletedAs = artist.Status;
+        SoftDelete.Stamp(artist, actorUserId, now);
+        Stamp(artist, actorUserId, now);
+
+        // Whatever its status, as every write to an artist is: an unpublished artist is still credited by name on published
+        // exhibitions and artwork (ADR 0042, 0043), so a delete changes what the site shows whatever the record was.
+        StageRevalidation(artist);
+
+        audit.Record(new AuditEntry(
+            actorUserId, ArtistAudit.Deleted, ArtistAudit.ResourceType, artist.Id.ToString(), correlation.Current,
+            $"Deleted while {deletedAs.ToString().ToLowerInvariant()}. Its web address is free again.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"slug:{artist.Slug}"));
+
+        return await SaveAsync(artist, cancellationToken);
+    }
+
+    public async Task<ArtistWriteOutcome> RestoreAsync(
+        Artist artist, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(artist);
+
+        SoftDelete.Clear(artist);
+        Stamp(artist, actorUserId, clock.UtcNow);
+
+        // The same revalidation as any other write to this type, for the reason the delete above gives.
+        StageRevalidation(artist);
+
+        audit.Record(new AuditEntry(
+            actorUserId, ArtistAudit.Restored, ArtistAudit.ResourceType, artist.Id.ToString(), correlation.Current,
+            $"Restored as draft; it was {deletedAs.ToString().ToLowerInvariant()} when it was deleted.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"status:{artist.Status}"));
 
         return await SaveAsync(artist, cancellationToken);
     }

@@ -14,7 +14,7 @@ namespace Arts6311.Domain.Modules.Memberships.Data.Entities;
 /// the page's own anchors — rather than an address. Nothing redirects when it changes, because no one could have
 /// bookmarked it.
 /// </remarks>
-public sealed class MembershipPlan
+public sealed class MembershipPlan : ISoftDeletable
 {
     public Guid Id { get; set; }
 
@@ -79,6 +79,15 @@ public sealed class MembershipPlan
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>
+    /// When staff deleted the membership plan, or <c>null</c> while it is live (ADR 0052). A deleted record is invisible
+    /// to every query — the site included — and only an Admin's restore brings it back, as a Draft.
+    /// </summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>The user id behind the delete. <c>null</c> while the record is live.</summary>
+    public string? DeletedBy { get; set; }
 
     /// <summary>The user id behind the last write. The importer compares it to tell staff edits from its own (content.md).</summary>
     public string UpdatedBy { get; set; } = string.Empty;

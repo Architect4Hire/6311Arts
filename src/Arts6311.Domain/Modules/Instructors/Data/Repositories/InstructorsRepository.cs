@@ -30,12 +30,47 @@ internal sealed class InstructorsRepository(ArtsDbContext context) : IInstructor
     public Task<Instructor?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         Instructors.FirstOrDefaultAsync(instructor => instructor.Id == id, cancellationToken);
 
+    public Task<Instructor?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        Instructors.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(instructor => instructor.Id == id && instructor.DeletedAt != null, cancellationToken);
+
+    public Task<List<InstructorDeletedRow>> ListDeletedAsync(
+        InstructorListPosition? after, int take, string? search, CancellationToken cancellationToken)
+    {
+        // The one list that asks past the query filter, and then for the deleted rows alone (ADR 0052).
+        var query = Instructors.IgnoreQueryFilters().AsNoTracking().Where(instructor => instructor.DeletedAt != null);
+
+        if (!string.IsNullOrEmpty(search))
+        {
+            var pattern = $"%{EscapeLike(search)}%";
+            query = query.Where(instructor => EF.Functions.Like(instructor.Name, pattern, LikeEscape.ToString()));
+        }
+
+        if (after is not null)
+        {
+            // The same order as the main list, so one cursor shape serves both.
+            #pragma warning disable CA1309
+            query = query.Where(instructor => string.Compare(instructor.Name, after.Name) > 0
+                || (instructor.Name == after.Name && instructor.Id.CompareTo(after.Id) > 0));
+#pragma warning restore CA1309
+        }
+
+        return query
+            .OrderBy(instructor => instructor.Name)
+            .ThenBy(instructor => instructor.Id)
+            .Take(take)
+            .Select(instructor => new InstructorDeletedRow(
+                instructor.Id, instructor.Name, instructor.Slug, instructor.Status, instructor.DeletedAt!.Value, instructor.RowVersion))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         Instructors.AsNoTracking().AnyAsync(
             instructor => instructor.Slug == slug && (exceptId == null || instructor.Id != exceptId), cancellationToken);
 
+    /// <remarks>Deleted records included, so a seed or a re-import never recreates one (ADR 0052).</remarks>
     public async Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
-        [.. await Instructors.AsNoTracking().Select(instructor => instructor.Slug).ToListAsync(cancellationToken)];
+        [.. await Instructors.IgnoreQueryFilters().AsNoTracking().Select(instructor => instructor.Slug).ToListAsync(cancellationToken)];
 
     public Task<List<InstructorSummaryServiceModel>> ListAsync(
         InstructorListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken)
@@ -104,6 +139,14 @@ internal sealed class InstructorsRepository(ArtsDbContext context) : IInstructor
             .ThenBy(instructor => instructor.Id)
             .Take(take)
             .Select(instructor => instructor.Id)
+            .ToListAsync(cancellationToken);
+
+    public Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken) =>
+        Instructors.AsNoTracking()
+            .Where(instructor => instructor.ArtistId == artistId)
+            .OrderBy(instructor => instructor.Name)
+            .Take(take)
+            .Select(instructor => instructor.Name)
             .ToListAsync(cancellationToken);
 
     public void DiscardChanges() => context.ChangeTracker.Clear();

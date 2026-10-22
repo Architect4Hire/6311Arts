@@ -52,6 +52,20 @@ internal interface IShopDataLayer
     /// <summary>One item with its categories, gallery and description images, tracked.</summary>
     Task<ShopItem?> FindAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// What to call the live records this module holds that name artist <paramref name="artistId"/>, at most
+    /// <paramref name="take"/> of them: the answer this module's <c>IContentReferenceSource</c> gives the kernel
+    /// before that artist is deleted (ADR 0052).
+    /// </summary>
+    Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken);
+
+    /// <summary>One deleted piece, tracked, for a restore (ADR 0052). A live record is <c>null</c> here.</summary>
+    Task<ShopItem?> FindDeletedAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>One page of the Deleted view, in the same order and on the same cursor as the list.</summary>
+    Task<List<ShopItemDeletedRow>> ListDeletedAsync(
+        ShopItemListPosition? after, int take, string? search, CancellationToken cancellationToken);
+
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 
     /// <summary>Who holds each of <paramref name="skus"/> now, so Business can refuse one another record has.</summary>
@@ -95,6 +109,23 @@ internal interface IShopDataLayer
     /// </summary>
     Task<ShopWriteOutcome> TransitionAsync(
         ShopItem item, PublishCommand command, PublishStatus from, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Marks the piece deleted — who and when, a new row version, its audit entry, the SKUs it lets go and,
+    /// when the site was showing it, <c>site.revalidate-requested</c> — in one save (ADR 0052).
+    /// </summary>
+    /// <param name="skuChanges">The SKUs this record lets go, which Business read off it: deleting frees them for
+    /// the record that replaces it (ADR 0037, 0052).</param>
+    Task<ShopWriteOutcome> DeleteAsync(ShopItem item, SkuChanges skuChanges, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Saves a restore Business already applied (back to Draft), clearing the delete marks, with its audit entry,
+    /// in one save (ADR 0052).
+    /// </summary>
+    /// <param name="deletedAs">What the record was when it was deleted, for the audit line.</param>
+    /// <param name="skuChanges">The SKUs this record takes back, which Business read off it.</param>
+    Task<ShopWriteOutcome> RestoreAsync(
+        ShopItem item, SkuChanges skuChanges, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Saves the scheduled publisher giving up: the Draft that Business already applied, its revalidation, and an

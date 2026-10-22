@@ -1,6 +1,7 @@
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Exhibitions.Data.Entities;
+using Arts6311.Domain.Modules.Exhibitions.Managers;
 using Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,12 +18,47 @@ internal sealed class ExhibitionsRepository(ArtsDbContext context) : IExhibition
     public Task<Exhibition?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         Exhibitions.Include(exhibition => exhibition.Artists).FirstOrDefaultAsync(exhibition => exhibition.Id == id, cancellationToken);
 
+    public Task<Exhibition?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        Exhibitions.IgnoreQueryFilters()
+            .Include(exhibition => exhibition.Artists)
+            .FirstOrDefaultAsync(exhibition => exhibition.Id == id && exhibition.DeletedAt != null, cancellationToken);
+
+    public Task<List<ExhibitionDeletedRow>> ListDeletedAsync(
+        ExhibitionListPosition? after, int take, string? search, CancellationToken cancellationToken)
+    {
+        // The one list that asks past the query filter, and then for the deleted rows alone (ADR 0052).
+        var query = Exhibitions.IgnoreQueryFilters().AsNoTracking().Where(exhibition => exhibition.DeletedAt != null);
+
+        if (!string.IsNullOrEmpty(search))
+        {
+            var pattern = $"%{EscapeLike(search)}%";
+            query = query.Where(exhibition => EF.Functions.Like(exhibition.Title, pattern, LikeEscape.ToString()));
+        }
+
+        if (after is not null)
+        {
+            // The same order as the main list, so one cursor shape serves both.
+            query = query.Where(exhibition => exhibition.StartDate < after.StartDate
+                || (exhibition.StartDate == after.StartDate && exhibition.Id.CompareTo(after.Id) < 0));
+        }
+
+        return query
+            .OrderByDescending(exhibition => exhibition.StartDate)
+            .ThenByDescending(exhibition => exhibition.Id)
+            .Take(take)
+            .Select(exhibition => new ExhibitionDeletedRow(
+                exhibition.Id, exhibition.Title, exhibition.Slug, exhibition.Status, exhibition.StartDate,
+                exhibition.DeletedAt!.Value, exhibition.RowVersion))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         Exhibitions.AsNoTracking().AnyAsync(
             exhibition => exhibition.Slug == slug && (exceptId == null || exhibition.Id != exceptId), cancellationToken);
 
+    /// <remarks>Deleted records included, so a seed or a re-import never recreates one (ADR 0052).</remarks>
     public async Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) =>
-        [.. await Exhibitions.AsNoTracking().Select(exhibition => exhibition.Slug).ToListAsync(cancellationToken)];
+        [.. await Exhibitions.IgnoreQueryFilters().AsNoTracking().Select(exhibition => exhibition.Slug).ToListAsync(cancellationToken)];
 
     public Task<List<ExhibitionSummaryServiceModel>> ListAsync(
         ExhibitionListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken)
@@ -93,6 +129,14 @@ internal sealed class ExhibitionsRepository(ArtsDbContext context) : IExhibition
             .ThenBy(exhibition => exhibition.Id)
             .ToListAsync(cancellationToken);
     }
+
+    public Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken) =>
+        Exhibitions.AsNoTracking()
+            .Where(exhibition => exhibition.Artists.Any(credit => credit.ArtistId == artistId))
+            .OrderBy(exhibition => exhibition.Title)
+            .Take(take)
+            .Select(exhibition => exhibition.Title)
+            .ToListAsync(cancellationToken);
 
     public void DiscardChanges() => context.ChangeTracker.Clear();
 

@@ -14,6 +14,25 @@ internal interface IInstructorsBusiness
 
     Task<OperationResult<InstructorDetail>> GetAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The Deleted view: the records staff deleted, on this list's own cursor scope (ADR 0052).</summary>
+    Task<OperationResult<CursorPage<InstructorDeletedServiceModel>>> ListDeletedAsync(
+        InstructorListViewModel request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes the instructor, whatever its status: it leaves the site, leaves the CMS list and releases its web
+    /// address, and only the Deleted view and the audit trail still name it (ADR 0052). Refusals:
+    /// <c>resource.not_found</c>, <c>concurrency.*</c>, <c>cms.in_use</c>.
+    /// </summary>
+    Task<OperationResult> DeleteAsync(
+        Guid id, ContentReferenceCheck references, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Brings a deleted instructor back as a Draft, with any schedule cleared: nothing returns to the site by being
+    /// restored (ADR 0052). Refusals: <c>resource.not_found</c>, <c>concurrency.*</c>, <c>cms.slug_taken</c>.
+    /// </summary>
+    Task<OperationResult<InstructorDetail>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken);
+
     /// <summary>The instructors among <paramref name="ids"/> that exist. Empty in, empty out, without a query.</summary>
     Task<IReadOnlyList<InstructorSummaryServiceModel>> GetSummariesAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);

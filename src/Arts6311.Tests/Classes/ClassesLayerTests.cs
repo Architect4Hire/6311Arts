@@ -159,7 +159,7 @@ public sealed class ClassesLayerTests
         var offering = dataLayer.Add(PublishStatus.Published, publishedAt: Now);
         var tag = Tag(offering.RowVersion);
 
-        var republished = await business.TransitionAsync(offering.Id, PublishCommand.Publish, tag, null, "editor-1", Ct);
+        var republished = await business.TransitionAsync(offering.Id, PublishCommand.Publish, tag, null, null, "editor-1", Ct);
         var nothing = await business.UpdateAsync(
             offering.Id, new ClassUpdateViewModel(Title: offering.Title), tag, null, null, "editor-1", Ct);
 
@@ -258,8 +258,15 @@ public sealed class ClassesLayerTests
         offering.Runs[1].Sessions.Clear();
         offering.Runs[1].StartingPriceCents = null;
 
+        // Instructors vouches for the one run that still names someone; the other run names nobody at all.
+        var teaching = new ClassInstructorCheck(new Dictionary<Guid, ClassInstructorFact>
+        {
+            [offering.Runs[1].InstructorId!.Value] = new("Gwen Schilling", PublishStatus.Published),
+        });
+
         var refused = await business.TransitionAsync(
-            offering.Id, PublishCommand.Publish, Tag(offering.RowVersion), ClassMediaCheck.None, "editor-1", Ct);
+            offering.Id, PublishCommand.Publish, Tag(offering.RowVersion), ClassMediaCheck.None, teaching,
+            "editor-1", Ct);
 
         Assert.Equal(
             ["Run CLS-3-1 needs an instructor.", "Run CLS-3-2 needs at least one session.", "Run CLS-3-2 needs a price. Enter 0 for a free class."],
@@ -274,7 +281,7 @@ public sealed class ClassesLayerTests
         var offering = dataLayer.Add(PublishStatus.Scheduled, summary: null, startingPriceCents: null);
         offering.ScheduledFor = Now.AddMinutes(-1);
 
-        var outcome = await business.PublishScheduledAsync(offering.Id, Now, ClassMediaCheck.None, Ct);
+        var outcome = await business.PublishScheduledAsync(offering.Id, Now, ClassMediaCheck.None, ClassInstructorCheck.None, Ct);
 
         Assert.Equal(ScheduledPublishOutcome.Unscheduled, outcome);
         Assert.Equal((PublishStatus.Scheduled, PublishStatus.Draft), (dataLayer.LastAbandon!.Value.From, offering.Status));
@@ -290,8 +297,8 @@ public sealed class ClassesLayerTests
         var draft = dataLayer.Add();
 
         dataLayer.Outcome = ClassWriteOutcome.Conflict;
-        var lost = await business.PublishScheduledAsync(due.Id, Now, ClassMediaCheck.None, Ct);
-        var skipped = await business.PublishScheduledAsync(draft.Id, Now, ClassMediaCheck.None, Ct);
+        var lost = await business.PublishScheduledAsync(due.Id, Now, ClassMediaCheck.None, ClassInstructorCheck.None, Ct);
+        var skipped = await business.PublishScheduledAsync(draft.Id, Now, ClassMediaCheck.None, ClassInstructorCheck.None, Ct);
 
         Assert.Equal(ScheduledPublishOutcome.Lost, lost);
         Assert.Equal(ScheduledPublishOutcome.Skipped, skipped);

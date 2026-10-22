@@ -69,6 +69,35 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
   know the id to tag with, and a rename's revalidation names only the new address. A new read that embeds another
   type's records adds that type's tag (`SiteContentTypes` spells them), or it serves the old name until it expires.
   Not-found answers and shop pages after the first are not cached.
+- **Deletion** (ADR 0052) is separate from the lifecycle, and every publishable type has it:
+  - `DeletedAt` / `DeletedBy` (`ISoftDeletable`) behind one EF **global query filter** per entity
+    (`SoftDelete.Apply`), so a deleted record is absent from the CMS lists, the site reads, the sitemap, previews,
+    the scheduled publisher, slug checks and another module's link check — by construction, not by remembering.
+    Every unique slug index carries `SoftDelete.LiveRowsOnly`, so the address is reusable.
+  - **The reads that look past the filter are a closed list:** the Deleted view, the find behind a restore, the
+    seeds' `GetSlugsAsync` (or a deleted placeholder comes back on the next MigrationService run), the importer's
+    legacy-id lookup, and `MediaRepository.IsReferencedAsync` (which mirrors a `Restrict` key, so it must see what
+    the database sees). A new one needs a line in ADR 0052 and a test.
+  - **`DELETE /api/v1/cms/{type}/{id}`** (204) and **`POST .../{id}/restore`**, both `CmsAdmin`, both carrying
+    `If-Match` (missing → 428), both audited (`<type>.deleted`, `<type>.restored`); **`GET /api/v1/cms/{type}/deleted`** is the
+    Deleted view, carrying each row's `etag` for the restore.
+  - **Delete works from any status.** A record that was `Published` stages `site.revalidate-requested` in the same
+    save, so the page stops being served within the Worker's poll; a Draft, Scheduled or Archived one stages
+    nothing (an artist or an instructor always stages it, for the reason their edits do).
+  - **Deleting releases the slug, and the SKU** (`ISkuRegistry` in the delete's own save). A restore comes back as
+    **`Draft`** with `ScheduledFor` cleared and `PublishedAt` kept, and is refused with `cms.slug_taken` /
+    `cms.sku_taken` when something took them meanwhile.
+  - **A record another one still names is refused** with `cms.in_use`: the facade asks the kernel's
+    `IContentReferences`, which fans out over each module's `IContentReferenceSource` (Exhibitions, Shop and
+    Instructors answer for an artist; Classes for an instructor), and hands Business a `ContentReferenceCheck`.
+    A reference from a record that is itself deleted holds nothing up.
+  - **A record can name one that has since been deleted** — a credit on a record that was itself deleted, or a
+    write that raced the check. Nothing reaches a visitor (a credit resolves through the other module's filtered
+    read, so a missing one is simply not named) and a restore returns a Draft. Where the link is *required*,
+    publishing refuses it: a class run whose instructor was deleted is refused at publish and at schedule, as a
+    vanished hero image already is (ADR 0052).
+  - **Deletion is not a `PublishStatus` and not a `PublishCommand`:** `Status` keeps saying what the record was
+    when it was deleted, which is what the Deleted view shows.
 - **Slugs** are unique per type. A slug change on a record that has ever been published redirects its old address to the new one (ADR 0035): the content module's DataLayer stages `redirects.slug-changed` in the rename's own save, and the Redirects module applies it.
   - **A membership plan is the exception** (ADR 0040): it has no address of its own, so its slug is a stable key, a
     rename owes no redirect whatever its status, and its status changes revalidate the one page every tier shares.

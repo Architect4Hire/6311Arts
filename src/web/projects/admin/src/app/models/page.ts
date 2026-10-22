@@ -30,6 +30,12 @@ export const PAGE_LIMITS = {
   searchMaxLength: 100,
 } as const;
 
+/**
+ * Router state the editor's delete sets and the list it returns to reads (ADR 0052). It lives here rather than in
+ * either component, so neither screen's lazy chunk pulls in the other (frontend.md).
+ */
+export const PAGE_DELETED_STATE = 'pageDeleted';
+
 /** The problem codes the page screens act on: the ones every content type shares. */
 export const PAGE_CODES = CONTENT_CODES;
 
@@ -67,6 +73,23 @@ export interface PageSummary {
 
 export interface PageList {
   readonly items: readonly PageSummary[];
+  readonly nextCursor: string | null;
+}
+
+/** One row of the Deleted view (`PageDeletedServiceModel`, ADR 0052). Admin only. */
+export interface PageDeletedRow {
+  readonly id: string;
+  readonly title: string;
+  readonly slug: string;
+  /** What the page was when it was deleted, not where it is now. */
+  readonly status: PublishStatus;
+  readonly deletedAt: string;
+  /** The row version, sent back as `If-Match` when restoring it. */
+  readonly etag: string;
+}
+
+export interface PageDeletedList {
+  readonly items: readonly PageDeletedRow[];
   readonly nextCursor: string | null;
 }
 
@@ -174,6 +197,37 @@ export function decodePageList(body: unknown): PageList | null {
   const items = f['items'].map(decodePageSummary);
   if (items.some((item) => item === null)) return null;
   return { items: items as PageSummary[], nextCursor: f['nextCursor'] };
+}
+
+export function decodePageDeletedRow(body: unknown): PageDeletedRow | null {
+  const f = fields(body);
+  if (
+    !f ||
+    !isString(f['id']) ||
+    !isString(f['title']) ||
+    !isString(f['slug']) ||
+    !isStatus(f['status']) ||
+    !isString(f['deletedAt']) ||
+    !isString(f['etag'])
+  ) {
+    return null;
+  }
+  return {
+    id: f['id'],
+    title: f['title'],
+    slug: f['slug'],
+    status: f['status'],
+    deletedAt: f['deletedAt'],
+    etag: f['etag'],
+  };
+}
+
+export function decodePageDeletedList(body: unknown): PageDeletedList | null {
+  const f = fields(body);
+  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
+  const items = f['items'].map(decodePageDeletedRow);
+  if (items.some((item) => item === null)) return null;
+  return { items: items as PageDeletedRow[], nextCursor: f['nextCursor'] };
 }
 
 export type PageProblem = ApiProblem;

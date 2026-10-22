@@ -157,3 +157,15 @@ public sealed record SiteClassServiceModel(
     long? FromPriceCents,
     string Currency,
     IReadOnlyList<SiteClassRunServiceModel> Runs);
+
+/// <summary>One row of the Deleted view (ADR 0052). Admin only; restoring it brings the class back as a Draft.</summary>
+/// <param name="Status">What it was when it was deleted — Draft, Published, Archived — not where it is now.</param>
+/// <param name="DeletedAt">When it was deleted (UTC).</param>
+/// <param name="ETag">The row version, to send back as <c>If-Match</c> when restoring it.</param>
+public sealed record ClassDeletedServiceModel(
+    Guid Id,
+    string Title,
+    string Slug,
+    PublishStatus Status,
+    DateTimeOffset DeletedAt,
+    [property: JsonPropertyName("etag")] string ETag);

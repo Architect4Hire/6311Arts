@@ -31,17 +31,10 @@ internal sealed class PagesBusiness(IPagesDataLayer dataLayer, IHtmlSanitizer sa
         var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim();
         var scope = string.Create(CultureInfo.InvariantCulture, $"pages|status={request.Status}|search={search}");
 
-        PageListPosition? after = null;
-        if (request.Cursor is not null)
+        var (after, cursorError) = DecodePosition(request.Cursor, scope);
+        if (cursorError is not null)
         {
-            var decoded = PageCursor.Decode(request.Cursor, scope);
-            if (!decoded.Succeeded || !Guid.TryParseExact(decoded.Value!.TieBreaker, "N", out var afterId))
-            {
-                return OperationResult.Failure<CursorPage<PageSummaryServiceModel>>(
-                    OperationError.Of(ErrorCodes.CursorInvalid, "The cursor is not valid for this list."));
-            }
-
-            after = new PageListPosition(decoded.Value.SortValue, afterId);
+            return OperationResult.Failure<CursorPage<PageSummaryServiceModel>>(cursorError);
         }
 
         var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
@@ -62,6 +55,101 @@ internal sealed class PagesBusiness(IPagesDataLayer dataLayer, IHtmlSanitizer sa
     {
         var page = await dataLayer.FindAsync(id, cancellationToken);
         return page is null ? NotFound() : OperationResult.Success(ToServiceModel(page));
+    }
+
+    public async Task<OperationResult<CursorPage<PageDeletedServiceModel>>> ListDeletedAsync(
+        PageListViewModel request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim();
+
+        // Its own cursor scope, so a cursor from the status list is not valid here and vice versa. Status is not
+        // part of it: the Deleted view shows every deleted page, whatever it was when it went.
+        var scope = string.Create(CultureInfo.InvariantCulture, $"pages|deleted|search={search}");
+
+        var (after, cursorError) = DecodePosition(request.Cursor, scope);
+        if (cursorError is not null)
+        {
+            return OperationResult.Failure<CursorPage<PageDeletedServiceModel>>(cursorError);
+        }
+
+        var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
+        var rows = await dataLayer.ListDeletedAsync(after, limit + 1, search, cancellationToken);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            rows.RemoveAt(limit);
+            var last = rows[^1];
+            next = new PageCursor(last.Title, last.Id.ToString("N")).Encode(scope);
+        }
+
+        return OperationResult.Success(
+            new CursorPage<PageDeletedServiceModel>([.. rows.Select(row => row.ToServiceModel())], next));
+    }
+
+    public async Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var page = await dataLayer.FindAsync(id, cancellationToken);
+        if (page is null)
+        {
+            return OperationResult.Failure(OperationError.Of(ErrorCodes.NotFound, "There is no such page."));
+        }
+
+        if (EntityTag.Verify(page.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure(versionError);
+        }
+
+        // From any status, Published included: "this was a mistake" is not a lifecycle step, and a staff member
+        // who has to unpublish first learns to unpublish without reading the dialog (ADR 0052). The delete stages
+        // the revalidation that takes the page off the site.
+        //
+        // No cms.in_use check: nothing in the CMS names a page. The types that are named — an artist a published
+        // exhibition credits, an instructor a class run names — check it in their own Business.
+        return await dataLayer.DeleteAsync(page, actorUserId, cancellationToken) switch
+        {
+            PageWriteOutcome.Saved => OperationResult.Success(),
+            _ => OperationResult.Failure(EntityTag.Conflict(What)),
+        };
+    }
+
+    public async Task<OperationResult<PageServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken)
+    {
+        var page = await dataLayer.FindDeletedAsync(id, cancellationToken);
+        if (page is null)
+        {
+            return NotFound();
+        }
+
+        if (EntityTag.Verify(page.RowVersion, ifMatch, What) is { } versionError)
+        {
+            return OperationResult.Failure<PageServiceModel>(versionError);
+        }
+
+        // The delete freed the address, so another page may be living there now. Refused rather than renamed for
+        // the staff member: which of the two keeps the address is their decision, not ours (ADR 0052).
+        if (await dataLayer.SlugExistsAsync(page.Slug, page.Id, cancellationToken))
+        {
+            return OperationResult.Failure<PageServiceModel>(SlugTakenOnRestore(page.Slug));
+        }
+
+        var deletedAs = page.Status;
+
+        // Back as a Draft, never straight back onto the site: what publishing requires may no longer hold, and a
+        // restore is a decision to look at the page again, not to publish it (ADR 0052).
+        page.Status = PublishStatus.Draft;
+        page.ScheduledFor = null;
+
+        return await dataLayer.RestoreAsync(page, deletedAs, actorUserId, cancellationToken) switch
+        {
+            PageWriteOutcome.Saved => OperationResult.Success(ToServiceModel(page)),
+            PageWriteOutcome.SlugTaken => OperationResult.Failure<PageServiceModel>(SlugTakenOnRestore(page.Slug)),
+            _ => Conflict(),
+        };
     }
 
     public async Task<OperationResult<SitePageServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken)
@@ -549,6 +637,28 @@ internal sealed class PagesBusiness(IPagesDataLayer dataLayer, IHtmlSanitizer sa
     private static OperationError SlugReserved(string slug) => OperationError.Validation(
         "This web address belongs to the site itself.",
         [("slug", $"6311arts.com/{slug} is already part of the site. Choose another address for this page.")]);
+
+    /// <summary>Where a keyset page resumes, or why the cursor can't be read. Shared by the list and the Deleted view.</summary>
+    private static (PageListPosition? After, OperationError? Error) DecodePosition(string? cursor, string scope)
+    {
+        if (cursor is null)
+        {
+            return (null, null);
+        }
+
+        var decoded = PageCursor.Decode(cursor, scope);
+        return !decoded.Succeeded || !Guid.TryParseExact(decoded.Value!.TieBreaker, "N", out var afterId)
+            ? (null, OperationError.Of(ErrorCodes.CursorInvalid, "The cursor is not valid for this list."))
+            : (new PageListPosition(decoded.Value.SortValue, afterId), null);
+    }
+
+    private static OperationError SlugTakenOnRestore(string slug) => new(
+        ContentErrorCodes.SlugTaken,
+        "Another page has taken this one's web address.",
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["slug"] = [$"“{slug}” was free while this page was deleted, and another page took it. Give that page another address, then restore this one."],
+        });
 
     private static OperationError SlugTaken(string slug) => new(
         ContentErrorCodes.SlugTaken,

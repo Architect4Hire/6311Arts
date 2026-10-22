@@ -11,6 +11,8 @@ import {
   ExhibitionUpdate,
   decodeExhibition,
   decodeExhibitionPage,
+  ExhibitionDeletedList,
+  decodeExhibitionDeletedList,
 } from '../models/exhibition';
 
 const BASE = '/api/v1/cms/exhibitions';
@@ -80,6 +82,40 @@ export class ExhibitionService {
       )
       .pipe(map((body) => decoded(decodeExhibition(body), 'exhibition')));
   }
+
+  /** The Deleted view (ADR 0052). Admin only; its own cursor, not the list's. */
+  listDeleted(query: { cursor?: string | null; limit?: number; search?: string } = {}): Observable<ExhibitionDeletedList> {
+    let params = new HttpParams();
+    if (query.cursor) params = params.set('cursor', query.cursor);
+    if (query.limit) params = params.set('limit', query.limit);
+    if (query.search) params = params.set('search', query.search);
+
+    return this.http
+      .get<unknown>(`${BASE}/deleted`, { params, context: quiet() })
+      .pipe(map((body) => decoded(decodeExhibitionDeletedList(body), 'list of deleted exhibitions')));
+  }
+
+  /**
+   * Deletes the exhibition, under the row version the editor read (ADR 0052): it leaves the site and the list, and
+   * an Admin can restore it from the Deleted view. Admin only.
+   */
+  delete(id: string, etag: string): Observable<void> {
+    return this.http.delete<void>(`${BASE}/${encodeURIComponent(id)}`, {
+      headers: new HttpHeaders({ 'If-Match': etag }),
+      context: quiet(),
+    });
+  }
+
+  /** Brings a deleted exhibition back as a Draft, under the row version the Deleted view read. Admin only. */
+  restore(id: string, etag: string): Observable<Exhibition> {
+    return this.http
+      .post<unknown>(`${BASE}/${encodeURIComponent(id)}/restore`, null, {
+        headers: new HttpHeaders({ 'If-Match': etag }),
+        context: quiet(),
+      })
+      .pipe(map((body) => decoded(decodeExhibition(body), 'exhibition')));
+  }
+
 }
 
 function quiet(): HttpContext {

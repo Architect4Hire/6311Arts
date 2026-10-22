@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Pages.Data.Entities;
+using Arts6311.Domain.Modules.Pages.Managers;
 using Arts6311.Domain.Modules.Pages.Managers.ServiceModels;
 
 namespace Arts6311.Domain.Modules.Pages.Data;
@@ -23,10 +24,17 @@ internal interface IPagesDataLayer
     /// <summary>One page with its image references, tracked.</summary>
     Task<Page?> FindAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>One deleted page, tracked, for a restore (ADR 0052). A live page is <c>null</c> here.</summary>
+    Task<Page?> FindDeletedAsync(Guid id, CancellationToken cancellationToken);
+
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 
     Task<List<PageSummaryServiceModel>> ListAsync(
         PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
+
+    /// <summary>One page of the Deleted view, in the same order and on the same cursor as the list.</summary>
+    Task<List<PageDeletedRow>> ListDeletedAsync(
+        PageListPosition? after, int take, string? search, CancellationToken cancellationToken);
 
     /// <summary>Adds the page Business built, image references included, with its bookkeeping and audit entry, in one save.</summary>
     Task<PageWriteOutcome> CreateAsync(Page page, string actorUserId, string summary, CancellationToken cancellationToken);
@@ -44,6 +52,20 @@ internal interface IPagesDataLayer
     /// </summary>
     Task<PageWriteOutcome> TransitionAsync(
         Page page, PublishCommand command, PublishStatus from, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Marks the page deleted — who and when, a new row version, its audit entry and, when the site was showing
+    /// it, <c>site.revalidate-requested</c> — in one save (ADR 0052).
+    /// </summary>
+    Task<PageWriteOutcome> DeleteAsync(Page page, string actorUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Saves a restore Business already applied (back to Draft), clearing the delete marks, with its audit entry,
+    /// in one save (ADR 0052). Nothing is revalidated: the page comes back as a Draft, which the site never shows.
+    /// </summary>
+    /// <param name="deletedAs">What the page was when it was deleted, for the audit line.</param>
+    Task<PageWriteOutcome> RestoreAsync(
+        Page page, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Saves the scheduled publisher giving up: the Draft that Business already applied, its revalidation, and an

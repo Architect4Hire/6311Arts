@@ -28,6 +28,10 @@ public static class ShopServiceCollectionExtensions
         // registering this module twice still leaves one (ADR 0036).
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IScheduledPublisher, ShopItemScheduledPublisher>());
 
+        // Who still names an artist, asked by the kernel before one is deleted (ADR 0052). Enumerable for the
+        // same reason: every module that holds such a reference registers one.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IContentReferenceSource, ShopContentReferenceSource>());
+
         return services;
     }
 

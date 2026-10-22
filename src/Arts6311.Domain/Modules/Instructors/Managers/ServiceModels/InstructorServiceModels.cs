@@ -72,3 +72,15 @@ public sealed record SiteInstructorServiceModel(
 /// </summary>
 /// <param name="Slug">Their page, or <c>null</c> when they are not published, so the site shows the name without a link.</param>
 public sealed record SiteInstructorCreditServiceModel(string Name, string? Slug);
+
+/// <summary>One row of the Deleted view (ADR 0052). Admin only; restoring it brings the instructor back as a Draft.</summary>
+/// <param name="Status">What it was when it was deleted — Draft, Published, Archived — not where it is now.</param>
+/// <param name="DeletedAt">When it was deleted (UTC).</param>
+/// <param name="ETag">The row version, to send back as <c>If-Match</c> when restoring it.</param>
+public sealed record InstructorDeletedServiceModel(
+    Guid Id,
+    string Name,
+    string Slug,
+    PublishStatus Status,
+    DateTimeOffset DeletedAt,
+    [property: JsonPropertyName("etag")] string ETag);

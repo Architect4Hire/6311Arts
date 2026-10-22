@@ -14,6 +14,7 @@ using Arts6311.Tests.Exhibitions.Infrastructure;
 using Arts6311.Tests.Media.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Arts6311.Domain.Modules.Artists.Facade;
 
 namespace Arts6311.Tests.Exhibitions;
 
@@ -24,6 +25,8 @@ namespace Arts6311.Tests.Exhibitions;
 public sealed class ExhibitionsModuleTests
 {
     private const string Editor = ExhibitionsTestHost.EditorId;
+
+    private const string Admin = ExhibitionsTestHost.AdminId;
 
     private static readonly DateOnly Start = new(2026, 10, 24);
     private static readonly DateOnly End = new(2026, 12, 5);
@@ -449,6 +452,75 @@ public sealed class ExhibitionsModuleTests
         Assert.Equal(new DateTimeOffset(2026, 10, 24, 23, 0, 0, TimeSpan.Zero), boats.Reception!.StartsAt);
         Assert.Equal(ExhibitionDevelopmentSeeder.SeedActor, portraitMode.UpdatedBy);
         Assert.Single(await host.AuditActionsAsync(), action => action == "exhibition.seeded");
+    }
+
+    [Fact]
+    public async Task ADeletedRecordIsGoneFromEveryReadAndARestoreBringsItBackAsADraft()
+    {
+        // ADR 0052: one query filter, so "deleted" means gone from every read — and a restore is a decision to
+        // look at the record again, not to publish it.
+        await using var host = await ExhibitionsTestHost.CreateAsync(Ct);
+        var created = await CreateAsync(host, new ExhibitionCreateViewModel("Queue", Start, End));
+
+        var deleted = await host.WithFacadeAsync(facade => facade.DeleteAsync(created.Id, created.ETag, ExhibitionsTestHost.AdminId, Ct));
+
+        Assert.True(deleted.Succeeded, deleted.Error?.Code);
+        Assert.Equal(ErrorCodes.NotFound, (await host.WithFacadeAsync(facade => facade.GetAsync(created.Id, Ct))).Error!.Code);
+        Assert.Empty((await Ok(host.WithFacadeAsync(facade => facade.ListAsync(new ExhibitionListViewModel(), Ct)))).Items);
+        Assert.Null(await host.StoredAsync(created.Id));
+
+        // The address is free at once, which is the point: the mistake stops standing in the way.
+        var replacement = await CreateAsync(host, new ExhibitionCreateViewModel("Queue", Start, End));
+        Assert.Equal("queue", replacement.Slug);
+
+        var trash = await Ok(host.WithFacadeAsync(facade => facade.ListDeletedAsync(new ExhibitionListViewModel(), Ct)));
+        var row = Assert.Single(trash.Items);
+        Assert.Equal("Queue", row.Title);
+
+        // The replacement holds the address now, so the restore is refused until it does not.
+        var refused = await host.WithFacadeAsync(facade => facade.RestoreAsync(created.Id, row.ETag, ExhibitionsTestHost.AdminId, Ct));
+        Assert.Equal(ContentErrorCodes.SlugTaken, refused.Error!.Code);
+
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(replacement.Id, replacement.ETag, ExhibitionsTestHost.AdminId, Ct));
+        var restored = await Ok(host.WithFacadeAsync(facade => facade.RestoreAsync(created.Id, row.ETag, ExhibitionsTestHost.AdminId, Ct)));
+
+        Assert.Equal(PublishStatus.Draft, restored.Status);
+        Assert.Null(restored.ScheduledFor);
+        Assert.Contains("exhibition.deleted", await host.AuditActionsAsync());
+        Assert.Contains("exhibition.restored", await host.AuditActionsAsync());
+    }
+
+    [Fact]
+    public async Task AnArtistAnExhibitionCreditsCannotBeDeletedUntilTheCreditIsGone()
+    {
+        // ADR 0052: a delete is refused while another record still names the artist, rather than quietly dropping
+        // the credit from a published page. Exhibitions answers for its own credits (IContentReferenceSource), so
+        // this is the whole path: the Artists facade asks the kernel, the kernel asks this module.
+        await using var host = await ExhibitionsTestHost.CreateAsync(Ct);
+        var artist = await host.AddArtistAsync("Socorro Muciño");
+        var exhibition = await CreateAsync(host, new ExhibitionCreateViewModel("Queue", Start, End, ArtistIds: [artist]));
+
+        var refused = await DeleteArtistAsync(host, artist);
+
+        Assert.Equal(ContentErrorCodes.InUse, refused.Error!.Code);
+        Assert.Contains("“Queue”", refused.Error.Message, StringComparison.Ordinal);
+
+        // Deleting the exhibition takes its credits out of the reckoning with it: a record nothing can see holds
+        // nothing up.
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(exhibition.Id, exhibition.ETag, Admin, Ct));
+        var allowed = await DeleteArtistAsync(host, artist);
+
+        Assert.True(allowed.Succeeded, allowed.Error?.Code);
+    }
+
+    private static async Task<OperationResult> DeleteArtistAsync(ExhibitionsTestHost host, Guid artistId)
+    {
+        var version = await host.QueryAsync(context => context.Set<Artist>().AsNoTracking()
+            .Where(row => row.Id == artistId).Select(row => row.RowVersion).SingleAsync(Ct));
+
+        using var scope = host.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<IArtistsFacade>()
+            .DeleteAsync(artistId, EntityTag.Format(version), Admin, Ct);
     }
 
     private static async Task<ExhibitionServiceModel> CreateAsync(ExhibitionsTestHost host, ExhibitionCreateViewModel create) =>

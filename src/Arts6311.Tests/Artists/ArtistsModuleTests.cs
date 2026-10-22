@@ -623,6 +623,42 @@ public sealed class ArtistsModuleTests
         Assert.Empty(none);
     }
 
+    [Fact]
+    public async Task ADeletedRecordIsGoneFromEveryReadAndARestoreBringsItBackAsADraft()
+    {
+        // ADR 0052: one query filter, so "deleted" means gone from every read — and a restore is a decision to
+        // look at the record again, not to publish it.
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        var created = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+
+        var deleted = await host.WithFacadeAsync(facade => facade.DeleteAsync(created.Id, created.ETag, ArtistsTestHost.AdminId, Ct));
+
+        Assert.True(deleted.Succeeded, deleted.Error?.Code);
+        Assert.Equal(ErrorCodes.NotFound, (await host.WithFacadeAsync(facade => facade.GetAsync(created.Id, Ct))).Error!.Code);
+        Assert.Empty((await Ok(host.WithFacadeAsync(facade => facade.ListAsync(new ArtistListViewModel(), Ct)))).Items);
+        Assert.Null(await host.StoredAsync(created.Id));
+
+        // The address is free at once, which is the point: the mistake stops standing in the way.
+        var replacement = await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
+        Assert.Equal("jane-doe", replacement.Slug);
+
+        var trash = await Ok(host.WithFacadeAsync(facade => facade.ListDeletedAsync(new ArtistListViewModel(), Ct)));
+        var row = Assert.Single(trash.Items);
+        Assert.Equal("Jane Doe", row.Name);
+
+        // The replacement holds the address now, so the restore is refused until it does not.
+        var refused = await host.WithFacadeAsync(facade => facade.RestoreAsync(created.Id, row.ETag, ArtistsTestHost.AdminId, Ct));
+        Assert.Equal(ContentErrorCodes.SlugTaken, refused.Error!.Code);
+
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(replacement.Id, replacement.ETag, ArtistsTestHost.AdminId, Ct));
+        var restored = await Ok(host.WithFacadeAsync(facade => facade.RestoreAsync(created.Id, row.ETag, ArtistsTestHost.AdminId, Ct)));
+
+        Assert.Equal(PublishStatus.Draft, restored.Status);
+        Assert.Null(restored.ScheduledFor);
+        Assert.Contains("artist.deleted", await host.AuditActionsAsync());
+        Assert.Contains("artist.restored", await host.AuditActionsAsync());
+    }
+
     private static async Task<List<RedirectSlugChanged>> StagedSlugChangesAsync(ArtistsTestHost host) =>
         [.. (await host.QueryAsync(context => context.OutboxMessages.AsNoTracking()
                 .Where(message => message.Type == RedirectSlugChanged.MessageType).Select(message => message.PayloadJson).ToListAsync(Ct)))

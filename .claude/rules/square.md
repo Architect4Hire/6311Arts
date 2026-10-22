@@ -61,6 +61,11 @@ Square is the system of record for money. The CMS is the system of record for co
 - **Send the last known version.** On a version conflict, re-read, re-merge the CMS-owned fields onto Square's current object and retry inside the same handler attempt.
 - **An ambiguous outcome** (timeout after send) is reconciled by reading the object back before any second create.
 - **Archive policy** is recorded in an ADR (delete vs. mark unavailable). Never hard-delete CMS content because of a Square delete.
+- **A CMS delete tells Square nothing yet** (ADR 0052). Soft-deleting a `ShopItem`, a `ClassOffering` or a
+  `MembershipPlan` releases its SKU locally and leaves the Square object sellable; a plan with live subscribers
+  keeps billing. The 5.x delete will stage `square.catalog-delete-requested`, and the ADR that settles
+  archive-versus-delete must also decide **whether a plan Square has subscribers for may be deleted at all**.
+  Until then staff retire a Square-held record in Square themselves.
 
 ## Reads (inbound)
 

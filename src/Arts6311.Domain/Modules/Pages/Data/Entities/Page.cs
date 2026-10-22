@@ -6,7 +6,7 @@ namespace Arts6311.Domain.Modules.Pages.Data.Entities;
 /// A standalone page (content.md "Content types"): privacy, terms and the site's other copy blocks. Its body is HTML,
 /// and only ever the shared sanitizer's output (ADR 0034).
 /// </summary>
-public sealed class Page
+public sealed class Page : ISoftDeletable
 {
     public Guid Id { get; set; }
 
@@ -35,6 +35,15 @@ public sealed class Page
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>
+    /// When staff deleted the page, or <c>null</c> while it is live (ADR 0052). A deleted page is invisible to
+    /// every query — the site included — and only an Admin's restore brings it back, as a Draft.
+    /// </summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>The user id behind the delete. <c>null</c> while the page is live.</summary>
+    public string? DeletedBy { get; set; }
 
     /// <summary>The user id behind the last write. The importer compares it to tell staff edits from its own (content.md).</summary>
     public string UpdatedBy { get; set; } = string.Empty;

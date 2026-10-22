@@ -504,4 +504,27 @@ describe('ArtistEditor', () => {
 
     expect(text(root)).toContain('There’s no such artist');
   });
+
+  it('offers delete to Admins only, and returns to the list', async () => {
+    // ADR 0052: Admin only, like archive, and offered whatever the status.
+    const editor = await openEditor(ARTIST);
+    expect(button(editor.root, 'Delete artist')).toBeUndefined();
+    TestBed.resetTestingModule();
+
+    const { http, fixture, root, confirm, router } = await openEditor(ARTIST, ['Admin']);
+    const ask = vi.spyOn(confirm, 'confirm').mockResolvedValue(true);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    button(root, 'Delete artist')!.click();
+    await settle(fixture);
+
+    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ heading: 'Delete this artist?' }));
+    const deleted = http.expectOne(ONE);
+    expect(deleted.request.method).toBe('DELETE');
+    expect(deleted.request.headers.get('If-Match')).toBe(ARTIST.etag);
+    deleted.flush(null, { status: 204, statusText: 'No Content' });
+    await settle(fixture);
+
+    expect(navigate).toHaveBeenCalled();
+  });
 });

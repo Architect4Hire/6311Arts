@@ -17,6 +17,11 @@ namespace Arts6311.Tests.Memberships.Infrastructure;
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeMembershipsRepository(CallLog log) : IMembershipsRepository
 {
+    public Task<MembershipPlan?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<MembershipPlanDeletedRow>> ListDeletedAsync(
+        MembershipPlanListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Memberships.Data.Entities.MembershipPlan>> ListPublishedAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public List<MembershipPlan> Rows { get; } = [];
@@ -88,6 +93,17 @@ internal sealed class FakeMembershipsRepository(CallLog log) : IMembershipsRepos
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeMembershipsDataLayer : IMembershipsDataLayer
 {
+    public Task<MembershipPlan?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<MembershipPlanDeletedRow>> ListDeletedAsync(
+        MembershipPlanListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<MembershipWriteOutcome> DeleteAsync(
+        MembershipPlan entity, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<MembershipWriteOutcome> RestoreAsync(
+        MembershipPlan entity, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Memberships.Data.Entities.MembershipPlan>> ListPublishedAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Dictionary<Guid, MembershipPlan> Rows { get; } = [];
@@ -220,6 +236,15 @@ internal sealed class FakeMembershipsDataLayer : IMembershipsDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingMembershipsBusiness : IMembershipsBusiness
 {
+    public Task<OperationResult<CursorPage<MembershipPlanDeletedServiceModel>>> ListDeletedAsync(
+        MembershipPlanListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult<MembershipPlanServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Memberships.Managers.ServiceModels.SiteMembershipPlanServiceModel>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Managers.Results.OperationResult<global::Arts6311.Domain.Managers.Publishing.PreviewRecord<global::Arts6311.Domain.Modules.Memberships.Managers.ServiceModels.SiteMembershipPlanServiceModel>>> GetForPreviewAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();

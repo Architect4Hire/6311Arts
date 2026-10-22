@@ -62,6 +62,13 @@ internal sealed class RecordingAuditWriter(CallLog log) : IAuditWriter
 /// <summary>A repository over a list, whose save can be told to fail the way EF fails.</summary>
 internal sealed class FakeInstructorsRepository(CallLog log) : IInstructorsRepository
 {
+    public Task<Instructor?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<InstructorDeletedRow>> ListDeletedAsync(
+        InstructorListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<string>> ListNamingArtistAsync(Guid id, int take, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Instructors.Managers.InstructorSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public List<Instructor> Rows { get; } = [];
@@ -134,6 +141,19 @@ internal sealed class FakeInstructorsRepository(CallLog log) : IInstructorsRepos
 /// <summary>A DataLayer over a dictionary that records what it was asked to write and answers a chosen outcome.</summary>
 internal sealed class FakeInstructorsDataLayer : IInstructorsDataLayer
 {
+    public Task<List<string>> ListNamingArtistAsync(Guid artistId, int take, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Instructor?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<List<InstructorDeletedRow>> ListDeletedAsync(
+        InstructorListPosition? after, int take, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<InstructorWriteOutcome> DeleteAsync(
+        Instructor entity, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<InstructorWriteOutcome> RestoreAsync(
+        Instructor entity, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<List<global::Arts6311.Domain.Modules.Instructors.Managers.InstructorSiteRow>> ListPublishedAsync(string? slug, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Dictionary<Guid, Instructor> Rows { get; } = [];
@@ -249,6 +269,15 @@ internal sealed class FakeInstructorsDataLayer : IInstructorsDataLayer
 /// <summary>Business that records what the facade asked and answers what the test set.</summary>
 internal sealed class RecordingInstructorsBusiness : IInstructorsBusiness
 {
+    public Task<OperationResult<CursorPage<InstructorDeletedServiceModel>>> ListDeletedAsync(
+        InstructorListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult> DeleteAsync(
+        Guid id, ContentReferenceCheck references, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult<InstructorDetail>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<IReadOnlyList<global::Arts6311.Domain.Modules.Instructors.Managers.InstructorSiteRow>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<global::Arts6311.Domain.Modules.Instructors.Managers.InstructorSiteRow?> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -437,6 +466,15 @@ internal sealed class FakeMediaFacade : IMediaFacade
 /// </summary>
 internal sealed class FakeInstructorsFacade : IInstructorsFacade
 {
+    public Task<OperationResult<CursorPage<InstructorDeletedServiceModel>>> ListDeletedAsync(
+        InstructorListViewModel request, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult> DeleteAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<OperationResult<InstructorServiceModel>> RestoreAsync(
+        Guid id, string? ifMatch, string actorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<OperationResult<IReadOnlyList<SiteInstructorServiceModel>>> ListForSiteAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<OperationResult<SiteInstructorServiceModel>> GetForSiteAsync(string slug, CancellationToken cancellationToken) => throw new NotSupportedException();

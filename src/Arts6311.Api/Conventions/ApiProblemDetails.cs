@@ -55,6 +55,7 @@ internal static class ApiProblemDetails
         [ContentErrorCodes.SlugTaken] = StatusCodes.Status409Conflict,
         [ContentErrorCodes.SlugLocked] = StatusCodes.Status409Conflict,
         [ContentErrorCodes.StatusTransitionInvalid] = StatusCodes.Status409Conflict,
+        [ContentErrorCodes.InUse] = StatusCodes.Status409Conflict,
 
         // The catalog's shared SKU (ADR 0032, 0037): another record in the CMS has it, which the editor resolves by
         // choosing another.

@@ -34,6 +34,16 @@ internal sealed class ClassesDataLayer(
     public Task<ClassOffering?> FindAsync(Guid id, CancellationToken cancellationToken) =>
         repository.FindAsync(id, cancellationToken);
 
+    public Task<ClassOffering?> FindDeletedAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.FindDeletedAsync(id, cancellationToken);
+
+    public Task<List<string>> ListNamingInstructorAsync(Guid instructorId, int take, CancellationToken cancellationToken) =>
+        repository.ListNamingInstructorAsync(instructorId, take, cancellationToken);
+
+    public Task<List<ClassDeletedRow>> ListDeletedAsync(
+        ClassListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
+        repository.ListDeletedAsync(after, take, search, cancellationToken);
+
     public Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         repository.SlugExistsAsync(slug, exceptId, cancellationToken);
 
@@ -126,6 +136,49 @@ internal sealed class ClassesDataLayer(
             BeforeReference: $"status:{from}", AfterReference: $"status:{offering.Status}"));
 
         return await SaveAsync(offering, SkuChanges.None, cancellationToken);
+    }
+
+    public async Task<ClassWriteOutcome> DeleteAsync(
+        ClassOffering offering, SkuChanges skuChanges, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(offering);
+
+        var now = clock.UtcNow;
+        var deletedAs = offering.Status;
+        SoftDelete.Stamp(offering, actorUserId, now);
+        Stamp(offering, actorUserId, now);
+        await StageSkusAsync(skuChanges, cancellationToken);
+
+        // Only while the site was showing it. A Draft or Scheduled record is rendered nowhere, and an Archived one
+        // had its revalidation when it was archived, so there is nothing cached to clear (content.md, ADR 0036).
+        if (deletedAs == PublishStatus.Published)
+        {
+            StageRevalidation(offering);
+        }
+
+        audit.Record(new AuditEntry(
+            actorUserId, ClassAudit.Deleted, ClassAudit.ResourceType, offering.Id.ToString(), correlation.Current,
+            $"Deleted while {deletedAs.ToString().ToLowerInvariant()}. Its web address is free again.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"slug:{offering.Slug}"));
+
+        return await SaveAsync(offering, skuChanges, cancellationToken);
+    }
+
+    public async Task<ClassWriteOutcome> RestoreAsync(
+        ClassOffering offering, SkuChanges skuChanges, PublishStatus deletedAs, string actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(offering);
+
+        SoftDelete.Clear(offering);
+        Stamp(offering, actorUserId, clock.UtcNow);
+        await StageSkusAsync(skuChanges, cancellationToken);
+        // Nothing is revalidated: Business brings a record back as a Draft, and nothing public renders one.
+        audit.Record(new AuditEntry(
+            actorUserId, ClassAudit.Restored, ClassAudit.ResourceType, offering.Id.ToString(), correlation.Current,
+            $"Restored as draft; it was {deletedAs.ToString().ToLowerInvariant()} when it was deleted.",
+            BeforeReference: $"status:{deletedAs}", AfterReference: $"status:{offering.Status}"));
+
+        return await SaveAsync(offering, skuChanges, cancellationToken);
     }
 
     public async Task<ClassWriteOutcome> AbandonScheduleAsync(

@@ -310,6 +310,42 @@ public sealed class MembershipsModuleTests
         Assert.Equal(3, seeded);
     }
 
+    [Fact]
+    public async Task ADeletedRecordIsGoneFromEveryReadAndARestoreBringsItBackAsADraft()
+    {
+        // ADR 0052: one query filter, so "deleted" means gone from every read — and a restore is a decision to
+        // look at the record again, not to publish it.
+        await using var host = await MembershipsTestHost.CreateAsync(Ct);
+        var created = await CreateAsync(host, new MembershipPlanCreateViewModel("Gray"));
+
+        var deleted = await host.WithFacadeAsync(facade => facade.DeleteAsync(created.Id, created.ETag, MembershipsTestHost.EditorId, Ct));
+
+        Assert.True(deleted.Succeeded, deleted.Error?.Code);
+        Assert.Equal(ErrorCodes.NotFound, (await host.WithFacadeAsync(facade => facade.GetAsync(created.Id, Ct))).Error!.Code);
+        Assert.Empty((await Ok(host.WithFacadeAsync(facade => facade.ListAsync(new MembershipPlanListViewModel(), Ct)))).Items);
+        Assert.Null(await host.StoredAsync(created.Id));
+
+        // The address is free at once, which is the point: the mistake stops standing in the way.
+        var replacement = await CreateAsync(host, new MembershipPlanCreateViewModel("Gray"));
+        Assert.Equal("gray", replacement.Slug);
+
+        var trash = await Ok(host.WithFacadeAsync(facade => facade.ListDeletedAsync(new MembershipPlanListViewModel(), Ct)));
+        var row = Assert.Single(trash.Items);
+        Assert.Equal("Gray", row.Name);
+
+        // The replacement holds the address now, so the restore is refused until it does not.
+        var refused = await host.WithFacadeAsync(facade => facade.RestoreAsync(created.Id, row.ETag, MembershipsTestHost.EditorId, Ct));
+        Assert.Equal(ContentErrorCodes.SlugTaken, refused.Error!.Code);
+
+        await host.WithFacadeAsync(facade => facade.DeleteAsync(replacement.Id, replacement.ETag, MembershipsTestHost.EditorId, Ct));
+        var restored = await Ok(host.WithFacadeAsync(facade => facade.RestoreAsync(created.Id, row.ETag, MembershipsTestHost.EditorId, Ct)));
+
+        Assert.Equal(PublishStatus.Draft, restored.Status);
+        Assert.Null(restored.ScheduledFor);
+        Assert.Contains("membership-plan.deleted", await host.AuditActionsAsync());
+        Assert.Contains("membership-plan.restored", await host.AuditActionsAsync());
+    }
+
     private static async Task<MembershipPlanServiceModel> CreateAsync(
         MembershipsTestHost host, MembershipPlanCreateViewModel create) =>
         await Ok(host.WithFacadeAsync(facade => facade.CreateAsync(create, Editor, Ct)));
