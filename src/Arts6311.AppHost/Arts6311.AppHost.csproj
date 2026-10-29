@@ -1,5 +1,5 @@
 <!-- The Aspire.AppHost.Sdk version is pinned in global.json (msbuild-sdks). -->
-<Project Sdk="Aspire.AppHost.Sdk/13.6.3">
+<Project Sdk="Aspire.AppHost.Sdk/13.6.4">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
