@@ -30,7 +30,6 @@ import {
   ArtistUpdate,
   STATUS_CHIPS,
   decodeArtistProblem,
-  isSlug,
   slugFromName,
 } from '../../../models/artist';
 import { MediaAsset, MediaAssetSummary } from '../../../models/media';
@@ -42,8 +41,6 @@ import { MediaPicker } from '../../media/media-picker/media-picker';
 interface Draft {
   readonly name: string;
   readonly slug: string;
-  /** Whether the person has typed a slug; until then it follows the name (new artists only). */
-  readonly slugEdited: boolean;
   readonly medium: string;
   readonly bio: string;
   readonly active: boolean;
@@ -74,7 +71,6 @@ type FieldErrors = Partial<Record<'name' | 'slug' | 'medium' | 'bio' | 'portrait
 const EMPTY: Draft = {
   name: '',
   slug: '',
-  slugEdited: false,
   medium: '',
   bio: '',
   active: true,
@@ -170,7 +166,6 @@ export class ArtistEditor implements HasUnsavedChanges {
     const status = this.status();
     return status.kind === 'conflict' ? status.theirs : null;
   });
-  protected readonly slugLocked = computed(() => this.artist()?.slugLocked ?? false);
   protected readonly canPublish = computed(() => {
     const status = this.artist()?.status;
     return status === 'Draft' || status === 'Scheduled';
@@ -190,18 +185,12 @@ export class ArtistEditor implements HasUnsavedChanges {
     return this.artist() ? 'Save' : 'Create artist';
   });
 
-  /**
-   * Once published, the address is someone's bookmark: changing it is allowed, and the old address is redirected to the
-   * new one when it is saved (ADR 0035). The hint says so, and names the address that will redirect.
-   */
+  /** Made from the name on create and never typed (the field only shows it), so the address never moves. */
   protected readonly slugHint = computed(() => {
-    const saved = this.artist();
     const slug = this.draft().slug;
-    if (!this.slugLocked() || !saved)
-      return `6311arts.com/artists/${this.draft().slug || '…'} — lower-case letters, digits and hyphens.`;
-    return slug === saved.slug
-      ? `6311arts.com/artists/${slug} — published, so changing it sends visitors from this address to the new one.`
-      : `6311arts.com/artists/${slug || '…'} — on saving, visitors to /artists/${saved.slug} are sent here.`;
+    return this.artist()
+      ? `6311arts.com/artists/${slug}`
+      : `6311arts.com/artists/${slug || '…'} — made from the name. If another artist has it, a number is added.`;
   });
 
   /** Edits not yet saved: the unsaved-changes guard asks before they are lost. */
@@ -281,14 +270,9 @@ export class ArtistEditor implements HasUnsavedChanges {
   }
 
   protected setName(name: string): void {
-    const draft = this.draft();
-    // A new artist's address follows its name until someone types one.
-    const followsName = !this.artist() && !draft.slugEdited;
+    // A new artist's address follows its name; staff never type one, and the API numbers a taken one.
+    const followsName = !this.artist();
     this.patch({ name, ...(followsName ? { slug: slugFromName(name) } : {}) });
-  }
-
-  protected setSlug(slug: string): void {
-    this.patch({ slug, slugEdited: true });
   }
 
   protected choosePortrait(choice: MediaAssetSummary): void {
@@ -623,7 +607,6 @@ function draftOf(artist: Artist): Draft {
   return {
     name: artist.name,
     slug: artist.slug,
-    slugEdited: true,
     medium: artist.medium ?? '',
     bio: artist.bio ?? '',
     active: artist.active,
@@ -648,7 +631,6 @@ function createOf(draft: Draft): ArtistCreate {
   const bio = normalizeBio(draft.bio);
   return {
     name: draft.name.trim(),
-    ...(draft.slug ? { slug: draft.slug } : {}),
     ...(medium ? { medium } : {}),
     ...(bio ? { bio } : {}),
     active: draft.active,
@@ -663,7 +645,6 @@ function changesOf(artist: Artist, draft: Draft): ArtistUpdate {
   const bio = normalizeBio(draft.bio);
   return {
     ...(name !== artist.name ? { name } : {}),
-    ...(draft.slug !== artist.slug ? { slug: draft.slug } : {}),
     ...(medium !== (artist.medium ?? '') ? { medium } : {}),
     ...(bio !== (artist.bio ?? '') ? { bio } : {}),
     ...(draft.active !== artist.active ? { active: draft.active } : {}),
@@ -679,11 +660,6 @@ function changesOf(artist: Artist, draft: Draft): ArtistUpdate {
 function localErrors(draft: Draft): FieldErrors {
   const errors: FieldErrors = {};
   if (draft.name.trim() === '') errors.name = 'Enter the artist’s name.';
-  if (!isSlug(draft.slug)) {
-    errors.slug = draft.slug
-      ? 'Use lower-case letters, digits and single hyphens (for example jane-doe).'
-      : 'Enter a web address, for example jane-doe.';
-  }
   return errors;
 }
 

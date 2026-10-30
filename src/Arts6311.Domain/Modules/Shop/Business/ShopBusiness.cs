@@ -191,7 +191,11 @@ internal sealed class ShopBusiness(IShopDataLayer dataLayer, IHtmlSanitizer sani
         ArgumentNullException.ThrowIfNull(media);
 
         var title = create.Title.Trim();
-        var slug = create.Slug ?? Slugs.FromName(title);
+        // An address the request names is kept or refused; one made from the title takes the next free number instead.
+        var slug = create.Slug ?? await Slugs.FirstFreeAsync(
+            Slugs.FromName(title),
+            (candidate, token) => dataLayer.SlugExistsAsync(candidate, exceptId: null, token),
+            cancellationToken);
 
         var (description, descriptionError) = PrepareDescription(create.Description, media);
         if (descriptionError is not null)
@@ -199,7 +203,7 @@ internal sealed class ShopBusiness(IShopDataLayer dataLayer, IHtmlSanitizer sani
             return OperationResult.Failure<ShopItemDetail>(descriptionError);
         }
 
-        if (await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
+        if (create.Slug is not null && await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
         {
             return OperationResult.Failure<ShopItemDetail>(SlugTaken(slug));
         }
@@ -805,7 +809,7 @@ internal sealed class ShopBusiness(IShopDataLayer dataLayer, IHtmlSanitizer sani
             var slug = row.Slug;
             for (var number = 2; slugs.Contains(slug); number++)
             {
-                slug = ShopImportCells.Numbered(row.Slug, number);
+                slug = Slugs.Numbered(row.Slug, number);
             }
 
             row.Slug = slug;

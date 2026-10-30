@@ -182,7 +182,12 @@ internal sealed class PagesBusiness(IPagesDataLayer dataLayer, IHtmlSanitizer sa
         ArgumentNullException.ThrowIfNull(create);
 
         var title = create.Title.Trim();
-        var slug = create.Slug ?? Slugs.FromName(title);
+        // An address the request names is kept or refused; one made from the title takes the next free number instead.
+        var slug = create.Slug ?? await Slugs.FirstFreeAsync(
+            Slugs.FromName(title),
+            async (candidate, token) =>
+                PagePolicy.ReservedSlugs.Contains(candidate) || await dataLayer.SlugExistsAsync(candidate, exceptId: null, token),
+            cancellationToken);
 
         var (body, bodyError) = PrepareBody(create.Body, images);
         if (bodyError is not null)
@@ -195,7 +200,7 @@ internal sealed class PagesBusiness(IPagesDataLayer dataLayer, IHtmlSanitizer sa
             return OperationResult.Failure<PageServiceModel>(SlugReserved(slug));
         }
 
-        if (await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
+        if (create.Slug is not null && await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
         {
             return OperationResult.Failure<PageServiceModel>(SlugTaken(slug));
         }

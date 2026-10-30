@@ -175,25 +175,27 @@ describe('InstructorList', () => {
 });
 
 describe('InstructorEditor', () => {
-  it('suggests the web address from the name until one is typed, then creates and moves to the instructor', async () => {
+  it('shows the web address made from the name, never typed, then creates without one and moves to the instructor', async () => {
     const { http, fixture, root, router } = await openEditor(null);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
+    expect(input(root, 'slug').disabled).toBe(true);
     type(root, 'name', 'Socorro Muciño');
     await settle(fixture);
     expect(input(root, 'slug').value).toBe('socorro-mucino');
     expect(fixture.componentInstance.hasUnsavedChanges()).toBe(true);
 
-    type(root, 'slug', 'socorro');
     type(root, 'name', 'Socorro M.');
     await settle(fixture);
-    expect(input(root, 'slug').value).toBe('socorro');
+    expect(input(root, 'slug').value).toBe('socorro-m');
+    expect(text(root)).toContain('If another instructor has it, a number is added.');
 
+    // The API makes the address, numbering it past one already taken.
     button(root, 'Create instructor')!.click();
     const create = http.expectOne(BASE);
-    expect(create.request.body).toEqual({ name: 'Socorro M.', slug: 'socorro', active: true });
+    expect(create.request.body).toEqual({ name: 'Socorro M.', active: true });
     create.flush(
-      { ...INSTRUCTOR, name: 'Socorro M.', slug: 'socorro' },
+      { ...INSTRUCTOR, name: 'Socorro M.', slug: 'socorro-m-2' },
       { status: 201, statusText: 'Created' },
     );
     await settle(fixture);
@@ -272,7 +274,6 @@ describe('InstructorEditor', () => {
 
     expect(http.expectOne(BASE).request.body).toEqual({
       name: 'Gwen Schilling',
-      slug: 'gwen-schilling',
       active: true,
       website: 'https://gwen.studio',
       instagram: 'gwen.prints',
@@ -317,13 +318,13 @@ describe('InstructorEditor', () => {
     });
   });
 
-  it('shows a taken web address beside its field and keeps what was typed', async () => {
-    const { http, fixture, root } = await openEditor(INSTRUCTOR);
+  it('shows a web address taken meanwhile beside its field and keeps what was typed', async () => {
+    const { http, fixture, root } = await openEditor(null);
 
-    type(root, 'slug', 'piloto');
+    type(root, 'name', 'Piloto');
     await settle(fixture);
-    button(root, 'Save')!.click();
-    http.expectOne(ONE).flush(
+    button(root, 'Create instructor')!.click();
+    http.expectOne(BASE).flush(
       {
         code: 'cms.slug_taken',
         detail: 'Another instructor already has this web address.',
@@ -333,7 +334,7 @@ describe('InstructorEditor', () => {
     );
     await settle(fixture);
 
-    expect(input(root, 'slug').value).toBe('piloto');
+    expect(input(root, 'name').value).toBe('Piloto');
     expect(input(root, 'slug').getAttribute('aria-invalid')).toBe('true');
     expect(text(root)).toContain('“piloto” is taken. Choose another.');
   });
@@ -385,8 +386,8 @@ describe('InstructorEditor', () => {
     expect(text(root.querySelector('[aria-live="polite"]'))).toContain('Showing the saved version');
   });
 
-  it('locks the web address once published', async () => {
-    const { fixture, root } = await openEditor({
+  it('keeps a saved instructor’s web address as it is, whatever their name becomes', async () => {
+    const { http, fixture, root } = await openEditor({
       ...INSTRUCTOR,
       status: 'Published',
       slugLocked: true,
@@ -394,12 +395,14 @@ describe('InstructorEditor', () => {
     });
     await settle(fixture);
 
-    // ADR 0035: a published address may change; the old one is redirected, and the hint says which.
-    expect(input(root, 'slug').hasAttribute('readonly')).toBe(false);
-    expect(text(root)).toContain('published, so changing it sends visitors');
-    type(root, 'slug', 'gwen-schilling-prints');
+    expect(input(root, 'slug').disabled).toBe(true);
+    expect(text(root)).toContain('6311arts.com/instructors/gwen-schilling');
+    type(root, 'name', 'Gwen Schilling-Park');
     await settle(fixture);
-    expect(text(root)).toContain('visitors to /instructors/gwen-schilling are sent here');
+    expect(input(root, 'slug').value).toBe('gwen-schilling');
+
+    button(root, 'Save')!.click();
+    expect(http.expectOne(ONE).request.body).toEqual({ name: 'Gwen Schilling-Park' });
   });
 
   it('publishes the saved version, and waits while there are unsaved edits', async () => {

@@ -51,15 +51,19 @@ public sealed class ArtistsModuleTests
     }
 
     [Fact]
-    public async Task ATakenSlugIsRefusedOnTheSlugField()
+    public async Task AMadeSlugTakesTheNextFreeNumberButAGivenTakenOneIsRefusedOnTheSlugField()
     {
         await using var host = await ArtistsTestHost.CreateAsync(Ct);
         await CreateAsync(host, new ArtistCreateViewModel("Jane Doe"));
 
-        var second = await host.WithFacadeAsync(facade => facade.CreateAsync(new ArtistCreateViewModel("Jane  Doe"), Editor, Ct));
+        // The CMS never sends a slug, so one made from the name can't be refused: there is nothing staff could change.
+        var second = await CreateAsync(host, new ArtistCreateViewModel("Jane  Doe"));
+        var third = await CreateAsync(host, new ArtistCreateViewModel("JANE DOE"));
+        var given = await host.WithFacadeAsync(facade => facade.CreateAsync(new ArtistCreateViewModel("Someone Else", Slug: "jane-doe"), Editor, Ct));
 
-        Assert.Equal(ContentErrorCodes.SlugTaken, second.Error!.Code);
-        Assert.Contains("slug", second.Error.FieldErrors.Keys);
+        Assert.Equal(("jane-doe-2", "jane-doe-3"), (second.Slug, third.Slug));
+        Assert.Equal(ContentErrorCodes.SlugTaken, given.Error!.Code);
+        Assert.Contains("slug", given.Error.FieldErrors.Keys);
     }
 
     [Fact]

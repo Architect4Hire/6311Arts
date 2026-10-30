@@ -253,9 +253,13 @@ internal sealed class ArtistsBusiness(IArtistsDataLayer dataLayer, IClock clock)
         ArgumentNullException.ThrowIfNull(create);
 
         var name = create.Name.Trim();
-        var slug = create.Slug ?? Slugs.FromName(name);
+        // An address the request names is kept or refused; one made from the name takes the next free number instead.
+        var slug = create.Slug ?? await Slugs.FirstFreeAsync(
+            Slugs.FromName(name),
+            (candidate, token) => dataLayer.SlugExistsAsync(candidate, exceptId: null, token),
+            cancellationToken);
 
-        if (await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
+        if (create.Slug is not null && await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
         {
             return OperationResult.Failure<ArtistServiceModel>(SlugTaken(slug));
         }

@@ -204,12 +204,12 @@ describe('ClassEditor', () => {
     await settle(fixture);
 
     expect(input(root, 'slug').value).toBe('intro-to-screen-printing');
+    expect(input(root, 'slug').disabled).toBe(true);
     button(root, 'Create class')!.click();
     const post = http.expectOne(BASE);
 
     expect(post.request.body).toEqual({
       title: 'Intro to Screen Printing',
-      slug: 'intro-to-screen-printing',
       summary: 'Burn your first screen.',
       runs: [
         {
@@ -431,7 +431,7 @@ describe('ClassEditor', () => {
     );
   });
 
-  it('says a published class’s old address will redirect when its slug changes', async () => {
+  it('keeps a published class’s web address as it is, whatever its title becomes', async () => {
     const published: ClassOffering = {
       ...CLASS_OFFERING,
       status: 'Published',
@@ -440,11 +440,12 @@ describe('ClassEditor', () => {
     };
     const { fixture, root } = await openEditor(published);
 
-    expect(text(root)).toContain('published, so changing it sends visitors');
-    type(root, 'slug', 'screen-printing');
+    expect(input(root, 'slug').disabled).toBe(true);
+    expect(text(root)).toContain('6311arts.com/classes/intro-to-screen-printing');
+    type(root, 'title', 'Screen Printing');
     await settle(fixture);
 
-    expect(text(root)).toContain('visitors to /classes/intro-to-screen-printing are sent here');
+    expect(input(root, 'slug').value).toBe('intro-to-screen-printing');
   });
 
   it('on a 409 shows both versions and can keep the editor’s changes', async () => {

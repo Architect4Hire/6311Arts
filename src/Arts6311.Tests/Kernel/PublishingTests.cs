@@ -95,6 +95,28 @@ public sealed class PublishingTests
     }
 
     [Fact]
+    public void ANumberedSlugStillFits()
+    {
+        var longest = new string('a', Slugs.MaxLength);
+
+        var numbered = Slugs.Numbered(longest, 12);
+
+        Assert.Equal(Slugs.MaxLength, numbered.Length);
+        Assert.EndsWith("-12", numbered, StringComparison.Ordinal);
+        Assert.True(Slugs.IsValid(numbered));
+    }
+
+    [Fact]
+    public async Task AMadeSlugTakesTheFirstFreeNumberAndAFreeOneIsKeptAsItIs()
+    {
+        var taken = new HashSet<string>(StringComparer.Ordinal) { "untitled", "untitled-2" };
+        Task<bool> IsTaken(string candidate, CancellationToken _) => Task.FromResult(taken.Contains(candidate));
+
+        Assert.Equal("untitled-3", await Slugs.FirstFreeAsync("untitled", IsTaken, TestContext.Current.CancellationToken));
+        Assert.Equal("bowl", await Slugs.FirstFreeAsync("bowl", IsTaken, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void AnEntityTagRoundTripsItsRowVersion()
     {
         var version = Guid.NewGuid();

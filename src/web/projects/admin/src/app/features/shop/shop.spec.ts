@@ -234,6 +234,7 @@ describe('ShopItemEditor', () => {
     await settle(fixture);
 
     expect(input(root, 'slug').value).toBe('copper-cuff');
+    expect(input(root, 'slug').disabled).toBe(true);
 
     // One of a kind by default, so there is no count to type and none is sent.
     expect(input(root, 'quantity')).toBeNull();
@@ -242,7 +243,6 @@ describe('ShopItemEditor', () => {
 
     expect(post.request.body).toEqual({
       title: 'Copper Cuff',
-      slug: 'copper-cuff',
       categories: ['jewelry'],
       sku: 'ART-9',
       oneOfAKind: true,
@@ -269,7 +269,6 @@ describe('ShopItemEditor', () => {
 
     expect(http.expectOne(BASE).request.body).toEqual({
       title: 'Mushrooms in Fall',
-      slug: 'mushrooms-in-fall',
       oneOfAKind: false,
       startingStockQuantity: 25,
     });

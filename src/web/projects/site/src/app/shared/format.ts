@@ -16,10 +16,15 @@ export class MoneyPipe implements PipeTransform {
 /** Formats ISO dates in Chicago time regardless of where the server runs. */
 @Pipe({ name: 'when' })
 export class WhenPipe implements PipeTransform {
-  transform(iso: string | undefined, style: 'day' | 'mon' | 'dow' | 'time' | 'long' | 'short' | 'range' = 'long', end?: string): string {
+  transform(
+    iso: string | undefined,
+    style: 'day' | 'mon' | 'dow' | 'time' | 'long' | 'short' | 'range' = 'long',
+    end?: string,
+  ): string {
     if (!iso) return '';
     const d = new Date(iso.length === 10 ? iso + 'T12:00:00-06:00' : iso);
-    const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, ...o }).format(d);
+    const f = (o: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat('en-US', { timeZone: TZ, ...o }).format(d);
     switch (style) {
       case 'day':
         return f({ day: 'numeric' });
@@ -41,8 +46,18 @@ export class WhenPipe implements PipeTransform {
       case 'range': {
         const e = end ? new Date(end.length === 10 ? end + 'T12:00:00-06:00' : end) : d;
         const sameYear = d.getFullYear() === e.getFullYear();
-        const a = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) }).format(d);
-        const b = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'short', day: 'numeric', year: 'numeric' }).format(e);
+        const a = new Intl.DateTimeFormat('en-US', {
+          timeZone: TZ,
+          month: 'short',
+          day: 'numeric',
+          ...(sameYear ? {} : { year: 'numeric' }),
+        }).format(d);
+        const b = new Intl.DateTimeFormat('en-US', {
+          timeZone: TZ,
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }).format(e);
         return `${a} – ${b}`;
       }
       default:
@@ -58,7 +73,22 @@ export function today(): string {
 
 /** The Chicago calendar date (YYYY-MM-DD) of an instant, so "today" matches the studio's wall clock wherever the server runs. */
 export function chicagoDay(at: string | number | Date = Date.now()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at));
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(at));
+}
+
+/** The Chicago wall-clock time (HH:MM, 24-hour) of an instant. */
+export function chicagoTime(at: string | number | Date = Date.now()): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(at));
 }
 
 /** A calendar date (YYYY-MM-DD) moved by n days. */

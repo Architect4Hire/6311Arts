@@ -64,16 +64,19 @@ public sealed class ShopModuleTests
     }
 
     [Fact]
-    public async Task ATakenSlugIsRefusedOnTheSlugField()
+    public async Task AMadeSlugTakesTheNextFreeNumberButAGivenTakenOneIsRefusedOnTheSlugField()
     {
         await using var host = await ShopTestHost.CreateAsync(Ct);
         await CreateAsync(host, new ShopItemCreateViewModel("Copper Cuff"));
 
-        var second = await host.WithFacadeAsync(facade => facade.CreateAsync(
-            new ShopItemCreateViewModel("COPPER CUFF"), Editor, Ct));
+        // The CMS never sends a slug, so one made from the name can't be refused: there is nothing staff could change.
+        var second = await CreateAsync(host, new ShopItemCreateViewModel("COPPER CUFF"));
+        var third = await CreateAsync(host, new ShopItemCreateViewModel("Copper cuff"));
+        var given = await host.WithFacadeAsync(facade => facade.CreateAsync(new ShopItemCreateViewModel("Silver Ring", Slug: "copper-cuff"), Editor, Ct));
 
-        Assert.Equal(ContentErrorCodes.SlugTaken, second.Error!.Code);
-        Assert.Contains("slug", second.Error.FieldErrors.Keys);
+        Assert.Equal(("copper-cuff-2", "copper-cuff-3"), (second.Slug, third.Slug));
+        Assert.Equal(ContentErrorCodes.SlugTaken, given.Error!.Code);
+        Assert.Contains("slug", given.Error.FieldErrors.Keys);
     }
 
     [Fact]

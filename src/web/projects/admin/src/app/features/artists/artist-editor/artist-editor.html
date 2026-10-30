@@ -114,21 +114,9 @@
             />
           </ui-field>
 
-          <ui-field
-            label="Web address"
-            [required]="true"
-            [hint]="slugHint()"
-            [error]="errors().slug ?? null"
-          >
-            <input
-              uiControl
-              name="slug"
-              autocomplete="off"
-              spellcheck="false"
-              [attr.maxlength]="limits.slugMaxLength"
-              [ngModel]="draft().slug"
-              (ngModelChange)="setSlug($event)"
-            />
+          <ui-field label="Web address" [hint]="slugHint()" [error]="errors().slug ?? null">
+            <!-- Made from the name on create, never typed: the field only shows it. -->
+            <input uiControl name="slug" disabled [value]="draft().slug" />
           </ui-field>
 
           <ui-field

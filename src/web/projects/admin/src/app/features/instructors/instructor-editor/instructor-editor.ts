@@ -31,7 +31,6 @@ import {
   STATUS_CHIPS,
   decodeInstructorProblem,
   isInstagramHandle,
-  isSlug,
   isWebsite,
   normalizeInstagram,
   slugFromName,
@@ -46,8 +45,6 @@ import { ArtistPicker, PickedArtist } from '../../../shared/pickers/artist-picke
 interface Draft {
   readonly name: string;
   readonly slug: string;
-  /** Whether the person has typed a slug; until then it follows the name (new instructors only). */
-  readonly slugEdited: boolean;
   readonly medium: string;
   readonly bio: string;
   readonly active: boolean;
@@ -93,7 +90,6 @@ type FieldErrors = Partial<Record<(typeof FIELDS)[number], string>>;
 const EMPTY: Draft = {
   name: '',
   slug: '',
-  slugEdited: false,
   medium: '',
   bio: '',
   active: true,
@@ -194,7 +190,6 @@ export class InstructorEditor implements HasUnsavedChanges {
     const status = this.status();
     return status.kind === 'conflict' ? status.theirs : null;
   });
-  protected readonly slugLocked = computed(() => this.instructor()?.slugLocked ?? false);
   protected readonly canPublish = computed(() => {
     const status = this.instructor()?.status;
     return status === 'Draft' || status === 'Scheduled';
@@ -214,18 +209,12 @@ export class InstructorEditor implements HasUnsavedChanges {
     return this.instructor() ? 'Save' : 'Create instructor';
   });
 
-  /**
-   * Once published, the address is someone's bookmark: changing it is allowed, and the old address is redirected to the
-   * new one when it is saved (ADR 0035). The hint says so, and names the address that will redirect.
-   */
+  /** Made from the name on create and never typed (the field only shows it), so the address never moves. */
   protected readonly slugHint = computed(() => {
-    const saved = this.instructor();
     const slug = this.draft().slug;
-    if (!this.slugLocked() || !saved)
-      return `6311arts.com/instructors/${this.draft().slug || '…'} — lower-case letters, digits and hyphens.`;
-    return slug === saved.slug
-      ? `6311arts.com/instructors/${slug} — published, so changing it sends visitors from this address to the new one.`
-      : `6311arts.com/instructors/${slug || '…'} — on saving, visitors to /instructors/${saved.slug} are sent here.`;
+    return this.instructor()
+      ? `6311arts.com/instructors/${slug}`
+      : `6311arts.com/instructors/${slug || '…'} — made from the name. If another instructor has it, a number is added.`;
   });
 
   /** Edits not yet saved: the unsaved-changes guard asks before they are lost. */
@@ -308,14 +297,9 @@ export class InstructorEditor implements HasUnsavedChanges {
   }
 
   protected setName(name: string): void {
-    const draft = this.draft();
-    // A new instructor's address follows its name until someone types one.
-    const followsName = !this.instructor() && !draft.slugEdited;
+    // A new instructor's address follows its name; staff never type one, and the API numbers a taken one.
+    const followsName = !this.instructor();
     this.patch({ name, ...(followsName ? { slug: slugFromName(name) } : {}) });
-  }
-
-  protected setSlug(slug: string): void {
-    this.patch({ slug, slugEdited: true });
   }
 
   protected choosePortrait(choice: MediaAssetSummary): void {
@@ -656,7 +640,6 @@ function draftOf(instructor: Instructor): Draft {
   return {
     name: instructor.name,
     slug: instructor.slug,
-    slugEdited: true,
     medium: instructor.medium ?? '',
     bio: instructor.bio ?? '',
     active: instructor.active,
@@ -688,7 +671,6 @@ function createOf(draft: Draft): InstructorCreate {
   const instagram = normalizeInstagram(draft.instagram);
   return {
     name: draft.name.trim(),
-    ...(draft.slug ? { slug: draft.slug } : {}),
     ...(medium ? { medium } : {}),
     ...(bio ? { bio } : {}),
     active: draft.active,
@@ -709,7 +691,6 @@ function changesOf(instructor: Instructor, draft: Draft): InstructorUpdate {
   const artistId = draft.artist?.id ?? null;
   return {
     ...(name !== instructor.name ? { name } : {}),
-    ...(draft.slug !== instructor.slug ? { slug: draft.slug } : {}),
     ...(medium !== (instructor.medium ?? '') ? { medium } : {}),
     ...(bio !== (instructor.bio ?? '') ? { bio } : {}),
     ...(draft.active !== instructor.active ? { active: draft.active } : {}),
@@ -740,11 +721,6 @@ function localErrors(draft: Draft): FieldErrors {
   const instagram = normalizeInstagram(draft.instagram);
   if (instagram !== '' && !isInstagramHandle(instagram)) {
     errors.instagram = 'Use letters, digits, periods and underscores, up to 30 characters.';
-  }
-  if (!isSlug(draft.slug)) {
-    errors.slug = draft.slug
-      ? 'Use lower-case letters, digits and single hyphens (for example jane-doe).'
-      : 'Enter a web address, for example jane-doe.';
   }
   return errors;
 }

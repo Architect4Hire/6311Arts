@@ -198,7 +198,11 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
         ArgumentNullException.ThrowIfNull(instructors);
 
         var title = create.Title.Trim();
-        var slug = create.Slug ?? Slugs.FromName(title);
+        // An address the request names is kept or refused; one made from the title takes the next free number instead.
+        var slug = create.Slug ?? await Slugs.FirstFreeAsync(
+            Slugs.FromName(title),
+            (candidate, token) => dataLayer.SlugExistsAsync(candidate, exceptId: null, token),
+            cancellationToken);
 
         var (body, bodyError) = PrepareBody(create.Body, media);
         if (bodyError is not null)
@@ -206,7 +210,7 @@ internal sealed class ClassesBusiness(IClassesDataLayer dataLayer, IHtmlSanitize
             return OperationResult.Failure<ClassDetail>(bodyError);
         }
 
-        if (await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
+        if (create.Slug is not null && await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
         {
             return OperationResult.Failure<ClassDetail>(SlugTaken(slug));
         }

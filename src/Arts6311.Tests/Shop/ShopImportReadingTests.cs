@@ -154,16 +154,4 @@ public sealed class ShopImportReadingTests
         Assert.True(problem.Length < 300, problem);
         Assert.True(priceError!.Length < 150, priceError);
     }
-
-    [Fact]
-    public void ANumberedSlugStillFits()
-    {
-        var longest = new string('a', Slugs.MaxLength);
-
-        var numbered = ShopImportCells.Numbered(longest, 12);
-
-        Assert.Equal(Slugs.MaxLength, numbered.Length);
-        Assert.EndsWith("-12", numbered, StringComparison.Ordinal);
-        Assert.True(Slugs.IsValid(numbered));
-    }
 }

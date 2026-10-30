@@ -249,6 +249,7 @@ describe('PageEditor', () => {
     type(root, 'title', 'About Us');
     await settle(fixture);
     expect(input(root, 'slug').value).toBe('about-us');
+    expect(input(root, 'slug').disabled).toBe(true);
 
     body().value.set('<p>We are an art center.</p>');
     await settle(fixture);
@@ -257,7 +258,6 @@ describe('PageEditor', () => {
     const create = http.expectOne(BASE);
     expect(create.request.body).toEqual({
       title: 'About Us',
-      slug: 'about-us',
       body: '<p>We are an art center.</p>',
     });
     create.flush(
@@ -351,7 +351,7 @@ describe('PageEditor', () => {
     expect(root.querySelector('[role="textbox"]')?.getAttribute('aria-invalid')).toBe('true');
   });
 
-  it('locks the web address once published, and offers archive to Admins only', async () => {
+  it('keeps the web address as it is whatever the title becomes, and offers archive to Admins only', async () => {
     const published: Page = {
       ...PAGE,
       status: 'Published',
@@ -359,12 +359,11 @@ describe('PageEditor', () => {
       publishedAt: PAGE.createdAt,
     };
     const editor = await openEditor(published);
-    // ADR 0035: a published address may change; the old one is redirected, and the hint says which.
-    expect(input(editor.root, 'slug').hasAttribute('readonly')).toBe(false);
-    expect(text(editor.root)).toContain('published, so changing it sends visitors');
-    type(editor.root, 'slug', 'privacy-policy');
+    expect(input(editor.root, 'slug').disabled).toBe(true);
+    expect(text(editor.root)).toContain('6311arts.com/privacy');
+    type(editor.root, 'title', 'Privacy Policy');
     await settle(editor.fixture);
-    expect(text(editor.root)).toContain('visitors to /privacy are sent here');
+    expect(input(editor.root, 'slug').value).toBe('privacy');
     expect(button(editor.root, 'Archive')).toBeUndefined();
     TestBed.resetTestingModule();
 

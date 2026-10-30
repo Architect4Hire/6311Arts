@@ -110,13 +110,16 @@ public sealed class PagesLayerTests
         var page = dataLayer.Add(NewPage());
 
         var created = await business.CreateAsync(new PageCreateViewModel("Whatever", Slug: slug), PageImageCheck.None, "e", Ct);
-        var fromTitle = await business.CreateAsync(new PageCreateViewModel(slug.ToUpperInvariant()), PageImageCheck.None, "e", Ct);
         var renamed = await business.UpdateAsync(page.Id, new PageUpdateViewModel(Slug: slug), EntityTag.Format(page.RowVersion), null, "e", Ct);
 
         Assert.Contains("slug", created.Error!.FieldErrors.Keys);
-        Assert.Contains("slug", fromTitle.Error!.FieldErrors.Keys);
         Assert.Contains("slug", renamed.Error!.FieldErrors.Keys);
         Assert.Empty(dataLayer.Writes);
+
+        // One made from the title steps past it, as past a taken one: staff never type the address.
+        var fromTitle = await business.CreateAsync(new PageCreateViewModel(slug.ToUpperInvariant()), PageImageCheck.None, "e", Ct);
+
+        Assert.Equal($"{slug}-2", fromTitle.Value!.Slug);
     }
 
     [Fact]

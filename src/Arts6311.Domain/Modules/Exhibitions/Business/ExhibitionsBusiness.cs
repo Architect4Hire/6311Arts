@@ -175,9 +175,13 @@ internal sealed class ExhibitionsBusiness(IExhibitionsDataLayer dataLayer, ICloc
         ArgumentNullException.ThrowIfNull(create);
 
         var title = create.Title.Trim();
-        var slug = create.Slug ?? Slugs.FromName(title);
+        // An address the request names is kept or refused; one made from the title takes the next free number instead.
+        var slug = create.Slug ?? await Slugs.FirstFreeAsync(
+            Slugs.FromName(title),
+            (candidate, token) => dataLayer.SlugExistsAsync(candidate, exceptId: null, token),
+            cancellationToken);
 
-        if (await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
+        if (create.Slug is not null && await dataLayer.SlugExistsAsync(slug, exceptId: null, cancellationToken))
         {
             return OperationResult.Failure<ExhibitionDetail>(SlugTaken(slug));
         }

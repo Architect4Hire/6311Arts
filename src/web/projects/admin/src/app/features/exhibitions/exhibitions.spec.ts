@@ -179,7 +179,7 @@ describe('ExhibitionEditor', () => {
     expect(button(root, 'Try again')).toBeUndefined();
   });
 
-  it('creates a show with its dates, a reception typed in gallery time, and the address from its title', async () => {
+  it('creates a show with its dates, a reception typed in gallery time, and the address the API makes from its title', async () => {
     const { http, fixture, root, router } = await openEditor(null);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
@@ -188,6 +188,7 @@ describe('ExhibitionEditor', () => {
     type(root, 'endDate', '2026-12-05');
     await settle(fixture);
     expect(input(root, 'slug').value).toBe('boats-pianos');
+    expect(input(root, 'slug').disabled).toBe(true);
 
     (input(root, 'hasReception') as HTMLInputElement).click();
     await settle(fixture);
@@ -203,7 +204,6 @@ describe('ExhibitionEditor', () => {
       title: 'Boats & Pianos',
       startDate: '2026-10-24',
       endDate: '2026-12-05',
-      slug: 'boats-pianos',
       // 6 pm in Chicago in late October is 11 pm UTC (daylight time).
       reception: {
         startsAt: '2026-10-24T23:00:00+00:00',
@@ -389,7 +389,7 @@ describe('ExhibitionEditor', () => {
     expect(input(root, 'summary').getAttribute('aria-invalid')).toBe('true');
   });
 
-  it('locks the web address once published, and offers archive to Admins only', async () => {
+  it('keeps the web address as it is whatever the title becomes, and offers archive to Admins only', async () => {
     const published: Exhibition = {
       ...EXHIBITION,
       status: 'Published',
@@ -397,12 +397,11 @@ describe('ExhibitionEditor', () => {
       publishedAt: EXHIBITION.createdAt,
     };
     const editor = await openEditor(published);
-    // ADR 0035: a published address may change; the old one is redirected, and the hint says which.
-    expect(input(editor.root, 'slug').hasAttribute('readonly')).toBe(false);
-    expect(text(editor.root)).toContain('published, so changing it sends visitors');
-    type(editor.root, 'slug', 'boats-and-pianos');
+    expect(input(editor.root, 'slug').disabled).toBe(true);
+    expect(text(editor.root)).toContain('6311arts.com/exhibitions/boats-pianos');
+    type(editor.root, 'title', 'Boats and Pianos');
     await settle(editor.fixture);
-    expect(text(editor.root)).toContain('visitors to /exhibitions/boats-pianos are sent here');
+    expect(input(editor.root, 'slug').value).toBe('boats-pianos');
     expect(button(editor.root, 'Archive')).toBeUndefined();
     TestBed.resetTestingModule();
 

@@ -5,8 +5,9 @@ using System.Text.RegularExpressions;
 namespace Arts6311.Domain.Managers.Publishing;
 
 /// <summary>
-/// URL slugs for CMS content: lower-case ASCII letters and digits in hyphen-separated runs. Unique per type and
-/// immutable once published (content.md); those rules are each module's Business. This is only the shape.
+/// URL slugs for CMS content: lower-case ASCII letters and digits in hyphen-separated runs. Unique per type, and made
+/// from the name when a create names none (content.md); those rules are each module's Business. This is the shape,
+/// and the numbering a made one takes when its first choice is taken.
 /// </summary>
 public static partial class Slugs
 {
@@ -49,6 +50,38 @@ public static partial class Slugs
 
         var slug = builder.ToString();
         return slug.Length <= MaxLength ? slug : slug[..MaxLength].TrimEnd('-');
+    }
+
+    /// <summary>
+    /// The slug with <c>-{number}</c> on the end, shortened first so the whole stays within <see cref="MaxLength"/>.
+    /// </summary>
+    public static string Numbered(string slug, int number)
+    {
+        ArgumentNullException.ThrowIfNull(slug);
+
+        var suffix = string.Create(CultureInfo.InvariantCulture, $"-{number}");
+        var room = MaxLength - suffix.Length;
+        return (slug.Length <= room ? slug : slug[..room].TrimEnd('-')) + suffix;
+    }
+
+    /// <summary>
+    /// The first of <paramref name="slug"/>, <c>slug-2</c>, <c>slug-3</c>… that <paramref name="isTaken"/> says is free:
+    /// a web address made from a name never refuses anybody, as two prints both called "Untitled" should both save.
+    /// The unique index still has the last word, so a create that races another for the same one is refused.
+    /// </summary>
+    public static async Task<string> FirstFreeAsync(
+        string slug, Func<string, CancellationToken, Task<bool>> isTaken, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(slug);
+        ArgumentNullException.ThrowIfNull(isTaken);
+
+        var candidate = slug;
+        for (var number = 2; await isTaken(candidate, cancellationToken); number++)
+        {
+            candidate = Numbered(slug, number);
+        }
+
+        return candidate;
     }
 
     public static bool IsValid(string? slug) =>

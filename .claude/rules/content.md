@@ -102,7 +102,9 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
     vanished hero image already is (ADR 0052).
   - **Deletion is not a `PublishStatus` and not a `PublishCommand`:** `Status` keeps saying what the record was
     when it was deleted, which is what the Deleted view shows.
-- **Slugs** are unique per type. A slug change on a record that has ever been published redirects its old address to the new one (ADR 0035): the content module's DataLayer stages `redirects.slug-changed` in the rename's own save, and the Redirects module applies it.
+- **Slugs** are unique per type, and **made from the name, never typed** (ADR 0054): the CMS shows the address in a
+  disabled field and sends none, and a create without one takes the first free `name`, `name-2`, `name-3`… (`Slugs.FirstFreeAsync`; a
+  reserved page address counts as taken). A slug a request does name is kept or refused. A slug change on a record that has ever been published redirects its old address to the new one (ADR 0035): the content module's DataLayer stages `redirects.slug-changed` in the rename's own save, and the Redirects module applies it.
   - **A membership plan is the exception** (ADR 0040): it has no address of its own, so its slug is a stable key, a
     rename owes no redirect whatever its status, and its status changes revalidate the one page every tier shares.
     Its policy exposes `SitePath` rather than a `SitePathPrefix`, and nothing appends a slug to it.

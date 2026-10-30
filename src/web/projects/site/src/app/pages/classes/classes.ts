@@ -12,7 +12,7 @@ import { slugify } from '../../data/mock-shop';
 import { STUDIO_PHOTOS } from '../../data/venue-photos';
 import { ClassCard } from '../../shared/cards/class-card/class-card';
 import { ShowCard, ShowMoment } from '../../shared/cards/show-card/show-card';
-import { WhenPipe, addDays, chicagoDay, endOfWeek } from '../../shared/format';
+import { WhenPipe, addDays, chicagoDay, chicagoTime, endOfWeek } from '../../shared/format';
 import { Hero } from '../../shared/hero/hero';
 import { Newsletter } from '../../shared/forms/newsletter/newsletter';
 import { Reveal } from '../../shared/reveal';
@@ -58,26 +58,28 @@ export class Classes {
 
   /**
    * What's on today (not yet over) and later this week (through Sunday), in Chicago time and ignoring the filters.
-   * Uses each class's first session, the same date its card shows, and every exhibition's opening, reception and
-   * last day.
+   * Uses every session of every class, so a course still meeting after its first week stays listed (its card
+   * reads "Week n of m"), and every exhibition's opening, reception and last day.
    */
   protected soon = computed(() => {
     const now = Date.now();
     const day = chicagoDay(now);
+    const clock = chicagoTime(now);
     const sunday = endOfWeek(day);
-    const today: SoonEntry[] = [];
-    const week: SoonEntry[] = [];
-    const add = (x: SoonEntry, over: boolean) => {
+    const today: Entry[] = [];
+    const week: Entry[] = [];
+    const add = (x: Entry, over: boolean) => {
       if (x.date === day) {
         if (!over) today.push(x);
       } else if (x.date > day && x.date <= sunday) {
         week.push(x);
       }
     };
-    for (const c of this.all())
+    // A session meets at its first session's wall-clock time, so it is over once Chicago passes that end time.
+    for (const s of sessionsOf(this.all()))
       add(
-        { key: `c${c.id}`, date: chicagoDay(c.start), time: c.start.slice(11), c },
-        Date.parse(c.end) <= now,
+        { key: `c${s.c.id}-${s.n}`, date: s.date, time: s.c.start.slice(11), s },
+        s.c.end.slice(11, 16) <= clock,
       );
     // A show's opening or last day lasts all day; only a reception is over once it ends.
     for (const m of milestonesOf(this.exhibitions()))
@@ -85,7 +87,7 @@ export class Classes {
         { key: `e${m.e.slug}-${m.kind}`, date: m.date, time: momentTime(m), m },
         m.kind === 'reception' && !!m.e.reception && Date.parse(m.e.reception.end) <= now,
       );
-    const order = (a: SoonEntry, b: SoonEntry) =>
+    const order = (a: Entry, b: Entry) =>
       a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
     return { today: today.sort(order), week: week.sort(order) };
   });
@@ -103,7 +105,7 @@ export class Classes {
    * date, grouped by month. Within a day, all-day show dates come first, then the rest by start time.
    */
   protected grouped = computed(() => {
-    const entries: GridEntry[] = [
+    const entries: Entry[] = [
       ...this.sessions().map((s) => ({
         key: `c${s.c.id}-${s.n}`,
         date: s.date,
@@ -117,7 +119,7 @@ export class Classes {
         m,
       })),
     ].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-    const by = new Map<string, GridEntry[]>();
+    const by = new Map<string, Entry[]>();
     for (const x of entries) {
       if (x.date < this.today) continue;
       const key = monthLabel(x.date.slice(0, 7));
@@ -137,25 +139,8 @@ export class Classes {
   /** Classes carry an instructor's name, not an id; the profile page is keyed on the slugified name. */
   protected slug = slugify;
 
-  /**
-   * Each session of the filtered classes, in date order. Multi-session classes are weekly courses
-   * ("5 weeks"), so session n falls n weeks after the first, at the same wall-clock time.
-   */
-  private sessions = computed<Session[]>(() =>
-    this.filtered()
-      .flatMap((c) => {
-        const first = chicagoDay(c.start);
-        return Array.from({ length: Math.max(1, c.sessions) }, (_, i) => ({
-          c,
-          n: i + 1,
-          date: addDays(first, i * 7),
-        }));
-      })
-      .sort(
-        (a, b) =>
-          a.date.localeCompare(b.date) || a.c.start.slice(11).localeCompare(b.c.start.slice(11)),
-      ),
-  );
+  /** Each session of the filtered classes, in date order. */
+  private sessions = computed(() => sessionsOf(this.filtered()));
 
   /**
    * Exhibitions on the calendar. A show has no medium, so picking one hides them; it is open to everyone, so a
@@ -285,6 +270,26 @@ function monthLabel(month: string): string {
   }).format(new Date(Date.UTC(y, m - 1, 1)));
 }
 
+/**
+ * Each session of the given classes, in date order. Multi-session classes are weekly courses ("5 weeks"), so
+ * session n falls n weeks after the first, at the same wall-clock time.
+ */
+function sessionsOf(classes: ArtClass[]): Session[] {
+  return classes
+    .flatMap((c) => {
+      const first = chicagoDay(c.start);
+      return Array.from({ length: Math.max(1, c.sessions) }, (_, i) => ({
+        c,
+        n: i + 1,
+        date: addDays(first, i * 7),
+      }));
+    })
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) || a.c.start.slice(11).localeCompare(b.c.start.slice(11)),
+    );
+}
+
 /** An exhibition's date: a bare YYYY-MM-DD as given, else the Chicago day of the instant. */
 function dayOf(iso: string): string {
   return iso.length === 10 ? iso : chicagoDay(iso);
@@ -325,17 +330,11 @@ interface Milestone {
   date: string;
 }
 
-/** A card under Today or This week: a class (by its first session) or an exhibition date. */
-interface SoonEntry {
-  key: string;
-  date: string;
-  time: string;
-  c?: ArtClass;
-  m?: Milestone;
-}
-
-/** A card in the grid view: a class session or an exhibition date, keyed for tracking and sortable by date and time. */
-interface GridEntry {
+/**
+ * A card under Today, This week or in the grid view: a class session or an exhibition date, keyed for tracking and
+ * sortable by date and time.
+ */
+interface Entry {
   key: string;
   date: string;
   time: string;

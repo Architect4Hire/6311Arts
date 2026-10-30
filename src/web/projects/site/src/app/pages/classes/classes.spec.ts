@@ -41,7 +41,21 @@ const WINTER: Exhibition = {
   reception: { start: '2026-11-20T18:00:00-06:00', end: '2026-11-20T21:00:00-06:00' },
 };
 
-async function render(query: string) {
+/** A three-week Saturday course whose first session is Oct 24, so Oct 31 is week 2. */
+const COURSE: ArtClass = {
+  id: '2',
+  slug: 'intro-to-screen-printing',
+  title: 'Intro to Screen Printing',
+  start: '2026-10-24T14:00:00-05:00',
+  end: '2026-10-24T17:00:00-05:00',
+  sessions: 3,
+  type: 'Printmaking',
+  level: 'Beginner',
+  instructor: 'Gwen Schilling',
+  summary: 'Burn a screen.',
+};
+
+async function render(query: string, classes: ArtClass[] = [PRINTING]) {
   // The hero's slideshow asks whether motion is reduced; jsdom has no matchMedia.
   vi.stubGlobal('matchMedia', () => ({
     matches: true,
@@ -54,7 +68,7 @@ async function render(query: string) {
       provideRouter([]),
       {
         provide: SiteApi,
-        useValue: { classes: () => of([PRINTING]), exhibitions: () => of([WINTER, BOATS]) },
+        useValue: { classes: () => of(classes), exhibitions: () => of([WINTER, BOATS]) },
       },
     ],
   });
@@ -188,6 +202,27 @@ describe('Classes today and this week', () => {
     const { element } = await render('');
 
     expect(under(element, 'Today')).toEqual(['Exhibition: Last day Boats & Pianos']);
+  });
+
+  it('lists a later week of a course already under way, on that session’s date', async () => {
+    at('2026-10-30T12:00:00-05:00');
+    const { element, text } = await render('', [COURSE]);
+
+    expect(under(element, 'This week')).toEqual(['Class: Intro to Screen Printing']);
+    const card = element.querySelector('.soon .class-card');
+    expect(text(card?.querySelector('.class-card__meta'))).toContain('Week 2 of 3');
+    expect(text(card?.querySelector('.class-card__day'))).toBe('31');
+  });
+
+  it('lists today’s session of a course until it ends', async () => {
+    at('2026-10-31T16:30:00-05:00');
+    const { element } = await render('', [COURSE]);
+    expect(under(element, 'Today')).toEqual(['Class: Intro to Screen Printing']);
+    TestBed.resetTestingModule();
+
+    at('2026-10-31T17:30:00-05:00');
+    const after = await render('', [COURSE]);
+    expect(after.element.querySelector('.soon')).toBeNull();
   });
 
   it('lists exhibitions even when a medium is picked, as it does every class', async () => {

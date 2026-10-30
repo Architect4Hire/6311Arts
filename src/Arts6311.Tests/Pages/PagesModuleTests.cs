@@ -48,6 +48,22 @@ public sealed class PagesModuleTests
     }
 
     [Fact]
+    public async Task AMadeSlugStepsPastTakenAndReservedOnesButAGivenTakenOneIsRefusedOnTheSlugField()
+    {
+        await using var host = await PagesTestHost.CreateAsync(Ct);
+        await CreateAsync(host, new PageCreateViewModel("About Us"));
+
+        // The CMS never sends a slug, so one made from the title can't be refused: there is nothing staff could change.
+        var second = await CreateAsync(host, new PageCreateViewModel("ABOUT US"));
+        var reserved = await CreateAsync(host, new PageCreateViewModel("Shop"));
+        var given = await host.WithFacadeAsync(facade => facade.CreateAsync(new PageCreateViewModel("Who We Are", Slug: "about-us"), Editor, Ct));
+
+        Assert.Equal(("about-us-2", "shop-2"), (second.Slug, reserved.Slug));
+        Assert.Equal(ContentErrorCodes.SlugTaken, given.Error!.Code);
+        Assert.Contains("slug", given.Error.FieldErrors.Keys);
+    }
+
+    [Fact]
     public async Task NoWritePathStoresScriptOrInlineHandlers()
     {
         // content.md: "Scripts and inline event handlers are never stored" — create and edit alike.

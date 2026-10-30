@@ -20,7 +20,7 @@ import { UiButton, UiControl, UiField, UiNotice, UiStatusChip } from '@6311/ui';
 import { ConfirmService } from '../../../core/confirm/confirm.service';
 import { HasUnsavedChanges, warnBeforeUnload } from '../../../core/guards/unsaved-changes.guard';
 import { SessionService } from '../../../core/session/session.service';
-import { STATUS_CHIPS, isSlug, slugFromName } from '../../../models/content';
+import { STATUS_CHIPS, slugFromName } from '../../../models/content';
 import { ROLES } from '../../../models/session';
 import {
   SHOP_CATEGORIES,
@@ -47,8 +47,6 @@ import { confirmDelete } from '../../../shared/delete-confirm/delete-confirm';
 interface Draft {
   readonly title: string;
   readonly slug: string;
-  /** Whether the person has typed a slug; until then it follows the title (new pieces only). */
-  readonly slugEdited: boolean;
   /** HTML, as the rich-text editor holds it. */
   readonly description: string;
   readonly artist: PickedArtist | null;
@@ -89,7 +87,6 @@ type FieldErrors = Partial<Record<FieldName, string>>;
 const EMPTY: Draft = {
   title: '',
   slug: '',
-  slugEdited: false,
   description: '',
   artist: null,
   categories: [],
@@ -188,7 +185,6 @@ export class ShopItemEditor implements HasUnsavedChanges {
     const status = this.status();
     return status.kind === 'conflict' ? status.theirs : null;
   });
-  protected readonly slugLocked = computed(() => this.item()?.slugLocked ?? false);
   protected readonly canPublish = computed(() => {
     const status = this.item()?.status;
     return status === 'Draft' || status === 'Scheduled';
@@ -222,19 +218,12 @@ export class ShopItemEditor implements HasUnsavedChanges {
     return `Unique across Studio, class sessions included. Suggested as ART-${saved.itemNumber}.`;
   });
 
-  /**
-   * Once published, the address is someone's bookmark: changing it is allowed, and the old address is redirected to
-   * the new one when it is saved (ADR 0035). The hint says so, and names the address that will redirect.
-   */
+  /** Made from the title on create and never typed (the field only shows it), so the address never moves. */
   protected readonly slugHint = computed(() => {
-    const saved = this.item();
     const slug = this.draft().slug;
-    if (!this.slugLocked() || !saved) {
-      return `6311arts.com/shop/${slug || '…'} — lower-case letters, digits and hyphens.`;
-    }
-    return slug === saved.slug
-      ? `6311arts.com/shop/${slug} — published, so changing it sends visitors from this address to the new one.`
-      : `6311arts.com/shop/${slug || '…'} — on saving, visitors to /shop/${saved.slug} are sent here.`;
+    return this.item()
+      ? `6311arts.com/shop/${slug}`
+      : `6311arts.com/shop/${slug || '…'} — made from the title. If another piece has it, a number is added.`;
   });
 
   /** Edits not yet saved: the unsaved-changes guard asks before they are lost. */
@@ -312,12 +301,9 @@ export class ShopItemEditor implements HasUnsavedChanges {
   }
 
   protected setTitle(title: string): void {
-    const followsTitle = !this.item() && !this.draft().slugEdited;
+    // A new piece's address follows its title; staff never type one, and the API numbers a taken one.
+    const followsTitle = !this.item();
     this.patch({ title, ...(followsTitle ? { slug: slugFromName(title) } : {}) });
-  }
-
-  protected setSlug(slug: string): void {
-    this.patch({ slug, slugEdited: true });
   }
 
   /** A number input's value accessor hands over a number, or `null` for something that is not one. */
@@ -671,7 +657,6 @@ function draftOf(piece: ShopItem): Draft {
   return {
     title: piece.title,
     slug: piece.slug,
-    slugEdited: true,
     description: piece.description ?? '',
     artist: piece.artist
       ? { id: piece.artist.id, name: piece.artist.name, status: piece.artist.status }
@@ -690,7 +675,6 @@ function createOf(draft: Draft): ShopItemCreate {
   const quantity = Number(draft.quantity);
   return {
     title: draft.title.trim(),
-    ...(draft.slug ? { slug: draft.slug } : {}),
     ...(draft.description ? { description: draft.description } : {}),
     ...(draft.artist ? { artistId: draft.artist.id } : {}),
     ...(draft.categories.length > 0 ? { categories: draft.categories } : {}),
@@ -718,7 +702,6 @@ function changesOf(piece: ShopItem, draft: Draft): ShopItemUpdate {
 
   return {
     ...(title !== piece.title ? { title } : {}),
-    ...(draft.slug !== piece.slug ? { slug: draft.slug } : {}),
     ...(draft.description !== (piece.description ?? '') ? { description: draft.description } : {}),
     ...(sku !== piece.sku ? { sku } : {}),
     ...(draft.artist?.id !== piece.artist?.id
@@ -759,11 +742,6 @@ function sameOrder(a: readonly string[], b: readonly string[]): boolean {
 function localErrors(draft: Draft): FieldErrors {
   const errors: FieldErrors = {};
   if (draft.title.trim() === '') errors.title = 'Enter the piece’s title.';
-  if (!isSlug(draft.slug)) {
-    errors.slug = draft.slug
-      ? 'Use lower-case letters, digits and single hyphens (for example copper-cuff).'
-      : 'Enter a web address, for example copper-cuff.';
-  }
   if (draft.sku.trim() !== '' && !isSku(normalizeSku(draft.sku))) {
     errors.sku = 'A SKU is letters, digits, hyphens and dots, for example ART-17.';
   }

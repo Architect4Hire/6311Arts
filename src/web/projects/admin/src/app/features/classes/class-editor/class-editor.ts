@@ -20,7 +20,7 @@ import { UiButton, UiControl, UiField, UiNotice, UiStatusChip } from '@6311/ui';
 import { ConfirmService } from '../../../core/confirm/confirm.service';
 import { HasUnsavedChanges, warnBeforeUnload } from '../../../core/guards/unsaved-changes.guard';
 import { SessionService } from '../../../core/session/session.service';
-import { STATUS_CHIPS, isSlug, slugFromName } from '../../../models/content';
+import { STATUS_CHIPS, slugFromName } from '../../../models/content';
 import {
   CLASS_CODES,
   CLASS_LIMITS,
@@ -54,8 +54,6 @@ import { confirmDelete } from '../../../shared/delete-confirm/delete-confirm';
 interface Draft {
   readonly title: string;
   readonly slug: string;
-  /** Whether the person has typed a slug; until then it follows the title (new classes only). */
-  readonly slugEdited: boolean;
   readonly summary: string;
   /** HTML, as the rich-text editor holds it. */
   readonly body: string;
@@ -93,7 +91,6 @@ type FieldErrors = Partial<Record<FieldName, string>>;
 const EMPTY: Draft = {
   title: '',
   slug: '',
-  slugEdited: false,
   summary: '',
   body: '',
   classType: '',
@@ -195,7 +192,6 @@ export class ClassEditor implements HasUnsavedChanges {
     const status = this.status();
     return status.kind === 'conflict' ? status.theirs : null;
   });
-  protected readonly slugLocked = computed(() => this.offering()?.slugLocked ?? false);
   protected readonly canPublish = computed(() => {
     const status = this.offering()?.status;
     return status === 'Draft' || status === 'Scheduled';
@@ -218,19 +214,12 @@ export class ClassEditor implements HasUnsavedChanges {
     return this.offering() ? 'Save' : 'Create class';
   });
 
-  /**
-   * Once published, the address is someone's bookmark: changing it is allowed, and the old address is redirected to
-   * the new one when it is saved (ADR 0035). The hint says so, and names the address that will redirect.
-   */
+  /** Made from the title on create and never typed (the field only shows it), so the address never moves. */
   protected readonly slugHint = computed(() => {
-    const saved = this.offering();
     const slug = this.draft().slug;
-    if (!this.slugLocked() || !saved) {
-      return `6311arts.com/classes/${slug || '…'} — lower-case letters, digits and hyphens.`;
-    }
-    return slug === saved.slug
-      ? `6311arts.com/classes/${slug} — published, so changing it sends visitors from this address to the new one.`
-      : `6311arts.com/classes/${slug || '…'} — on saving, visitors to /classes/${saved.slug} are sent here.`;
+    return this.offering()
+      ? `6311arts.com/classes/${slug}`
+      : `6311arts.com/classes/${slug || '…'} — made from the title. If another class has it, a number is added.`;
   });
 
   /** Edits not yet saved: the unsaved-changes guard asks before they are lost. */
@@ -321,12 +310,9 @@ export class ClassEditor implements HasUnsavedChanges {
   }
 
   protected setTitle(title: string): void {
-    const followsTitle = !this.offering() && !this.draft().slugEdited;
+    // A new class's address follows its title; staff never type one, and the API numbers a taken one.
+    const followsTitle = !this.offering();
     this.patch({ title, ...(followsTitle ? { slug: slugFromName(title) } : {}) });
-  }
-
-  protected setSlug(slug: string): void {
-    this.patch({ slug, slugEdited: true });
   }
 
   protected setRuns(runs: readonly RunDraft[]): void {
@@ -667,7 +653,6 @@ function draftOf(offering: ClassOffering): Draft {
   return {
     title: offering.title,
     slug: offering.slug,
-    slugEdited: true,
     summary: offering.summary ?? '',
     body: offering.body ?? '',
     classType: offering.classType ?? '',
@@ -680,7 +665,6 @@ function draftOf(offering: ClassOffering): Draft {
 function createOf(draft: Draft): ClassCreate {
   return {
     title: draft.title.trim(),
-    ...(draft.slug ? { slug: draft.slug } : {}),
     ...(draft.summary.trim() ? { summary: draft.summary.trim() } : {}),
     ...(draft.body ? { body: draft.body } : {}),
     ...(draft.classType.trim() ? { classType: draft.classType.trim() } : {}),
@@ -704,7 +688,6 @@ function changesOf(offering: ClassOffering, draft: Draft): ClassUpdate {
 
   return {
     ...(title !== offering.title ? { title } : {}),
-    ...(draft.slug !== offering.slug ? { slug: draft.slug } : {}),
     ...(summary !== (offering.summary ?? '') ? { summary } : {}),
     ...(draft.body !== (offering.body ?? '') ? { body: draft.body } : {}),
     ...(classType !== (offering.classType ?? '') ? { classType } : {}),
@@ -726,11 +709,6 @@ function runsChanged(offering: ClassOffering, draft: Draft): boolean {
 function localErrors(draft: Draft): FieldErrors {
   const errors: FieldErrors = {};
   if (draft.title.trim() === '') errors.title = 'Enter the class’s title.';
-  if (!isSlug(draft.slug)) {
-    errors.slug = draft.slug
-      ? 'Use lower-case letters, digits and single hyphens (for example intro-to-screen-printing).'
-      : 'Enter a web address, for example intro-to-screen-printing.';
-  }
   const runError = runErrorOf(draft.runs);
   if (runError) errors.runs = runError;
   return errors;

@@ -14,8 +14,13 @@
         @if (s.today.length) {
           <div class="class-list class-list--full">
             @for (x of s.today; track x.key) {
-              @if (x.c; as c) {
-                <app-class-card [item]="c" reveal />
+              @if (x.s; as s) {
+                <app-class-card
+                  [item]="s.c"
+                  [date]="s.date"
+                  [week]="s.c.sessions > 1 ? s.n : undefined"
+                  reveal
+                />
               } @else if (x.m; as m) {
                 <app-show-card [item]="m.e" [date]="m.date" [kind]="m.kind" reveal />
               }
@@ -28,8 +33,13 @@
           <h2 class="month" reveal>This week</h2>
           <div class="class-list class-list--full">
             @for (x of s.week; track x.key) {
-              @if (x.c; as c) {
-                <app-class-card [item]="c" reveal />
+              @if (x.s; as s) {
+                <app-class-card
+                  [item]="s.c"
+                  [date]="s.date"
+                  [week]="s.c.sessions > 1 ? s.n : undefined"
+                  reveal
+                />
               } @else if (x.m; as m) {
                 <app-show-card [item]="m.e" [date]="m.date" [kind]="m.kind" reveal />
               }

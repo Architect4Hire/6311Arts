@@ -20,7 +20,7 @@ import { UiButton, UiControl, UiField, UiNotice, UiStatusChip } from '@6311/ui';
 import { ConfirmService } from '../../../core/confirm/confirm.service';
 import { HasUnsavedChanges, warnBeforeUnload } from '../../../core/guards/unsaved-changes.guard';
 import { SessionService } from '../../../core/session/session.service';
-import { STATUS_CHIPS, isSlug, slugFromName } from '../../../models/content';
+import { STATUS_CHIPS, slugFromName } from '../../../models/content';
 import {
   PAGE_CODES,
   PAGE_DELETED_STATE,
@@ -39,8 +39,6 @@ import { RichTextEditor } from '../../../shared/rich-text-editor/rich-text-edito
 interface Draft {
   readonly title: string;
   readonly slug: string;
-  /** Whether the person has typed a slug; until then it follows the title (new pages only). */
-  readonly slugEdited: boolean;
   /** HTML, as the rich-text editor holds it. */
   readonly body: string;
 }
@@ -57,7 +55,7 @@ type Status =
 
 type FieldErrors = Partial<Record<'title' | 'slug' | 'body', string>>;
 
-const EMPTY: Draft = { title: '', slug: '', slugEdited: false, body: '' };
+const EMPTY: Draft = { title: '', slug: '', body: '' };
 
 /** Router state set by "Create page", read by the editor it navigates to. */
 const CREATED_STATE = 'pageCreated';
@@ -147,7 +145,6 @@ export class PageEditor implements HasUnsavedChanges {
     const status = this.status();
     return status.kind === 'conflict' ? status.theirs : null;
   });
-  protected readonly slugLocked = computed(() => this.page()?.slugLocked ?? false);
   protected readonly canPublish = computed(() => {
     const status = this.page()?.status;
     return status === 'Draft' || status === 'Scheduled';
@@ -165,18 +162,12 @@ export class PageEditor implements HasUnsavedChanges {
     return this.page() ? 'Save' : 'Create page';
   });
 
-  /**
-   * Once published, the address is someone's bookmark: changing it is allowed, and the old address is redirected to the
-   * new one when it is saved (ADR 0035). The hint says so, and names the address that will redirect.
-   */
+  /** Made from the title on create and never typed (the field only shows it), so the address never moves. */
   protected readonly slugHint = computed(() => {
-    const saved = this.page();
     const slug = this.draft().slug;
-    if (!this.slugLocked() || !saved)
-      return `6311arts.com/${this.draft().slug || '…'} — lower-case letters, digits and hyphens.`;
-    return slug === saved.slug
-      ? `6311arts.com/${slug} — published, so changing it sends visitors from this address to the new one.`
-      : `6311arts.com/${slug || '…'} — on saving, visitors to /${saved.slug} are sent here.`;
+    return this.page()
+      ? `6311arts.com/${slug}`
+      : `6311arts.com/${slug || '…'} — made from the title. If another page or the site already has it, a number is added.`;
   });
 
   /** Edits not yet saved: the unsaved-changes guard asks before they are lost. */
@@ -242,12 +233,9 @@ export class PageEditor implements HasUnsavedChanges {
   }
 
   protected setTitle(title: string): void {
-    const followsTitle = !this.page() && !this.draft().slugEdited;
+    // A new page's address follows its title; staff never type one, and the API numbers a taken one.
+    const followsTitle = !this.page();
     this.patch({ title, ...(followsTitle ? { slug: slugFromName(title) } : {}) });
-  }
-
-  protected setSlug(slug: string): void {
-    this.patch({ slug, slugEdited: true });
   }
 
   protected setBody(body: string): void {
@@ -534,13 +522,12 @@ export class PageEditor implements HasUnsavedChanges {
 }
 
 function draftOf(page: Page): Draft {
-  return { title: page.title, slug: page.slug, slugEdited: true, body: page.body ?? '' };
+  return { title: page.title, slug: page.slug, body: page.body ?? '' };
 }
 
 function createOf(draft: Draft): PageCreate {
   return {
     title: draft.title.trim(),
-    ...(draft.slug ? { slug: draft.slug } : {}),
     ...(draft.body ? { body: draft.body } : {}),
   };
 }
@@ -550,7 +537,6 @@ function changesOf(page: Page, draft: Draft): PageUpdate {
   const title = draft.title.trim();
   return {
     ...(title !== page.title ? { title } : {}),
-    ...(draft.slug !== page.slug ? { slug: draft.slug } : {}),
     ...(draft.body !== (page.body ?? '') ? { body: draft.body } : {}),
   };
 }
@@ -558,11 +544,6 @@ function changesOf(page: Page, draft: Draft): PageUpdate {
 function localErrors(draft: Draft): FieldErrors {
   const errors: FieldErrors = {};
   if (draft.title.trim() === '') errors.title = 'Enter the page’s title.';
-  if (!isSlug(draft.slug)) {
-    errors.slug = draft.slug
-      ? 'Use lower-case letters, digits and single hyphens (for example privacy).'
-      : 'Enter a web address, for example privacy.';
-  }
   return errors;
 }
 

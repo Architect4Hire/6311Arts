@@ -72,16 +72,19 @@ public sealed class ClassesModuleTests
     }
 
     [Fact]
-    public async Task ATakenSlugIsRefusedOnTheSlugField()
+    public async Task AMadeSlugTakesTheNextFreeNumberButAGivenTakenOneIsRefusedOnTheSlugField()
     {
         await using var host = await ClassesTestHost.CreateAsync(Ct);
         await CreateAsync(host, new ClassCreateViewModel("Intro to Scratchboard"));
 
-        var second = await host.WithFacadeAsync(facade => facade.CreateAsync(
-            new ClassCreateViewModel("INTRO TO SCRATCHBOARD"), Editor, Ct));
+        // The CMS never sends a slug, so one made from the name can't be refused: there is nothing staff could change.
+        var second = await CreateAsync(host, new ClassCreateViewModel("INTRO TO SCRATCHBOARD"));
+        var third = await CreateAsync(host, new ClassCreateViewModel("Intro to scratchboard"));
+        var given = await host.WithFacadeAsync(facade => facade.CreateAsync(new ClassCreateViewModel("Another Class", Slug: "intro-to-scratchboard"), Editor, Ct));
 
-        Assert.Equal(ContentErrorCodes.SlugTaken, second.Error!.Code);
-        Assert.Contains("slug", second.Error.FieldErrors.Keys);
+        Assert.Equal(("intro-to-scratchboard-2", "intro-to-scratchboard-3"), (second.Slug, third.Slug));
+        Assert.Equal(ContentErrorCodes.SlugTaken, given.Error!.Code);
+        Assert.Contains("slug", given.Error.FieldErrors.Keys);
     }
 
     [Fact]

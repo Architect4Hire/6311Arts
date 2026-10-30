@@ -122,17 +122,6 @@ internal static partial class ShopImportCells
     }
 
     /// <summary>
-    /// <paramref name="slug"/> with <c>-<paramref name="number"/></c> on the end, shortened first if it has to be,
-    /// so it still fits <see cref="Slugs.MaxLength"/>.
-    /// </summary>
-    public static string Numbered(string slug, int number)
-    {
-        var suffix = string.Create(CultureInfo.InvariantCulture, $"-{number}");
-        var room = Slugs.MaxLength - suffix.Length;
-        return (slug.Length <= room ? slug : slug[..room].TrimEnd('-')) + suffix;
-    }
-
-    /// <summary>
     /// The five characters markup gives meaning to, as entities, and nothing else: an accent stays the letter it is
     /// rather than becoming <c>&amp;#233;</c> in the stored description.
     /// </summary>
