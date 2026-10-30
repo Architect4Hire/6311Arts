@@ -84,12 +84,12 @@ export class Home {
     {
       icon: 'brush',
       title: 'Artist-focused',
-      text: 'Every resident artist lives within six miles of our door. We put local work on the walls, in the shop and at the front of the classroom.',
+      text: 'Every resident artist lives within six miles of our door. Their work hangs on our walls, stocks our shop, and they teach our classes.',
     },
     {
       icon: 'people',
       title: 'Committed to community',
-      text: 'Our programs and partnerships come from what Rogers Edge asks for, from high-school shows to free art therapy.',
+      text: 'Our programs and partnerships come from what Rogers Edge asks for, from therapeutic art to pop-up markets. ',
     },
     {
       icon: 'infinity',
@@ -107,7 +107,7 @@ export class Home {
     {
       icon: 'brush',
       title: 'Community workshops',
-      text: 'Screen printing, scratchboard, ofrendas and more, in small hands-on groups.',
+      text: 'Froms screen printing to painting, taught hands-on in small groups. Come for a one-day workshop or a three-week class.',
     },
     {
       icon: 'chat',
@@ -117,11 +117,11 @@ export class Home {
     {
       icon: 'briefcase',
       title: 'Free career sessions',
-      text: 'Pricing, portfolios and grant writing for working artists, at no cost.',
+      text: 'Professional development for artists.  From pricing to portfolio building, and the business side of running a practice.',
     },
     {
       icon: 'leaf',
-      title: 'Free art therapy',
+      title: 'Free Theraputic Arts',
       text: 'Guided sessions that use making as a way to rest, process and connect.',
     },
   ];
