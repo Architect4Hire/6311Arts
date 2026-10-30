@@ -8,7 +8,7 @@
 #   terraform apply bootstrap.tfplan
 
 subscription_id   = "00000000-0000-0000-0000-000000000000"
-github_repository = "robertfelkins/6311arts"
+github_repository = "architect4hire/6311arts"
 
 # Chosen once, then copied into every envs/*.tfvars. `openssl rand -hex 3` gives a usable value.
 unique_suffix = "a1b2c3"
