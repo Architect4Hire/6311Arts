@@ -1,9 +1,9 @@
-# 0056 — Azure Managed Redis, non-clustered, one instance per environment
+# 0061 — Azure Managed Redis, non-clustered, one instance per environment
 
 - **Status:** Accepted
 - **Date:** 2026-10-30
 - **Rules affected:** `.claude/rules/aspire.md` (the `cache` resource), CLAUDE.md "Stack"
-- **Related:** ADR 0009 (Redis for session tickets — this resolves its open Azure half), ADR 0036 (revalidation), ADR 0049 (cache invalidation bus), ADR 0055
+- **Related:** ADR 0009 (Redis for session tickets — this resolves its open Azure half), ADR 0036 (revalidation), ADR 0049 (cache invalidation bus), ADR 0060
 
 ## Context
 

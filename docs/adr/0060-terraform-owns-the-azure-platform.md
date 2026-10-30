@@ -1,4 +1,4 @@
-# 0055 — Terraform owns the Azure platform, Aspire owns the applications
+# 0060 — Terraform owns the Azure platform, Aspire owns the applications
 
 - **Status:** Accepted
 - **Date:** 2026-10-30

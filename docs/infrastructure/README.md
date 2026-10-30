@@ -254,9 +254,9 @@ that runs, which is why it is specified there and not committed. Writing it now 
 
 CLAUDE.md asks for an ADR per architectural decision. Two were taken in building this and are recorded:
 
-- **ADR 0055 — Terraform owns the Azure platform, Aspire owns the applications.** The split in §1, and why
+- **ADR 0060 — Terraform owns the Azure platform, Aspire owns the applications.** The split in §1, and why
   it does not contradict ADR 0008.
-- **ADR 0056 — Azure Managed Redis.** Resolves the open half of ADR 0009. Forced rather than chosen:
+- **ADR 0061 — Azure Managed Redis.** Resolves the open half of ADR 0009. Forced rather than chosen:
   Azure Cache for Redis can no longer be created.
 
 ---
