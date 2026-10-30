@@ -15,7 +15,8 @@
 .tier--featured,
 .strip,
 .footer,
-.class-card--show {
+.class-card--show,
+.to-top {
   --focus: var(--focus-on-dark);
 }
 
@@ -1887,6 +1888,14 @@
 @media (max-width: 520px) {
   .footer__grid {
     grid-template-columns: 1fr;
+  }
+}
+
+.footer__brand {
+  max-width: 280px;
+  text-align: center;
+  .mark {
+    margin-inline: auto;
   }
 }
 

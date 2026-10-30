@@ -1,0 +1,48 @@
+:host {
+  position: fixed;
+  right: var(--pad);
+  bottom: var(--space-5);
+  // Under the fixed nav (50), so an open mobile menu covers it.
+  z-index: 40;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(var(--space-3));
+  transition:
+    opacity var(--dur) var(--ease),
+    transform var(--dur) var(--ease),
+    visibility 0s linear var(--dur);
+}
+
+// visibility, not just opacity: hidden, the button is out of the tab order and the accessibility tree.
+:host(.to-top--shown) {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+
+.to-top__button {
+  display: grid;
+  place-items: center;
+  width: var(--space-7);
+  height: var(--space-7);
+  padding: 0;
+  border: var(--border-thin) solid var(--white-40);
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--white);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+  &:hover {
+    background: var(--ink-2);
+  }
+  // The page behind the button can be any surface, so the ring sits inside it, on the ink.
+  &:focus-visible {
+    outline-offset: calc(-1 * (var(--border) + var(--space-1)));
+  }
+}
+
+// The glyph points right; turn it to point up.
+ui-icon {
+  transform: rotate(-90deg);
+}

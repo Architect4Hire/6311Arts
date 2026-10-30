@@ -3,7 +3,7 @@
 <header class="bar">
   <a class="bar__brand" routerLink="/">
     <span class="bar__name">6311arts</span>
-    <span class="bar__tag">CMS</span>
+    <span class="bar__tag">Studio</span>
   </a>
 
   <button
@@ -42,7 +42,7 @@
 </header>
 
 <div class="frame">
-  <nav id="cms-nav" class="nav" aria-label="CMS sections" [class.nav--open]="navOpen()">
+  <nav id="cms-nav" class="nav" aria-label="Studio sections" [class.nav--open]="navOpen()">
     <ul>
       @for (section of sections(); track section.path) {
         <li>

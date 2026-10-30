@@ -49,7 +49,7 @@ async function render(roles: string[]) {
 }
 
 const navLabels = (element: HTMLElement) =>
-  [...element.querySelectorAll('nav[aria-label="CMS sections"] a')].map((a) =>
+  [...element.querySelectorAll('nav[aria-label="Studio sections"] a')].map((a) =>
     a.textContent?.trim(),
   );
 

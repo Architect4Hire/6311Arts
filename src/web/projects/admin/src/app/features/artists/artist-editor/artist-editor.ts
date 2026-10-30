@@ -417,7 +417,7 @@ export class ArtistEditor implements HasUnsavedChanges {
     const confirmed = await this.confirm.confirm({
       heading: 'Archive this artist?',
       message:
-        'An archived artist is retired from the site, and archiving can’t be undone from the CMS. The archive is recorded under your name.',
+        'An archived artist is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
       confirmLabel: 'Archive artist',
       cancelLabel: 'Keep them',
     });

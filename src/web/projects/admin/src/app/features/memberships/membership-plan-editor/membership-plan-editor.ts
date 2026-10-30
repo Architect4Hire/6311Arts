@@ -448,7 +448,7 @@ export class MembershipPlanEditor implements HasUnsavedChanges {
     const confirmed = await this.confirm.confirm({
       heading: 'Archive this tier?',
       message:
-        'An archived tier is retired from the site, and archiving can’t be undone from the CMS. The archive is recorded under your name.',
+        'An archived tier is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
       confirmLabel: 'Archive tier',
       cancelLabel: 'Keep it',
     });

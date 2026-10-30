@@ -17,14 +17,14 @@ import { antiforgeryInterceptor } from './core/http/antiforgery.interceptor';
 import { problemInterceptor } from './core/http/problem.interceptor';
 import { XSRF_COOKIE_NAME, XSRF_HEADER_NAME } from './core/http/xsrf';
 
-/** "Classes · 6311arts CMS", so a tab or a history entry says which screen it was. */
+/** "Classes · 6311arts Studio", so a tab or a history entry says which screen it was. */
 @Injectable()
 class CmsTitleStrategy extends TitleStrategy {
   private readonly title = inject(Title);
 
   override updateTitle(snapshot: RouterStateSnapshot): void {
     const page = this.buildTitle(snapshot);
-    this.title.setTitle(page ? `${page} · 6311arts CMS` : '6311arts CMS');
+    this.title.setTitle(page ? `${page} · 6311arts Studio` : '6311arts Studio');
   }
 }
 

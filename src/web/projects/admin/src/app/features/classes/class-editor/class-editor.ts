@@ -470,7 +470,7 @@ export class ClassEditor implements HasUnsavedChanges {
     const confirmed = await this.confirm.confirm({
       heading: 'Archive this class?',
       message:
-        'An archived class is retired from the site, and archiving can’t be undone from the CMS. The archive is recorded under your name.',
+        'An archived class is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
       confirmLabel: 'Archive class',
       cancelLabel: 'Keep it',
     });

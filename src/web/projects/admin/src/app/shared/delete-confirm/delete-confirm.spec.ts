@@ -96,7 +96,7 @@ describe('confirmDelete', () => {
 
     await confirmDelete(asked.service, { ...PIECE, live: false });
 
-    expect(asked.requests[0].message).toContain('The piece leaves the CMS list.');
+    expect(asked.requests[0].message).toContain('The piece leaves the Studio list.');
     expect(asked.requests[0].message).not.toContain('stops working');
   });
 });

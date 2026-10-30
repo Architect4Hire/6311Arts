@@ -218,8 +218,8 @@ export class ShopItemEditor implements HasUnsavedChanges {
   protected readonly skuHint = computed(() => {
     const saved = this.item();
     if (!saved)
-      return 'Left empty, the shop suggests one (for example ART-17). Unique across the CMS.';
-    return `Unique across the whole CMS, class sessions included. Suggested as ART-${saved.itemNumber}.`;
+      return 'Left empty, the shop suggests one (for example ART-17). Unique across Studio.';
+    return `Unique across Studio, class sessions included. Suggested as ART-${saved.itemNumber}.`;
   });
 
   /**
@@ -476,7 +476,7 @@ export class ShopItemEditor implements HasUnsavedChanges {
     const confirmed = await this.confirm.confirm({
       heading: 'Archive this piece?',
       message:
-        'An archived piece is retired from the shop, and archiving can’t be undone from the CMS. The archive is recorded under your name.',
+        'An archived piece is retired from the shop, and archiving can’t be undone from Studio. The archive is recorded under your name.',
       confirmLabel: 'Archive piece',
       cancelLabel: 'Keep it',
     });

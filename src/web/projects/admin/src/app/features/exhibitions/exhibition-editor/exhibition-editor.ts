@@ -506,7 +506,7 @@ export class ExhibitionEditor implements HasUnsavedChanges {
     const confirmed = await this.confirm.confirm({
       heading: 'Archive this exhibition?',
       message:
-        'An archived exhibition is retired from the site, and archiving can’t be undone from the CMS. The archive is recorded under your name.',
+        'An archived exhibition is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
       confirmLabel: 'Archive exhibition',
       cancelLabel: 'Keep it',
     });

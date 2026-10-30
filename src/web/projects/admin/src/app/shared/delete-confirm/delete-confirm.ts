@@ -41,8 +41,8 @@ export async function confirmDelete(
 ): Promise<boolean> {
   const unsaved = request.dirty ? 'Your unsaved changes go with it. ' : '';
   const leaves = request.live
-    ? `6311arts.com/${request.slug} stops working within a minute, and the ${request.noun} leaves the CMS list. `
-    : `The ${request.noun} leaves the CMS list. `;
+    ? `6311arts.com/${request.slug} stops working within a minute, and the ${request.noun} leaves the Studio list. `
+    : `The ${request.noun} leaves the Studio list. `;
 
   const first = await confirm.confirm({
     heading: `Delete this ${request.noun}?`,
@@ -58,7 +58,7 @@ export async function confirmDelete(
 
   return confirm.confirm({
     heading: 'This also deletes it from Square',
-    message: `“${request.label}” is sold through Square. Deleting it here deletes it from the Square catalogue as well, and restoring it in the CMS does not bring the Square object back — staff would set it up again.${SQUARE_NOT_YET} Orders, payments and anyone’s membership are untouched.`,
+    message: `“${request.label}” is sold through Square. Deleting it here deletes it from the Square catalogue as well, and restoring it in Studio does not bring the Square object back — staff would set it up again.${SQUARE_NOT_YET} Orders, payments and anyone’s membership are untouched.`,
     confirmLabel: 'Delete here and in Square',
     cancelLabel: request.keepLabel,
     tone: 'danger',

@@ -145,7 +145,7 @@ describe('Signin', () => {
     await submit();
 
     expect(assign).not.toHaveBeenCalled();
-    expect(element.textContent).toContain('This account can’t use the CMS');
+    expect(element.textContent).toContain('This account can’t use Studio');
   });
 
   it.each<[SignInResult, string]>([

@@ -39,14 +39,14 @@ describe('StaffAccess', () => {
     expect(link.getAttribute('href')).toBe('/signin');
   });
 
-  it('sends staff to the CMS in a new tab, without a handle on this one', async () => {
+  it('sends staff to Studio in a new tab, without a handle on this one', async () => {
     const { element } = await render(staff);
 
     const link = element.querySelector('a')!;
     expect(link.getAttribute('href')).toBe('/admin/');
     expect(link.getAttribute('target')).toBe('_blank');
     expect(link.getAttribute('rel')).toBe('noopener');
-    expect(link.textContent).toContain('Open the CMS');
+    expect(link.textContent).toContain('Open Studio');
   });
 
   it('says a new tab is coming, for anyone not watching it happen', async () => {
@@ -61,7 +61,7 @@ describe('StaffAccess', () => {
     expect(element.textContent).toContain('6311arts Admin');
   });
 
-  it('offers a member neither the CMS nor a sign-in link', async () => {
+  it('offers a member neither Studio nor a sign-in link', async () => {
     const { element } = await render(member);
 
     expect(element.querySelector('a')).toBeNull();
@@ -94,7 +94,7 @@ describe('StaffAccess', () => {
     await new Promise((resolve) => setTimeout(resolve));
     await fixture.whenStable();
 
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Open the CMS');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Open Studio');
   });
 
   it('asks the gateway once per page, not once per render', async () => {
