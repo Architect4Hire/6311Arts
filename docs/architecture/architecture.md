@@ -558,7 +558,7 @@ flowchart TB
 | 0006 | Square ids in `SquareCatalogLink`, not entities                                | Decided                           |
 | 0007 | Square fake by default, sandbox opt-in                                         | Decided                           |
 | 0008 | Run mode offline; publish to Azure Container Apps                              | Decided                           |
-| 0009 | Redis hosting in Azure (managed vs container app)                              | **DECIDE** (Phase 6.1)            |
+| 0009 | Redis hosting in Azure (managed vs container app)                              | Decided (ADR 0056)                |
 | 0010 | CSoon template license covers this use                                         | **DECIDE** before launch          |
 | 0011 | Square archive policy (delete vs mark unavailable)                             | **DECIDE** (5.5)                  |
 | 0012 | Square subscription limits (no ACH, $1 minimum)                                | Record (5.10)                     |

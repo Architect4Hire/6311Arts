@@ -1,0 +1,157 @@
+# Terraform for the Azure platform (docs/infrastructure/README.md). Separate from ci.yml on purpose: that
+# workflow builds and tests, this one changes Azure, and the two should never share a trigger.
+#
+# A pull request gets a read-only plan. Changing anything is a deliberate act: workflow_dispatch, against a
+# GitHub environment, which is where the approval gate lives (prompt 6.2, "I run the first deploy";
+# prompt 6.3, "a manual approval gate"). Nothing here deploys the application — that is the deploy workflow
+# prompt 6.2 adds once the publish model exists.
+name: Infrastructure
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/infrastructure.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which environment to act on
+        type: choice
+        options: [dev, prod]
+        required: true
+      action:
+        description: plan reads, apply changes
+        type: choice
+        options: [plan, apply]
+        default: plan
+        required: true
+
+# Actions are pinned to full commit SHAs (the release tag beside each), the same way ci.yml pins them.
+# id-token is what lets the job exchange a GitHub OIDC token for an Azure one; no cloud credential is
+# stored in this repository (prompt 6.2, "no stored cloud secrets").
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+# One run per environment. An apply in progress is never cancelled; a superseded pull-request plan is.
+concurrency:
+  group: infrastructure-${{ github.event.inputs.environment || 'pr' }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The azurerm provider and the azurerm backend both authenticate through OIDC from these. Client ids,
+  # tenant ids and subscription ids are identifiers, not secrets, so they are repository variables.
+  ARM_USE_OIDC: "true"
+  ARM_USE_AZUREAD: "true"
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  # A pull request plans dev with the read-only identity bootstrap federated to `pull_request`. It holds
+  # Reader on the resource group, so a plan is all it can do even if the configuration asked for more.
+  plan:
+    name: Plan dev
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: infra/terraform
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_PLAN_CLIENT_ID_DEV }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.1
+          # The wrapper rewrites stdout, which makes the plan output in the step summary unreadable.
+          terraform_wrapper: false
+
+      - name: Check the bootstrap placeholders were filled in
+        run: |
+          if grep -rq "CHANGEME" envs/; then
+            echo "::error title=Placeholder left in envs/::Fill in unique_suffix, subscription_id and the state storage account name from bootstrap's outputs."
+            exit 1
+          fi
+
+      - name: Format
+        run: terraform fmt -check -recursive
+
+      - name: Init
+        run: terraform init -backend-config=envs/dev.backend.hcl
+
+      - name: Validate
+        run: terraform validate
+
+      # The plan file is deliberately not uploaded as an artifact: it holds resource attributes, and for
+      # this configuration that includes the Managed Redis access key.
+      - name: Plan
+        id: plan
+        run: |
+          terraform plan -var-file=envs/dev.tfvars -out=dev.tfplan -no-color | tee plan.txt
+          echo '### Terraform plan (dev)' >> "$GITHUB_STEP_SUMMARY"
+          echo '```terraform' >> "$GITHUB_STEP_SUMMARY"
+          # The last 200 lines: the summary line and the tail of the changes, without a full plan for a
+          # first apply pushing everything else out of the summary.
+          tail -n 200 plan.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  change:
+    name: ${{ github.event.inputs.action }} ${{ github.event.inputs.environment }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # The federated credential's subject is `repo:<owner>/<repo>:environment:<name>`, so a token is only
+    # issued to a job that declares the environment — and the environment's reviewers are what stand in
+    # front of a prod apply. Removing this line does not bypass the gate, it breaks authentication.
+    environment: ${{ github.event.inputs.environment }}
+    defaults:
+      run:
+        working-directory: infra/terraform
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+
+      - name: Init
+        run: terraform init -backend-config=envs/${{ github.event.inputs.environment }}.backend.hcl
+
+      - name: Plan
+        run: |
+          terraform plan \
+            -var-file=envs/${{ github.event.inputs.environment }}.tfvars \
+            -out=${{ github.event.inputs.environment }}.tfplan \
+            -no-color | tee plan.txt
+          echo '### Terraform plan (${{ github.event.inputs.environment }})' >> "$GITHUB_STEP_SUMMARY"
+          echo '```terraform' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 200 plan.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # Applies the saved plan, not a fresh one: what was approved is what runs.
+      - name: Apply
+        if: github.event.inputs.action == 'apply'
+        run: terraform apply -no-color ${{ github.event.inputs.environment }}.tfplan
+
+      # Names and addresses only. Secret *values* are never outputs of this configuration — the application
+      # secrets are Key Vault shells a person fills in with infra/terraform/scripts/set-secrets.sh.
+      - name: Outputs
+        if: github.event.inputs.action == 'apply'
+        run: |
+          echo '### Platform outputs' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          terraform output -no-color >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

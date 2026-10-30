@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars (gitignored) and fill in. Bootstrap runs once, from a laptop, by a person.
+#
+#   cd infra/terraform/bootstrap
+#   cp terraform.tfvars.example terraform.tfvars
+#   az login && az account set --subscription <id>
+#   terraform init
+#   terraform plan -out bootstrap.tfplan      # read it
+#   terraform apply bootstrap.tfplan
+
+subscription_id   = "00000000-0000-0000-0000-000000000000"
+github_repository = "robertfelkins/6311arts"
+
+# Chosen once, then copied into every envs/*.tfvars. `openssl rand -hex 3` gives a usable value.
+unique_suffix = "a1b2c3"
+
+# location    = "centralus"
+# environments = ["dev", "prod"]
+
+tags = {
+  owner = "6311arts"
+}

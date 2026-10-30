@@ -1,0 +1,13 @@
+# Terraform working files. Nothing here belongs in the repository (CLAUDE.md "Hygiene").
+.terraform/
+.terraform.lock.hcl.bak
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+# Real variable values. Only the committed envs/*.tfvars and *.example files are tracked; a file a person
+# fills in with their own subscription, object ids or addresses stays local.
+terraform.tfvars
+*.auto.tfvars
