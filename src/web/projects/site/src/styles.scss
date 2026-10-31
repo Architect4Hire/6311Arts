@@ -16,7 +16,11 @@
 .strip,
 .footer,
 .class-card--show,
-.to-top {
+.to-top,
+/* The exhibition card's title sits on its photograph, under the veil's gradient (ADR 0064). */
+.exhibit-card,
+/* The staff preview flag, which is the strip's charcoal (ADR 0063). */
+.preview-bar {
   --focus: var(--focus-on-dark);
 }
 

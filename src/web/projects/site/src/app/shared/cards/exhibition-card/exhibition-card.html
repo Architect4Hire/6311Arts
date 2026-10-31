@@ -2,7 +2,9 @@
 <app-art-image [src]="e.image" [alt]="e.title" ratio="3 / 4" />
 <div class="exhibit-card__veil">
   <span class="tag" [class.tag--light]="status() === 'Now on view'">{{ status() }}</span>
-  <h3>{{ e.title }}</h3>
+  <h3>
+    <a class="exhibit-card__link" [routerLink]="['/exhibitions', e.slug]">{{ e.title }}</a>
+  </h3>
   <p class="exhibit-card__dates">{{ e.start | when: 'range' : e.end }}</p>
   <p class="exhibit-card__sum">{{ e.summary }}</p>
 </div>

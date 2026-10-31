@@ -11,6 +11,7 @@ import {
   stripTags,
   toArtClasses,
   toArtistPage,
+  toExhibition,
   toExhibitions,
   toMembershipTier,
   toProduct,
@@ -234,6 +235,8 @@ describe('toExhibitions', () => {
       end: '2027-01-30',
       summary: 'Members’ work.',
       artists: ['Jane Doe', 'Zed Draft'],
+      // The same credits with their pages, for the show's own page: an unpublished artist has no slug (ADR 0064).
+      credits: [{ name: 'Jane Doe', slug: 'jane-doe' }, { name: 'Zed Draft' }],
       image: IMAGE.src,
       reception: {
         start: '2026-11-20T18:00:00-06:00',
@@ -242,6 +245,16 @@ describe('toExhibitions', () => {
       },
     });
     expect(list[1].summary).toBe('');
+  });
+
+  it('reads the show’s own write-up as paragraphs on its page', () => {
+    const page = toExhibition({
+      ...show('winter', '2026-11-14', { summary: 'Members’ work.' }),
+      bodyText: 'Nine painters.\n\n  Open late on Fridays.  \n\n\n',
+    });
+
+    expect(page.body).toEqual(['Nine painters.', 'Open late on Fridays.']);
+    expect(toExhibition({ ...show('autumn', '2026-09-01'), bodyText: null }).body).toEqual([]);
   });
 });
 

@@ -44,13 +44,35 @@ export interface ArtClass {
   capacity?: number;
 }
 
+/**
+ * One class as its own page shows it (ADR 0065): the copy staff wrote, and every run still to come — which is
+ * empty while a class is being written and again once it is over. The page is the class; the runs are its dates.
+ */
+export interface ClassPage {
+  slug: string;
+  title: string;
+  summary: string;
+  /** The CMS's "More details", sanitized HTML (ADR 0045). */
+  body?: string;
+  type: ClassType;
+  level: ClassLevel;
+  image?: string;
+  /** Soonest first. One entry per run, the same shape the calendar lists. */
+  runs: ArtClass[];
+}
+
 export interface Exhibition {
   slug: string;
   title: string;
   start: string;
   end: string;
   summary: string;
+  /** The credited artists' names, for the card and the list. */
   artists: string[];
+  /** The same credits with their pages, where they have one: a credit names an unpublished artist without a link. */
+  credits?: { name: string; slug?: string }[];
+  /** The show's own write-up, a paragraph per blank line. Only the show's page reads it. */
+  body?: string[];
   image?: string;
   reception?: { start: string; end: string; note?: string };
 }

@@ -15,6 +15,12 @@ export const routes: Routes = [
     path: 'exhibitions',
     loadComponent: () => import('./pages/exhibitions/exhibitions').then((m) => m.Exhibitions),
   },
+  // A show's own page, which the sitemap has always named (ADR 0064).
+  {
+    path: 'exhibitions/:slug',
+    loadComponent: () =>
+      import('./pages/exhibition-detail/exhibition-detail').then((m) => m.ExhibitionDetail),
+  },
   {
     path: 'instructors',
     loadComponent: () => import('./pages/instructors/instructors').then((m) => m.Instructors),

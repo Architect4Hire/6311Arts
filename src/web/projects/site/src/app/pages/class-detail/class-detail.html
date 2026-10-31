@@ -1,34 +1,47 @@
-@if (cls(); as c) {
-  <app-hero [title]="c.title" [eyebrow]="c.type + ' · ' + c.level" [images]="studioPhotos" />
+@if (klass(); as k) {
+  <app-hero [title]="k.title" [eyebrow]="k.type + ' · ' + k.level" [images]="studioPhotos" />
   <section class="band band--white" id="content">
     <div class="container detail">
       <div class="detail__media">
-        <app-art-image [src]="c.image" [alt]="c.title + ' flyer'" ratio="1 / 1" [priority]="true" />
+        <app-art-image [src]="k.image" [alt]="k.title + ' flyer'" ratio="1 / 1" [priority]="true" />
       </div>
       <div class="detail__info">
-        <p class="eyebrow eyebrow--dark">
-          {{ c.sessions > 1 ? c.sessions + '-week course' : 'One session' }}
-        </p>
-        <h2 class="detail__title">{{ c.title }}</h2>
-        <p class="detail__lead">{{ c.summary }}</p>
+        @if (cls(); as c) {
+          <p class="eyebrow eyebrow--dark">
+            {{ c.sessions > 1 ? c.sessions + '-week course' : 'One session' }}
+          </p>
+        }
+        <h2 class="detail__title">{{ k.title }}</h2>
+        <p class="detail__lead">{{ k.summary }}</p>
+        @if (k.body) {
+          <!-- The CMS's "More details", sanitized on write (ADR 0045); this page is what it was written for. -->
+          <div class="prose" [innerHTML]="k.body"></div>
+        }
         <ul class="facts">
-          <li>
-            <ui-icon name="clock" [size]="22" />
-            <span
-              ><strong>{{ c.sessions > 1 ? 'Starts ' : '' }}{{ c.start | when: 'long' }}</strong
-              ><br />
-              {{ c.cadence ? c.cadence + ', ' : '' }}{{ c.start | when: 'time' : c.end }}</span
-            >
-          </li>
-          @if (c.instructor) {
+          @if (cls(); as c) {
             <li>
-              <ui-icon name="people" [size]="22" />
+              <ui-icon name="clock" [size]="22" />
               <span
-                >With
-                <a class="linkish" [routerLink]="['/instructors', instructorSlug(c.instructor)]"
-                  ><strong>{{ c.instructor }}</strong></a
-                ></span
+                ><strong>{{ c.sessions > 1 ? 'Starts ' : '' }}{{ c.start | when: 'long' }}</strong
+                ><br />
+                {{ c.cadence ? c.cadence + ', ' : '' }}{{ c.start | when: 'time' : c.end }}</span
               >
+            </li>
+            @if (c.instructor) {
+              <li>
+                <ui-icon name="people" [size]="22" />
+                <span
+                  >With
+                  <a class="linkish" [routerLink]="['/instructors', instructorSlug(c.instructor)]"
+                    ><strong>{{ c.instructor }}</strong></a
+                  ></span
+                >
+              </li>
+            }
+          } @else {
+            <li>
+              <ui-icon name="calendar" [size]="22" />
+              <span><strong>No dates on the calendar just now</strong></span>
             </li>
           }
           <li>
@@ -36,44 +49,75 @@
               >{{ site.name }}, {{ site.address.street }}</span
             >
           </li>
-          @if (c.spotsLeft != null) {
-            <li>
-              <ui-icon name="ticket" [size]="22" />
-              <span
-                ><strong>{{
-                  c.spotsLeft === 0 ? 'Sold out' : c.spotsLeft + ' of ' + c.capacity + ' spots left'
-                }}</strong></span
-              >
-            </li>
+          @if (cls(); as c) {
+            @if (c.spotsLeft != null) {
+              <li>
+                <ui-icon name="ticket" [size]="22" />
+                <span
+                  ><strong>{{
+                    c.spotsLeft === 0
+                      ? 'Sold out'
+                      : c.spotsLeft + ' of ' + c.capacity + ' spots left'
+                  }}</strong></span
+                >
+              </li>
+            }
           }
         </ul>
-        <div class="buy">
-          @if (c.price != null) {
-            <span class="buy__price">{{ c.price | money }}</span>
-          } @else {
-            <!-- Square hasn't priced the run yet (ADR 0042, 0046). -->
-            <p class="buy__note buy__tba">Price to be announced</p>
+        @if (cls(); as c) {
+          <div class="buy">
+            @if (c.price != null) {
+              <span class="buy__price">{{ c.price | money }}</span>
+            } @else {
+              <!-- Square hasn't priced the run yet (ADR 0042, 0046). -->
+              <p class="buy__note buy__tba">Price to be announced</p>
+            }
+            @if (c.spotsLeft === 0) {
+              <a class="btn btn-border-dark btn-lg" routerLink="/classes">Find another date</a>
+            } @else if (c.price != null) {
+              <!-- Until Square has priced a run there is nothing to reserve (ADR 0042). -->
+              <a class="btn btn-dark btn-lg" [href]="store.buyUrl(c)">{{
+                c.price === 0 ? 'RSVP free' : 'Reserve your spot'
+              }}</a>
+            }
+          </div>
+          @if ((c.price ?? 0) > 0 && memberPrice() != null && joinFrom() != null) {
+            <p class="buy__note">
+              Members pay {{ memberPrice() | money }} or less.
+              <a routerLink="/memberships">Join from {{ joinFrom() | money }}/yr</a>.
+            </p>
           }
-          @if (c.spotsLeft === 0) {
-            <a class="btn btn-border-dark btn-lg" routerLink="/classes">Find another date</a>
-          } @else if (c.price != null) {
-            <!-- Until Square has priced a run there is nothing to reserve (ADR 0042). -->
-            <a class="btn btn-dark btn-lg" [href]="store.buyUrl(c)">{{
-              c.price === 0 ? 'RSVP free' : 'Reserve your spot'
-            }}</a>
-          }
-        </div>
-        @if ((c.price ?? 0) > 0 && memberPrice() != null && joinFrom() != null) {
-          <p class="buy__note">
-            Members pay {{ memberPrice() | money }} or less.
-            <a routerLink="/memberships">Join from {{ joinFrom() | money }}/yr</a>.
-          </p>
+        } @else {
+          <!-- A class between terms, or one still being written: the copy stands, the dates are not set. -->
+          <div class="buy">
+            <p class="buy__note">
+              This class is not on the calendar at the moment.
+              <a routerLink="/classes">See what is coming up</a>.
+            </p>
+          </div>
         }
       </div>
     </div>
   </section>
-  @if (more().length) {
+  @if (otherRuns().length) {
     <section class="band band--light">
+      <div class="container">
+        <h2 class="band__title text-center">Other dates for this class</h2>
+        <div class="class-list">
+          @for (run of otherRuns(); track run.id) {
+            <app-class-card [item]="run" />
+          }
+        </div>
+      </div>
+    </section>
+  }
+  @if (more().length) {
+    <!-- The bands alternate, so this one keeps its old shade when there are no other dates above it. -->
+    <section
+      class="band"
+      [class.band--light]="!otherRuns().length"
+      [class.band--white]="otherRuns().length > 0"
+    >
       <div class="container">
         <h2 class="band__title text-center">More coming up</h2>
         <div class="class-list">
@@ -84,6 +128,17 @@
       </div>
     </section>
   }
+} @else if (unavailable()) {
+  <!-- A failed read, not a missing class: the server answers 503, and this is never a 404 (ADR 0065). -->
+  <section class="band band--white" id="content">
+    <div class="container container--narrow prose" role="status">
+      <h1>Classes</h1>
+      <p>
+        This class could not be loaded just now. Please try again shortly, or see
+        <a routerLink="/classes">what is coming up</a>.
+      </p>
+    </div>
+  </section>
 } @else if (loaded()) {
   <app-not-found />
 }

@@ -338,4 +338,97 @@ describe('SiteApi', () => {
 
     expect(await preview).toBeUndefined();
   });
+
+  it('reads one show for its own page, with its write-up', async () => {
+    const { api, http } = setup();
+
+    const show = firstValueFrom(api.exhibition('winter-light'));
+    http.expectOne('/api/v1/site/exhibitions/winter-light').flush({
+      id: '2b4e',
+      slug: 'winter-light',
+      title: 'Winter Light',
+      summary: 'Nine painters.',
+      bodyText: 'Oils, mostly.\n\nTwo rooms of snow.',
+      startDate: '2099-01-08',
+      endDate: '2099-03-01',
+      reception: null,
+      displayTimeZone: 'America/Chicago',
+      artists: [{ name: 'Zed Draft', slug: null }],
+      image: null,
+    });
+
+    const page = await show;
+    expect(page?.title).toBe('Winter Light');
+    expect(page?.body).toEqual(['Oils, mostly.', 'Two rooms of snow.']);
+    expect(page?.credits).toEqual([{ name: 'Zed Draft' }]);
+  });
+
+  it('tells a failed show read apart from a missing one, and makes the render a 503', async () => {
+    const { api, http, response } = setup();
+
+    const show = firstValueFrom(api.exhibition('winter-light'));
+    http
+      .expectOne('/api/v1/site/exhibitions/winter-light')
+      .flush('upstream down', { status: 502, statusText: 'Bad Gateway' });
+
+    // `null`, not `undefined`: a blip must not tell a crawler that a published show is gone.
+    expect(await show).toBeNull();
+    expect(response.status).toBe(503);
+    expect(new Headers(response.headers).get('Cache-Control')).toBe('no-store');
+  });
+
+  it('has no show to give for a slug the API does not know', async () => {
+    const { api, http, response } = setup();
+
+    const show = firstValueFrom(api.exhibition('gone'));
+    http
+      .expectOne('/api/v1/site/exhibitions/gone')
+      .flush({ code: 'resource.not_found' }, { status: 404, statusText: 'Not Found' });
+
+    expect(await show).toBeUndefined();
+    expect(response.status).toBe(200);
+  });
+
+  it('reads one class and its dates, and keeps a class with none', async () => {
+    const { api, http } = setup();
+
+    const page = firstValueFrom(api.classPage('screen-printing'));
+    http.expectOne('/api/v1/site/classes/screen-printing').flush({
+      id: 'c1',
+      slug: 'screen-printing',
+      title: 'Screen Printing Night',
+      summary: 'Pull a print.',
+      bodyHtml: '<p>Bring an apron.</p>',
+      classType: 'Printmaking',
+      level: 'Beginner',
+      image: null,
+      fromPriceCents: null,
+      currency: 'USD',
+      // Every run has ended, which is what the API sends for a class between terms.
+      runs: [],
+    });
+
+    const klass = await page;
+    expect(klass?.title).toBe('Screen Printing Night');
+    expect(klass?.body).toBe('<p>Bring an apron.</p>');
+    expect(klass?.runs).toEqual([]);
+  });
+
+  it('tells a failed class read apart from a missing one', async () => {
+    const { api, http, response } = setup();
+
+    const missing = firstValueFrom(api.classPage('gone'));
+    http
+      .expectOne('/api/v1/site/classes/gone')
+      .flush({ code: 'resource.not_found' }, { status: 404, statusText: 'Not Found' });
+    expect(await missing).toBeUndefined();
+    expect(response.status).toBe(200);
+
+    const failed = firstValueFrom(api.classPage('screen-printing'));
+    http
+      .expectOne('/api/v1/site/classes/screen-printing')
+      .flush('upstream down', { status: 502, statusText: 'Bad Gateway' });
+    expect(await failed).toBeNull();
+    expect(response.status).toBe(503);
+  });
 });

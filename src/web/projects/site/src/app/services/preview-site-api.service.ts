@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, map, of } from 'rxjs';
 import {
-  ArtClass,
   ArtistPage,
+  ClassPage,
   CmsPage,
   Exhibition,
   Instructor,
@@ -12,10 +12,10 @@ import {
 import { PreviewContext } from '../core/preview';
 import { SiteApi } from './site-api.service';
 import {
-  toArtClasses,
   toArtistPage,
+  toClassPage,
   toCmsPage,
-  toExhibitions,
+  toExhibition,
   toInstructor,
   toMembershipTier,
   toProduct,
@@ -54,33 +54,44 @@ export class PreviewSiteApi extends SiteApi {
     return instructor ? of([toInstructor(instructor)]) : super.instructors();
   }
 
-  /** The draft's runs among the published calendar, so the page's "more classes" still reads like the site. */
-  override classes(): Observable<ArtClass[]> {
+  /**
+   * The class's own page, which a draft has no published row behind (ADR 0065).
+   *
+   * `classes()` is left to the real API, so the calendar below the page is the live one.
+   */
+  override classPage(slug: string): Observable<ClassPage | undefined | null> {
     const offering = this.previewed()?.classOffering;
-    if (!offering) return super.classes();
-
-    const runs = toArtClasses([offering]);
-    return super
-      .classes()
-      .pipe(
-        map((published) =>
-          [...runs, ...published.filter((c) => c.slug !== offering.slug)].sort(
-            (a, b) => Date.parse(a.start) - Date.parse(b.start),
-          ),
-        ),
-      );
+    return offering?.slug === slug ? of(toClassPage(offering)) : super.classPage(slug);
   }
 
-  /** The exhibitions page is the show's only address, so a preview of one is that page showing it alone. */
-  override exhibitions(): Observable<Exhibition[]> {
+  /** The show's own page, which a draft has no published row behind (ADR 0064). */
+  override exhibition(slug: string): Observable<Exhibition | undefined | null> {
     const exhibition = this.previewed()?.exhibition;
-    return exhibition ? of(toExhibitions([exhibition])) : super.exhibitions();
+    return exhibition?.slug === slug ? of(toExhibition(exhibition)) : super.exhibition(slug);
   }
 
-  /** A tier has no page of its own either (ADR 0040), so the memberships page shows the previewed one alone. */
+  /**
+   * A tier has no page of its own (ADR 0040): every one is a column on the memberships page, and how that page
+   * reads — the column count, which tier is featured, the "join from" price — is the published tiers plus this
+   * one. So the draft joins them rather than standing alone, replacing its published self when it has one.
+   *
+   * It joins at the end unless it does: the site's tier model carries no display order (the API's order *is* the
+   * list), so a new tier's real position among them is not knowable here.
+   */
   override memberships(): Observable<MembershipTier[]> {
     const plan = this.previewed()?.membershipPlan;
-    return plan ? of([toMembershipTier(plan)]) : super.memberships();
+    if (!plan) return super.memberships();
+
+    const draft = toMembershipTier(plan);
+    return super
+      .memberships()
+      .pipe(
+        map((published) =>
+          published.some((tier) => tier.slug === draft.slug)
+            ? published.map((tier) => (tier.slug === draft.slug ? draft : tier))
+            : [...published, draft],
+        ),
+      );
   }
 
   override product(slug: string): Observable<Product | undefined> {

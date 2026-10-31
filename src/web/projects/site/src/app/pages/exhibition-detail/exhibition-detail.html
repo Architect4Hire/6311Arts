@@ -1,0 +1,95 @@
+@if (show(); as e) {
+  <app-hero [title]="e.title" [eyebrow]="status() ?? 'Exhibition'" [images]="galleryPhotos" />
+
+  <section class="band band--white" id="content">
+    <div class="container detail">
+      <div class="detail__media">
+        <app-art-image [src]="e.image" [alt]="e.title" ratio="4 / 5" [priority]="true" />
+      </div>
+      <div class="detail__info">
+        <p class="crumbs"><a routerLink="/exhibitions">Exhibitions</a> · Exhibition</p>
+        <h2 class="detail__title">{{ e.title }}</h2>
+        @if (e.summary) {
+          <p class="detail__lead">{{ e.summary }}</p>
+        }
+        @for (para of e.body ?? []; track $index) {
+          <p class="detail__lead">{{ para }}</p>
+        }
+        <ul class="facts">
+          <li>
+            <ui-icon name="calendar" [size]="22" />
+            <span
+              >{{ status() }} · <strong>{{ e.start | when: 'range' : e.end }}</strong></span
+            >
+          </li>
+          @if (e.reception; as r) {
+            <li>
+              <ui-icon name="ticket" [size]="22" />
+              <span>
+                Opening reception {{ r.start | when: 'long' }}, {{ r.start | when: 'time' : r.end }}
+                @if (r.note) {
+                  . {{ r.note }}
+                }
+              </span>
+            </li>
+          }
+          @if (e.credits?.length) {
+            <li>
+              <ui-icon name="people" [size]="22" />
+              <span>
+                In the show:
+                @for (credit of e.credits; track credit.name; let last = $last) {
+                  @if (credit.slug) {
+                    <a class="linkish" [routerLink]="['/artists', credit.slug]">{{
+                      credit.name
+                    }}</a>
+                  } @else {
+                    {{ credit.name }}
+                  }
+                  <!-- Spoken as nothing: the names are what matter, and a reader may say "middle dot". -->
+                  @if (!last) {
+                    <span aria-hidden="true">·</span>
+                  }
+                }
+              </span>
+            </li>
+          }
+          <li>
+            <ui-icon name="pin" [size]="22" />
+            <span>Free to visit, {{ site.address.street }}</span>
+          </li>
+        </ul>
+        <p class="btn-row" style="justify-content: flex-start">
+          <a class="btn btn-dark" routerLink="/visit">Plan your visit</a>
+          <a class="btn btn-border-dark" routerLink="/exhibitions">All exhibitions</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  @if (more().length) {
+    <section class="band band--light">
+      <div class="container">
+        <h2 class="band__title text-center">More exhibitions</h2>
+        <div class="grid-exhibits">
+          @for (other of more(); track other.slug) {
+            <app-exhibition-card [item]="other" />
+          }
+        </div>
+      </div>
+    </section>
+  }
+} @else if (unavailable()) {
+  <!-- A failed read, not a missing show: the server answers 503, and this is never a 404 (ADR 0064). -->
+  <section class="band band--white" id="content">
+    <div class="container container--narrow prose" role="status">
+      <h1>Exhibitions</h1>
+      <p>
+        This show could not be loaded just now. Please try again shortly, or see
+        <a routerLink="/exhibitions">all exhibitions</a>.
+      </p>
+    </div>
+  </section>
+} @else if (loaded()) {
+  <app-not-found />
+}

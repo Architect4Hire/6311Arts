@@ -6,6 +6,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { PreviewContext } from '../../core/preview';
+import { ClassDetail } from '../class-detail/class-detail';
+import { ExhibitionDetail } from '../exhibition-detail/exhibition-detail';
 import { SITE_API_CONFIG } from '../../services/site-api.config';
 import { Preview } from './preview';
 
@@ -27,6 +29,7 @@ const EXHIBITION = {
   slug: 'winter-light',
   title: 'Winter Light',
   summary: 'Nine painters on the shortest days of the year.',
+  bodyText: 'Oils, mostly, and two rooms of snow.',
   startDate: '2099-01-08',
   endDate: '2099-03-01',
   reception: null,
@@ -121,6 +124,64 @@ async function render() {
   };
 }
 
+/**
+ * The exhibition page at its own address, with the same record a preview would carry, so the two renders can be
+ * compared. It goes through the real `SiteApi`, as the preview's seeded one goes through the same mappers.
+ */
+async function renderTheRouteItself() {
+  vi.stubGlobal('matchMedia', () => ({
+    matches: true,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+  TestBed.configureTestingModule({
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      { provide: SITE_API_CONFIG, useValue: { timeoutMs: 1000, mockFallback: false } },
+      provideRouter(
+        [{ path: 'exhibitions/:slug', component: ExhibitionDetail }],
+        withComponentInputBinding(),
+      ),
+    ],
+  });
+  const http = TestBed.inject(HttpTestingController);
+  const harness = await RouterTestingHarness.create();
+  await harness.navigateByUrl('/exhibitions/winter-light');
+  http.expectOne('/api/v1/site/exhibitions/winter-light').flush(EXHIBITION);
+  http.expectOne('/api/v1/site/exhibitions').flush([]);
+  harness.detectChanges();
+  return harness.routeNativeElement!.innerHTML;
+}
+
+/** The class page at its own address, with the same record a preview would carry. */
+async function renderTheClassRouteItself() {
+  vi.stubGlobal('matchMedia', () => ({
+    matches: true,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+  TestBed.configureTestingModule({
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      { provide: SITE_API_CONFIG, useValue: { timeoutMs: 1000, mockFallback: false } },
+      provideRouter(
+        [{ path: 'classes/:slug', component: ClassDetail }],
+        withComponentInputBinding(),
+      ),
+    ],
+  });
+  const http = TestBed.inject(HttpTestingController);
+  const harness = await RouterTestingHarness.create();
+  await harness.navigateByUrl('/classes/screen-printing');
+  http.expectOne('/api/v1/site/classes/screen-printing').flush(classOffering([RUN]));
+  http.expectOne('/api/v1/site/classes').flush([]);
+  http.expectOne('/api/v1/site/memberships').flush([]);
+  harness.detectChanges();
+  return harness.routeNativeElement!.innerHTML;
+}
+
 function preview(body: Record<string, unknown>) {
   return { entityId: '7f1c', status: 'Draft', noIndex: true, ...body };
 }
@@ -134,8 +195,8 @@ describe('Preview', () => {
     TestBed.inject(HttpTestingController).verify();
   });
 
-  it('renders the site’s own exhibitions page carrying the one unpublished show', async () => {
-    const { answer } = await render();
+  it('renders the show’s own page for a draft exhibition, write-up and all', async () => {
+    const { answer, http, harness } = await render();
 
     const element = answer(
       preview({
@@ -144,20 +205,27 @@ describe('Preview', () => {
         exhibition: EXHIBITION,
       }),
     );
+    // "More exhibitions" is the published list, as it is on the live page.
+    http.expectOne('/api/v1/site/exhibitions').flush([]);
+    harness.detectChanges();
 
     expect(text(element, '.preview-bar__what')).toEqual([
       'Preview Draft exhibition, as the site will show it.',
     ]);
     expect(text(element, '.preview-bar__where')[0]).toContain('/exhibitions/winter-light');
-    // The real page, with only the previewed show in it: a draft is not among the published ones.
-    expect(text(element, '.spotlight .band__title')).toEqual(['Winter Light']);
-    expect(text(element, 'app-exhibition-card')).toEqual([]);
+    expect(text(element, '.detail__title')).toEqual(['Winter Light']);
+    expect(text(element, '.detail__lead')).toEqual([
+      'Nine painters on the shortest days of the year.',
+      'Oils, mostly, and two rooms of snow.',
+    ]);
+    expect(element.querySelector('app-not-found')).toBeNull();
   });
 
   it('keeps a preview out of every index: noindex, nofollow, no canonical and no-store', async () => {
-    const { answer, response, head } = await render();
+    const { answer, response, head, http } = await render();
 
     answer(preview({ entityType: 'membership-plan', path: '/memberships', membershipPlan: PLAN }));
+    http.expectOne('/api/v1/site/memberships').flush([]);
 
     expect(head().querySelector('meta[name="robots"]')?.getAttribute('content')).toBe(
       'noindex, nofollow',
@@ -279,8 +347,8 @@ describe('Preview', () => {
     expect(text(element, '.detail__title')).toEqual(['Screen Printing Night']);
   });
 
-  it('says what a class with no dated run is waiting for, rather than answering 404', async () => {
-    const { answer, response } = await render();
+  it('renders the class page for a draft with no dates yet, not a 404', async () => {
+    const { answer, http, harness } = await render();
 
     const element = answer(
       preview({
@@ -289,11 +357,102 @@ describe('Preview', () => {
         classOffering: classOffering([]),
       }),
     );
+    http.expectOne('/api/v1/site/classes').flush([]);
+    http.expectOne('/api/v1/site/memberships').flush([]);
+    harness.detectChanges();
 
-    // The link is good and the record is there: only the dates the site needs are missing.
-    expect(response.status).toBe(200);
+    // The copy is what staff came to see; the page says the calendar is empty (ADR 0065).
     expect(element.querySelector('app-not-found')).toBeNull();
-    expect(text(element, '.prose h1')).toEqual(['Screen Printing Night']);
-    expect(text(element, '.prose p')[0]).toContain('no run still to come');
+    expect(text(element, '.detail__title')).toEqual(['Screen Printing Night']);
+    expect(text(element, '.facts li').join(' ')).toContain('No dates on the calendar just now');
+  });
+
+  it('takes no room in the page it is previewing: the flag floats and the host is not a box', async () => {
+    const { answer, http, harness } = await render();
+
+    const element = answer(
+      preview({
+        entityType: 'exhibition',
+        path: '/exhibitions/winter-light',
+        exhibition: EXHIBITION,
+      }),
+    );
+    http.expectOne('/api/v1/site/exhibitions').flush([]);
+    harness.detectChanges();
+
+    // The nav is fixed and the hero pays for it with its own top padding, so anything in flow above the page
+    // would sit under the nav and push every previewed page down (ADR 0063).
+    expect(getComputedStyle(harness.routeNativeElement!).display).toBe('contents');
+    expect(getComputedStyle(element.querySelector('.preview-bar')!).position).toBe('fixed');
+    // The page's own first section is what follows, exactly as it does on the site.
+    expect(element.querySelector('app-exhibition-detail')).not.toBeNull();
+  });
+
+  it('folds the flag away to its tag, for the part of the page it covers', async () => {
+    const { answer, http, harness } = await render();
+
+    const element = answer(
+      preview({
+        entityType: 'exhibition',
+        path: '/exhibitions/winter-light',
+        exhibition: EXHIBITION,
+      }),
+    );
+    http.expectOne('/api/v1/site/exhibitions').flush([]);
+    harness.detectChanges();
+
+    element.querySelector<HTMLButtonElement>('.preview-bar__fold')!.click();
+    harness.detectChanges();
+
+    expect(text(element, '.preview-bar__what')).toEqual(['Preview Draft exhibition']);
+    expect(element.querySelector('.preview-bar__where')).toBeNull();
+    expect(text(element, '.preview-bar__fold')).toEqual(['Show preview details']);
+  });
+
+  it('renders the page exactly as its own route does, markup for markup', async () => {
+    // What a visitor will get at /exhibitions/winter-light.
+    const live = await renderTheRouteItself();
+    // Guard against both sides being empty, which would make the comparison below say nothing.
+    expect(live).toContain('Winter Light');
+
+    TestBed.resetTestingModule();
+
+    // The same record, through a preview link.
+    const { answer, http, harness } = await render();
+    const element = answer(
+      preview({
+        entityType: 'exhibition',
+        path: '/exhibitions/winter-light',
+        exhibition: EXHIBITION,
+      }),
+    );
+    http.expectOne('/api/v1/site/exhibitions').flush([]);
+    harness.detectChanges();
+
+    // Not "looks similar": the page's own markup is identical, so its layout cannot differ. The flag is outside
+    // this element, floating over it (ADR 0063).
+    expect(element.querySelector('app-exhibition-detail')!.innerHTML).toBe(live);
+  });
+
+  it('renders a class exactly as its own route does, markup for markup', async () => {
+    // The type the client checked first: a class previewed must be the class page, not an approximation.
+    const live = await renderTheClassRouteItself();
+    expect(live).toContain('Screen Printing Night');
+
+    TestBed.resetTestingModule();
+
+    const { answer, http, harness } = await render();
+    const element = answer(
+      preview({
+        entityType: 'class-offering',
+        path: '/classes/screen-printing',
+        classOffering: classOffering([RUN]),
+      }),
+    );
+    http.expectOne('/api/v1/site/classes').flush([]);
+    http.expectOne('/api/v1/site/memberships').flush([]);
+    harness.detectChanges();
+
+    expect(element.querySelector('app-class-detail')!.innerHTML).toBe(live);
   });
 });

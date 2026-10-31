@@ -1,0 +1,24 @@
+/*
+ * The title is the way into the show's own page (ADR 0064). At rest it is the card's heading exactly as the
+ * spike drew it — the colour and weight are the veil's `h3` — and it underlines on hover and focus.
+ */
+.exhibit-card__link {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+
+  /*
+   * The target is the whole veil — the title, the dates and the summary — rather than one line of type, which
+   * would be under the 40px a finger needs. The veil is the card's positioned bottom panel, so this stretches
+   * across it without covering the photograph above it.
+   */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+}

@@ -19,6 +19,7 @@ import { Reveal } from '../../shared/reveal';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [Hero, ExhibitionCard, ArtImage, UiIcon, Reveal, RouterLink, WhenPipe],
   templateUrl: './exhibitions.html',
+  styleUrl: './exhibitions.scss',
 })
 export class Exhibitions {
   private all = toSignal(inject(SiteApi).exhibitions(), { initialValue: [] });

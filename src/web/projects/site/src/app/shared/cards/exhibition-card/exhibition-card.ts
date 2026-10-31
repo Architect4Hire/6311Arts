@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { Exhibition } from '../../../core/models';
 import { ArtImage } from '../../media/art-image/art-image';
 import { WhenPipe, today } from '../../format';
@@ -6,9 +7,10 @@ import { WhenPipe, today } from '../../format';
 @Component({
   selector: 'app-exhibition-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ArtImage, WhenPipe],
+  imports: [ArtImage, RouterLink, WhenPipe],
   host: { class: 'exhibit-card' },
   templateUrl: './exhibition-card.html',
+  styleUrl: './exhibition-card.scss',
 })
 export class ExhibitionCard {
   item = input.required<Exhibition>();

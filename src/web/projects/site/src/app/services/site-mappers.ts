@@ -3,6 +3,7 @@ import {
   Artist,
   ArtistPage,
   ClassLevel,
+  ClassPage,
   ClassType,
   CmsPage,
   Exhibition,
@@ -13,6 +14,8 @@ import {
 } from '../core/models';
 import {
   SiteArtistPage,
+  SiteClass,
+  SiteExhibition,
   SiteArtistSummary,
   SiteClassSummary,
   SiteCredit,
@@ -125,6 +128,20 @@ export function toArtClasses(list: readonly SiteClassSummary[]): ArtClass[] {
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
 }
 
+/** One class and its dates (ADR 0065). The runs are mapped exactly as the calendar maps them. */
+export function toClassPage(c: SiteClass): ClassPage {
+  return {
+    slug: c.slug,
+    title: c.title,
+    summary: c.summary ?? '',
+    body: c.bodyHtml ?? undefined,
+    type: classType(c.classType),
+    level: classLevel(c.level),
+    image: c.image?.src,
+    runs: toArtClasses([c]),
+  };
+}
+
 export function toInstructor(i: SiteInstructor): Instructor {
   return {
     slug: i.slug,
@@ -140,24 +157,32 @@ export function toInstructor(i: SiteInstructor): Instructor {
 
 /** Newest opening first, as the spike sorted them. */
 export function toExhibitions(list: readonly SiteExhibitionSummary[]): Exhibition[] {
-  return list
-    .map((e): Exhibition => ({
-      slug: e.slug,
-      title: e.title,
-      start: e.startDate,
-      end: e.endDate,
-      summary: e.summary ?? '',
-      artists: e.artists.map((a) => a.name),
-      image: e.image?.src,
-      reception: e.reception
-        ? {
-            start: zonedIso(e.reception.startsAt, e.displayTimeZone),
-            end: zonedIso(e.reception.endsAt, e.displayTimeZone),
-            note: orUndefined(e.reception.note),
-          }
-        : undefined,
-    }))
-    .sort((a, b) => b.start.localeCompare(a.start));
+  return list.map(toExhibitionSummary).sort((a, b) => b.start.localeCompare(a.start));
+}
+
+function toExhibitionSummary(e: SiteExhibitionSummary): Exhibition {
+  return {
+    slug: e.slug,
+    title: e.title,
+    start: e.startDate,
+    end: e.endDate,
+    summary: e.summary ?? '',
+    artists: e.artists.map((a) => a.name),
+    credits: e.artists.map((a) => ({ name: a.name, ...(a.slug ? { slug: a.slug } : {}) })),
+    image: e.image?.src,
+    reception: e.reception
+      ? {
+          start: zonedIso(e.reception.startsAt, e.displayTimeZone),
+          end: zonedIso(e.reception.endsAt, e.displayTimeZone),
+          note: orUndefined(e.reception.note),
+        }
+      : undefined,
+  };
+}
+
+/** One show as its own page renders it: the card's fields and its write-up (ADR 0064). */
+export function toExhibition(e: SiteExhibition): Exhibition {
+  return { ...toExhibitionSummary(e), body: paragraphs(e.bodyText) };
 }
 
 export function toArtist(a: SiteArtistSummary): Artist {

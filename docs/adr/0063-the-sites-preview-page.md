@@ -1,6 +1,6 @@
 # 0063 — The site's preview page renders the real page over a seeded read
 
-- **Status:** Accepted
+- **Status:** Accepted — the exhibition and membership-tier branches amended by [0064](0064-exhibitions-get-a-page-of-their-own.md): a show now has a page of its own to preview, and a tier previews among the published tiers rather than alone
 - **Date:** 2026-10-31
 - **Rules affected:** `.claude/rules/frontend.md`, `.claude/rules/content.md`
 - **Builds on:** [0036](0036-revalidation-scheduled-publishing-and-previews.md) (preview tokens, and the debt this
@@ -35,8 +35,10 @@ absence from the sitemap and any prerender list, no write access, and nothing in
    - `artist` → `<app-artist-detail>`, `instructor` → `<app-instructor-detail>`,
      `class-offering` → `<app-class-detail>`, `shop-item` → `<app-product-detail>`,
      `page` → `<app-cms-page>`.
-   - `exhibition` → `<app-exhibitions>` and `membership-plan` → `<app-memberships>`: the page that shows the record
-     is the record's only address, so a preview of one is that page carrying it.
+   - `exhibition` → `<app-exhibition-detail>` (ADR 0064 built that page; this ADR shipped with the exhibitions
+     list standing in for it) and `membership-plan` → `<app-memberships>`, where the draft sits among the
+     published tiers: a tier has no address of its own, and the page reads the way it does because of its
+     neighbours.
 3. **The draft is seeded into the API, not into the page.** `PreviewSiteApi extends SiteApi` and is provided **in
    place of `SiteApi` on the preview route only**. It answers the one read that asks for the previewed record and
    passes everything else to the real API with `super`, so the surroundings are the live site's: the artist's work
@@ -51,28 +53,33 @@ absence from the sitemap and any prerender list, no write access, and nothing in
    for the two CMS-page routes — and the preview page passes the same value as an ordinary binding. The
    alternative was a stand-in `ActivatedRoute`, which is a fake that has to keep matching whatever each page reads
    from it.
-5. **`Seo` knows when it is rendering a preview**, because the page below it sets its own tags and would otherwise
+5. **The preview takes up no room in the page it is showing.** A preview that lays out differently from the live
+   page is not a preview, so: the component's host is `display: contents`, which takes its element out of the box
+   tree and leaves the page's sections as children of `<main>` exactly as they are on the site; and the flag that
+   says "this is a draft" is `position: fixed`, bottom left, clear of the back-to-top button and above the nav's
+   `z-index`. In flow it could not work — `.nav` is fixed and `.hero` pays for it with its own 140px of top
+   padding, so anything above the hero both sits under the nav and pushes the whole page down. The flag folds away
+   to its tag for the part of the page it covers. A spec asserts both declarations, because jsdom has no layout.
+6. **`Seo` knows when it is rendering a preview**, because the page below it sets its own tags and would otherwise
    undo the preview's. While `PreviewContext` is active, every `Seo.set` writes `robots: noindex, nofollow` and
    emits **no canonical** (a draft's address is where it *will* live, which is not a canonical yet).
-6. **The response is `no-store` with `X-Robots-Tag: noindex, nofollow`** (`noStoreNoIndex()`, beside the
+7. **The response is `no-store` with `X-Robots-Tag: noindex, nofollow`** (`noStoreNoIndex()`, beside the
    `noStore()` the account pages use). `server.ts` leaves a page's own `Cache-Control` alone, so no CDN keeps a
    draft. With `robots.txt` already disallowing `/preview/` and the sitemap coming from the API, a preview is out
    of every index three ways.
-7. **Everything unusable is one answer and one page.** `SiteApi.preview(token)` returns `undefined` for an expired,
+8. **Everything unusable is one answer and one page.** `SiteApi.preview(token)` returns `undefined` for an expired,
    tampered-with, deleted-record or unreadable answer alike, and the page renders the site's `<app-not-found>`,
    which sets a real 404. There is no sample-data fallback for a preview, and a failed read is not a 503: a
    preview is a staff tool, and the answer a holder gets says nothing about what exists.
-8. **A class with no dated run is told what it is waiting for, not answered 404.** The site shows a class
-   *through* its runs (`ArtClass` is one entry per run), and the preview answer carries only the runs still to
-   come: `ClassesBusiness.ToSiteRow` drops a run whose every session has ended, and one with no session at all.
-   A draft with no dates yet is the ordinary state while staff are writing a class, and rendering the class page
-   for it would show the site's own not-found — a 404 for a good link, which is the bug this ADR exists to end.
-   So the preview page renders the class's title and says which dates the site needs, and answers 200. It is the
-   one previewable type whose record can be unrenderable; the other six always have a page.
-9. **A preview carries what the site renders, and no more.** The answer's exhibition `bodyText` and class
+9. ~~**A class with no dated run is told what it is waiting for, not answered 404.**~~ **Withdrawn by
+   [ADR 0065](0065-the-class-page-is-the-class-not-its-next-run.md).** This ADR treated a page defect as a content
+   state: the class page read the calendar rather than the class, so a class with no run still to come had no page
+   — which also meant a *published* class 404ed on its own address between terms. 0065 made the page read the
+   class, so a dateless class renders its copy and says the calendar is empty, and the preview simply renders it.
+10. **A preview carries what the site renders, and no more.** The answer's exhibition `bodyText` and class
    `bodyHtml` are dropped in the decoder, because no page on the site renders them today. A preview showing copy
    the published page would not would be a worse lie than leaving it out.
-10. **The preview page's lazy chunk carries seven page components**, which is the one cost of reusing them. It is a
+11. **The preview page's lazy chunk carries seven page components**, which is the one cost of reusing them. It is a
    staff-only route, loaded only when a link is opened, and the chunk is ~17 kB.
 
 ## Options considered
@@ -86,21 +93,22 @@ absence from the sitemap and any prerender list, no write access, and nothing in
   has to keep working when it is reloaded or opened by a colleague, and the published-only route would 404.
 - **Making the site's reads take a token** (`/site/artists/{slug}?preview=…`). Rejected: ADR 0036 settled one
   address for every type, a token cannot name its own route, and it would put a credential on seven cached reads.
-- **Seeding the whole list reads for exhibitions and tiers with the published records plus the draft.** Considered;
-  the draft alone is clearer on those two pages, because the record *is* what the page is being looked at for. A
-  class's calendar keeps the published runs around it, where the surroundings are context rather than the subject.
+- **Seeding the whole list reads for exhibitions and tiers with the published records plus the draft.** Taken for
+  tiers by ADR 0064, and overtaken for exhibitions by the page that ADR built. The draft alone looked clearer at
+  first, but a shared page reads the way it does because of its neighbours — the alternating bands, the column
+  count, the "join from" price — so the draft alone was not what it would really look like.
 
 ## Consequences
 
 - **Preview links work for all seven previewable types**, and a new previewable type adds a branch to the preview
   page beside the entry it already owes `PreviewPolicy.PathPrefixes`.
-- **A preview shows exactly what the site shows**, including what the site does *not* show: a draft exhibition has
-  no body on its card, because no exhibition page exists. An exhibition detail page is still unbuilt; when it
-  lands, the preview follows it with no change here.
+- **A preview shows exactly what the site shows.** Where the site had no page, that was the preview's ceiling —
+  and it is why ADR 0064 built the exhibition page rather than leaving a show to preview as a list entry.
 - **An unpublished artist's work is empty in a preview**, because the shop lists published pieces only.
 - **`PreviewSiteApi` must stay a read seam.** A write added to `SiteApi` is not overridden here, and must never be:
   the token authorizes one read (ADR 0036).
-- **A draft page's address may be one the site does not serve.** A CMS page lives at `/{slug}`
+- **A draft page's address may be one the site does not serve** (the same gap ADR 0064 closed for exhibitions,
+  still open for pages). A CMS page lives at `/{slug}`
   (`PagePolicy`), but the site routes only `/privacy` and `/terms`; anything else is the 404. A preview of a page
   with another slug renders correctly and truthfully says where it *will* live, and that address 404s until a
   `/{slug}` route exists. Page previews are therefore only fully meaningful for the two routed pages today.

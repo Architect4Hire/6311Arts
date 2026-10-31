@@ -20,8 +20,8 @@ The CMS is closed by design. Every content type is code we own: there are no plu
 |---|---|
 | `Artist` | Name, slug, bio, medium, portrait, active |
 | `Instructor` | Name, slug, bio, medium (what they teach), portrait, active, website (`https:` only), Instagram handle (no `@`), optional linked artist (via the Artists facade). Not an artist flag: a separate roster (ADR 0043) |
-| `Exhibition` | Title, slug, summary, body, start/end, reception start/end/note, hero, artists (M:N) |
-| `ClassOffering` | Title, slug, sanitized HTML body ("More details" in the admin, ADR 0045), summary, type, level, hero; has `ClassRun` rows — the same class over different terms — each with label, **instructor** (via the Instructors facade), cadence, display zone, SKU, capacity, starting price, and `ClassSession` rows (start, end only). The run is what is sold. **Square-synced** (ADR 0032, 0037, 0044). |
+| `Exhibition` | Title, slug, summary, body (plain text; its page renders it, ADR 0064), start/end, reception start/end/note, hero, artists (M:N) |
+| `ClassOffering` | Title, slug, sanitized HTML body ("More details" in the admin, ADR 0045; its page renders it, ADR 0065), summary, type, level, hero; has `ClassRun` rows — the same class over different terms — each with label, **instructor** (via the Instructors facade), cadence, display zone, SKU, capacity, starting price, and `ClassSession` rows (start, end only). The run is what is sold. **Square-synced** (ADR 0032, 0037, 0044). |
 | `ShopItem` | Artwork only (merch is POS-only, ADR 0032). Title, slug, sanitized HTML description, artist (optional, via the Artists facade), categories, ordered gallery, SKU, one-of-a-kind flag, starting price, starting quantity. **Square-synced** (ADR 0038). |
 | `MembershipPlan` | Name, slug, perks (ordered rows), class discount %, featured, order, starting price and starting cadence. **No page of its own:** every published tier is shown on `/memberships` (ADR 0040). **Square-synced** (ADR 0005, 0040). |
 | `Page` | Slug, title, sanitized HTML body (privacy, terms, about copy blocks) |
@@ -135,9 +135,11 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
     holder learns nothing from the answer. The answer is `no-store` and `X-Robots-Tag: noindex, nofollow`.
   - **The site serves it at `/preview/{token}`** by rendering its real page component over `PreviewSiteApi` — a
     `SiteApi` with the draft seeded into the one read that asks for it — so a preview is the page visitors will
-    see, with a bar across the top saying it is a draft (ADR 0063). An exhibition and a membership tier have no
-    address of their own, so each previews as the page that shows it. The response is `no-store` with
-    `X-Robots-Tag`, the head is `noindex, nofollow` with no canonical, and any unusable token is the site's 404.
+    see, with a bar across the top saying it is a draft (ADR 0063). Six of the seven types have a page of their
+    own, exhibitions included since ADR 0064; a **membership tier** has none (ADR 0040), so it previews on
+    `/memberships` among the published tiers. Every type renders as its real page, a class with no dates included
+    (ADR 0065). The response is `no-store` with `X-Robots-Tag`, the head is `noindex, nofollow` with no canonical,
+    and any unusable token is the site's 404.
   - A new publishable type joins `PreviewPolicy.EntityTypes` and `SitePaths` when it lands, and the preview page's
     branches — which is where it gets a page to render.
 

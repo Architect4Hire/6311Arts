@@ -5,6 +5,7 @@ import {
   computed,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { map, startWith, switchMap, tap } from 'rxjs';
@@ -15,7 +16,7 @@ import { SiteApi } from '../../services/site-api.service';
 import { ArtistDetail } from '../artist-detail/artist-detail';
 import { ClassDetail } from '../class-detail/class-detail';
 import { CmsPage } from '../cms-page/cms-page';
-import { Exhibitions } from '../exhibitions/exhibitions';
+import { ExhibitionDetail } from '../exhibition-detail/exhibition-detail';
 import { InstructorDetail } from '../instructor-detail/instructor-detail';
 import { Memberships } from '../memberships/memberships';
 import { NotFound } from '../not-found/not-found';
@@ -30,8 +31,9 @@ import { ProductDetail } from '../product-detail/product-detail';
  * saying it is a draft. A token that has expired, been tampered with, or names a record since deleted is one
  * answer and one page: the site's 404.
  *
- * Exhibitions and membership tiers have no address of their own, so those render as the page that shows them
- * (`/exhibitions`, `/memberships`) carrying the one record.
+ * A membership tier has no address of its own (ADR 0040), so it renders as the memberships page with the draft
+ * among the published tiers — the column count, the featured highlight and the "join from" price are what make
+ * that page read the way it will.
  *
  * The response is `no-store` with `X-Robots-Tag: noindex, nofollow`, the head is `noindex, nofollow` with no
  * canonical, and `/preview/` is disallowed in `robots.txt` — a preview never reaches an index or a shared cache.
@@ -43,7 +45,7 @@ import { ProductDetail } from '../product-detail/product-detail';
     ArtistDetail,
     ClassDetail,
     CmsPage,
-    Exhibitions,
+    ExhibitionDetail,
     InstructorDetail,
     Memberships,
     NotFound,
@@ -60,6 +62,9 @@ export class Preview {
 
   private readonly api = inject(SiteApi);
   private readonly context = inject(PreviewContext);
+
+  /** Folded away to its tag, for when staff want to read the part of the page the flag covers. */
+  protected readonly folded = signal(false);
 
   /** `undefined` while the token is being read; `{ preview: undefined }` once it turns out to be unusable. */
   private readonly data = toSignal(
@@ -89,37 +94,27 @@ export class Preview {
   protected readonly exhibition = computed(() => this.preview()?.exhibition ?? null);
   protected readonly membershipPlan = computed(() => this.preview()?.membershipPlan ?? null);
 
-  /**
-   * A class the site could not show yet, whatever its copy says.
-   *
-   * The site shows a class *through its dated runs* (`ArtClass` is one entry per run), and a preview carries only
-   * the runs still to come — `ClassesBusiness.ToSiteRow` drops a run whose every session has ended, and a run with
-   * no session at all. A draft with no dates yet is the ordinary case while staff are writing one, and rendering
-   * the class page for it would show the site's own not-found: a 404 for a link that is perfectly good. So the
-   * preview says what is missing instead.
-   */
-  protected readonly classWithoutADatedRun = computed(() => {
-    const offering = this.classOffering();
-    return offering !== null && offering.runs.length === 0;
-  });
-
   /** What the bar says this is: "Draft artist", "Scheduled exhibition". */
   protected readonly describes = computed(() => {
     const preview = this.preview();
     return preview ? `${preview.status} ${TYPE_NAMES[preview.entityType]}` : '';
   });
 
+  /** The flag's one line, built here rather than in the markup so folding it cannot leave a space before a comma. */
+  protected readonly says = computed(() =>
+    this.folded() ? this.describes() : `${this.describes()}, as the site will show it.`,
+  );
+
   /**
    * How the bar introduces the address. A record with a page of its own will *have* that address once it is
-   * published; an exhibition and a membership tier never do — they are shown on a page they share (ADR 0040) —
-   * so the bar does not promise them one.
+   * published; a membership tier never does — every tier is a column on one page (ADR 0040) — so the bar does
+   * not promise it one.
    */
-  protected readonly addresses = computed(() => {
-    const type = this.preview()?.entityType;
-    return type === 'exhibition' || type === 'membership-plan'
+  protected readonly addresses = computed(() =>
+    this.preview()?.entityType === 'membership-plan'
       ? 'It is shown at'
-      : 'Its address once published is';
-  });
+      : 'Its address once published is',
+  );
 
   constructor() {
     noStoreNoIndex();

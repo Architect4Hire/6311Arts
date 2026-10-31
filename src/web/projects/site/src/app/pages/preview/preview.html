@@ -1,17 +1,24 @@
 @if (loaded()) {
   @if (preview(); as preview) {
-    <section class="preview-bar" aria-label="Staff preview">
+    <!--
+      Out of flow (see preview.scss): the page below must lay out exactly as it does on the site, so the flag
+      floats over it rather than standing above it.
+    -->
+    <section class="preview-bar" [class.preview-bar--folded]="folded()" aria-label="Staff preview">
       <p class="preview-bar__what">
         <!-- &ngsp; keeps a space between the two for a screen reader; the layout's gap is only visual. -->
-        <span class="preview-bar__tag">Preview</span>&ngsp;<span
-          >{{ describes() }}, as the site will show it.</span
-        >
+        <span class="preview-bar__tag">Preview</span>&ngsp;<span>{{ says() }}</span>
       </p>
-      <p class="preview-bar__where">
-        {{ addresses() }} <code>{{ preview.path }}</code
-        >. This link works for half an hour from when it was made, shows the saved version, and is
-        never indexed.
-      </p>
+      @if (!folded()) {
+        <p class="preview-bar__where">
+          {{ addresses() }} <code>{{ preview.path }}</code
+          >. This link works for half an hour from when it was made, shows the saved version, and is
+          never indexed.
+        </p>
+      }
+      <button class="preview-bar__fold" type="button" (click)="folded.set(!folded())">
+        {{ folded() ? 'Show preview details' : 'Hide' }}
+      </button>
     </section>
 
     @if (artist(); as artist) {
@@ -19,33 +26,15 @@
     } @else if (instructor(); as instructor) {
       <app-instructor-detail [slug]="instructor.slug" />
     } @else if (classOffering(); as offering) {
-      @if (classWithoutADatedRun()) {
-        <!-- The site has no page for a class with no dates, so the preview says what it is waiting for. -->
-        <section class="band band--white">
-          <div class="container container--narrow prose">
-            <h1>{{ offering.title }}</h1>
-            <p>
-              The site shows a class through its dated runs, and this one has no run still to come —
-              so there is no page to preview yet.
-            </p>
-            <p>
-              Give a run a session date in the future, with its instructor and starting price, and
-              preview it again. Everything else here is saved: this is only about the dates.
-            </p>
-          </div>
-        </section>
-      } @else {
-        <app-class-detail [slug]="offering.slug" />
-      }
+      <app-class-detail [slug]="offering.slug" />
     } @else if (shopItem(); as item) {
       <app-product-detail [slug]="item.slug" />
     } @else if (page(); as page) {
       <app-cms-page [pageSlug]="page.slug" [fallbackTitle]="page.title" />
-    } @else if (exhibition()) {
-      <!-- A show has no page of its own: this is the exhibitions page, carrying the one being previewed. -->
-      <app-exhibitions />
+    } @else if (exhibition(); as exhibition) {
+      <app-exhibition-detail [slug]="exhibition.slug" />
     } @else if (membershipPlan()) {
-      <!-- Nor does a tier (ADR 0040): the memberships page, carrying the one being previewed. -->
+      <!-- A tier has no page of its own (ADR 0040): the memberships page, with this one among the published. -->
       <app-memberships />
     }
   } @else {

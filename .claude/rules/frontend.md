@@ -89,6 +89,14 @@ paths:
 - **Legacy URL redirects** come from `/api/v1/site/redirects` (CMS-managed and imported), with the spike's hard-coded map as a fallback. The order is the CMS's list, then the spike's map, then `/product/{slug}` (a published class's slug → `/classes`, otherwise `/shop`) and `/artist/{slug}` (`server/legacy-redirects.ts`). `server/site-data.ts` caches the routing data for 60 s and refreshes it behind the request (5 s after a failed read). Every legacy URL in the spike's map must still 301 with the API down (ADR 0048).
 - **`/sitemap.xml`** comes from `/api/v1/site/sitemap`. When that can't be read it is a `503` with `Retry-After`, never a shorter list. `robots.txt` is fixed text (ADR 0048).
 - **Forms** post through `FormsApi` to `/api/v1/forms/*` with the antiforgery header. The site server has no form routes of its own (ADR 0047, 0048).
+- **A detail page reads its own record, never the list.** `exhibitions/:slug` reads `/site/exhibitions/{slug}`
+  (ADR 0064) and `classes/:slug` reads `/site/classes/{slug}` (ADR 0065) — a page built by searching a list 404s
+  on published content the sitemap names the moment the list stops carrying it (a show always, a class between
+  terms). Each read answers three ways: the record, `undefined` for no such published record (the site's 404), and
+  `null` for a failed read (a "try again shortly" band while the server answers 503) — never a 404 on a blip.
+  `product()` still collapses the last two, which is a known defect.
+- **A class page is the class and its dates**: the soonest run leads it, the others are listed, and with none the
+  copy stands and the facts say so. An exhibition's credits link to their artists only when those are published.
 - **Previews** are `preview/:token`, declared before the `**` catch-all (ADR 0036, 0063). The page reads
   `/api/v1/site/preview/{token}` and renders **the site's own page component** over `PreviewSiteApi`, provided in
   place of `SiteApi` on that route only: it answers the one read for the previewed record from `PreviewContext` and
@@ -98,7 +106,14 @@ paths:
   `<app-not-found>` (a real 404). A detail page therefore takes its slug as a **routed input**
   (`input.required<string>()` with `withComponentInputBinding`), never from `ActivatedRoute.paramMap`, so the
   preview page can pass the same value; a spec that navigates to one passes `withComponentInputBinding()` to its
-  `provideRouter`.
+  `provideRouter`. Every previewable type renders its real page, except a class with no run still to come, which
+  the site cannot show at all: the preview names the missing dates and stays a 200 (ADR 0063).
+  **A preview must lay out exactly as the live page does**, which is the client's acceptance test: the preview
+  component's host is `display: contents` and its flag is `position: fixed`, so the page's sections are children
+  of `<main>` with the geometry they have on the site — nothing may be added to the preview *in flow* above or
+  around the page (`.nav` is fixed and `.hero` pays for it with its own top padding, so anything in flow there
+  shifts every page down). `preview.spec.ts` pins both declarations and compares the previewed page's markup
+  against what its own route renders, markup for markup.
 - **The logo and default social image** are Media assets at the fixed ids in `SITE_IMAGES` (`core/site.ts`), mirroring `MediaSiteImages`. Name them as `/media/{id}/{rendition}`, never a WordPress upload URL (ADR 0048).
 - **Checkout and member billing** load the Square Web Payments SDK. It runs in the browser only, never during SSR, and its host comes from config. Card fields stay inside Square's iframes.
 - **`security.allowedHosts`** comes from configuration (local gateway host, Container Apps domains, `6311arts.com`): `angular.json` keeps only `localhost` for `ng serve`, and the AppHost's `site-allowed-hosts` parameter becomes Angular's `NG_ALLOWED_HOSTS` (ADR 0046).

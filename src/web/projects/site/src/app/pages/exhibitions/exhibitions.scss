@@ -1,0 +1,13 @@
+/*
+ * Each spotlight's heading is the way into that show's page (ADR 0064). It keeps the band title's colour and
+ * weight exactly, so the page is unchanged at rest, and underlines on hover and focus.
+ */
+.spotlight__link {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}

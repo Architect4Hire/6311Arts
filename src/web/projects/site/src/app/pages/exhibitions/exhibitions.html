@@ -18,7 +18,9 @@
         <p class="eyebrow" [class.eyebrow--dark]="odd">
           {{ status(e) }} · {{ e.start | when: 'range' : e.end }}
         </p>
-        <h2 class="band__title band__title--xl band__title--left">{{ e.title }}</h2>
+        <h2 class="band__title band__title--xl band__title--left">
+          <a class="spotlight__link" [routerLink]="['/exhibitions', e.slug]">{{ e.title }}</a>
+        </h2>
         <p class="band__lead band__lead--left">{{ e.summary }}</p>
         @if (e.artists.length) {
           <p class="artists-inline">{{ e.artists.join(' · ') }}</p>

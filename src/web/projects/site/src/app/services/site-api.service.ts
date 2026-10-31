@@ -5,6 +5,7 @@ import {
   ArtClass,
   Artist,
   ArtistPage,
+  ClassPage,
   CmsPage,
   Exhibition,
   Instructor,
@@ -21,7 +22,9 @@ import {
   SitePreview,
   decodeSiteArtistPage,
   decodeSiteArtistSummary,
+  decodeSiteClass,
   decodeSiteClassSummary,
+  decodeSiteExhibition,
   decodeSiteExhibitionSummary,
   decodeSiteInstructor,
   decodeSiteMembershipPlan,
@@ -35,7 +38,9 @@ import {
   toArtClasses,
   toArtist,
   toArtistPage,
+  toClassPage,
   toCmsPage,
+  toExhibition,
   toExhibitions,
   toInstructor,
   toMembershipTier,
@@ -90,6 +95,22 @@ export class SiteApi {
     );
   }
 
+  /**
+   * One class and its dates (ADR 0065): `undefined` when there is no such published class, `null` when the read
+   * failed. A class with no run still to come is a page all the same — the copy is what it is for.
+   */
+  classPage(slug: string): Observable<ClassPage | undefined | null> {
+    return this.read(`/classes/${encodeURIComponent(slug)}`, decodeSiteClass).pipe(
+      map((r) =>
+        r.kind === 'ok'
+          ? toClassPage(r.value)
+          : r.kind === 'not-found'
+            ? undefined
+            : this.fallback(() => mockClassPage(slug), null),
+      ),
+    );
+  }
+
   instructors(): Observable<Instructor[]> {
     return this.read('/instructors', (body) => decodeArray(body, decodeSiteInstructor)).pipe(
       map((r) =>
@@ -108,6 +129,26 @@ export class SiteApi {
               () => MOCK_EXHIBITIONS.slice().sort((a, b) => b.start.localeCompare(a.start)),
               [],
             ),
+      ),
+    );
+  }
+
+  /**
+   * One show and its write-up (ADR 0064): `undefined` when there is no such published exhibition, and `null` when
+   * the read failed.
+   *
+   * The two are different answers and the page gives different pages for them. A missing show is the site's 404;
+   * a failed read must not be, or a blip would tell a crawler that a published show is gone — the render is a 503
+   * instead (frontend.md).
+   */
+  exhibition(slug: string): Observable<Exhibition | undefined | null> {
+    return this.read(`/exhibitions/${encodeURIComponent(slug)}`, decodeSiteExhibition).pipe(
+      map((r) =>
+        r.kind === 'ok'
+          ? toExhibition(r.value)
+          : r.kind === 'not-found'
+            ? undefined
+            : this.fallback(() => MOCK_EXHIBITIONS.find((e) => e.slug === slug) ?? null, null),
       ),
     );
   }
@@ -242,6 +283,23 @@ export class SiteApi {
 
 function sortByStart(list: ArtClass[]): ArtClass[] {
   return list.slice().sort((a, b) => a.start.localeCompare(b.start));
+}
+
+/** The sample class behind one slug, for the mock fallback: its runs are the sample calendar's. */
+function mockClassPage(slug: string): ClassPage | null {
+  const runs = MOCK_CLASSES.filter((c) => c.slug === slug);
+  const first = runs[0];
+  return first
+    ? {
+        slug,
+        title: first.title,
+        summary: first.summary,
+        type: first.type,
+        level: first.level,
+        image: first.image,
+        runs: sortByStart(runs),
+      }
+    : null;
 }
 
 /** "jane-doe" as "Jane Doe": the best name a page has for an artist it could not read. */

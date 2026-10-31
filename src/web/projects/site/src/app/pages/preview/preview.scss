@@ -1,14 +1,37 @@
 /*
- * The bar that says this is a draft: the strip's charcoal, above the page itself, so a preview is never mistaken
- * for the live site. It scrolls away with the page rather than covering it, because what staff came to look at is
- * the page.
+ * The preview must lay out exactly as the live page does, or it is not a preview (ADR 0063).
+ *
+ * Two things keep it identical. The host is `display: contents`, so this component's element leaves the box tree
+ * and the page's sections are children of `<main>` just as they are on the site. And the bar that says "this is a
+ * draft" is taken out of flow: the nav is fixed and the hero pays for it with its own top padding, so anything in
+ * flow above the hero would both sit under the nav and push the whole page down.
+ */
+:host {
+  display: contents;
+}
+
+/*
+ * A flag over the page, in the strip's charcoal: bottom left, clear of the back-to-top button (bottom right), and
+ * above the nav's z-index so it is never covered. It can be folded away to a tag when staff want the footer.
  */
 .preview-bar {
-  background: var(--strip);
-  color: var(--white);
-  padding: var(--space-4) var(--pad);
+  position: fixed;
+  inset: auto auto var(--space-5) var(--pad);
+  z-index: 60;
+  max-width: min(32rem, calc(100vw - var(--pad) * 2));
   display: grid;
   gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background: var(--strip);
+  color: var(--white);
+  box-shadow: 0 2px 16px var(--black-50);
+}
+
+.preview-bar--folded {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
 }
 
 .preview-bar__what {
@@ -36,7 +59,19 @@
 
   code {
     font-size: inherit;
-    // A slug is one word, and a long one must not push the bar off a narrow screen or at 200% zoom.
+    // A slug is one word, and a long one must not push the flag off a narrow screen or at 200% zoom.
     overflow-wrap: anywhere;
   }
+}
+
+.preview-bar__fold {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--white);
+  font: inherit;
+  font-size: var(--fs-small);
+  text-decoration: underline;
+  cursor: pointer;
 }

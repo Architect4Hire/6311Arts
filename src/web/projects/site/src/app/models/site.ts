@@ -73,6 +73,14 @@ export interface SiteClassSummary {
   readonly runs: readonly SiteClassRun[];
 }
 
+/**
+ * `GET /site/classes/{slug}`: one class as its page renders it — the list's fields, its "More details" body, and
+ * the runs still to come, which is **empty once the class is over** and before any dates are set.
+ */
+export interface SiteClass extends SiteClassSummary {
+  readonly bodyHtml: string | null;
+}
+
 export interface SiteInstructor {
   readonly id: string;
   readonly slug: string;
@@ -103,6 +111,15 @@ export interface SiteExhibitionSummary {
   readonly displayTimeZone: string;
   readonly artists: readonly SiteCredit[];
   readonly image: SiteImage | null;
+}
+
+/**
+ * `GET /site/exhibitions/{slug}`: one show as its page renders it — the list's fields and the body.
+ *
+ * `bodyText` is plain text; blank lines separate paragraphs (it is not HTML, as a class's or a page's body is).
+ */
+export interface SiteExhibition extends SiteExhibitionSummary {
+  readonly bodyText: string | null;
 }
 
 export interface SiteArtistSummary {
@@ -289,6 +306,13 @@ export function decodeSiteClassSummary(body: unknown): SiteClassSummary | null {
     : null;
 }
 
+export function decodeSiteClass(body: unknown): SiteClass | null {
+  const summary = decodeSiteClassSummary(body);
+  const f = fields(body);
+  if (!summary || !f || !isNullableString(f['bodyHtml'])) return null;
+  return { ...summary, bodyHtml: f['bodyHtml'] };
+}
+
 export function decodeSiteInstructor(body: unknown): SiteInstructor | null {
   const f = fields(body);
   if (!f) return null;
@@ -334,6 +358,13 @@ export function decodeSiteExhibitionSummary(body: unknown): SiteExhibitionSummar
     image !== undefined
     ? { id, slug, title, summary, startDate, endDate, reception, displayTimeZone, artists, image }
     : null;
+}
+
+export function decodeSiteExhibition(body: unknown): SiteExhibition | null {
+  const summary = decodeSiteExhibitionSummary(body);
+  const f = fields(body);
+  if (!summary || !f || !isNullableString(f['bodyText'])) return null;
+  return { ...summary, bodyText: f['bodyText'] };
 }
 
 export function decodeSiteArtistSummary(body: unknown): SiteArtistSummary | null {
@@ -469,8 +500,7 @@ export type SitePublishStatus = (typeof SITE_PUBLISH_STATUSES)[number];
  * Exactly one member is set, and `entityType` says which.
  *
  * The records are the site's own models, the ones a published page renders, so a preview carries no staff
- * bookkeeping. Two of them are the detail shape of a model the site only ever lists — an exhibition's `bodyText`
- * and a class's `bodyHtml` — and those fields are dropped here, because no page on the site renders them.
+ * bookkeeping and nothing is dropped: every field here has a page that renders it (ADR 0064, 0065).
  */
 export interface SitePreview {
   readonly entityType: SitePreviewType;
@@ -482,9 +512,9 @@ export interface SitePreview {
   readonly noIndex: boolean;
   readonly artist: SiteArtist | null;
   readonly instructor: SiteInstructor | null;
-  readonly exhibition: SiteExhibitionSummary | null;
+  readonly exhibition: SiteExhibition | null;
   readonly page: SitePage | null;
-  readonly classOffering: SiteClassSummary | null;
+  readonly classOffering: SiteClass | null;
   readonly shopItem: SiteShopItem | null;
   readonly membershipPlan: SiteMembershipPlan | null;
 }
@@ -504,9 +534,9 @@ export function decodeSitePreview(body: unknown): SitePreview | null {
     decodeNullable(f[name] ?? null, decode);
   const artist = member('artist', decodeSiteArtist);
   const instructor = member('instructor', decodeSiteInstructor);
-  const exhibition = member('exhibition', decodeSiteExhibitionSummary);
+  const exhibition = member('exhibition', decodeSiteExhibition);
   const page = member('page', decodeSitePage);
-  const classOffering = member('classOffering', decodeSiteClassSummary);
+  const classOffering = member('classOffering', decodeSiteClass);
   const shopItem = member('shopItem', decodeSiteShopItem);
   const membershipPlan = member('membershipPlan', decodeSiteMembershipPlan);
   if (
