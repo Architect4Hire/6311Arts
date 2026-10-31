@@ -19,7 +19,24 @@
     } @else if (instructor(); as instructor) {
       <app-instructor-detail [slug]="instructor.slug" />
     } @else if (classOffering(); as offering) {
-      <app-class-detail [slug]="offering.slug" />
+      @if (classWithoutADatedRun()) {
+        <!-- The site has no page for a class with no dates, so the preview says what it is waiting for. -->
+        <section class="band band--white">
+          <div class="container container--narrow prose">
+            <h1>{{ offering.title }}</h1>
+            <p>
+              The site shows a class through its dated runs, and this one has no run still to come —
+              so there is no page to preview yet.
+            </p>
+            <p>
+              Give a run a session date in the future, with its instructor and starting price, and
+              preview it again. Everything else here is saved: this is only about the dates.
+            </p>
+          </div>
+        </section>
+      } @else {
+        <app-class-detail [slug]="offering.slug" />
+      }
     } @else if (shopItem(); as item) {
       <app-product-detail [slug]="item.slug" />
     } @else if (page(); as page) {

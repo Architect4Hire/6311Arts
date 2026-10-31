@@ -47,6 +47,42 @@ const PLAN = {
   cadence: 'ANNUAL',
 };
 
+/** One run still to come, which is what makes a class renderable at all. */
+const RUN = {
+  id: 'run-1',
+  label: 'Autumn',
+  instructor: { name: 'Jane Doe', slug: 'jane-doe' },
+  cadence: 'Saturdays',
+  displayTimeZone: 'America/Chicago',
+  startsAt: '2099-11-10T18:00:00+00:00',
+  endsAt: '2099-11-10T21:00:00+00:00',
+  sessionCount: 1,
+  capacity: 12,
+  priceCents: 4500,
+  currency: 'USD',
+  seatsRemaining: 3,
+  soldOut: false,
+  sessions: [
+    { id: 's1', startsAt: '2099-11-10T18:00:00+00:00', endsAt: '2099-11-10T21:00:00+00:00' },
+  ],
+};
+
+function classOffering(runs: unknown[]) {
+  return {
+    id: 'c1',
+    slug: 'screen-printing',
+    title: 'Screen Printing Night',
+    summary: 'Pull a print.',
+    bodyHtml: '<p>Bring an apron.</p>',
+    classType: 'Printmaking',
+    level: 'Beginner',
+    image: null,
+    fromPriceCents: 4500,
+    currency: 'USD',
+    runs,
+  };
+}
+
 async function render() {
   // The hero's slideshow asks whether motion is reduced; jsdom has no matchMedia.
   vi.stubGlobal('matchMedia', () => ({
@@ -219,5 +255,45 @@ describe('Preview', () => {
       'Preview Draft page, as the site will show it.',
     ]);
     expect(text(element, '.prose')).toEqual(['What we keep.']);
+  });
+
+  it('renders the class page for a draft whose run is still to come', async () => {
+    const { answer, http, harness } = await render();
+
+    const element = answer(
+      preview({
+        entityType: 'class-offering',
+        path: '/classes/screen-printing',
+        classOffering: classOffering([RUN]),
+      }),
+    );
+    // The calendar around it stays the published one, and the tiers are the real discount.
+    http.expectOne('/api/v1/site/classes').flush([]);
+    http.expectOne('/api/v1/site/memberships').flush([]);
+    harness.detectChanges();
+
+    expect(text(element, '.preview-bar__what')).toEqual([
+      'Preview Draft class, as the site will show it.',
+    ]);
+    expect(element.querySelector('app-not-found')).toBeNull();
+    expect(text(element, '.detail__title')).toEqual(['Screen Printing Night']);
+  });
+
+  it('says what a class with no dated run is waiting for, rather than answering 404', async () => {
+    const { answer, response } = await render();
+
+    const element = answer(
+      preview({
+        entityType: 'class-offering',
+        path: '/classes/screen-printing',
+        classOffering: classOffering([]),
+      }),
+    );
+
+    // The link is good and the record is there: only the dates the site needs are missing.
+    expect(response.status).toBe(200);
+    expect(element.querySelector('app-not-found')).toBeNull();
+    expect(text(element, '.prose h1')).toEqual(['Screen Printing Night']);
+    expect(text(element, '.prose p')[0]).toContain('no run still to come');
   });
 });

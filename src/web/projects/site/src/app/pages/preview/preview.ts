@@ -89,6 +89,20 @@ export class Preview {
   protected readonly exhibition = computed(() => this.preview()?.exhibition ?? null);
   protected readonly membershipPlan = computed(() => this.preview()?.membershipPlan ?? null);
 
+  /**
+   * A class the site could not show yet, whatever its copy says.
+   *
+   * The site shows a class *through its dated runs* (`ArtClass` is one entry per run), and a preview carries only
+   * the runs still to come — `ClassesBusiness.ToSiteRow` drops a run whose every session has ended, and a run with
+   * no session at all. A draft with no dates yet is the ordinary case while staff are writing one, and rendering
+   * the class page for it would show the site's own not-found: a 404 for a link that is perfectly good. So the
+   * preview says what is missing instead.
+   */
+  protected readonly classWithoutADatedRun = computed(() => {
+    const offering = this.classOffering();
+    return offering !== null && offering.runs.length === 0;
+  });
+
   /** What the bar says this is: "Draft artist", "Scheduled exhibition". */
   protected readonly describes = computed(() => {
     const preview = this.preview();

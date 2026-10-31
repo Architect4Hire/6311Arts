@@ -62,10 +62,17 @@ absence from the sitemap and any prerender list, no write access, and nothing in
    tampered-with, deleted-record or unreadable answer alike, and the page renders the site's `<app-not-found>`,
    which sets a real 404. There is no sample-data fallback for a preview, and a failed read is not a 503: a
    preview is a staff tool, and the answer a holder gets says nothing about what exists.
-8. **A preview carries what the site renders, and no more.** The answer's exhibition `bodyText` and class
+8. **A class with no dated run is told what it is waiting for, not answered 404.** The site shows a class
+   *through* its runs (`ArtClass` is one entry per run), and the preview answer carries only the runs still to
+   come: `ClassesBusiness.ToSiteRow` drops a run whose every session has ended, and one with no session at all.
+   A draft with no dates yet is the ordinary state while staff are writing a class, and rendering the class page
+   for it would show the site's own not-found — a 404 for a good link, which is the bug this ADR exists to end.
+   So the preview page renders the class's title and says which dates the site needs, and answers 200. It is the
+   one previewable type whose record can be unrenderable; the other six always have a page.
+9. **A preview carries what the site renders, and no more.** The answer's exhibition `bodyText` and class
    `bodyHtml` are dropped in the decoder, because no page on the site renders them today. A preview showing copy
    the published page would not would be a worse lie than leaving it out.
-9. **The preview page's lazy chunk carries seven page components**, which is the one cost of reusing them. It is a
+10. **The preview page's lazy chunk carries seven page components**, which is the one cost of reusing them. It is a
    staff-only route, loaded only when a link is opened, and the chunk is ~17 kB.
 
 ## Options considered
@@ -88,9 +95,8 @@ absence from the sitemap and any prerender list, no write access, and nothing in
 - **Preview links work for all seven previewable types**, and a new previewable type adds a branch to the preview
   page beside the entry it already owes `PreviewPolicy.PathPrefixes`.
 - **A preview shows exactly what the site shows**, including what the site does *not* show: a draft exhibition has
-  no body on the page because no exhibition page exists, and a draft class with no run yet has nothing to render
-  and reads as not found. An exhibition detail page is still unbuilt; when it lands, the preview follows it with
-  no change here.
+  no body on its card, because no exhibition page exists. An exhibition detail page is still unbuilt; when it
+  lands, the preview follows it with no change here.
 - **An unpublished artist's work is empty in a preview**, because the shop lists published pieces only.
 - **`PreviewSiteApi` must stay a read seam.** A write added to `SiteApi` is not overridden here, and must never be:
   the token authorizes one read (ADR 0036).
