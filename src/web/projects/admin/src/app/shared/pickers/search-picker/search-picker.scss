@@ -1,0 +1,16 @@
+@use '../../panel';
+
+:host {
+  display: block;
+}
+.credited {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+}
+.credited__name {
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}

@@ -5,20 +5,30 @@
 
 import {
   CONTENT_CODES,
+  CONTENT_FIELDS,
   ContentCommand,
-  PUBLISH_STATUSES,
+  ContentRecord,
+  decodeDeletedList,
+  DeletedList,
+  DeletedRow,
   PublishStatus,
   SLUG_MAX_LENGTH,
+  status,
 } from './content';
 import {
+  amount,
   ApiProblem,
+  CursorPage,
   decodeApiProblem,
-  fields,
-  isBoolean,
-  isNullableString,
-  isNumber,
-  isString,
+  decodeCursorPage,
+  decodeShape,
+  field,
+  flag,
+  int64,
+  listOf,
   oneOf,
+  optionalText,
+  text,
 } from './decode';
 
 /** The limits the API enforces (`MembershipPolicy`, `Slugs`), so the form can stop early and say why. */
@@ -50,11 +60,8 @@ export type MembershipCommand = ContentCommand;
 /** The status commands with no body, which go through `MembershipService.command`. */
 export type MembershipPlainCommand = Exclude<MembershipCommand, 'schedule'>;
 
-export interface MembershipPlan {
-  readonly id: string;
+export interface MembershipPlan extends ContentRecord {
   readonly name: string;
-  /** A stable key, not an address: every tier is shown on `/memberships` (ADR 0040). */
-  readonly slug: string;
   /** What the tier includes, in the order the page lists them. */
   readonly perks: readonly string[];
   /** What a member saves on every class, as whole percent. */
@@ -72,17 +79,8 @@ export interface MembershipPlan {
   /** Square's record of how often it bills, in Square's own words; `null` until the first pull. */
   readonly cadence: string | null;
   readonly squareHasRecord: boolean;
-  readonly status: PublishStatus;
-  readonly publishedAt: string | null;
-  readonly scheduledFor: string | null;
   /** Where the site shows it: the page every tier shares. */
   readonly sitePath: string;
-  readonly legacyWordPressId: number | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly updatedBy: string;
-  /** The row version, sent back as `If-Match`. */
-  readonly etag: string;
 }
 
 export interface MembershipPlanSummary {
@@ -101,10 +99,7 @@ export interface MembershipPlanSummary {
   readonly updatedAt: string;
 }
 
-export interface MembershipPlanList {
-  readonly items: readonly MembershipPlanSummary[];
-  readonly nextCursor: string | null;
-}
+export type MembershipPlanList = CursorPage<MembershipPlanSummary>;
 
 /** A `POST` body. A slug left out is made from the name; a tier with no order goes last. */
 export interface MembershipPlanCreate {
@@ -140,129 +135,47 @@ export interface MembershipPlanListQuery {
   readonly search?: string;
 }
 
-const isStatus = oneOf(PUBLISH_STATUSES);
 const isCadence = oneOf(MEMBERSHIP_CADENCES.map((cadence) => cadence.value));
 
-/** An int64: a number or a numeric string, as the OpenAPI schema allows. `undefined` when it is neither. */
-function decodeInt64(value: unknown): number | null | undefined {
-  if (value === null) return null;
-  if (isNumber(value) && Number.isSafeInteger(value)) return value;
-  if (typeof value === 'string' && /^-?(?:0|[1-9]\d*)$/.test(value)) {
-    const parsed = Number(value);
-    return Number.isSafeInteger(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
 export function decodeMembershipPlan(body: unknown): MembershipPlan | null {
-  const f = fields(body);
-  if (!f) return null;
-  const legacyId = decodeInt64(f['legacyWordPressId']);
-  const startingPrice = decodeInt64(f['startingPriceCents']);
-  const price = decodeInt64(f['priceCents']);
-  const perks = f['perks'];
-  if (
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !Array.isArray(perks) ||
-    !perks.every(isString) ||
-    !isNumber(f['discountPercent']) ||
-    !isBoolean(f['featured']) ||
-    !isNumber(f['displayOrder']) ||
-    startingPrice === undefined ||
-    !isCadence(f['startingCadence']) ||
-    !isString(f['currency']) ||
-    !isBoolean(f['startingPriceEditable']) ||
-    price === undefined ||
-    !isNullableString(f['cadence']) ||
-    !isBoolean(f['squareHasRecord']) ||
-    !isStatus(f['status']) ||
-    !isNullableString(f['publishedAt']) ||
-    !isNullableString(f['scheduledFor']) ||
-    !isString(f['sitePath']) ||
-    legacyId === undefined ||
-    !isString(f['createdAt']) ||
-    !isString(f['updatedAt']) ||
-    !isString(f['updatedBy']) ||
-    !isString(f['etag'])
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    name: f['name'],
-    slug: f['slug'],
-    perks,
-    discountPercent: f['discountPercent'],
-    featured: f['featured'],
-    displayOrder: f['displayOrder'],
-    startingPriceCents: startingPrice,
-    startingCadence: f['startingCadence'],
-    currency: f['currency'],
-    startingPriceEditable: f['startingPriceEditable'],
-    priceCents: price,
-    cadence: f['cadence'],
-    squareHasRecord: f['squareHasRecord'],
-    status: f['status'],
-    publishedAt: f['publishedAt'],
-    scheduledFor: f['scheduledFor'],
-    sitePath: f['sitePath'],
-    legacyWordPressId: legacyId,
-    createdAt: f['createdAt'],
-    updatedAt: f['updatedAt'],
-    updatedBy: f['updatedBy'],
-    etag: f['etag'],
-  };
+  return decodeShape(body, {
+    ...CONTENT_FIELDS,
+    name: text,
+    perks: listOf(text),
+    discountPercent: amount,
+    featured: flag,
+    displayOrder: amount,
+    startingPriceCents: int64,
+    startingCadence: field(isCadence),
+    currency: text,
+    startingPriceEditable: flag,
+    priceCents: int64,
+    cadence: optionalText,
+    squareHasRecord: flag,
+    sitePath: text,
+  });
 }
 
 export function decodeMembershipPlanSummary(body: unknown): MembershipPlanSummary | null {
-  const f = fields(body);
-  if (!f) return null;
-  const startingPrice = decodeInt64(f['startingPriceCents']);
-  const price = decodeInt64(f['priceCents']);
-  if (
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !isStatus(f['status']) ||
-    !isNumber(f['discountPercent']) ||
-    !isBoolean(f['featured']) ||
-    !isNumber(f['displayOrder']) ||
-    !isNumber(f['perkCount']) ||
-    startingPrice === undefined ||
-    price === undefined ||
-    !isNullableString(f['cadence']) ||
-    !isString(f['currency']) ||
-    !isString(f['updatedAt'])
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    name: f['name'],
-    slug: f['slug'],
-    status: f['status'],
-    discountPercent: f['discountPercent'],
-    featured: f['featured'],
-    displayOrder: f['displayOrder'],
-    perkCount: f['perkCount'],
-    startingPriceCents: startingPrice,
-    priceCents: price,
-    cadence: f['cadence'],
-    currency: f['currency'],
-    updatedAt: f['updatedAt'],
-  };
+  return decodeShape(body, {
+    id: text,
+    name: text,
+    slug: text,
+    status,
+    discountPercent: amount,
+    featured: flag,
+    displayOrder: amount,
+    perkCount: amount,
+    startingPriceCents: int64,
+    priceCents: int64,
+    cadence: optionalText,
+    currency: text,
+    updatedAt: text,
+  });
 }
 
 export function decodeMembershipPlanList(body: unknown): MembershipPlanList | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeMembershipPlanSummary);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as MembershipPlanSummary[], nextCursor: f['nextCursor'] };
+  return decodeCursorPage(body, decodeMembershipPlanSummary);
 }
 
 export type MembershipProblem = ApiProblem;
@@ -270,49 +183,16 @@ export type MembershipProblem = ApiProblem;
 export const decodeMembershipProblem = decodeApiProblem;
 
 /** One row of the Deleted view (`MembershipPlanDeletedServiceModel`, ADR 0052). Admin only. */
-export interface MembershipPlanDeletedRow {
-  readonly id: string;
-  readonly name: string;
-  readonly slug: string;
-  /** What it was when it was deleted, not where it is now. */
-  readonly status: PublishStatus;
-  readonly deletedAt: string;
-  /** The row version, sent back as `If-Match` when restoring it. */
-  readonly etag: string;
-}
+export type MembershipPlanDeletedRow = DeletedRow<'name'>;
 
-export interface MembershipPlanDeletedList {
-  readonly items: readonly MembershipPlanDeletedRow[];
-  readonly nextCursor: string | null;
-}
-
-export function decodeMembershipPlanDeletedRow(body: unknown): MembershipPlanDeletedRow | null {
-  const f = fields(body);
-  if (
-    !f ||
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !isStatus(f['status']) ||
-    !isString(f['deletedAt']) ||
-    !isString(f['etag'])
-  ) {
-    return null;
-  }
-  return {
-    id: f['id'],
-    name: f['name'],
-    slug: f['slug'],
-    status: f['status'],
-    deletedAt: f['deletedAt'],
-    etag: f['etag'],
-  };
-}
+export type MembershipPlanDeletedList = DeletedList<'name'>;
 
 export function decodeMembershipPlanDeletedList(body: unknown): MembershipPlanDeletedList | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeMembershipPlanDeletedRow);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as MembershipPlanDeletedRow[], nextCursor: f['nextCursor'] };
+  return decodeDeletedList(body, 'name');
+}
+
+/** Square's own cadence value (`ANNUAL`, `EVERY_TWO_MONTHS`) in words. */
+export function cadenceWords(cadence: string): string {
+  const words = cadence.toLowerCase().replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }

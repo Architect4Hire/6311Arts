@@ -1,55 +1,19 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  Injector,
-  afterNextRender,
-  effect,
-  inject,
-  signal,
-  untracked,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
-import { UiButton, UiEmptyState, UiNotice, UiStatusChip } from '@6311/ui';
+import { UiStatusChip } from '@6311/ui';
 import { ContactMessage, ContactMessageListQuery, HANDLED_CHIPS } from '../../../models/forms';
 import { FormsService } from '../../../services/forms.service';
-import { FormsTabs, formatInstant } from '../forms-tabs/forms-tabs';
-import { ListSort, SortColumn } from '../../../shared/list-sort';
+import { ListBody } from '../../../shared/list-body/list-body';
+import { ListTools } from '../../../shared/list-tools/list-tools';
+import { RecordList } from '../../../shared/record-list';
 import { SortHeader } from '../../../shared/sort-header/sort-header';
-import { SortPicker } from '../../../shared/sort-picker/sort-picker';
 import { Sortable } from '../../../shared/sortable';
+import { FormsTabs, formatInstant } from '../forms-tabs/forms-tabs';
 
 type Filter = 'all' | 'unhandled' | 'handled';
 
-const FILTERS: readonly { readonly value: Filter; readonly label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'unhandled', label: 'Unhandled' },
-  { value: 'handled', label: 'Handled' },
-];
-
-const PAGE_SIZE = 50;
-
 /** How much of a message the list shows before "…". */
 const EXCERPT_LENGTH = 120;
-
-function countOf(count: number, more: boolean): string {
-  if (count === 0) return 'No messages to show.';
-  return `${more ? 'Showing the first ' : ''}${count} ${count === 1 ? 'message' : 'messages'}.`;
-}
-
-/** The columns a header sorts by (ADR 0062); the API names the same ones. */
-const SORTS: readonly SortColumn[] = [
-  { key: 'from', label: 'From', kind: 'text' },
-  { key: 'message', label: 'Message', kind: 'text' },
-  {
-    key: 'status',
-    label: 'Status',
-    kind: 'flag',
-    words: { asc: 'new first', desc: 'handled first' },
-  },
-  { key: 'received', label: 'Received', kind: 'date' },
-];
 
 /**
  * Messages from the site's contact form (`/admin/forms/messages`), newest first, with whether each has been dealt
@@ -57,46 +21,56 @@ const SORTS: readonly SortColumn[] = [
  */
 @Component({
   selector: 'cms-message-list',
-  imports: [
-    Sortable,
-    SortHeader,
-    SortPicker,
-    FormsTabs,
-    RouterLink,
-    UiButton,
-    UiEmptyState,
-    UiNotice,
-    UiStatusChip,
-  ],
+  imports: [FormsTabs, ListBody, ListTools, RouterLink, SortHeader, Sortable, UiStatusChip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './message-list.html',
   styleUrl: './message-list.scss',
 })
-export class MessageList {
-  private readonly forms = inject(FormsService);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly injector = inject(Injector);
-  private generation = 0;
-
-  protected readonly filters = FILTERS;
-  protected readonly filter = signal<Filter>('all');
-  protected readonly state = signal<'loading' | 'failed' | 'ready'>('loading');
-  protected readonly items = signal<readonly ContactMessage[]>([]);
-  protected readonly next = signal<string | null>(null);
-  protected readonly loadingMore = signal(false);
-  protected readonly moreFailed = signal(false);
-  protected readonly refreshing = signal(false);
-  protected readonly liveMessage = signal('');
-
-  /** The order, kept in the address bar as ?sort= so Back returns to it. */
-  protected readonly sort = new ListSort(SORTS, { column: 'received', direction: 'desc' });
+export class MessageList extends RecordList<ContactMessage, Filter, ContactMessageListQuery> {
+  protected readonly received = formatInstant;
 
   constructor() {
-    effect(() => {
-      this.filter();
-      this.sort.current();
-      untracked(() => void this.reload());
+    const forms = inject(FormsService);
+    super({
+      list: (query) => forms.listMessages(query),
+      noun: 'message',
+      plural: 'messages',
+      icon: 'chat',
+      filters: [
+        { value: 'all', label: 'All' },
+        { value: 'unhandled', label: 'Unhandled' },
+        { value: 'handled', label: 'Handled' },
+      ],
+      filter: 'all',
+      filterQuery: (filter) => (filter === 'all' ? {} : { handled: filter === 'handled' }),
+      sorts: [
+        { key: 'from', label: 'From', kind: 'text' },
+        { key: 'message', label: 'Message', kind: 'text' },
+        {
+          key: 'status',
+          label: 'Status',
+          kind: 'flag',
+          words: { asc: 'new first', desc: 'handled first' },
+        },
+        { key: 'received', label: 'Received', kind: 'date' },
+      ],
+      sort: { column: 'received', direction: 'desc' },
     });
+  }
+
+  protected emptyHeading(): string {
+    return this.filter() === 'all' ? 'No messages yet' : 'Nothing to show here';
+  }
+
+  protected emptyText(): string {
+    switch (this.filter()) {
+      case 'all':
+        return 'Messages from the site’s contact form arrive here.';
+      case 'unhandled':
+        return 'Every message has been handled.';
+      default:
+        return 'No message has been marked handled yet.';
+    }
   }
 
   protected chipOf(message: ContactMessage) {
@@ -107,70 +81,5 @@ export class MessageList {
   protected excerpt(message: string): string {
     const flat = message.replace(/\s+/g, ' ').trim();
     return flat.length > EXCERPT_LENGTH ? `${flat.slice(0, EXCERPT_LENGTH).trimEnd()}…` : flat;
-  }
-
-  protected received(iso: string): string {
-    return formatInstant(iso);
-  }
-
-  async reload(): Promise<void> {
-    const generation = ++this.generation;
-    const showing = this.state() === 'ready' && this.items().length > 0;
-    if (showing) this.refreshing.set(true);
-    else this.state.set('loading');
-    this.moreFailed.set(false);
-    try {
-      const page = await firstValueFrom(this.forms.listMessages(this.currentQuery()));
-      if (generation !== this.generation) return;
-      this.items.set(page.items);
-      this.next.set(page.nextCursor);
-      this.state.set('ready');
-      this.liveMessage.set(
-        this.sort.announcement() + countOf(page.items.length, page.nextCursor !== null),
-      );
-    } catch {
-      if (generation === this.generation) this.state.set('failed');
-    } finally {
-      if (generation === this.generation) this.refreshing.set(false);
-    }
-  }
-
-  protected async more(): Promise<void> {
-    const cursor = this.next();
-    if (!cursor || this.loadingMore()) return;
-
-    const generation = this.generation;
-    this.loadingMore.set(true);
-    this.moreFailed.set(false);
-    try {
-      const page = await firstValueFrom(
-        this.forms.listMessages({ ...this.currentQuery(), cursor }),
-      );
-      if (generation !== this.generation) return;
-      const firstNew = this.items().length;
-      this.items.update((items) => [...items, ...page.items]);
-      this.next.set(page.nextCursor);
-      this.liveMessage.set(
-        `${page.items.length} more ${page.items.length === 1 ? 'message' : 'messages'} loaded.`,
-      );
-      afterNextRender(
-        () =>
-          this.host.nativeElement.querySelector<HTMLElement>(`a[data-row="${firstNew}"]`)?.focus(),
-        { injector: this.injector },
-      );
-    } catch {
-      if (generation === this.generation) this.moreFailed.set(true);
-    } finally {
-      this.loadingMore.set(false);
-    }
-  }
-
-  private currentQuery(): ContactMessageListQuery {
-    const filter = this.filter();
-    return {
-      sort: this.sort.param(),
-      limit: PAGE_SIZE,
-      ...(filter === 'all' ? {} : { handled: filter === 'handled' }),
-    };
   }
 }

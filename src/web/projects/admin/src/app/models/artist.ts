@@ -5,20 +5,25 @@
 
 import {
   CONTENT_CODES,
+  CONTENT_FIELDS,
   ContentCommand,
-  PUBLISH_STATUSES,
+  ContentRecord,
+  decodeDeletedList,
+  DeletedList,
+  DeletedRow,
   PublishStatus,
   SLUG_MAX_LENGTH,
+  status,
 } from './content';
 import {
   ApiProblem,
+  CursorPage,
   decodeApiProblem,
-  fields,
-  isBoolean,
-  isNullableString,
-  isNumber,
-  isString,
-  oneOf,
+  decodeCursorPage,
+  decodeShape,
+  flag,
+  optionalText,
+  text,
 } from './decode';
 
 // The lifecycle, its chips and the slug rules are shared by every content type (`content.ts`).
@@ -42,26 +47,14 @@ export const ARTIST_LIMITS = {
 /** The problem codes the artist screens act on: the ones every content type shares. */
 export const ARTIST_CODES = CONTENT_CODES;
 
-export interface Artist {
-  readonly id: string;
+export interface Artist extends ContentRecord {
   readonly name: string;
-  readonly slug: string;
   readonly medium: string | null;
   readonly bio: string | null;
   readonly active: boolean;
   readonly portraitMediaId: string | null;
-  readonly status: PublishStatus;
-  /** When it was first published; kept through an unpublish. */
-  readonly publishedAt: string | null;
-  readonly scheduledFor: string | null;
   /** The slug can no longer change: the artist has been published. */
   readonly slugLocked: boolean;
-  readonly legacyWordPressId: number | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly updatedBy: string;
-  /** The row version, sent back as `If-Match`. */
-  readonly etag: string;
 }
 
 export interface ArtistSummary {
@@ -75,10 +68,7 @@ export interface ArtistSummary {
   readonly updatedAt: string;
 }
 
-export interface ArtistPage {
-  readonly items: readonly ArtistSummary[];
-  readonly nextCursor: string | null;
-}
+export type ArtistPage = CursorPage<ArtistSummary>;
 
 /** A `POST` body. A slug left out is made from the name. */
 export interface ArtistCreate {
@@ -113,101 +103,33 @@ export interface ArtistListQuery {
 /** The status commands, as their route segments. */
 export type ArtistCommand = ContentCommand;
 
-const isStatus = oneOf(PUBLISH_STATUSES);
-
-/**
- * An int64 (`legacyWordPressId`): the OpenAPI schema allows a number or a numeric string, so both are read. A
- * WordPress term id is far below 2^53, so a number holds it exactly. `undefined` when it is neither.
- */
-function decodeInt64(value: unknown): number | null | undefined {
-  if (value === null) return null;
-  if (isNumber(value) && Number.isSafeInteger(value)) return value;
-  if (typeof value === 'string' && /^-?(?:0|[1-9]\d*)$/.test(value)) {
-    const parsed = Number(value);
-    return Number.isSafeInteger(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
 export function decodeArtist(body: unknown): Artist | null {
-  const f = fields(body);
-  if (!f) return null;
-  const legacyId = decodeInt64(f['legacyWordPressId']);
-  if (
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !isNullableString(f['medium']) ||
-    !isNullableString(f['bio']) ||
-    !isBoolean(f['active']) ||
-    !isNullableString(f['portraitMediaId']) ||
-    !isStatus(f['status']) ||
-    !isNullableString(f['publishedAt']) ||
-    !isNullableString(f['scheduledFor']) ||
-    !isBoolean(f['slugLocked']) ||
-    legacyId === undefined ||
-    !isString(f['createdAt']) ||
-    !isString(f['updatedAt']) ||
-    !isString(f['updatedBy']) ||
-    !isString(f['etag'])
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    name: f['name'],
-    slug: f['slug'],
-    medium: f['medium'],
-    bio: f['bio'],
-    active: f['active'],
-    portraitMediaId: f['portraitMediaId'],
-    status: f['status'],
-    publishedAt: f['publishedAt'],
-    scheduledFor: f['scheduledFor'],
-    slugLocked: f['slugLocked'],
-    legacyWordPressId: legacyId,
-    createdAt: f['createdAt'],
-    updatedAt: f['updatedAt'],
-    updatedBy: f['updatedBy'],
-    etag: f['etag'],
-  };
+  return decodeShape(body, {
+    ...CONTENT_FIELDS,
+    name: text,
+    medium: optionalText,
+    bio: optionalText,
+    active: flag,
+    portraitMediaId: optionalText,
+    slugLocked: flag,
+  });
 }
 
 export function decodeArtistSummary(body: unknown): ArtistSummary | null {
-  const f = fields(body);
-  if (!f) return null;
-  if (
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !isNullableString(f['medium']) ||
-    !isBoolean(f['active']) ||
-    !isStatus(f['status']) ||
-    !isNullableString(f['portraitMediaId']) ||
-    !isString(f['updatedAt'])
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    name: f['name'],
-    slug: f['slug'],
-    medium: f['medium'],
-    active: f['active'],
-    status: f['status'],
-    portraitMediaId: f['portraitMediaId'],
-    updatedAt: f['updatedAt'],
-  };
+  return decodeShape(body, {
+    id: text,
+    name: text,
+    slug: text,
+    medium: optionalText,
+    active: flag,
+    status,
+    portraitMediaId: optionalText,
+    updatedAt: text,
+  });
 }
 
 export function decodeArtistPage(body: unknown): ArtistPage | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeArtistSummary);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as ArtistSummary[], nextCursor: f['nextCursor'] };
+  return decodeCursorPage(body, decodeArtistSummary);
 }
 
 export type ArtistProblem = ApiProblem;
@@ -215,49 +137,10 @@ export type ArtistProblem = ApiProblem;
 export const decodeArtistProblem = decodeApiProblem;
 
 /** One row of the Deleted view (`ArtistDeletedServiceModel`, ADR 0052). Admin only. */
-export interface ArtistDeletedRow {
-  readonly id: string;
-  readonly name: string;
-  readonly slug: string;
-  /** What it was when it was deleted, not where it is now. */
-  readonly status: PublishStatus;
-  readonly deletedAt: string;
-  /** The row version, sent back as `If-Match` when restoring it. */
-  readonly etag: string;
-}
+export type ArtistDeletedRow = DeletedRow<'name'>;
 
-export interface ArtistDeletedList {
-  readonly items: readonly ArtistDeletedRow[];
-  readonly nextCursor: string | null;
-}
-
-export function decodeArtistDeletedRow(body: unknown): ArtistDeletedRow | null {
-  const f = fields(body);
-  if (
-    !f ||
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !isStatus(f['status']) ||
-    !isString(f['deletedAt']) ||
-    !isString(f['etag'])
-  ) {
-    return null;
-  }
-  return {
-    id: f['id'],
-    name: f['name'],
-    slug: f['slug'],
-    status: f['status'],
-    deletedAt: f['deletedAt'],
-    etag: f['etag'],
-  };
-}
+export type ArtistDeletedList = DeletedList<'name'>;
 
 export function decodeArtistDeletedList(body: unknown): ArtistDeletedList | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeArtistDeletedRow);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as ArtistDeletedRow[], nextCursor: f['nextCursor'] };
+  return decodeDeletedList(body, 'name');
 }

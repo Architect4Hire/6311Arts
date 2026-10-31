@@ -1,37 +1,17 @@
-:host {
-  display: grid;
-  gap: var(--space-5);
-}
-.tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  align-items: flex-end;
-  justify-content: space-between;
-}
-.tools__search {
-  flex: 1 1 260px;
-  max-width: 420px;
+@use '../../../shared/list';
+
+// Pushed to the far end of the tools, away from the search.
+.end {
+  margin-left: auto;
 }
 .hint {
   margin: 0;
   color: var(--muted);
   font-size: var(--fs-small);
 }
-.scroll {
-  overflow-x: auto;
-}
 .text {
   overflow-wrap: anywhere;
 }
 .action {
   text-align: right;
-}
-.more {
-  text-align: center;
-}
-@media (max-width: 600px) {
-  .wide {
-    display: none;
-  }
 }

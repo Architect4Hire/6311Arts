@@ -1,13 +1,6 @@
-import {
-  HttpClient,
-  HttpContext,
-  HttpErrorResponse,
-  HttpHeaders,
-  HttpParams,
-} from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, from, map, switchMap, throwError } from 'rxjs';
-import { SUPPRESS_PROBLEM_TOAST } from '../core/http/http-context';
 import {
   ContactMessage,
   ContactMessageList,
@@ -27,6 +20,7 @@ import {
   decodeSubmissionList,
   fileNameOf,
 } from '../models/forms';
+import { quiet, decoded } from './api';
 
 const BASE = '/api/v1/cms/forms';
 
@@ -161,13 +155,4 @@ async function withJsonBody(error: unknown): Promise<unknown> {
     statusText: error.statusText,
     url: error.url ?? undefined,
   });
-}
-
-function quiet(): HttpContext {
-  return new HttpContext().set(SUPPRESS_PROBLEM_TOAST, true);
-}
-
-function decoded<T>(value: T | null, what: string): T {
-  if (value === null) throw new Error(`The API returned something that is not a ${what}.`);
-  return value;
 }

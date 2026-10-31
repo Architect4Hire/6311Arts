@@ -1,0 +1,8 @@
+<div>
+  <h1 class="cms-title">{{ heading() }}</h1>
+  <p class="cms-lead"><ng-content /></p>
+</div>
+<div class="head__actions">
+  <ng-content select="[listAction]" />
+  <a uiButton variant="dark" [routerLink]="newRoute()">{{ newLabel() }}</a>
+</div>

@@ -1,0 +1,33 @@
+:host {
+  display: grid;
+  gap: var(--space-3);
+}
+.hint,
+.error {
+  margin: 0;
+}
+.hint {
+  font-size: var(--fs-small);
+  color: var(--text-soft);
+}
+.error {
+  color: var(--danger);
+  font-weight: var(--fw-bold);
+}
+.offers {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.offer {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+.offer__medium {
+  display: block;
+  font-size: var(--fs-small);
+  color: var(--text-soft);
+}

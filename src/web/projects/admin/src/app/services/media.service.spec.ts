@@ -13,8 +13,6 @@ import {
 import { ASSET } from '../models/media.fixtures';
 import { MediaService, UploadProgress } from './media.service';
 
-
-
 function setup() {
   TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
   return { media: TestBed.inject(MediaService), http: TestBed.inject(HttpTestingController) };

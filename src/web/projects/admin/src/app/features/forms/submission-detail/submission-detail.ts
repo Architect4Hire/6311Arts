@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -21,19 +20,18 @@ import { HasUnsavedChanges, warnBeforeUnload } from '../../../core/guards/unsave
 import {
   FORMS_CODES,
   FORMS_LIMITS,
-  FormsProblem,
   SUBMISSION_CHIPS,
   SUBMISSION_STATUSES,
   Submission,
   SubmissionStatus,
   SubmissionUpdate,
-  decodeFormsProblem,
   restockLabel,
   safeWebLink,
   wantLabel,
 } from '../../../models/forms';
 import { FormsService } from '../../../services/forms.service';
 import { formatInstant } from '../forms-tabs/forms-tabs';
+import { messageOf, problemOf } from '../../../core/http/problem-message';
 
 interface Draft {
   readonly status: SubmissionStatus;
@@ -411,19 +409,4 @@ function withPlaceholder(group: AnswerGroup): AnswerGroup {
   return group.answers.length > 0
     ? group
     : { ...group, answers: [{ label: 'Answers', text: 'Nothing given.' }] };
-}
-
-function problemOf(error: unknown): FormsProblem | null {
-  return error instanceof HttpErrorResponse ? decodeFormsProblem(error.error, error.status) : null;
-}
-
-function messageOf(problem: FormsProblem | null, fallback: string): string {
-  if (problem === null || problem.status === 0)
-    return 'Can’t reach 6311arts. Your changes are still here; try again.';
-  const message = problem.detail ?? fallback;
-
-  // A 5xx says nothing staff can act on, so give them the one thing support can: the correlation id (ADR 0019).
-  return problem.status >= 500 && problem.correlationId !== null
-    ? `${message} Quote reference ${problem.correlationId} if you report it.`
-    : message;
 }

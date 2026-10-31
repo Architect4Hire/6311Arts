@@ -1,133 +1,57 @@
-<div class="head">
-  <div>
-    <h1 class="cms-title">Memberships</h1>
-    <p class="cms-lead">
-      The tiers on the memberships page. Billing and member status are managed in Square.
-    </p>
-  </div>
-  <a uiButton variant="dark" routerLink="/memberships/new">New tier</a>
-</div>
+<cms-list-head heading="Memberships" newLabel="New tier" newRoute="/memberships/new">
+  The tiers on the memberships page. Billing and member status are managed in Square.
+</cms-list-head>
 
-<div class="tools">
-  <ui-field label="Find a tier" class="tools__search">
-    <input
-      #searchInput
-      uiControl
-      type="search"
-      name="search"
-      autocomplete="off"
-      [attr.maxlength]="limits.searchMaxLength"
-      [value]="search()"
-      (input)="onSearch(searchInput.value)"
-    />
-  </ui-field>
-  <div class="filters" role="group" aria-label="Filter the list">
-    @for (option of filters(); track option.value) {
-      <button
-        uiButton
-        type="button"
-        size="sm"
-        [variant]="filter() === option.value ? 'dark' : 'border-dark'"
-        [attr.aria-pressed]="filter() === option.value"
-        (click)="filter.set(option.value)"
-      >
-        {{ option.label }}
-      </button>
-    }
-  </div>
-</div>
+<cms-list-tools [view]="view" searchLabel="Find a tier" [searchMax]="limits.searchMaxLength" />
 
-@if (!showingDeleted()) {
-  <cms-sort-picker [sort]="sort" />
-}
-
-<!-- Exists from the start, so the counts written into it later are read out. -->
-<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-@if (showingDeleted()) {
-  <cms-deleted-records noun="plan" plural="plans" [source]="deletedSource" [search]="query()" />
-} @else {
-  @switch (state()) {
-    @case ('loading') {
-      <p role="status">Loading membership tiers…</p>
-    }
-    @case ('failed') {
-      <ui-notice tone="error" heading="The membership tiers couldn’t be loaded">
-        <p>6311arts may be unreachable for a moment.</p>
-        <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
-      </ui-notice>
-    }
-    @default {
-      @if (items().length === 0) {
-        <ui-empty-state icon="info" [heading]="emptyHeading()">
-          <p>{{ emptyText() }}</p>
-        </ui-empty-state>
-      } @else {
-        @if (refreshing()) {
-          <p role="status" class="refreshing">Updating the list…</p>
-        }
-        <div class="scroll" role="region" aria-label="Membership tiers" tabindex="0">
-          <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
-            <caption class="sr-only">
-              Membership tiers, sorted by
-              {{
-                sort.description()
-              }}
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col" cmsSortHeader="tier">Tier</th>
-                <th scope="col" cmsSortHeader="status">Status</th>
-                <th scope="col" cmsSortHeader="price">Price</th>
-                <th scope="col" class="wide" cmsSortHeader="discount">Class discount</th>
-                <th scope="col" class="wide" cmsSortHeader="updated">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (plan of items(); track plan.id; let index = $index) {
-                <tr>
-                  <th scope="row">
-                    <a [routerLink]="['/memberships', plan.id]" [attr.data-row]="index">{{
-                      plan.name
-                    }}</a>
-                    @if (plan.featured) {
-                      <span class="featured">Featured</span>
-                    }
-                    <span class="perks">{{ perkCount(plan) }}</span>
-                  </th>
-                  <td>
-                    <ui-status-chip
-                      [tone]="chips[plan.status].tone"
-                      [icon]="chips[plan.status].icon"
-                      >{{ chips[plan.status].label }}</ui-status-chip
-                    >
-                  </td>
-                  <td>
-                    {{ price(plan) }}
-                    <span class="source">{{ priceSource(plan) }}</span>
-                  </td>
-                  <td class="wide">{{ plan.discountPercent }}%</td>
-                  <td class="wide">
-                    <time [attr.datetime]="plan.updatedAt">{{ updated(plan.updatedAt) }}</time>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-        @if (moreFailed()) {
-          <ui-notice tone="error" heading="More tiers couldn’t be loaded">
-            <p>The tiers above are still here.</p>
-          </ui-notice>
-        }
-        @if (next()) {
-          <p class="more">
-            <button uiButton type="button" [busy]="loadingMore()" (click)="more()">
-              {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
-            </button>
-          </p>
-        }
-      }
-    }
+<cms-list-body [view]="view">
+  @if (rows()) {
+    <div class="scroll" role="region" aria-label="Membership tiers" tabindex="0">
+      <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
+        <caption class="sr-only">
+          Membership tiers, sorted by
+          {{
+            sort.description()
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" cmsSortHeader="tier">Tier</th>
+            <th scope="col" cmsSortHeader="status">Status</th>
+            <th scope="col" cmsSortHeader="price">Price</th>
+            <th scope="col" class="wide" cmsSortHeader="discount">Class discount</th>
+            <th scope="col" class="wide" cmsSortHeader="updated">Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (plan of items(); track plan.id; let index = $index) {
+            <tr>
+              <th scope="row">
+                <a [routerLink]="['/memberships', plan.id]" [attr.data-row]="index">{{
+                  plan.name
+                }}</a>
+                @if (plan.featured) {
+                  <span class="featured">Featured</span>
+                }
+                <span class="sub">{{ perkCount(plan) }}</span>
+              </th>
+              <td>
+                <ui-status-chip [tone]="chips[plan.status].tone" [icon]="chips[plan.status].icon">{{
+                  chips[plan.status].label
+                }}</ui-status-chip>
+              </td>
+              <td>
+                {{ price(plan) }}
+                <span class="sub">{{ priceSource(plan) }}</span>
+              </td>
+              <td class="wide">{{ plan.discountPercent }}%</td>
+              <td class="wide">
+                <time [attr.datetime]="plan.updatedAt">{{ updated(plan.updatedAt) }}</time>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
-}
+</cms-list-body>

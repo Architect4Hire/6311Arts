@@ -33,6 +33,7 @@ import {
   sessionInputsOf,
   sessionsEqual,
 } from '../session-grid/session-grid';
+import { centsToPrice, formatMoney, priceToCents } from '../../../shared/money';
 
 /**
  * One run as the editor holds it (ADR 0044): what staff type, as typed, plus what Square reports about the saved
@@ -207,24 +208,6 @@ export function runErrorOf(runs: readonly RunDraft[]): string | null {
 /** "Run 2 (Fall 2026)", or "Run 2" before it has a label: how a message and a screen reader name a card. */
 export function runName(run: RunDraft, index: number): string {
   return run.label.trim() ? `Run ${index + 1} (${run.label.trim()})` : `Run ${index + 1}`;
-}
-
-/** Amounts are integer cents with a currency (api-contract.md). */
-export function formatMoney(cents: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100);
-}
-
-/** Cents as the price field shows them: whole currency units, with cents only when there are any. */
-function centsToPrice(cents: number): string {
-  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
-}
-
-/** The price field as integer cents (api-contract.md), or `null` when it is empty or not a number. */
-function priceToCents(price: string): number | null {
-  const trimmed = price.trim();
-  if (trimmed === '') return null;
-  if (!/^\d+(?:\.\d{1,2})?$/.test(trimmed)) return null;
-  return Math.round(Number(trimmed) * 100);
 }
 
 /** The first `CLS-<offering>-<n>` no card is using. The API has the last word on whether it is free. */

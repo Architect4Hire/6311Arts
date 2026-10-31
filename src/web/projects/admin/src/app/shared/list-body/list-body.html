@@ -1,0 +1,57 @@
+@let list = view();
+@let deleted = list.deleted;
+@if (!deleted?.showing()) {
+  <cms-sort-picker [sort]="list.sort" />
+}
+
+<!-- Exists from the start, so the counts written into it later are read out. -->
+<p class="sr-only" aria-live="polite">{{ list.liveMessage() }}</p>
+
+<ng-content select="[listNotice]" />
+
+@if (deleted && deleted.showing()) {
+  <cms-deleted-records
+    [noun]="deleted.noun"
+    [plural]="deleted.plural"
+    [source]="deleted.source"
+    [search]="deleted.search()"
+  />
+} @else {
+  @switch (list.state()) {
+    @case ('loading') {
+      <p role="status">{{ list.loading }}</p>
+    }
+    @case ('failed') {
+      <ui-notice tone="error" [heading]="list.failed">
+        <p>6311arts may be unreachable for a moment.</p>
+        <button uiButton type="button" size="sm" (click)="list.retry()">Try again</button>
+      </ui-notice>
+    }
+    @default {
+      @if (list.empty()) {
+        <ui-empty-state [icon]="list.icon" [heading]="list.emptyHeading()">
+          <p>{{ list.emptyText() }}</p>
+        </ui-empty-state>
+      } @else if (list.refreshing()) {
+        <p role="status" class="refreshing">Updating the list…</p>
+      }
+    }
+  }
+}
+
+<ng-content />
+
+@if (list.rows()) {
+  @if (list.moreFailed()) {
+    <ui-notice tone="error" [heading]="'More ' + list.plural + ' couldn’t be loaded'">
+      <p>The {{ list.plural }} above are still here.</p>
+    </ui-notice>
+  }
+  @if (list.hasMore()) {
+    <p class="more">
+      <button uiButton type="button" [busy]="list.loadingMore()" (click)="list.more()">
+        {{ list.moreFailed() ? 'Try loading more again' : 'Load more' }}
+      </button>
+    </p>
+  }
+}

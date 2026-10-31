@@ -1,7 +1,6 @@
-import { HttpClient, HttpContext, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
-import { SUPPRESS_PROBLEM_TOAST } from '../core/http/http-context';
 import {
   Redirect,
   RedirectCreate,
@@ -11,6 +10,7 @@ import {
   decodeRedirect,
   decodeRedirectList,
 } from '../models/redirect';
+import { quiet, decoded } from './api';
 
 const BASE = '/api/v1/cms/redirects';
 
@@ -64,13 +64,4 @@ export class RedirectService {
       })
       .pipe(map(() => undefined));
   }
-}
-
-function quiet(): HttpContext {
-  return new HttpContext().set(SUPPRESS_PROBLEM_TOAST, true);
-}
-
-function decoded<T>(value: T | null, what: string): T {
-  if (value === null) throw new Error(`The API returned something that is not a ${what}.`);
-  return value;
 }

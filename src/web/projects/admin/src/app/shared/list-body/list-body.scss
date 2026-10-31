@@ -1,0 +1,11 @@
+:host {
+  display: grid;
+  gap: var(--space-5);
+}
+.more {
+  text-align: center;
+}
+.refreshing {
+  margin: 0;
+  color: var(--text-soft);
+}

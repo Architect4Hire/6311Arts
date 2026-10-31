@@ -78,7 +78,7 @@ describe('ArtistService', () => {
     const read = firstValueFrom(artists.get(ARTIST.id));
     http.expectOne(`${BASE}/${ARTIST.id}`).flush({ id: ARTIST.id });
 
-    await expect(read).rejects.toThrow('not a artist');
+    await expect(read).rejects.toThrow('not an artist');
   });
 });
 

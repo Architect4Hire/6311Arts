@@ -1,0 +1,32 @@
+@let list = view();
+@if (searchLabel(); as label) {
+  <ui-field [label]="label" class="search">
+    <input
+      #searchInput
+      uiControl
+      type="search"
+      name="search"
+      autocomplete="off"
+      [attr.maxlength]="searchMax()"
+      [value]="list.search()"
+      (input)="list.onSearch(searchInput.value)"
+    />
+  </ui-field>
+}
+<ng-content />
+@if (list.filters().length > 0) {
+  <div class="filters" role="group" [attr.aria-label]="filtersLabel()">
+    @for (option of list.filters(); track option.value) {
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        [variant]="list.filter() === option.value ? 'dark' : 'border-dark'"
+        [attr.aria-pressed]="list.filter() === option.value"
+        (click)="list.setFilter(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    }
+  </div>
+}

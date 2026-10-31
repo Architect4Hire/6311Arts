@@ -1,128 +1,6 @@
-<p class="back"><a routerLink="/shop">← All artwork</a></p>
-
-<!-- Exists from the start, so what is written into it later is read out. -->
-<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-@switch (status().kind) {
-  @case ('loading') {
-    <p role="status">Loading piece…</p>
-  }
-  @case ('load-failed') {
-    <ui-notice tone="error" heading="This piece couldn’t be loaded">
-      <p>6311arts may be unreachable for a moment.</p>
-      <button uiButton type="button" size="sm" (click)="load()">Try again</button>
-    </ui-notice>
-  }
-  @case ('not-found') {
-    <ui-notice tone="warning" heading="There’s no such piece">
-      <p>It may have been removed, or the link is wrong.</p>
-      <a uiButton size="sm" routerLink="/shop">Back to the shop</a>
-    </ui-notice>
-  }
-  @default {
-    <header class="title">
-      <h1 #heading class="cms-title" tabindex="-1">{{ item()?.title || 'New piece' }}</h1>
-      @if (item(); as piece) {
-        <ui-status-chip [tone]="chips[piece.status].tone" [icon]="chips[piece.status].icon">{{
-          chips[piece.status].label
-        }}</ui-status-chip>
-      }
-    </header>
-
-    @if (conflict(); as theirs) {
-      <div
-        #conflictBox
-        class="conflict"
-        role="region"
-        aria-label="Your changes and the saved version"
-        tabindex="-1"
-      >
-        <ui-notice tone="warning" heading="Someone else saved this piece while you were editing">
-          <table class="compare">
-            <caption class="sr-only">
-              Your changes and the saved version
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Field</th>
-                <th scope="col">Yours</th>
-                <th scope="col">Saved</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">Title</th>
-                <td>{{ draft().title || '—' }}</td>
-                <td>{{ theirs.title }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Web address</th>
-                <td>/shop/{{ draft().slug }}</td>
-                <td>/shop/{{ theirs.slug }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Artist</th>
-                <td>{{ draft().artist?.name || 'Nobody' }}</td>
-                <td>{{ theirs.artist?.name || 'Nobody' }}</td>
-              </tr>
-              <tr>
-                <th scope="row">SKU</th>
-                <td>{{ draft().sku || '—' }}</td>
-                <td>{{ theirs.sku }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Categories</th>
-                <td>{{ labels(draft().categories) }}</td>
-                <td>{{ labels(theirs.categories) }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Photographs</th>
-                <td>{{ draft().images.length }}</td>
-                <td>{{ theirs.imageMediaIds.length }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Description</th>
-                <td>{{ draft().description.length }} characters</td>
-                <td>{{ (theirs.description ?? '').length }} characters</td>
-              </tr>
-              @if (theirs.startingPriceEditable) {
-                <tr>
-                  <th scope="row">Starting price</th>
-                  <td>{{ draft().price ? '$' + draft().price : '—' }}</td>
-                  <td>{{ savedStartingPrice(theirs) }}</td>
-                </tr>
-              }
-              @if (theirs.startingStockEditable) {
-                <tr>
-                  <th scope="row">One of a kind</th>
-                  <td>{{ draft().oneOfAKind ? 'Yes' : 'No' }}</td>
-                  <td>{{ theirs.oneOfAKind ? 'Yes' : 'No' }}</td>
-                </tr>
-                <tr>
-                  <th scope="row">Starting count</th>
-                  <td>{{ draft().oneOfAKind ? 'One' : draft().quantity || '—' }}</td>
-                  <td>{{ theirs.oneOfAKind ? 'One' : (theirs.startingStockQuantity ?? '—') }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-          <div class="actions">
-            <button uiButton type="button" variant="dark" size="sm" (click)="keepMine(theirs)">
-              Keep my changes
-            </button>
-            <button uiButton type="button" size="sm" (click)="useTheirs(theirs)">
-              Use the saved version and discard mine
-            </button>
-          </div>
-        </ui-notice>
-      </div>
-    }
-
-    @if (formError(); as message) {
-      <ui-notice tone="error">{{ message }}</ui-notice>
-    }
-
-    <div class="layout">
+<cms-editor-frame [view]="view">
+  @if (loaded()) {
+    <div class="layout layout--main">
       <form class="form" novalidate (ngSubmit)="save()">
         <!-- Disabled while a save or command is in flight, so nothing typed then is overwritten by its answer. -->
         <fieldset class="fields" [disabled]="busy()">
@@ -134,7 +12,7 @@
               autocomplete="off"
               [attr.maxlength]="limits.titleMaxLength"
               [ngModel]="draft().title"
-              (ngModelChange)="setTitle($event)"
+              (ngModelChange)="rename('title', $event)"
             />
           </ui-field>
 
@@ -211,7 +89,7 @@
                   step="0.01"
                   [attr.max]="limits.startingPriceMaxCents / 100"
                   [ngModel]="draft().price"
-                  (ngModelChange)="setPrice($event)"
+                  (ngModelChange)="patch({ price: typed($event) })"
                 />
               </ui-field>
               @if (!draft().oneOfAKind) {
@@ -228,7 +106,7 @@
                     min="1"
                     [attr.max]="limits.startingStockMaxQuantity"
                     [ngModel]="draft().quantity"
-                    (ngModelChange)="setQuantity($event)"
+                    (ngModelChange)="patch({ quantity: typed($event) })"
                   />
                 </ui-field>
               }
@@ -281,22 +159,7 @@
           }
         </fieldset>
 
-        <div class="actions">
-          <button
-            uiButton
-            type="submit"
-            variant="dark"
-            [busy]="status().kind === 'saving'"
-            [disabled]="!dirty() || busy()"
-          >
-            {{ saveLabel() }}
-          </button>
-          @if (item() && dirty()) {
-            <button uiButton type="button" [disabled]="busy()" (click)="discard()">
-              Discard changes
-            </button>
-          }
-        </div>
+        <cms-save-actions [view]="view" />
       </form>
 
       <aside class="side">
@@ -325,4 +188,4 @@
       </aside>
     </div>
   }
-}
+</cms-editor-frame>

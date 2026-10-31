@@ -6,20 +6,28 @@
 
 import {
   CONTENT_CODES,
+  CONTENT_FIELDS,
   ContentCommand,
-  PUBLISH_STATUSES,
+  ContentRecord,
+  Credit,
+  credit,
+  decodeDeletedList,
+  DeletedList,
+  DeletedRow,
   PublishStatus,
   SLUG_MAX_LENGTH,
+  status,
 } from './content';
 import {
   ApiProblem,
+  CursorPage,
   decodeApiProblem,
-  fields,
-  isBoolean,
-  isNullableString,
-  isNumber,
-  isString,
-  oneOf,
+  decodeCursorPage,
+  decodeShape,
+  flag,
+  nullable,
+  optionalText,
+  text,
 } from './decode';
 
 // The lifecycle, its chips and the slug rules are shared by every content type (`content.ts`).
@@ -54,7 +62,9 @@ export function isWebsite(value: string): boolean {
   } catch {
     return false;
   }
-  return url.protocol === 'https:' && url.hostname !== '' && url.username === '' && url.password === '';
+  return (
+    url.protocol === 'https:' && url.hostname !== '' && url.username === '' && url.password === ''
+  );
 }
 
 /** A handle as staff may type it, in the one spelling the API keeps (`InstructorPolicy.NormalizeInstagram`). */
@@ -71,17 +81,10 @@ export function isInstagramHandle(value: string): boolean {
 export const INSTRUCTOR_CODES = CONTENT_CODES;
 
 /** The artist an instructor is linked to, as the Artists module describes them now. */
-export interface InstructorArtist {
-  readonly id: string;
-  readonly name: string;
-  readonly slug: string;
-  readonly status: PublishStatus;
-}
+export type InstructorArtist = Credit;
 
-export interface Instructor {
-  readonly id: string;
+export interface Instructor extends ContentRecord {
   readonly name: string;
-  readonly slug: string;
   readonly medium: string | null;
   readonly bio: string | null;
   readonly active: boolean;
@@ -92,18 +95,8 @@ export interface Instructor {
   readonly instagram: string | null;
   /** The artist they also are; `null` when not linked. */
   readonly artist: InstructorArtist | null;
-  readonly status: PublishStatus;
-  /** When it was first published; kept through an unpublish. */
-  readonly publishedAt: string | null;
-  readonly scheduledFor: string | null;
   /** It has been published, so changing its web address redirects the old one (ADR 0035). */
   readonly slugLocked: boolean;
-  readonly legacyWordPressId: number | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly updatedBy: string;
-  /** The row version, sent back as `If-Match`. */
-  readonly etag: string;
 }
 
 export interface InstructorSummary {
@@ -117,10 +110,7 @@ export interface InstructorSummary {
   readonly updatedAt: string;
 }
 
-export interface InstructorPage {
-  readonly items: readonly InstructorSummary[];
-  readonly nextCursor: string | null;
-}
+export type InstructorPage = CursorPage<InstructorSummary>;
 
 /** A `POST` body. A slug left out is made from the name. */
 export interface InstructorCreate {
@@ -162,117 +152,36 @@ export interface InstructorListQuery {
 /** The status commands, as their route segments. */
 export type InstructorCommand = ContentCommand;
 
-const isStatus = oneOf(PUBLISH_STATUSES);
-
-/**
- * An int64 (`legacyWordPressId`): the OpenAPI schema allows a number or a numeric string, so both are read. A
- * WordPress term id is far below 2^53, so a number holds it exactly. `undefined` when it is neither.
- */
-function decodeInt64(value: unknown): number | null | undefined {
-  if (value === null) return null;
-  if (isNumber(value) && Number.isSafeInteger(value)) return value;
-  if (typeof value === 'string' && /^-?(?:0|[1-9]\d*)$/.test(value)) {
-    const parsed = Number(value);
-    return Number.isSafeInteger(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-function decodeInstructorArtist(body: unknown): InstructorArtist | null | undefined {
-  if (body === null) return null;
-  const f = fields(body);
-  if (!f || !isString(f['id']) || !isString(f['name']) || !isString(f['slug']) || !isStatus(f['status'])) {
-    return undefined;
-  }
-  return { id: f['id'], name: f['name'], slug: f['slug'], status: f['status'] };
-}
-
 export function decodeInstructor(body: unknown): Instructor | null {
-  const f = fields(body);
-  if (!f) return null;
-  const legacyId = decodeInt64(f['legacyWordPressId']);
-  const artist = decodeInstructorArtist(f['artist']);
-  if (
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !isNullableString(f['medium']) ||
-    !isNullableString(f['bio']) ||
-    !isBoolean(f['active']) ||
-    !isNullableString(f['portraitMediaId']) ||
-    !isNullableString(f['website']) ||
-    !isNullableString(f['instagram']) ||
-    artist === undefined ||
-    !isStatus(f['status']) ||
-    !isNullableString(f['publishedAt']) ||
-    !isNullableString(f['scheduledFor']) ||
-    !isBoolean(f['slugLocked']) ||
-    legacyId === undefined ||
-    !isString(f['createdAt']) ||
-    !isString(f['updatedAt']) ||
-    !isString(f['updatedBy']) ||
-    !isString(f['etag'])
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    name: f['name'],
-    slug: f['slug'],
-    medium: f['medium'],
-    bio: f['bio'],
-    active: f['active'],
-    portraitMediaId: f['portraitMediaId'],
-    website: f['website'],
-    instagram: f['instagram'],
-    artist,
-    status: f['status'],
-    publishedAt: f['publishedAt'],
-    scheduledFor: f['scheduledFor'],
-    slugLocked: f['slugLocked'],
-    legacyWordPressId: legacyId,
-    createdAt: f['createdAt'],
-    updatedAt: f['updatedAt'],
-    updatedBy: f['updatedBy'],
-    etag: f['etag'],
-  };
+  return decodeShape(body, {
+    ...CONTENT_FIELDS,
+    name: text,
+    medium: optionalText,
+    bio: optionalText,
+    active: flag,
+    portraitMediaId: optionalText,
+    website: optionalText,
+    instagram: optionalText,
+    artist: nullable(credit),
+    slugLocked: flag,
+  });
 }
 
 export function decodeInstructorSummary(body: unknown): InstructorSummary | null {
-  const f = fields(body);
-  if (!f) return null;
-  if (
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !isNullableString(f['medium']) ||
-    !isBoolean(f['active']) ||
-    !isStatus(f['status']) ||
-    !isNullableString(f['portraitMediaId']) ||
-    !isString(f['updatedAt'])
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    name: f['name'],
-    slug: f['slug'],
-    medium: f['medium'],
-    active: f['active'],
-    status: f['status'],
-    portraitMediaId: f['portraitMediaId'],
-    updatedAt: f['updatedAt'],
-  };
+  return decodeShape(body, {
+    id: text,
+    name: text,
+    slug: text,
+    medium: optionalText,
+    active: flag,
+    status,
+    portraitMediaId: optionalText,
+    updatedAt: text,
+  });
 }
 
 export function decodeInstructorPage(body: unknown): InstructorPage | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeInstructorSummary);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as InstructorSummary[], nextCursor: f['nextCursor'] };
+  return decodeCursorPage(body, decodeInstructorSummary);
 }
 
 export type InstructorProblem = ApiProblem;
@@ -280,49 +189,10 @@ export type InstructorProblem = ApiProblem;
 export const decodeInstructorProblem = decodeApiProblem;
 
 /** One row of the Deleted view (`InstructorDeletedServiceModel`, ADR 0052). Admin only. */
-export interface InstructorDeletedRow {
-  readonly id: string;
-  readonly name: string;
-  readonly slug: string;
-  /** What it was when it was deleted, not where it is now. */
-  readonly status: PublishStatus;
-  readonly deletedAt: string;
-  /** The row version, sent back as `If-Match` when restoring it. */
-  readonly etag: string;
-}
+export type InstructorDeletedRow = DeletedRow<'name'>;
 
-export interface InstructorDeletedList {
-  readonly items: readonly InstructorDeletedRow[];
-  readonly nextCursor: string | null;
-}
-
-export function decodeInstructorDeletedRow(body: unknown): InstructorDeletedRow | null {
-  const f = fields(body);
-  if (
-    !f ||
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !isStatus(f['status']) ||
-    !isString(f['deletedAt']) ||
-    !isString(f['etag'])
-  ) {
-    return null;
-  }
-  return {
-    id: f['id'],
-    name: f['name'],
-    slug: f['slug'],
-    status: f['status'],
-    deletedAt: f['deletedAt'],
-    etag: f['etag'],
-  };
-}
+export type InstructorDeletedList = DeletedList<'name'>;
 
 export function decodeInstructorDeletedList(body: unknown): InstructorDeletedList | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeInstructorDeletedRow);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as InstructorDeletedRow[], nextCursor: f['nextCursor'] };
+  return decodeDeletedList(body, 'name');
 }

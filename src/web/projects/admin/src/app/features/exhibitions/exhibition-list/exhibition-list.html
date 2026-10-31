@@ -1,134 +1,59 @@
-<div class="head">
-  <div>
-    <h1 class="cms-title">Exhibitions</h1>
-    <p class="cms-lead">
-      Current and upcoming shows, with their dates, opening receptions and artists.
-    </p>
-  </div>
-  <a uiButton variant="dark" routerLink="/exhibitions/new">New exhibition</a>
-</div>
+<cms-list-head heading="Exhibitions" newLabel="New exhibition" newRoute="/exhibitions/new">
+  Current and upcoming shows, with their dates, opening receptions and artists.
+</cms-list-head>
 
-<div class="tools">
-  <ui-field label="Find an exhibition" class="tools__search">
-    <input
-      #searchInput
-      uiControl
-      type="search"
-      name="search"
-      autocomplete="off"
-      [attr.maxlength]="limits.searchMaxLength"
-      [value]="search()"
-      (input)="onSearch(searchInput.value)"
-    />
-  </ui-field>
-  <div class="filters" role="group" aria-label="Filter the list">
-    @for (option of filters(); track option.value) {
-      <button
-        uiButton
-        type="button"
-        size="sm"
-        [variant]="filter() === option.value ? 'dark' : 'border-dark'"
-        [attr.aria-pressed]="filter() === option.value"
-        (click)="filter.set(option.value)"
-      >
-        {{ option.label }}
-      </button>
-    }
-  </div>
-</div>
+<cms-list-tools
+  [view]="view"
+  searchLabel="Find an exhibition"
+  [searchMax]="limits.searchMaxLength"
+/>
 
-@if (!showingDeleted()) {
-  <cms-sort-picker [sort]="sort" />
-}
-
-<!-- Exists from the start, so the counts written into it later are read out. -->
-<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-@if (showingDeleted()) {
-  <cms-deleted-records
-    noun="exhibition"
-    plural="exhibitions"
-    [source]="deletedSource"
-    [search]="query()"
-  />
-} @else {
-  @switch (state()) {
-    @case ('loading') {
-      <p role="status">Loading exhibitions…</p>
-    }
-    @case ('failed') {
-      <ui-notice tone="error" heading="The exhibitions couldn’t be loaded">
-        <p>6311arts may be unreachable for a moment.</p>
-        <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
-      </ui-notice>
-    }
-    @default {
-      @if (items().length === 0) {
-        <ui-empty-state icon="frame" [heading]="emptyHeading()">
-          <p>{{ emptyText() }}</p>
-        </ui-empty-state>
-      } @else {
-        @if (refreshing()) {
-          <p role="status" class="refreshing">Updating the list…</p>
-        }
-        <div class="scroll" role="region" aria-label="Exhibitions" tabindex="0">
-          <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
-            <caption class="sr-only">
-              Exhibitions, sorted by
-              {{
-                sort.description()
-              }}
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col" cmsSortHeader="title">Title</th>
-                <th scope="col" cmsSortHeader="dates">Dates</th>
-                <th scope="col" cmsSortHeader="status">Status</th>
-                <th scope="col" class="wide" cmsSortHeader="artists">Artists</th>
-                <th scope="col" class="wide" cmsSortHeader="updated">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (exhibition of items(); track exhibition.id; let index = $index) {
-                <tr>
-                  <th scope="row">
-                    <a [routerLink]="['/exhibitions', exhibition.id]" [attr.data-row]="index">{{
-                      exhibition.title
-                    }}</a>
-                    <span class="slug">/exhibitions/{{ exhibition.slug }}</span>
-                  </th>
-                  <td>{{ dates(exhibition) }}</td>
-                  <td>
-                    <ui-status-chip
-                      [tone]="chips[exhibition.status].tone"
-                      [icon]="chips[exhibition.status].icon"
-                      >{{ chips[exhibition.status].label }}</ui-status-chip
-                    >
-                  </td>
-                  <td class="wide">{{ exhibition.artistCount }}</td>
-                  <td class="wide">
-                    <time [attr.datetime]="exhibition.updatedAt">{{
-                      updated(exhibition.updatedAt)
-                    }}</time>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-        @if (moreFailed()) {
-          <ui-notice tone="error" heading="More exhibitions couldn’t be loaded">
-            <p>The exhibitions above are still here.</p>
-          </ui-notice>
-        }
-        @if (next()) {
-          <p class="more">
-            <button uiButton type="button" [busy]="loadingMore()" (click)="more()">
-              {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
-            </button>
-          </p>
-        }
-      }
-    }
+<cms-list-body [view]="view">
+  @if (rows()) {
+    <div class="scroll" role="region" aria-label="Exhibitions" tabindex="0">
+      <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
+        <caption class="sr-only">
+          Exhibitions, sorted by
+          {{
+            sort.description()
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" cmsSortHeader="title">Title</th>
+            <th scope="col" cmsSortHeader="dates">Dates</th>
+            <th scope="col" cmsSortHeader="status">Status</th>
+            <th scope="col" class="wide" cmsSortHeader="artists">Artists</th>
+            <th scope="col" class="wide" cmsSortHeader="updated">Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (exhibition of items(); track exhibition.id; let index = $index) {
+            <tr>
+              <th scope="row">
+                <a [routerLink]="['/exhibitions', exhibition.id]" [attr.data-row]="index">{{
+                  exhibition.title
+                }}</a>
+                <span class="slug">/exhibitions/{{ exhibition.slug }}</span>
+              </th>
+              <td>{{ dates(exhibition) }}</td>
+              <td>
+                <ui-status-chip
+                  [tone]="chips[exhibition.status].tone"
+                  [icon]="chips[exhibition.status].icon"
+                  >{{ chips[exhibition.status].label }}</ui-status-chip
+                >
+              </td>
+              <td class="wide">{{ exhibition.artistCount }}</td>
+              <td class="wide">
+                <time [attr.datetime]="exhibition.updatedAt">{{
+                  updated(exhibition.updatedAt)
+                }}</time>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
-}
+</cms-list-body>

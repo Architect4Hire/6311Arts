@@ -17,7 +17,10 @@ const BASE = '/api/v1/cms/instructors';
 
 function setup() {
   TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
-  return { instructors: TestBed.inject(InstructorService), http: TestBed.inject(HttpTestingController) };
+  return {
+    instructors: TestBed.inject(InstructorService),
+    http: TestBed.inject(HttpTestingController),
+  };
 }
 
 describe('InstructorService', () => {
@@ -49,7 +52,9 @@ describe('InstructorService', () => {
     patch.flush(INSTRUCTOR);
     expect(await edit).toEqual(INSTRUCTOR);
 
-    const published = firstValueFrom(instructors.command(INSTRUCTOR.id, 'publish', INSTRUCTOR.etag));
+    const published = firstValueFrom(
+      instructors.command(INSTRUCTOR.id, 'publish', INSTRUCTOR.etag),
+    );
     const command = http.expectOne(`${BASE}/${INSTRUCTOR.id}/publish`);
     expect(command.request.method).toBe('POST');
     expect(command.request.headers.get('If-Match')).toBe(INSTRUCTOR.etag);
@@ -63,7 +68,7 @@ describe('InstructorService', () => {
     const read = firstValueFrom(instructors.get(INSTRUCTOR.id));
     http.expectOne(`${BASE}/${INSTRUCTOR.id}`).flush({ id: INSTRUCTOR.id });
 
-    await expect(read).rejects.toThrow('not a instructor');
+    await expect(read).rejects.toThrow('not an instructor');
   });
 });
 
@@ -73,14 +78,17 @@ describe('instructor models', () => {
     expect(decodeInstructor({ ...INSTRUCTOR, status: 'Live' })).toBeNull();
     expect(decodeInstructor({ ...INSTRUCTOR, slugLocked: 'no' })).toBeNull();
     expect(
-      decodeInstructorPage({ items: [toInstructorSummary(INSTRUCTOR)], nextCursor: 'x' })?.nextCursor,
+      decodeInstructorPage({ items: [toInstructorSummary(INSTRUCTOR)], nextCursor: 'x' })
+        ?.nextCursor,
     ).toBe('x');
     expect(decodeInstructorPage({ items: [{}], nextCursor: null })).toBeNull();
   });
 
   it('reads the int64 legacy id as a number or a numeric string, and nothing else', () => {
     expect(decodeInstructor({ ...INSTRUCTOR, legacyWordPressId: 42 })?.legacyWordPressId).toBe(42);
-    expect(decodeInstructor({ ...INSTRUCTOR, legacyWordPressId: '42' })?.legacyWordPressId).toBe(42);
+    expect(decodeInstructor({ ...INSTRUCTOR, legacyWordPressId: '42' })?.legacyWordPressId).toBe(
+      42,
+    );
     expect(decodeInstructor({ ...INSTRUCTOR, legacyWordPressId: '4x' })).toBeNull();
     expect(decodeInstructor({ ...INSTRUCTOR, legacyWordPressId: 1.5 })).toBeNull();
   });

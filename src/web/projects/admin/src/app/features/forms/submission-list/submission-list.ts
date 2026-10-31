@@ -1,17 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  Injector,
-  afterNextRender,
-  effect,
-  inject,
-  signal,
-  untracked,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
-import { UiButton, UiEmptyState, UiNotice, UiStatusChip } from '@6311/ui';
+import { UiStatusChip } from '@6311/ui';
 import {
   SUBMISSION_CHIPS,
   SubmissionListQuery,
@@ -20,43 +9,14 @@ import {
   wantLabel,
 } from '../../../models/forms';
 import { FormsService } from '../../../services/forms.service';
-import { FormsTabs, formatInstant } from '../forms-tabs/forms-tabs';
-import { ListSort, SortColumn } from '../../../shared/list-sort';
+import { ListBody } from '../../../shared/list-body/list-body';
+import { ListTools } from '../../../shared/list-tools/list-tools';
+import { RecordList } from '../../../shared/record-list';
 import { SortHeader } from '../../../shared/sort-header/sort-header';
-import { SortPicker } from '../../../shared/sort-picker/sort-picker';
 import { Sortable } from '../../../shared/sortable';
+import { FormsTabs, formatInstant } from '../forms-tabs/forms-tabs';
 
 type Filter = 'all' | SubmissionStatus;
-
-const FILTERS: readonly { readonly value: Filter; readonly label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'New', label: 'New' },
-  { value: 'Reviewed', label: 'Reviewed' },
-  { value: 'Accepted', label: 'Accepted' },
-  { value: 'Declined', label: 'Declined' },
-];
-
-const PAGE_SIZE = 50;
-
-function countOf(count: number, more: boolean): string {
-  if (count === 0) return 'No submissions to show.';
-  return `${more ? 'Showing the first ' : ''}${count} ${count === 1 ? 'submission' : 'submissions'}.`;
-}
-
-/** The columns a header sorts by (ADR 0062); the API names the same ones. */
-const SORTS: readonly SortColumn[] = [
-  { key: 'name', label: 'Name', kind: 'text' },
-  { key: 'email', label: 'Email', kind: 'text' },
-  { key: 'wants', label: 'Wants to', kind: 'text' },
-  {
-    key: 'status',
-    label: 'Status',
-    kind: 'status',
-    words: { asc: 'new first', desc: 'declined first' },
-  },
-  { key: 'pictures', label: 'Pictures', kind: 'number' },
-  { key: 'received', label: 'Received', kind: 'date' },
-];
 
 /**
  * The artist submissions inbox (`/admin/forms/submissions`), newest first: who wrote, what they want, how far
@@ -64,115 +24,59 @@ const SORTS: readonly SortColumn[] = [
  */
 @Component({
   selector: 'cms-submission-list',
-  imports: [
-    Sortable,
-    SortHeader,
-    SortPicker,
-    FormsTabs,
-    RouterLink,
-    UiButton,
-    UiEmptyState,
-    UiNotice,
-    UiStatusChip,
-  ],
+  imports: [FormsTabs, ListBody, ListTools, RouterLink, SortHeader, Sortable, UiStatusChip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './submission-list.html',
   styleUrl: './submission-list.scss',
 })
-export class SubmissionList {
-  private readonly forms = inject(FormsService);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly injector = inject(Injector);
-  private generation = 0;
-
-  protected readonly filters = FILTERS;
+export class SubmissionList extends RecordList<SubmissionSummary, Filter, SubmissionListQuery> {
   protected readonly chips = SUBMISSION_CHIPS;
-  protected readonly filter = signal<Filter>('all');
-  protected readonly state = signal<'loading' | 'failed' | 'ready'>('loading');
-  protected readonly items = signal<readonly SubmissionSummary[]>([]);
-  protected readonly next = signal<string | null>(null);
-  protected readonly loadingMore = signal(false);
-  protected readonly moreFailed = signal(false);
-  protected readonly refreshing = signal(false);
-  protected readonly liveMessage = signal('');
-
-  /** The order, kept in the address bar as ?sort= so Back returns to it. */
-  protected readonly sort = new ListSort(SORTS, { column: 'received', direction: 'desc' });
+  protected readonly received = formatInstant;
 
   constructor() {
-    effect(() => {
-      this.filter();
-      this.sort.current();
-      untracked(() => void this.reload());
+    const forms = inject(FormsService);
+    super({
+      list: (query) => forms.listSubmissions(query),
+      noun: 'submission',
+      plural: 'submissions',
+      icon: 'mail',
+      filters: [
+        { value: 'all', label: 'All' },
+        { value: 'New', label: 'New' },
+        { value: 'Reviewed', label: 'Reviewed' },
+        { value: 'Accepted', label: 'Accepted' },
+        { value: 'Declined', label: 'Declined' },
+      ],
+      filter: 'all',
+      filterQuery: (filter) => (filter === 'all' ? {} : { status: filter }),
+      sorts: [
+        { key: 'name', label: 'Name', kind: 'text' },
+        { key: 'email', label: 'Email', kind: 'text' },
+        { key: 'wants', label: 'Wants to', kind: 'text' },
+        {
+          key: 'status',
+          label: 'Status',
+          kind: 'status',
+          words: { asc: 'new first', desc: 'declined first' },
+        },
+        { key: 'pictures', label: 'Pictures', kind: 'number' },
+        { key: 'received', label: 'Received', kind: 'date' },
+      ],
+      sort: { column: 'received', direction: 'desc' },
     });
+  }
+
+  protected emptyHeading(): string {
+    return this.filter() === 'all' ? 'No submissions yet' : 'Nothing to show here';
+  }
+
+  protected emptyText(): string {
+    return this.filter() === 'all'
+      ? 'Artists’ submissions from the site’s form arrive here.'
+      : 'No submissions have this status.';
   }
 
   protected wants(submission: SubmissionSummary): string {
     return submission.wants.length === 0 ? '—' : submission.wants.map(wantLabel).join(', ');
-  }
-
-  protected received(iso: string): string {
-    return formatInstant(iso);
-  }
-
-  async reload(): Promise<void> {
-    const generation = ++this.generation;
-    const showing = this.state() === 'ready' && this.items().length > 0;
-    if (showing) this.refreshing.set(true);
-    else this.state.set('loading');
-    this.moreFailed.set(false);
-    try {
-      const page = await firstValueFrom(this.forms.listSubmissions(this.currentQuery()));
-      if (generation !== this.generation) return;
-      this.items.set(page.items);
-      this.next.set(page.nextCursor);
-      this.state.set('ready');
-      this.liveMessage.set(
-        this.sort.announcement() + countOf(page.items.length, page.nextCursor !== null),
-      );
-    } catch {
-      if (generation === this.generation) this.state.set('failed');
-    } finally {
-      if (generation === this.generation) this.refreshing.set(false);
-    }
-  }
-
-  protected async more(): Promise<void> {
-    const cursor = this.next();
-    if (!cursor || this.loadingMore()) return;
-
-    const generation = this.generation;
-    this.loadingMore.set(true);
-    this.moreFailed.set(false);
-    try {
-      const page = await firstValueFrom(
-        this.forms.listSubmissions({ ...this.currentQuery(), cursor }),
-      );
-      if (generation !== this.generation) return;
-      const firstNew = this.items().length;
-      this.items.update((items) => [...items, ...page.items]);
-      this.next.set(page.nextCursor);
-      this.liveMessage.set(
-        `${page.items.length} more ${page.items.length === 1 ? 'submission' : 'submissions'} loaded.`,
-      );
-      afterNextRender(
-        () =>
-          this.host.nativeElement.querySelector<HTMLElement>(`a[data-row="${firstNew}"]`)?.focus(),
-        { injector: this.injector },
-      );
-    } catch {
-      if (generation === this.generation) this.moreFailed.set(true);
-    } finally {
-      this.loadingMore.set(false);
-    }
-  }
-
-  private currentQuery(): SubmissionListQuery {
-    const filter = this.filter();
-    return {
-      sort: this.sort.param(),
-      limit: PAGE_SIZE,
-      ...(filter === 'all' ? {} : { status: filter }),
-    };
   }
 }

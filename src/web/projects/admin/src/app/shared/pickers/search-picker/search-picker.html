@@ -1,0 +1,44 @@
+@let say = words();
+<section class="panel" [attr.aria-labelledby]="headingId">
+  <h2 [id]="headingId" class="panel__title">{{ heading() }}</h2>
+
+  <!-- Exists from the start, so what is written into it later is read out. -->
+  <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+
+  @if (picked(); as named) {
+    <p class="credited">
+      <span class="credited__name">{{ named.name }}</span>
+      @if (named.status !== 'Published') {
+        <ui-status-chip [tone]="chips[named.status].tone" [icon]="chips[named.status].icon">{{
+          chips[named.status].label
+        }}</ui-status-chip>
+      }
+    </p>
+    <div class="actions">
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        [attr.data-action]="'remove-' + say.noun"
+        [disabled]="disabled()"
+        [attr.aria-label]="'Remove ' + named.name"
+        (click)="clear()"
+      >
+        Remove
+      </button>
+    </div>
+  } @else {
+    <p class="panel__empty">{{ say.none }}</p>
+  }
+
+  <cms-record-search
+    [words]="say"
+    [search]="search()"
+    [label]="label()"
+    [exclude]="named()"
+    [disabled]="disabled()"
+    [error]="error()"
+    [maxLength]="searchMaxLength()"
+    (chosen)="choose($event)"
+  />
+</section>

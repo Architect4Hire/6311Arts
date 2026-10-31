@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,15 +16,10 @@ import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { UiButton, UiNotice, UiStatusChip } from '@6311/ui';
 import { HasUnsavedChanges, warnBeforeUnload } from '../../../core/guards/unsaved-changes.guard';
-import {
-  ContactMessage,
-  FORMS_CODES,
-  FormsProblem,
-  HANDLED_CHIPS,
-  decodeFormsProblem,
-} from '../../../models/forms';
+import { ContactMessage, FORMS_CODES, HANDLED_CHIPS } from '../../../models/forms';
 import { FormsService } from '../../../services/forms.service';
 import { formatInstant } from '../forms-tabs/forms-tabs';
+import { messageOf, problemOf } from '../../../core/http/problem-message';
 
 type Status =
   | { readonly kind: 'loading' }
@@ -145,7 +139,10 @@ export class MessageDetail implements HasUnsavedChanges {
     }
 
     this.status.set({ kind: 'ready' });
-    this.show('error', messageOf(problem, 'The message couldn’t be marked. Try again.'));
+    this.show(
+      'error',
+      messageOf(problem, 'The message couldn’t be marked. Try again.', { edits: false }),
+    );
   }
 
   private show(tone: 'error' | 'warning', text: string): void {
@@ -158,16 +155,4 @@ export class MessageDetail implements HasUnsavedChanges {
   private announce(message: string): void {
     this.liveMessage.update((current) => (current === message ? `${message} ` : message));
   }
-}
-
-function problemOf(error: unknown): FormsProblem | null {
-  return error instanceof HttpErrorResponse ? decodeFormsProblem(error.error, error.status) : null;
-}
-
-function messageOf(problem: FormsProblem | null, fallback: string): string {
-  if (problem === null || problem.status === 0) return 'Can’t reach 6311arts. Try again.';
-  const message = problem.detail ?? fallback;
-  return problem.status >= 500 && problem.correlationId !== null
-    ? `${message} Quote reference ${problem.correlationId} if you report it.`
-    : message;
 }

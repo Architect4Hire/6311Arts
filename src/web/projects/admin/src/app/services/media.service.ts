@@ -1,6 +1,5 @@
 import {
   HttpClient,
-  HttpContext,
   HttpEvent,
   HttpEventType,
   HttpHeaders,
@@ -8,7 +7,6 @@ import {
 } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, filter, map } from 'rxjs';
-import { SUPPRESS_PROBLEM_TOAST } from '../core/http/http-context';
 import {
   CompressionPreset,
   MediaAsset,
@@ -18,6 +16,7 @@ import {
   decodeAsset,
   decodePage,
 } from '../models/media';
+import { quiet, decoded } from './api';
 
 const BASE = '/api/v1/cms/media';
 
@@ -104,13 +103,4 @@ export class MediaService {
       })
       .pipe(map(() => undefined));
   }
-}
-
-function quiet(): HttpContext {
-  return new HttpContext().set(SUPPRESS_PROBLEM_TOAST, true);
-}
-
-function decoded<T>(value: T | null, what: string): T {
-  if (value === null) throw new Error(`The API returned something that is not a ${what}.`);
-  return value;
 }

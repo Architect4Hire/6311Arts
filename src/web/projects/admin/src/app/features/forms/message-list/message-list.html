@@ -1,104 +1,47 @@
 <cms-forms-tabs />
 
-<div class="filters" role="group" aria-label="Filter by handled">
-  @for (option of filters; track option.value) {
-    <button
-      uiButton
-      type="button"
-      size="sm"
-      [variant]="filter() === option.value ? 'dark' : 'border-dark'"
-      [attr.aria-pressed]="filter() === option.value"
-      (click)="filter.set(option.value)"
-    >
-      {{ option.label }}
-    </button>
-  }
-</div>
+<cms-list-tools [view]="view" filtersLabel="Filter by handled" />
 
-<cms-sort-picker [sort]="sort" />
-
-<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-@switch (state()) {
-  @case ('loading') {
-    <p role="status">Loading messages…</p>
-  }
-  @case ('failed') {
-    <ui-notice tone="error" heading="The messages couldn’t be loaded">
-      <p>6311arts may be unreachable for a moment.</p>
-      <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
-    </ui-notice>
-  }
-  @default {
-    @if (items().length === 0) {
-      <ui-empty-state
-        icon="chat"
-        [heading]="filter() === 'all' ? 'No messages yet' : 'Nothing to show here'"
-      >
-        <p>
+<cms-list-body [view]="view">
+  @if (rows()) {
+    <div class="scroll" role="region" aria-label="Messages" tabindex="0">
+      <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
+        <caption class="sr-only">
+          Contact messages, sorted by
           {{
-            filter() === 'all'
-              ? 'Messages from the site’s contact form arrive here.'
-              : filter() === 'unhandled'
-                ? 'Every message has been handled.'
-                : 'No message has been marked handled yet.'
+            sort.description()
           }}
-        </p>
-      </ui-empty-state>
-    } @else {
-      <div class="scroll" role="region" aria-label="Messages" tabindex="0">
-        <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
-          <caption class="sr-only">
-            Contact messages, sorted by
-            {{
-              sort.description()
-            }}
-          </caption>
-          <thead>
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" cmsSortHeader="from">From</th>
+            <th scope="col" class="wide" cmsSortHeader="message">Message</th>
+            <th scope="col" cmsSortHeader="status">Status</th>
+            <th scope="col" class="wide" cmsSortHeader="received">Received</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (message of items(); track message.id; let index = $index) {
             <tr>
-              <th scope="col" cmsSortHeader="from">From</th>
-              <th scope="col" class="wide" cmsSortHeader="message">Message</th>
-              <th scope="col" cmsSortHeader="status">Status</th>
-              <th scope="col" class="wide" cmsSortHeader="received">Received</th>
+              <th scope="row">
+                <a [routerLink]="['/forms/messages', message.id]" [attr.data-row]="index">{{
+                  message.name
+                }}</a>
+                <span class="email">{{ message.email }}</span>
+              </th>
+              <td class="wide text">{{ excerpt(message.message) }}</td>
+              <td>
+                <ui-status-chip [tone]="chipOf(message).tone" [icon]="chipOf(message).icon">{{
+                  chipOf(message).label
+                }}</ui-status-chip>
+              </td>
+              <td class="wide">
+                <time [attr.datetime]="message.receivedAt">{{ received(message.receivedAt) }}</time>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            @for (message of items(); track message.id; let index = $index) {
-              <tr>
-                <th scope="row">
-                  <a [routerLink]="['/forms/messages', message.id]" [attr.data-row]="index">{{
-                    message.name
-                  }}</a>
-                  <span class="email">{{ message.email }}</span>
-                </th>
-                <td class="wide text">{{ excerpt(message.message) }}</td>
-                <td>
-                  <ui-status-chip [tone]="chipOf(message).tone" [icon]="chipOf(message).icon">{{
-                    chipOf(message).label
-                  }}</ui-status-chip>
-                </td>
-                <td class="wide">
-                  <time [attr.datetime]="message.receivedAt">{{
-                    received(message.receivedAt)
-                  }}</time>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-      @if (moreFailed()) {
-        <ui-notice tone="error" heading="More messages couldn’t be loaded">
-          <p>The messages above are still here.</p>
-        </ui-notice>
-      }
-      @if (next()) {
-        <p class="more">
-          <button uiButton type="button" [busy]="loadingMore()" (click)="more()">
-            {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
-          </button>
-        </p>
-      }
-    }
+          }
+        </tbody>
+      </table>
+    </div>
   }
-}
+</cms-list-body>

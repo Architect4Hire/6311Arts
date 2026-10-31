@@ -6,7 +6,9 @@
 
 import {
   ApiProblem,
+  CursorPage,
   decodeApiProblem,
+  decodeCursorPage,
   fields,
   isNullableNumber,
   isNullableString,
@@ -110,10 +112,7 @@ export interface MediaAssetSummary {
   readonly thumbnailUrl: string | null;
 }
 
-export interface MediaPage {
-  readonly items: readonly MediaAssetSummary[];
-  readonly nextCursor: string | null;
-}
+export type MediaPage = CursorPage<MediaAssetSummary>;
 
 /** A `PATCH` body: a field left out is unchanged; an empty string clears it. */
 export interface MediaAssetUpdate {
@@ -228,11 +227,7 @@ export function decodeSummary(body: unknown): MediaAssetSummary | null {
 }
 
 export function decodePage(body: unknown): MediaPage | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeSummary);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as MediaAssetSummary[], nextCursor: f['nextCursor'] };
+  return decodeCursorPage(body, decodeSummary);
 }
 
 /** "1.2 MB", "840 KB": sizes as people read them. */

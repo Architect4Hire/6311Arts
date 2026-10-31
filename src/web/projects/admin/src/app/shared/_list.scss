@@ -1,0 +1,31 @@
+// A list screen's own table: `@use` it from the list's stylesheet. <cms-list-head>, <cms-list-tools> and
+// <cms-list-body> style everything around the table.
+:host {
+  display: grid;
+  gap: var(--space-5);
+}
+.scroll {
+  overflow-x: auto;
+}
+// A second, quieter line under a row's name: its address (`.slug`), its kind or details (`.sub`).
+.slug,
+.sub {
+  display: block;
+  font-size: var(--fs-small);
+  font-weight: normal;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+// Shown only on a phone, under the name, for a `.wide` column that goes there.
+.narrow {
+  display: none;
+  font-weight: normal;
+}
+@media (max-width: 600px) {
+  .wide {
+    display: none;
+  }
+  .narrow {
+    display: block;
+  }
+}

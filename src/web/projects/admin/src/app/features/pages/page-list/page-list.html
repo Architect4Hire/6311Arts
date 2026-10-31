@@ -1,129 +1,53 @@
-<div class="head">
-  <div>
-    <h1 class="cms-title">Pages</h1>
-    <p class="cms-lead">Standalone pages such as the privacy policy and the terms.</p>
-  </div>
-  <a uiButton variant="dark" routerLink="/pages/new">New page</a>
-</div>
+<cms-list-head heading="Pages" newLabel="New page" newRoute="/pages/new">
+  Standalone pages such as the privacy policy and the terms.
+</cms-list-head>
 
-<div class="tools">
-  <ui-field label="Find a page" class="tools__search">
-    <input
-      #searchInput
-      uiControl
-      type="search"
-      name="search"
-      autocomplete="off"
-      [attr.maxlength]="limits.searchMaxLength"
-      [value]="search()"
-      (input)="onSearch(searchInput.value)"
-    />
-  </ui-field>
-  <div class="filters" role="group" aria-label="Filter the list">
-    @for (option of filters(); track option.value) {
-      <button
-        uiButton
-        type="button"
-        size="sm"
-        [variant]="filter() === option.value ? 'dark' : 'border-dark'"
-        [attr.aria-pressed]="filter() === option.value"
-        (click)="setFilter(option.value)"
-      >
-        {{ option.label }}
-      </button>
-    }
-  </div>
-</div>
+<cms-list-tools [view]="view" searchLabel="Find a page" [searchMax]="limits.searchMaxLength" />
 
-@if (!showingDeleted()) {
-  <cms-sort-picker [sort]="sort" />
-}
-
-<!-- Exists from the start, so the counts written into it later are read out. -->
-<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-@if (justDeleted(); as title) {
-  <ui-notice tone="success" heading="Page deleted">
-    <p>
-      “{{ title }}” is no longer on the site or in this list. You can bring it back under “Deleted”,
-      as a draft.
-    </p>
-  </ui-notice>
-}
-@if (showingDeleted()) {
-  <cms-deleted-records noun="page" plural="pages" [source]="deletedSource" [search]="query()" />
-} @else {
-  @switch (state()) {
-    @case ('loading') {
-      <p role="status">Loading pages…</p>
-    }
-    @case ('failed') {
-      <ui-notice tone="error" heading="The pages couldn’t be loaded">
-        <p>6311arts may be unreachable for a moment.</p>
-        <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
-      </ui-notice>
-    }
-    @default {
-      @if (items().length === 0) {
-        <ui-empty-state icon="info" [heading]="emptyHeading()">
-          <p>{{ emptyText() }}</p>
-        </ui-empty-state>
-      } @else {
-        @if (refreshing()) {
-          <p role="status" class="refreshing">Updating the list…</p>
-        }
-        <div class="scroll" role="region" aria-label="Pages" tabindex="0">
-          <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
-            <caption class="sr-only">
-              Pages, sorted by
-              {{
-                sort.description()
-              }}
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col" cmsSortHeader="title">Title</th>
-                <th scope="col" cmsSortHeader="status">Status</th>
-                <th scope="col" class="wide" cmsSortHeader="updated">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (page of items(); track page.id; let index = $index) {
-                <tr>
-                  <th scope="row">
-                    <a [routerLink]="['/pages', page.id]" [attr.data-row]="index">{{
-                      page.title
-                    }}</a>
-                    <span class="slug">/{{ page.slug }}</span>
-                  </th>
-                  <td>
-                    <ui-status-chip
-                      [tone]="chips[page.status].tone"
-                      [icon]="chips[page.status].icon"
-                      >{{ chips[page.status].label }}</ui-status-chip
-                    >
-                  </td>
-                  <td class="wide">
-                    <time [attr.datetime]="page.updatedAt">{{ updated(page.updatedAt) }}</time>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-        @if (moreFailed()) {
-          <ui-notice tone="error" heading="More pages couldn’t be loaded">
-            <p>The pages above are still here.</p>
-          </ui-notice>
-        }
-        @if (next()) {
-          <p class="more">
-            <button uiButton type="button" [busy]="loadingMore()" (click)="more()">
-              {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
-            </button>
-          </p>
-        }
-      }
-    }
+<cms-list-body [view]="view">
+  @if (justDeleted(); as title) {
+    <ui-notice listNotice tone="success" heading="Page deleted">
+      <p>
+        “{{ title }}” is no longer on the site or in this list. You can bring it back under
+        “Deleted”, as a draft.
+      </p>
+    </ui-notice>
   }
-}
+  @if (rows()) {
+    <div class="scroll" role="region" aria-label="Pages" tabindex="0">
+      <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
+        <caption class="sr-only">
+          Pages, sorted by
+          {{
+            sort.description()
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" cmsSortHeader="title">Title</th>
+            <th scope="col" cmsSortHeader="status">Status</th>
+            <th scope="col" class="wide" cmsSortHeader="updated">Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (page of items(); track page.id; let index = $index) {
+            <tr>
+              <th scope="row">
+                <a [routerLink]="['/pages', page.id]" [attr.data-row]="index">{{ page.title }}</a>
+                <span class="slug">/{{ page.slug }}</span>
+              </th>
+              <td>
+                <ui-status-chip [tone]="chips[page.status].tone" [icon]="chips[page.status].icon">{{
+                  chips[page.status].label
+                }}</ui-status-chip>
+              </td>
+              <td class="wide">
+                <time [attr.datetime]="page.updatedAt">{{ updated(page.updatedAt) }}</time>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</cms-list-body>

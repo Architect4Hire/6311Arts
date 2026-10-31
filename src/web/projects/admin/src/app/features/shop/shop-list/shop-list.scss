@@ -1,50 +1,7 @@
-:host {
-  display: grid;
-  gap: var(--space-5);
-}
-.head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  align-items: flex-end;
-  justify-content: space-between;
-}
-.head__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
+@use '../../../shared/list';
 
-.cms-lead {
-  margin-bottom: 0;
-}
-.tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  align-items: flex-end;
-}
-.tools__search {
-  flex: 1 1 240px;
-  max-width: 420px;
-}
-.tools__category {
+.category {
   flex: 0 1 200px;
-}
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.scroll {
-  overflow-x: auto;
-}
-.meta {
-  display: block;
-  font-size: var(--fs-small);
-  font-weight: normal;
-  color: var(--text-soft);
-  overflow-wrap: anywhere;
 }
 .square {
   display: block;
@@ -52,18 +9,4 @@
 }
 .square--none {
   color: var(--text-soft);
-}
-.more {
-  text-align: center;
-}
-.refreshing {
-  margin: 0;
-  color: var(--text-soft);
-}
-/* On a phone the date goes; Square's figures stay, because they are what staff scan for, and the table
-   scrolls. */
-@media (max-width: 600px) {
-  .wide {
-    display: none;
-  }
 }

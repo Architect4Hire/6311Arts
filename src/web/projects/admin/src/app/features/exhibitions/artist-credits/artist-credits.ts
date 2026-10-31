@@ -1,7 +1,6 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  DestroyRef,
   ElementRef,
   Injector,
   afterNextRender,
@@ -10,32 +9,41 @@ import {
   input,
   model,
   signal,
+  viewChild,
 } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
-import { UiButton, UiControl, UiField, UiStatusChip } from '@6311/ui';
-import { ArtistSummary } from '../../../models/artist';
+import { UiButton, UiStatusChip } from '@6311/ui';
 import { STATUS_CHIPS } from '../../../models/content';
 import { CreditedArtist, EXHIBITION_LIMITS } from '../../../models/exhibition';
 import { ArtistService } from '../../../services/artist.service';
+import {
+  PickerCandidate,
+  RecordSearch,
+  RecordSearchFn,
+  SearchWords,
+} from '../../../shared/pickers/record-search/record-search';
 
-/** How long typing pauses before the roster is searched. */
-const SEARCH_DELAY_MS = 300;
-
-/** How many matches to offer at once: enough to find a name, few enough to read. */
-const RESULT_LIMIT = 8;
-
-type SearchState = 'idle' | 'searching' | 'failed' | 'ready';
+const WORDS: SearchWords = {
+  noun: 'artist',
+  plural: 'artists',
+  verb: 'Add',
+  done: 'credited',
+  where: 'the roster',
+  offered: 'to add',
+  noMatch: 'No artist on the roster to add matches',
+  field: 'artistSearch',
+};
 
 /**
  * An exhibition's credits (`<cms-artist-credits [(credits)]>`): the artists it shows, in the order the site lists
- * them, and a search of the roster to add more. Archived artists and those already credited are not offered.
+ * them, and a `<cms-record-search>` of the roster to add more. Archived artists and those already credited are not
+ * offered.
  *
  * Ordering is by "Move up" / "Move down" buttons rather than drag and drop, so it works the same by keyboard, by
  * screen reader and by touch. Each button names its artist, and focus stays on the artist that moved.
  */
 @Component({
   selector: 'cms-artist-credits',
-  imports: [UiButton, UiControl, UiField, UiStatusChip],
+  imports: [RecordSearch, UiButton, UiStatusChip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './artist-credits.html',
   styleUrl: './artist-credits.scss',
@@ -50,84 +58,32 @@ export class ArtistCredits {
   private readonly artists = inject(ArtistService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
-  private searchTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Bumped by every search, so an answer to an older one is dropped. */
-  private generation = 0;
+  private readonly finder = viewChild(RecordSearch);
 
   protected readonly chips = STATUS_CHIPS;
   protected readonly limits = EXHIBITION_LIMITS;
-  protected readonly search = signal('');
-  /** The search as last sent. */
-  protected readonly query = signal('');
-  protected readonly state = signal<SearchState>('idle');
-  private readonly results = signal<readonly ArtistSummary[]>([]);
+  protected readonly words = WORDS;
+  protected readonly search: RecordSearchFn = (search, limit) =>
+    this.artists.list({ search, limit });
   protected readonly liveMessage = signal('');
 
   protected readonly full = computed(
     () => this.credits().length >= EXHIBITION_LIMITS.artistsMaxCount,
   );
 
-  /** Matches that can be added: not archived, and not credited already. */
-  protected readonly offers = computed(() => {
-    const credited = new Set(this.credits().map((artist) => artist.id));
-    return this.results().filter(
-      (artist) => artist.status !== 'Archived' && !credited.has(artist.id),
-    );
-  });
+  /** The artists credited already, which are not offered again. */
+  protected readonly credited = computed(() => this.credits().map((artist) => artist.id));
 
-  constructor() {
-    inject(DestroyRef).onDestroy(() => this.clearSearchTimer());
-  }
-
-  protected onSearch(value: string): void {
-    this.search.set(value);
-    this.clearSearchTimer();
-    if (value.trim() === '') {
-      this.generation++;
-      this.query.set('');
-      this.state.set('idle');
-      return;
-    }
-    this.searchTimer = setTimeout(() => {
-      this.searchTimer = null;
-      this.query.set(value.trim());
-      void this.runSearch();
-    }, SEARCH_DELAY_MS);
-  }
-
-  protected async runSearch(): Promise<void> {
-    const search = this.query();
-    if (search === '') return;
-    const generation = ++this.generation;
-    this.state.set('searching');
-    try {
-      const page = await firstValueFrom(this.artists.list({ search, limit: RESULT_LIMIT }));
-      if (generation !== this.generation) return;
-      this.results.set(page.items);
-      this.state.set('ready');
-      const count = this.offers().length;
-      this.liveMessage.set(
-        count === 0
-          ? 'No artists to add match.'
-          : `${count} ${count === 1 ? 'artist' : 'artists'} to add.`,
-      );
-    } catch {
-      if (generation === this.generation) this.state.set('failed');
-    }
-  }
-
-  protected add(artist: ArtistSummary): void {
+  protected add(artist: PickerCandidate): void {
     if (this.full() || this.credits().some((credit) => credit.id === artist.id)) return;
     this.credits.update((credits) => [
       ...credits,
-      { id: artist.id, name: artist.name, slug: artist.slug, status: artist.status },
+      { id: artist.id, name: artist.name, slug: artist.slug ?? '', status: artist.status },
     ]);
     const count = this.credits().length;
     this.liveMessage.set(`${artist.name} added, ${ordinal(count)} of ${count}.`);
     // The button pressed has gone with its offer; the search is where adding continues.
-    this.focusAfterRender(() =>
-      this.host.nativeElement.querySelector<HTMLElement>('[name="artistSearch"]'),
-    );
+    this.focusAfterRender(() => this.finder());
   }
 
   protected move(index: number, by: -1 | 1): void {
@@ -166,17 +122,12 @@ export class ArtistCredits {
         ? this.host.nativeElement.querySelector<HTMLElement>(
             `[data-credit="${CSS.escape(neighbour.id)}"] [data-action="remove"]`,
           )
-        : this.host.nativeElement.querySelector<HTMLElement>('[name="artistSearch"]'),
+        : this.finder(),
     );
   }
 
-  private focusAfterRender(target: () => HTMLElement | null): void {
+  private focusAfterRender(target: () => { focus(): void } | null | undefined): void {
     afterNextRender(() => target()?.focus(), { injector: this.injector });
-  }
-
-  private clearSearchTimer(): void {
-    if (this.searchTimer !== null) clearTimeout(this.searchTimer);
-    this.searchTimer = null;
   }
 }
 

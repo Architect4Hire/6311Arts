@@ -1,116 +1,6 @@
-<p class="back"><a routerLink="/memberships">← All tiers</a></p>
-
-<!-- Exists from the start, so what is written into it later is read out. -->
-<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-@switch (status().kind) {
-  @case ('loading') {
-    <p role="status">Loading tier…</p>
-  }
-  @case ('load-failed') {
-    <ui-notice tone="error" heading="This tier couldn’t be loaded">
-      <p>6311arts may be unreachable for a moment.</p>
-      <button uiButton type="button" size="sm" (click)="load()">Try again</button>
-    </ui-notice>
-  }
-  @case ('not-found') {
-    <ui-notice tone="warning" heading="There’s no such tier">
-      <p>It may have been removed, or the link is wrong.</p>
-      <a uiButton size="sm" routerLink="/memberships">Back to the tiers</a>
-    </ui-notice>
-  }
-  @default {
-    <header class="title">
-      <h1 #heading class="cms-title" tabindex="-1">{{ plan()?.name || 'New tier' }}</h1>
-      @if (plan(); as plan) {
-        <ui-status-chip [tone]="chips[plan.status].tone" [icon]="chips[plan.status].icon">{{
-          chips[plan.status].label
-        }}</ui-status-chip>
-      }
-    </header>
-
-    @if (conflict(); as theirs) {
-      <div
-        #conflictBox
-        class="conflict"
-        role="region"
-        aria-label="Your changes and the saved version"
-        tabindex="-1"
-      >
-        <ui-notice tone="warning" heading="Someone else saved this tier while you were editing">
-          <table class="compare">
-            <caption class="sr-only">
-              Your changes and the saved version
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Field</th>
-                <th scope="col">Yours</th>
-                <th scope="col">Saved</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">Name</th>
-                <td>{{ draft().name || '—' }}</td>
-                <td>{{ theirs.name }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Perks</th>
-                <td>{{ perkSummary(cleanPerks(draft().perks)) }}</td>
-                <td>{{ perkSummary(theirs.perks) }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Class discount</th>
-                <td>{{ draft().discount || '0' }}%</td>
-                <td>{{ theirs.discountPercent }}%</td>
-              </tr>
-              <tr>
-                <th scope="row">Order</th>
-                <td>{{ draft().order || '—' }}</td>
-                <td>{{ theirs.displayOrder }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Key</th>
-                <td>{{ draft().slug || '—' }}</td>
-                <td>{{ theirs.slug }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Featured</th>
-                <td>{{ draft().featured ? 'Yes' : 'No' }}</td>
-                <td>{{ theirs.featured ? 'Yes' : 'No' }}</td>
-              </tr>
-              @if (theirs.startingPriceEditable) {
-                <tr>
-                  <th scope="row">Starting price</th>
-                  <td>{{ draft().price ? '$' + draft().price : '—' }}</td>
-                  <td>{{ savedStartingPrice(theirs) }}</td>
-                </tr>
-                <tr>
-                  <th scope="row">Billing cadence</th>
-                  <td>{{ draft().cadence }}</td>
-                  <td>{{ theirs.startingCadence }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-          <div class="actions">
-            <button uiButton type="button" variant="dark" size="sm" (click)="keepMine(theirs)">
-              Keep my changes
-            </button>
-            <button uiButton type="button" size="sm" (click)="useTheirs(theirs)">
-              Use the saved version and discard mine
-            </button>
-          </div>
-        </ui-notice>
-      </div>
-    }
-
-    @if (formError(); as message) {
-      <ui-notice tone="error">{{ message }}</ui-notice>
-    }
-
-    <div class="layout">
+<cms-editor-frame [view]="view">
+  @if (loaded()) {
+    <div class="layout layout--main">
       <form class="form" novalidate (ngSubmit)="save()">
         <fieldset class="fields" [disabled]="busy()">
           <legend class="sr-only">Tier details</legend>
@@ -138,7 +28,7 @@
               spellcheck="false"
               [attr.maxlength]="limits.slugMaxLength"
               [ngModel]="draft().slug"
-              (ngModelChange)="setSlug($event)"
+              (ngModelChange)="patch({ slug: $event, slugEdited: true })"
             />
           </ui-field>
 
@@ -156,7 +46,7 @@
                 min="0"
                 [attr.max]="limits.discountMaxPercent"
                 [ngModel]="draft().discount"
-                (ngModelChange)="setNumber('discount', $event)"
+                (ngModelChange)="patch({ discount: typed($event) })"
               />
             </ui-field>
             <ui-field
@@ -172,7 +62,7 @@
                 min="1"
                 [attr.max]="limits.displayOrderMax"
                 [ngModel]="draft().order"
-                (ngModelChange)="setNumber('order', $event)"
+                (ngModelChange)="patch({ order: typed($event) })"
               />
             </ui-field>
           </div>
@@ -280,7 +170,7 @@
                   step="0.01"
                   [attr.max]="limits.startingPriceMaxCents / 100"
                   [ngModel]="draft().price"
-                  (ngModelChange)="setNumber('price', $event)"
+                  (ngModelChange)="patch({ price: typed($event) })"
                 />
               </ui-field>
               <ui-field
@@ -310,22 +200,7 @@
           }
         </fieldset>
 
-        <div class="actions">
-          <button
-            uiButton
-            type="submit"
-            variant="dark"
-            [busy]="status().kind === 'saving'"
-            [disabled]="!dirty() || busy()"
-          >
-            {{ saveLabel() }}
-          </button>
-          @if (plan() && dirty()) {
-            <button uiButton type="button" [disabled]="busy()" (click)="discard()">
-              Discard changes
-            </button>
-          }
-        </div>
+        <cms-save-actions [view]="view" />
       </form>
 
       @if (plan(); as plan) {
@@ -340,4 +215,4 @@
       }
     </div>
   }
-}
+</cms-editor-frame>

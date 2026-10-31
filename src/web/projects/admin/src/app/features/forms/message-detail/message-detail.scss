@@ -1,46 +1,8 @@
+@use '../../../shared/screen';
+@use '../../../shared/pairs';
+
 :host {
-  display: grid;
-  gap: var(--space-5);
   max-width: 720px;
-}
-.back {
-  margin: 0;
-  font-size: var(--fs-small);
-}
-.title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: center;
-}
-.title .cms-title {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.cms-title:focus {
-  outline: none;
-}
-.pairs {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-}
-.pair {
-  display: grid;
-  gap: var(--space-1) var(--space-4);
-}
-@media (min-width: 600px) {
-  .pair {
-    grid-template-columns: minmax(100px, 160px) minmax(0, 1fr);
-  }
-}
-.pair dt {
-  color: var(--muted);
-  font-size: var(--fs-small);
-}
-.pair dd {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 .body {
   display: grid;
@@ -59,9 +21,4 @@
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }

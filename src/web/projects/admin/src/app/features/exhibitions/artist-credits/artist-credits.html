@@ -73,61 +73,14 @@
       An exhibition credits at most {{ limits.artistsMaxCount }} artists. Remove one to add another.
     </p>
   } @else {
-    <ui-field
+    <cms-record-search
+      [words]="words"
+      [search]="search"
       label="Add an artist"
-      hint="Search the roster by name. Archived artists can’t be credited."
-    >
-      <input
-        #searchInput
-        uiControl
-        type="search"
-        name="artistSearch"
-        autocomplete="off"
-        [attr.maxlength]="limits.searchMaxLength"
-        [disabled]="disabled()"
-        [value]="search()"
-        (input)="onSearch(searchInput.value)"
-      />
-    </ui-field>
-
-    @switch (state()) {
-      @case ('searching') {
-        <p role="status" class="panel__hint">Searching the roster…</p>
-      }
-      @case ('failed') {
-        <p class="error">
-          The roster couldn’t be searched.
-          <button uiButton type="button" size="sm" (click)="runSearch()">Try again</button>
-        </p>
-      }
-      @case ('ready') {
-        @if (offers().length === 0) {
-          <p class="panel__hint">No artist on the roster to add matches “{{ query() }}”.</p>
-        } @else {
-          <ul class="offers" aria-label="Matching artists">
-            @for (artist of offers(); track artist.id) {
-              <li class="offer">
-                <button
-                  uiButton
-                  type="button"
-                  size="sm"
-                  [disabled]="disabled()"
-                  [attr.aria-label]="'Add ' + artist.name"
-                  (click)="add(artist)"
-                >
-                  Add
-                </button>
-                <span>
-                  {{ artist.name }}
-                  @if (artist.medium) {
-                    <span class="offer__medium">{{ artist.medium }}</span>
-                  }
-                </span>
-              </li>
-            }
-          </ul>
-        }
-      }
-    }
+      [exclude]="credited()"
+      [disabled]="disabled()"
+      [maxLength]="limits.searchMaxLength"
+      (chosen)="add($event)"
+    />
   }
 </section>

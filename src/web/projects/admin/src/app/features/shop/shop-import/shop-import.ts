@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -22,13 +21,12 @@ import {
   ShopImportPreview,
   ShopImportResult,
   ShopImportRow,
-  ShopProblem,
   categoryLabel,
-  decodeShopProblem,
   shopImportFileName,
   shopImportTemplate,
 } from '../../../models/shop';
 import { ShopService } from '../../../services/shop.service';
+import { MessageOptions, messageOf, problemOf } from '../../../core/http/problem-message';
 
 type Phase = 'idle' | 'checking' | 'ready' | 'importing' | 'done';
 
@@ -37,6 +35,12 @@ interface FileProblem {
   readonly heading: string;
   readonly reasons: readonly string[];
 }
+
+/** How a refused import is put: nothing here is lost by a dropped connection, and a 403 names what was refused. */
+const REFUSALS: MessageOptions = {
+  edits: false,
+  forbidden: 'You don’t have permission to import artwork.',
+};
 
 const PRICE = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -224,7 +228,7 @@ export class ShopImport implements HasUnsavedChanges {
         return;
       }
 
-      this.importError.set(messageOf(problem, 'Nothing was imported. Try again.'));
+      this.importError.set(messageOf(problem, 'Nothing was imported. Try again.', REFUSALS));
       this.phase.set('ready');
       this.focus('.import-error');
     }
@@ -276,7 +280,7 @@ export class ShopImport implements HasUnsavedChanges {
         'This file can’t be imported',
         reasons && reasons.length > 0
           ? reasons
-          : [messageOf(problem, 'The file couldn’t be checked. Try again.')],
+          : [messageOf(problem, 'The file couldn’t be checked. Try again.', REFUSALS)],
       );
     }
   }
@@ -321,17 +325,4 @@ function newIdempotencyKey(): string {
   return [...crypto.getRandomValues(new Uint8Array(16))]
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('');
-}
-
-function problemOf(error: unknown): ShopProblem | null {
-  return error instanceof HttpErrorResponse ? decodeShopProblem(error.error, error.status) : null;
-}
-
-function messageOf(problem: ShopProblem | null, fallback: string): string {
-  if (problem === null || problem.status === 0) return 'Can’t reach 6311arts. Try again.';
-  if (problem.status === 403) return 'You don’t have permission to import artwork.';
-  const message = problem.detail ?? fallback;
-  return problem.status >= 500 && problem.correlationId !== null
-    ? `${message} Quote reference ${problem.correlationId} if you report it.`
-    : message;
 }

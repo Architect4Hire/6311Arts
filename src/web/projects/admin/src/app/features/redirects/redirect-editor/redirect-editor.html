@@ -1,89 +1,5 @@
-<p class="back"><a routerLink="/redirects">← All redirects</a></p>
-
-<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-@switch (status().kind) {
-  @case ('loading') {
-    <p role="status">Loading redirect…</p>
-  }
-  @case ('load-failed') {
-    <ui-notice tone="error" heading="This redirect couldn’t be loaded">
-      <p>6311arts may be unreachable for a moment.</p>
-      <button uiButton type="button" size="sm" (click)="load()">Try again</button>
-    </ui-notice>
-  }
-  @case ('not-found') {
-    <ui-notice tone="warning" heading="There’s no such redirect">
-      <p>It may have been deleted, or the link is wrong.</p>
-      <a uiButton size="sm" routerLink="/redirects">Back to the redirects</a>
-    </ui-notice>
-  }
-  @default {
-    <header class="title">
-      <h1 #heading class="cms-title" tabindex="-1">
-        {{ redirect()?.fromPath || 'New redirect' }}
-      </h1>
-      @if (redirect(); as redirect) {
-        <ui-status-chip [tone]="chips[redirect.source].tone" [icon]="chips[redirect.source].icon">{{
-          chips[redirect.source].label
-        }}</ui-status-chip>
-      }
-    </header>
-
-    @if (conflict(); as theirs) {
-      <div
-        #conflictBox
-        class="conflict"
-        role="region"
-        aria-label="Your changes and the saved version"
-        tabindex="-1"
-      >
-        <ui-notice tone="warning" heading="Someone else saved this redirect while you were editing">
-          <table class="compare">
-            <caption class="sr-only">
-              Your changes and the saved version
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Field</th>
-                <th scope="col">Yours</th>
-                <th scope="col">Saved</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">Old address</th>
-                <td>{{ draft().fromPath || '—' }}</td>
-                <td>{{ theirs.fromPath }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Leads to</th>
-                <td>{{ draft().toPath || '—' }}</td>
-                <td>{{ theirs.toPath }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Type</th>
-                <td>{{ kind(draft().statusCode) }}</td>
-                <td>{{ kind(theirs.statusCode) }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="actions">
-            <button uiButton type="button" variant="dark" size="sm" (click)="keepMine(theirs)">
-              Keep my changes
-            </button>
-            <button uiButton type="button" size="sm" (click)="useTheirs(theirs)">
-              Use the saved version and discard mine
-            </button>
-          </div>
-        </ui-notice>
-      </div>
-    }
-
-    @if (formError(); as message) {
-      <ui-notice tone="error">{{ message }}</ui-notice>
-    }
-
+<cms-editor-frame [view]="view">
+  @if (loaded()) {
     <form class="form" novalidate (ngSubmit)="save()">
       <fieldset class="fields" [disabled]="busy()">
         <legend class="sr-only">Redirect</legend>
@@ -139,32 +55,13 @@
       </fieldset>
 
       <div class="actions">
-        <button
-          uiButton
-          type="submit"
-          variant="dark"
-          [busy]="status().kind === 'saving'"
-          [disabled]="!dirty() || busy()"
-        >
-          {{ saveLabel() }}
-        </button>
-        @if (redirect() && dirty()) {
-          <button uiButton type="button" [disabled]="busy()" (click)="discard()">
-            Discard changes
-          </button>
-        }
+        <cms-save-actions [view]="view" />
         @if (redirect()) {
-          <button
-            uiButton
-            type="button"
-            [busy]="status().kind === 'deleting'"
-            [disabled]="busy()"
-            (click)="remove()"
-          >
+          <button uiButton type="button" [busy]="deleting()" [disabled]="busy()" (click)="remove()">
             Delete redirect
           </button>
         }
       </div>
     </form>
   }
-}
+</cms-editor-frame>

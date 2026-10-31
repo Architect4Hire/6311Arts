@@ -1,25 +1,13 @@
+@use '../../../shared/screen';
+@use '../../../shared/pairs';
+
 :host {
-  display: grid;
-  gap: var(--space-5);
+  --term-min: 120px;
+  --term-max: 200px;
 }
-.back,
 .meta {
   margin: 0;
   font-size: var(--fs-small);
-}
-.title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: center;
-}
-.title .cms-title {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.cms-title:focus,
-.conflict:focus {
-  outline: none;
 }
 .layout {
   display: grid;
@@ -53,28 +41,6 @@
   font-weight: var(--fw-heavy);
   letter-spacing: var(--track-label);
   text-transform: uppercase;
-}
-.pairs {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-}
-.pair {
-  display: grid;
-  gap: var(--space-1) var(--space-4);
-}
-@media (min-width: 600px) {
-  .pair {
-    grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
-  }
-}
-.pair dt {
-  color: var(--muted);
-  font-size: var(--fs-small);
-}
-.pair dd {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 .multiline {
   white-space: pre-wrap;
@@ -123,22 +89,4 @@
   margin: 0;
   padding: 0;
   border: 0;
-}
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.compare {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-small);
-}
-.compare th,
-.compare td {
-  padding: var(--space-1) var(--space-2);
-  border-bottom: var(--border-thin) solid var(--line);
-  text-align: left;
-  vertical-align: top;
-  overflow-wrap: anywhere;
 }

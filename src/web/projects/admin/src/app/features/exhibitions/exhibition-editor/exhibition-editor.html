@@ -1,173 +1,173 @@
 <cms-editor-frame [view]="view">
   @if (loaded()) {
-      <div class="layout">
-        <form class="form" novalidate (ngSubmit)="save()">
-          <!-- Disabled while a save or command is in flight, so nothing typed then is overwritten by its answer. -->
-          <fieldset class="fields" [disabled]="busy()">
-            <legend class="sr-only">Exhibition details</legend>
-            <ui-field label="Title" [required]="true" [error]="errors().title ?? null">
+    <div class="layout">
+      <form class="form" novalidate (ngSubmit)="save()">
+        <!-- Disabled while a save or command is in flight, so nothing typed then is overwritten by its answer. -->
+        <fieldset class="fields" [disabled]="busy()">
+          <legend class="sr-only">Exhibition details</legend>
+          <ui-field label="Title" [required]="true" [error]="errors().title ?? null">
+            <input
+              uiControl
+              name="title"
+              autocomplete="off"
+              [attr.maxlength]="limits.titleMaxLength"
+              [ngModel]="draft().title"
+              (ngModelChange)="rename('title', $event)"
+            />
+          </ui-field>
+
+          <ui-field label="Web address" [hint]="slugHint()" [error]="errors().slug ?? null">
+            <!-- Made from the title on create, never typed: the field only shows it. -->
+            <input uiControl name="slug" disabled [value]="draft().slug" />
+          </ui-field>
+
+          <div class="pair">
+            <ui-field label="First day" [required]="true" [error]="errors().startDate ?? null">
               <input
                 uiControl
-                name="title"
-                autocomplete="off"
-                [attr.maxlength]="limits.titleMaxLength"
-                [ngModel]="draft().title"
-                (ngModelChange)="rename('title', $event)"
+                type="date"
+                name="startDate"
+                [ngModel]="draft().startDate"
+                (ngModelChange)="patch({ startDate: $event })"
               />
             </ui-field>
-
-            <ui-field label="Web address" [hint]="slugHint()" [error]="errors().slug ?? null">
-              <!-- Made from the title on create, never typed: the field only shows it. -->
-              <input uiControl name="slug" disabled [value]="draft().slug" />
+            <ui-field label="Last day" [required]="true" [error]="errors().endDate ?? null">
+              <input
+                uiControl
+                type="date"
+                name="endDate"
+                [attr.min]="draft().startDate || null"
+                [ngModel]="draft().endDate"
+                (ngModelChange)="patch({ endDate: $event })"
+              />
             </ui-field>
+          </div>
 
-            <div class="pair">
-              <ui-field label="First day" [required]="true" [error]="errors().startDate ?? null">
+          <ui-field
+            label="Summary"
+            hint="One or two sentences for the exhibition’s card and search results. Needed to publish."
+            [error]="errors().summary ?? null"
+          >
+            <textarea
+              uiControl
+              name="summary"
+              rows="3"
+              [attr.maxlength]="limits.summaryMaxLength"
+              [ngModel]="draft().summary"
+              (ngModelChange)="patch({ summary: $event })"
+            ></textarea>
+          </ui-field>
+
+          <ui-field
+            label="About the show"
+            hint="Plain text. Leave a blank line between paragraphs."
+            [error]="errors().body ?? null"
+          >
+            <textarea
+              uiControl
+              name="body"
+              rows="8"
+              [attr.maxlength]="limits.bodyMaxLength"
+              [ngModel]="draft().body"
+              (ngModelChange)="patch({ body: $event })"
+            ></textarea>
+          </ui-field>
+
+          <fieldset class="reception">
+            <legend class="reception__legend">Opening reception</legend>
+            <label class="check">
+              <input
+                #receptionBox
+                type="checkbox"
+                name="hasReception"
+                [checked]="draft().reception !== null"
+                (change)="toggleReception(receptionBox.checked)"
+              />
+              <span>
+                <span class="check__label">This show has an opening reception</span>
+                <span class="check__hint">Times are at the gallery, in Chicago time.</span>
+              </span>
+            </label>
+            @if (draft().reception; as reception) {
+              <ui-field label="Day" [required]="true" [error]="errors().receptionDate ?? null">
                 <input
                   uiControl
                   type="date"
-                  name="startDate"
-                  [ngModel]="draft().startDate"
-                  (ngModelChange)="patch({ startDate: $event })"
+                  name="receptionDate"
+                  [ngModel]="reception.date"
+                  (ngModelChange)="patchReception({ date: $event }, 'receptionDate')"
                 />
               </ui-field>
-              <ui-field label="Last day" [required]="true" [error]="errors().endDate ?? null">
-                <input
-                  uiControl
-                  type="date"
-                  name="endDate"
-                  [attr.min]="draft().startDate || null"
-                  [ngModel]="draft().endDate"
-                  (ngModelChange)="patch({ endDate: $event })"
-                />
-              </ui-field>
-            </div>
-
-            <ui-field
-              label="Summary"
-              hint="One or two sentences for the exhibition’s card and search results. Needed to publish."
-              [error]="errors().summary ?? null"
-            >
-              <textarea
-                uiControl
-                name="summary"
-                rows="3"
-                [attr.maxlength]="limits.summaryMaxLength"
-                [ngModel]="draft().summary"
-                (ngModelChange)="patch({ summary: $event })"
-              ></textarea>
-            </ui-field>
-
-            <ui-field
-              label="About the show"
-              hint="Plain text. Leave a blank line between paragraphs."
-              [error]="errors().body ?? null"
-            >
-              <textarea
-                uiControl
-                name="body"
-                rows="8"
-                [attr.maxlength]="limits.bodyMaxLength"
-                [ngModel]="draft().body"
-                (ngModelChange)="patch({ body: $event })"
-              ></textarea>
-            </ui-field>
-
-            <fieldset class="reception">
-              <legend class="reception__legend">Opening reception</legend>
-              <label class="check">
-                <input
-                  #receptionBox
-                  type="checkbox"
-                  name="hasReception"
-                  [checked]="draft().reception !== null"
-                  (change)="toggleReception(receptionBox.checked)"
-                />
-                <span>
-                  <span class="check__label">This show has an opening reception</span>
-                  <span class="check__hint">Times are at the gallery, in Chicago time.</span>
-                </span>
-              </label>
-              @if (draft().reception; as reception) {
-                <ui-field label="Day" [required]="true" [error]="errors().receptionDate ?? null">
-                  <input
-                    uiControl
-                    type="date"
-                    name="receptionDate"
-                    [ngModel]="reception.date"
-                    (ngModelChange)="patchReception({ date: $event }, 'receptionDate')"
-                  />
-                </ui-field>
-                <div class="pair">
-                  <ui-field
-                    label="Starts"
-                    [required]="true"
-                    [error]="errors().receptionStarts ?? null"
-                  >
-                    <input
-                      uiControl
-                      type="time"
-                      name="receptionStarts"
-                      [ngModel]="reception.starts"
-                      (ngModelChange)="patchReception({ starts: $event }, 'receptionStarts')"
-                    />
-                  </ui-field>
-                  <ui-field label="Ends" [required]="true" [error]="errors().receptionEnds ?? null">
-                    <input
-                      uiControl
-                      type="time"
-                      name="receptionEnds"
-                      [ngModel]="reception.ends"
-                      (ngModelChange)="patchReception({ ends: $event }, 'receptionEnds')"
-                    />
-                  </ui-field>
-                </div>
+              <div class="pair">
                 <ui-field
-                  label="Note"
-                  hint="A line under the time, such as “Free and open to all”."
-                  [error]="errors().receptionNote ?? null"
+                  label="Starts"
+                  [required]="true"
+                  [error]="errors().receptionStarts ?? null"
                 >
                   <input
                     uiControl
-                    name="receptionNote"
-                    [attr.maxlength]="limits.receptionNoteMaxLength"
-                    [ngModel]="reception.note"
-                    (ngModelChange)="patchReception({ note: $event }, 'receptionNote')"
+                    type="time"
+                    name="receptionStarts"
+                    [ngModel]="reception.starts"
+                    (ngModelChange)="patchReception({ starts: $event }, 'receptionStarts')"
                   />
                 </ui-field>
-              }
-            </fieldset>
+                <ui-field label="Ends" [required]="true" [error]="errors().receptionEnds ?? null">
+                  <input
+                    uiControl
+                    type="time"
+                    name="receptionEnds"
+                    [ngModel]="reception.ends"
+                    (ngModelChange)="patchReception({ ends: $event }, 'receptionEnds')"
+                  />
+                </ui-field>
+              </div>
+              <ui-field
+                label="Note"
+                hint="A line under the time, such as “Free and open to all”."
+                [error]="errors().receptionNote ?? null"
+              >
+                <input
+                  uiControl
+                  name="receptionNote"
+                  [attr.maxlength]="limits.receptionNoteMaxLength"
+                  [ngModel]="reception.note"
+                  (ngModelChange)="patchReception({ note: $event }, 'receptionNote')"
+                />
+              </ui-field>
+            }
           </fieldset>
+        </fieldset>
 
-          <cms-save-actions [view]="view" />
-        </form>
+        <cms-save-actions [view]="view" />
+      </form>
 
-        <aside class="side">
-          <cms-image-panel
-            heading="Hero image"
-            noun="exhibition"
-            [mediaId]="draft().heroMediaId"
-            (mediaIdChange)="patch({ heroMediaId: $event })"
-            [error]="errors().heroMediaId ?? null"
-            [disabled]="busy()"
+      <aside class="side">
+        <cms-image-panel
+          heading="Hero image"
+          noun="exhibition"
+          [mediaId]="draft().heroMediaId"
+          (mediaIdChange)="patch({ heroMediaId: $event })"
+          [error]="errors().heroMediaId ?? null"
+          [disabled]="busy()"
+        />
+
+        <cms-artist-credits
+          [credits]="draft().artists"
+          (creditsChange)="patch({ artists: $event })"
+          [disabled]="busy()"
+          [error]="errors().artistIds ?? null"
+        />
+
+        @if (exhibition(); as exhibition) {
+          <cms-publishing-panel
+            [lifecycle]="lifecycle"
+            [record]="exhibition"
+            [dirty]="dirty()"
+            [busy]="busy()"
           />
-
-          <cms-artist-credits
-            [credits]="draft().artists"
-            (creditsChange)="patch({ artists: $event })"
-            [disabled]="busy()"
-            [error]="errors().artistIds ?? null"
-          />
-
-          @if (exhibition(); as exhibition) {
-            <cms-publishing-panel
-              [lifecycle]="lifecycle"
-              [record]="exhibition"
-              [dirty]="dirty()"
-              [busy]="busy()"
-            />
-          }
-        </aside>
-      </div>
+        }
+      </aside>
+    </div>
   }
 </cms-editor-frame>

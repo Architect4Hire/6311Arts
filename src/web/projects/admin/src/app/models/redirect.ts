@@ -6,9 +6,10 @@
 import { IconName, StatusTone } from '@6311/ui';
 import {
   ApiProblem,
+  CursorPage,
   decodeApiProblem,
+  decodeCursorPage,
   fields,
-  isNullableString,
   isNumber,
   isString,
   oneOf,
@@ -30,7 +31,10 @@ export type RedirectSource = (typeof REDIRECT_SOURCES)[number];
 
 /** How each source reads: a word, never colour alone (design-system.md). */
 export const SOURCE_CHIPS: Readonly<
-  Record<RedirectSource, { readonly label: string; readonly icon: IconName; readonly tone: StatusTone }>
+  Record<
+    RedirectSource,
+    { readonly label: string; readonly icon: IconName; readonly tone: StatusTone }
+  >
 > = {
   Manual: { label: 'Added by staff', icon: 'people', tone: 'neutral' },
   Imported: { label: 'From the old site', icon: 'arrow', tone: 'neutral' },
@@ -62,10 +66,7 @@ export interface Redirect {
   readonly etag: string;
 }
 
-export interface RedirectList {
-  readonly items: readonly Redirect[];
-  readonly nextCursor: string | null;
-}
+export type RedirectList = CursorPage<Redirect>;
 
 export interface RedirectCreate {
   readonly fromPath: string;
@@ -137,11 +138,7 @@ export function decodeRedirect(body: unknown): Redirect | null {
 }
 
 export function decodeRedirectList(body: unknown): RedirectList | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeRedirect);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as Redirect[], nextCursor: f['nextCursor'] };
+  return decodeCursorPage(body, decodeRedirect);
 }
 
 export type RedirectProblem = ApiProblem;

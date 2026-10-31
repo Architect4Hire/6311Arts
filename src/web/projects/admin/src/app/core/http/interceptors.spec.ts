@@ -130,7 +130,9 @@ describe('CMS HTTP interceptors', () => {
     it('never retries, and so never sends the token, to another origin', async () => {
       const { client, http } = setup();
       const saved = firstValueFrom(client.post('https://elsewhere.example/api', {}));
-      http.expectOne('https://elsewhere.example/api').flush(refusal, { status: 400, statusText: 'Bad Request' });
+      http
+        .expectOne('https://elsewhere.example/api')
+        .flush(refusal, { status: 400, statusText: 'Bad Request' });
 
       await expect(saved).rejects.toMatchObject({ status: 400 });
       http.expectNone('/bff/antiforgery');
@@ -156,16 +158,14 @@ describe('CMS HTTP interceptors', () => {
     it('toasts a ProblemDetails title with its correlation id', async () => {
       const { client, http, toasts } = setup();
       const loaded = firstValueFrom(client.get('/api/v1/cms/pages'));
-      http
-        .expectOne('/api/v1/cms/pages')
-        .flush(
-          {
-            title: 'The request could not be completed.',
-            code: 'gateway.upstream_failed',
-            correlationId: 'abc123',
-          },
-          { status: 502, statusText: 'Bad Gateway' },
-        );
+      http.expectOne('/api/v1/cms/pages').flush(
+        {
+          title: 'The request could not be completed.',
+          code: 'gateway.upstream_failed',
+          correlationId: 'abc123',
+        },
+        { status: 502, statusText: 'Bad Gateway' },
+      );
 
       await expect(loaded).rejects.toMatchObject({ status: 502 });
       expect(toasts.toasts()).toEqual([
@@ -209,7 +209,11 @@ describe('CMS HTTP interceptors', () => {
     it('sends a 401 to sign-in even when the caller suppressed toasts', async () => {
       const { client, http, assign } = setup();
       const saved = firstValueFrom(
-        client.patch('/api/v1/cms/pages/1', {}, { context: new HttpContext().set(SUPPRESS_PROBLEM_TOAST, true) }),
+        client.patch(
+          '/api/v1/cms/pages/1',
+          {},
+          { context: new HttpContext().set(SUPPRESS_PROBLEM_TOAST, true) },
+        ),
       );
       http
         .expectOne('/api/v1/cms/pages/1')
@@ -222,9 +226,13 @@ describe('CMS HTTP interceptors', () => {
     it('leaves the session probe’s 401 to the guard', async () => {
       const { client, http, assign } = setup();
       const probe = firstValueFrom(
-        client.get('/bff/session', { context: new HttpContext().set(SESSION_PROBE, true).set(SUPPRESS_PROBLEM_TOAST, true) }),
+        client.get('/bff/session', {
+          context: new HttpContext().set(SESSION_PROBE, true).set(SUPPRESS_PROBLEM_TOAST, true),
+        }),
       );
-      http.expectOne('/bff/session').flush({ title: 'Sign in to continue.' }, { status: 401, statusText: 'Unauthorized' });
+      http
+        .expectOne('/bff/session')
+        .flush({ title: 'Sign in to continue.' }, { status: 401, statusText: 'Unauthorized' });
 
       await expect(probe).rejects.toMatchObject({ status: 401 });
       expect(assign).not.toHaveBeenCalled();

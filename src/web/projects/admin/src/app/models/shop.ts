@@ -8,20 +8,32 @@
 
 import {
   CONTENT_CODES,
+  CONTENT_FIELDS,
   ContentCommand,
-  PUBLISH_STATUSES,
+  ContentRecord,
+  Credit,
+  credit,
+  decodeDeletedList,
+  DeletedList,
+  DeletedRow,
   PublishStatus,
   SLUG_MAX_LENGTH,
+  status,
 } from './content';
 import {
   ApiProblem,
+  CursorPage,
   decodeApiProblem,
-  fields,
-  isBoolean,
-  isNullableString,
-  isNumber,
-  isString,
-  oneOf,
+  decodeCursorPage,
+  decodeShape,
+  flag,
+  int64,
+  listOf,
+  nullable,
+  optionalText,
+  shaped,
+  text,
+  whole,
 } from './decode';
 
 /** The limits the API enforces (`ShopPolicy`, `SkuPolicy`, `Slugs`), so the form can stop early and say why. */
@@ -81,18 +93,10 @@ export function normalizeSku(value: string): string {
 }
 
 /** The artist a piece credits, as the Artists module describes them now. */
-export interface ShopItemArtist {
-  readonly id: string;
-  readonly name: string;
-  readonly slug: string;
-  /** The artist's own status: work credited to an archived or draft artist is shown as such. */
-  readonly status: PublishStatus;
-}
+export type ShopItemArtist = Credit;
 
-export interface ShopItem {
-  readonly id: string;
+export interface ShopItem extends ContentRecord {
   readonly title: string;
-  readonly slug: string;
   /** Sanitized HTML, exactly as stored. */
   readonly description: string | null;
   readonly artist: ShopItemArtist | null;
@@ -119,17 +123,8 @@ export interface ShopItem {
   readonly soldOut: boolean;
   /** Square has reported money or stock for this piece (ADR 0037, 0038). */
   readonly squareHasRecord: boolean;
-  readonly status: PublishStatus;
-  readonly publishedAt: string | null;
-  readonly scheduledFor: string | null;
   /** It has been published, so changing its web address redirects the old one (ADR 0035). */
   readonly slugLocked: boolean;
-  readonly legacyWordPressId: number | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly updatedBy: string;
-  /** The row version, sent back as `If-Match`. */
-  readonly etag: string;
 }
 
 export interface ShopItemSummary {
@@ -150,10 +145,7 @@ export interface ShopItemSummary {
   readonly updatedAt: string;
 }
 
-export interface ShopPage {
-  readonly items: readonly ShopItemSummary[];
-  readonly nextCursor: string | null;
-}
+export type ShopPage = CursorPage<ShopItemSummary>;
 
 /** A `POST` body. A slug left out is made from the title, and a SKU left out is suggested as `ART-<item>`. */
 export interface ShopItemCreate {
@@ -198,171 +190,52 @@ export interface ShopListQuery {
   readonly category?: string;
 }
 
-const isStatus = oneOf(PUBLISH_STATUSES);
-
-/** An integer the OpenAPI schema allows as a number or a numeric string. `undefined` when it is neither. */
-function decodeInteger(value: unknown): number | null | undefined {
-  if (value === null) return null;
-  if (isNumber(value) && Number.isSafeInteger(value)) return value;
-  if (typeof value === 'string' && /^-?(?:0|[1-9]\d*)$/.test(value)) {
-    const parsed = Number(value);
-    return Number.isSafeInteger(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-function decodeArtist(body: unknown): ShopItemArtist | null | undefined {
-  if (body === null) return null;
-  const f = fields(body);
-  if (
-    !f ||
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !isStatus(f['status'])
-  ) {
-    return undefined;
-  }
-  return { id: f['id'], name: f['name'], slug: f['slug'], status: f['status'] };
-}
-
 export function decodeShopItem(body: unknown): ShopItem | null {
-  const f = fields(body);
-  if (!f) return null;
-  const artist = decodeArtist(f['artist']);
-  const categories = Array.isArray(f['categories']) ? f['categories'] : null;
-  const gallery = Array.isArray(f['imageMediaIds']) ? f['imageMediaIds'] : null;
-  const descriptionImages = Array.isArray(f['descriptionImageMediaIds'])
-    ? f['descriptionImageMediaIds']
-    : null;
-  const itemNumber = decodeInteger(f['itemNumber']);
-  const startingPriceCents = decodeInteger(f['startingPriceCents']);
-  const startingStockQuantity = decodeInteger(f['startingStockQuantity']);
-  const priceCents = decodeInteger(f['priceCents']);
-  const stockOnHand = decodeInteger(f['stockOnHand']);
-  const legacyId = decodeInteger(f['legacyWordPressId']);
-  if (
-    !isString(f['id']) ||
-    !isString(f['title']) ||
-    !isString(f['slug']) ||
-    !isNullableString(f['description']) ||
-    artist === undefined ||
-    categories === null ||
-    !categories.every(isString) ||
-    gallery === null ||
-    !gallery.every(isString) ||
-    descriptionImages === null ||
-    !descriptionImages.every(isString) ||
-    !isString(f['sku']) ||
-    itemNumber === undefined ||
-    itemNumber === null ||
-    !isBoolean(f['oneOfAKind']) ||
-    startingPriceCents === undefined ||
-    startingStockQuantity === undefined ||
-    !isString(f['currency']) ||
-    !isBoolean(f['startingPriceEditable']) ||
-    !isBoolean(f['startingStockEditable']) ||
-    priceCents === undefined ||
-    stockOnHand === undefined ||
-    !isBoolean(f['soldOut']) ||
-    !isBoolean(f['squareHasRecord']) ||
-    !isStatus(f['status']) ||
-    !isNullableString(f['publishedAt']) ||
-    !isNullableString(f['scheduledFor']) ||
-    !isBoolean(f['slugLocked']) ||
-    legacyId === undefined ||
-    !isString(f['createdAt']) ||
-    !isString(f['updatedAt']) ||
-    !isString(f['updatedBy']) ||
-    !isString(f['etag'])
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    title: f['title'],
-    slug: f['slug'],
-    description: f['description'],
-    artist,
-    categories,
-    imageMediaIds: gallery,
-    descriptionImageMediaIds: descriptionImages,
-    sku: f['sku'],
-    itemNumber,
-    oneOfAKind: f['oneOfAKind'],
-    startingPriceCents,
-    startingStockQuantity,
-    currency: f['currency'],
-    startingPriceEditable: f['startingPriceEditable'],
-    startingStockEditable: f['startingStockEditable'],
-    priceCents,
-    stockOnHand,
-    soldOut: f['soldOut'],
-    squareHasRecord: f['squareHasRecord'],
-    status: f['status'],
-    publishedAt: f['publishedAt'],
-    scheduledFor: f['scheduledFor'],
-    slugLocked: f['slugLocked'],
-    legacyWordPressId: legacyId,
-    createdAt: f['createdAt'],
-    updatedAt: f['updatedAt'],
-    updatedBy: f['updatedBy'],
-    etag: f['etag'],
-  };
+  return decodeShape(body, {
+    ...CONTENT_FIELDS,
+    title: text,
+    description: optionalText,
+    artist: nullable(credit),
+    categories: listOf(text),
+    imageMediaIds: listOf(text),
+    descriptionImageMediaIds: listOf(text),
+    sku: text,
+    itemNumber: whole,
+    oneOfAKind: flag,
+    startingPriceCents: int64,
+    startingStockQuantity: int64,
+    currency: text,
+    startingPriceEditable: flag,
+    startingStockEditable: flag,
+    priceCents: int64,
+    stockOnHand: int64,
+    soldOut: flag,
+    squareHasRecord: flag,
+    slugLocked: flag,
+  });
 }
 
 export function decodeShopItemSummary(body: unknown): ShopItemSummary | null {
-  const f = fields(body);
-  if (!f) return null;
-  const artist = decodeArtist(f['artist']);
-  const categories = Array.isArray(f['categories']) ? f['categories'] : null;
-  const priceCents = decodeInteger(f['priceCents']);
-  const stockOnHand = decodeInteger(f['stockOnHand']);
-  if (
-    !isString(f['id']) ||
-    !isString(f['title']) ||
-    !isString(f['slug']) ||
-    !isStatus(f['status']) ||
-    artist === undefined ||
-    categories === null ||
-    !categories.every(isString) ||
-    !isNullableString(f['leadImageMediaId']) ||
-    !isString(f['sku']) ||
-    !isBoolean(f['oneOfAKind']) ||
-    priceCents === undefined ||
-    stockOnHand === undefined ||
-    !isBoolean(f['soldOut']) ||
-    !isString(f['currency']) ||
-    !isString(f['updatedAt'])
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    title: f['title'],
-    slug: f['slug'],
-    status: f['status'],
-    artist,
-    categories,
-    leadImageMediaId: f['leadImageMediaId'],
-    sku: f['sku'],
-    oneOfAKind: f['oneOfAKind'],
-    priceCents,
-    stockOnHand,
-    soldOut: f['soldOut'],
-    currency: f['currency'],
-    updatedAt: f['updatedAt'],
-  };
+  return decodeShape(body, {
+    id: text,
+    title: text,
+    slug: text,
+    status,
+    artist: nullable(credit),
+    categories: listOf(text),
+    leadImageMediaId: optionalText,
+    sku: text,
+    oneOfAKind: flag,
+    priceCents: int64,
+    stockOnHand: int64,
+    soldOut: flag,
+    currency: text,
+    updatedAt: text,
+  });
 }
 
 export function decodeShopPage(body: unknown): ShopPage | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeShopItemSummary);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as ShopItemSummary[], nextCursor: f['nextCursor'] };
+  return decodeCursorPage(body, decodeShopItemSummary);
 }
 
 /**
@@ -534,100 +407,35 @@ export interface ShopImportResult {
   readonly items: readonly ShopImportCreated[];
 }
 
-function decodeImportProblem(body: unknown): ShopImportProblem | null {
-  const f = fields(body);
-  return f && isString(f['field']) && isString(f['message'])
-    ? { field: f['field'], message: f['message'] }
-    : null;
-}
-
 export function decodeShopImportRow(body: unknown): ShopImportRow | null {
-  const f = fields(body);
-  if (!f) return null;
-  const artist = decodeArtist(f['artist']);
-  const categories = Array.isArray(f['categories']) ? f['categories'] : null;
-  const row = decodeInteger(f['row']);
-  const startingPriceCents = decodeInteger(f['startingPriceCents']);
-  const startingStockQuantity = decodeInteger(f['startingStockQuantity']);
-  const errors = Array.isArray(f['errors']) ? f['errors'].map(decodeImportProblem) : null;
-  if (
-    row === undefined ||
-    row === null ||
-    !isString(f['title']) ||
-    !isString(f['slug']) ||
-    !isString(f['sku']) ||
-    !isBoolean(f['skuSuggested']) ||
-    artist === undefined ||
-    categories === null ||
-    !categories.every(isString) ||
-    !isBoolean(f['oneOfAKind']) ||
-    startingPriceCents === undefined ||
-    startingStockQuantity === undefined ||
-    errors === null ||
-    errors.some((error) => error === null)
-  ) {
-    return null;
-  }
-
-  return {
-    row,
-    title: f['title'],
-    slug: f['slug'],
-    sku: f['sku'],
-    skuSuggested: f['skuSuggested'],
-    artist,
-    categories,
-    oneOfAKind: f['oneOfAKind'],
-    startingPriceCents,
-    startingStockQuantity,
-    errors: errors as ShopImportProblem[],
-  };
+  return decodeShape(body, {
+    row: whole,
+    title: text,
+    slug: text,
+    sku: text,
+    skuSuggested: flag,
+    artist: nullable(credit),
+    categories: listOf(text),
+    oneOfAKind: flag,
+    startingPriceCents: int64,
+    startingStockQuantity: int64,
+    errors: listOf(shaped({ field: text, message: text })),
+  });
 }
 
 export function decodeShopImportPreview(body: unknown): ShopImportPreview | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['rows'])) return null;
-  const rowCount = decodeInteger(f['rowCount']);
-  const errorCount = decodeInteger(f['errorCount']);
-  const rows = f['rows'].map(decodeShopImportRow);
-  if (
-    rowCount === undefined ||
-    rowCount === null ||
-    errorCount === undefined ||
-    errorCount === null ||
-    rows.some((row) => row === null)
-  ) {
-    return null;
-  }
-  return { rowCount, errorCount, rows: rows as ShopImportRow[] };
-}
-
-function decodeImportCreated(body: unknown): ShopImportCreated | null {
-  const f = fields(body);
-  const row = f ? decodeInteger(f['row']) : undefined;
-  if (
-    !f ||
-    row === undefined ||
-    row === null ||
-    !isString(f['id']) ||
-    !isString(f['title']) ||
-    !isString(f['slug']) ||
-    !isString(f['sku'])
-  ) {
-    return null;
-  }
-  return { row, id: f['id'], title: f['title'], slug: f['slug'], sku: f['sku'] };
+  return decodeShape(body, {
+    rowCount: whole,
+    errorCount: whole,
+    rows: listOf((row) => decodeShopImportRow(row) ?? undefined),
+  });
 }
 
 export function decodeShopImportResult(body: unknown): ShopImportResult | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items'])) return null;
-  const createdCount = decodeInteger(f['createdCount']);
-  const items = f['items'].map(decodeImportCreated);
-  if (createdCount === undefined || createdCount === null || items.some((item) => item === null)) {
-    return null;
-  }
-  return { createdCount, items: items as ShopImportCreated[] };
+  return decodeShape(body, {
+    createdCount: whole,
+    items: listOf(shaped({ row: whole, id: text, title: text, slug: text, sku: text })),
+  });
 }
 
 export type ShopProblem = ApiProblem;
@@ -635,49 +443,10 @@ export type ShopProblem = ApiProblem;
 export const decodeShopProblem = decodeApiProblem;
 
 /** One row of the Deleted view (`ShopItemDeletedServiceModel`, ADR 0052). Admin only. */
-export interface ShopItemDeletedRow {
-  readonly id: string;
-  readonly title: string;
-  readonly slug: string;
-  /** What it was when it was deleted, not where it is now. */
-  readonly status: PublishStatus;
-  readonly deletedAt: string;
-  /** The row version, sent back as `If-Match` when restoring it. */
-  readonly etag: string;
-}
+export type ShopItemDeletedRow = DeletedRow<'title'>;
 
-export interface ShopItemDeletedList {
-  readonly items: readonly ShopItemDeletedRow[];
-  readonly nextCursor: string | null;
-}
-
-export function decodeShopItemDeletedRow(body: unknown): ShopItemDeletedRow | null {
-  const f = fields(body);
-  if (
-    !f ||
-    !isString(f['id']) ||
-    !isString(f['title']) ||
-    !isString(f['slug']) ||
-    !isStatus(f['status']) ||
-    !isString(f['deletedAt']) ||
-    !isString(f['etag'])
-  ) {
-    return null;
-  }
-  return {
-    id: f['id'],
-    title: f['title'],
-    slug: f['slug'],
-    status: f['status'],
-    deletedAt: f['deletedAt'],
-    etag: f['etag'],
-  };
-}
+export type ShopItemDeletedList = DeletedList<'title'>;
 
 export function decodeShopItemDeletedList(body: unknown): ShopItemDeletedList | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeShopItemDeletedRow);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as ShopItemDeletedRow[], nextCursor: f['nextCursor'] };
+  return decodeDeletedList(body, 'title');
 }

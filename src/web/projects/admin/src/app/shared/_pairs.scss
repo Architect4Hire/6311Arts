@@ -1,0 +1,24 @@
+// A record's facts as a definition list: each term beside its value on a wide screen, above it on a narrow one.
+// Set `--term-min` / `--term-max` on the screen's host to change the term column.
+.pairs {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.pair {
+  display: grid;
+  gap: var(--space-1) var(--space-4);
+}
+@media (min-width: 600px) {
+  .pair {
+    grid-template-columns: minmax(var(--term-min, 100px), var(--term-max, 160px)) minmax(0, 1fr);
+  }
+}
+.pair dt {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+.pair dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

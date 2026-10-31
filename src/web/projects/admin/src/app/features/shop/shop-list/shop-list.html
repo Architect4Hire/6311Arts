@@ -1,31 +1,10 @@
-<div class="head">
-  <div>
-    <h1 class="cms-title">Shop</h1>
-    <p class="cms-lead">
-      The artwork the shop sells. Prices and stock are Square’s record; merch is sold at the front
-      desk.
-    </p>
-  </div>
-  <div class="head__actions">
-    <a uiButton routerLink="/shop/import">Import CSV</a>
-    <a uiButton variant="dark" routerLink="/shop/new">New piece</a>
-  </div>
-</div>
+<cms-list-head heading="Shop" newLabel="New piece" newRoute="/shop/new">
+  <a listAction uiButton routerLink="/shop/import">Import CSV</a>
+  The artwork the shop sells. Prices and stock are Square’s record; merch is sold at the front desk.
+</cms-list-head>
 
-<div class="tools">
-  <ui-field label="Find a piece" class="tools__search">
-    <input
-      #searchInput
-      uiControl
-      type="search"
-      name="search"
-      autocomplete="off"
-      [attr.maxlength]="limits.searchMaxLength"
-      [value]="search()"
-      (input)="onSearch(searchInput.value)"
-    />
-  </ui-field>
-  <ui-field label="Category" class="tools__category">
+<cms-list-tools [view]="view" searchLabel="Find a piece" [searchMax]="limits.searchMaxLength">
+  <ui-field label="Category" class="category">
     <select
       #categorySelect
       uiControl
@@ -39,116 +18,59 @@
       }
     </select>
   </ui-field>
-  <div class="filters" role="group" aria-label="Filter the list">
-    @for (option of filters(); track option.value) {
-      <button
-        uiButton
-        type="button"
-        size="sm"
-        [variant]="filter() === option.value ? 'dark' : 'border-dark'"
-        [attr.aria-pressed]="filter() === option.value"
-        (click)="filter.set(option.value)"
-      >
-        {{ option.label }}
-      </button>
-    }
-  </div>
-</div>
+</cms-list-tools>
 
-@if (!showingDeleted()) {
-  <cms-sort-picker [sort]="sort" />
-}
-
-<!-- Exists from the start, so the counts written into it later are read out. -->
-<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-@if (showingDeleted()) {
-  <cms-deleted-records noun="piece" plural="pieces" [source]="deletedSource" [search]="query()" />
-} @else {
-  @switch (state()) {
-    @case ('loading') {
-      <p role="status">Loading artwork…</p>
-    }
-    @case ('failed') {
-      <ui-notice tone="error" heading="The shop couldn’t be loaded">
-        <p>6311arts may be unreachable for a moment.</p>
-        <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
-      </ui-notice>
-    }
-    @default {
-      @if (items().length === 0) {
-        <ui-empty-state icon="cart" [heading]="emptyHeading()">
-          <p>{{ emptyText() }}</p>
-        </ui-empty-state>
-      } @else {
-        @if (refreshing()) {
-          <p role="status" class="refreshing">Updating the list…</p>
-        }
-        <div class="scroll" role="region" aria-label="Artwork" tabindex="0">
-          <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
-            <caption class="sr-only">
-              Artwork, sorted by
-              {{
-                sort.description()
-              }}
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col" cmsSortHeader="title">Title</th>
-                <th scope="col" cmsSortHeader="artist">Artist</th>
-                <th scope="col" cmsSortHeader="status">Status</th>
-                <th scope="col" cmsSortHeader="square">In Square</th>
-                <th scope="col" class="wide" cmsSortHeader="updated">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (piece of items(); track piece.id; let index = $index) {
-                <tr>
-                  <th scope="row">
-                    <a [routerLink]="['/shop', piece.id]" [attr.data-row]="index">{{
-                      piece.title
-                    }}</a>
-                    <span class="meta">{{ meta(piece) }}</span>
-                  </th>
-                  <td>{{ piece.artist?.name || '—' }}</td>
-                  <td>
-                    <ui-status-chip
-                      [tone]="chips[piece.status].tone"
-                      [icon]="chips[piece.status].icon"
-                      >{{ chips[piece.status].label }}</ui-status-chip
-                    >
-                  </td>
-                  <td>
-                    @if (piece.priceCents !== null || piece.stockOnHand !== null) {
-                      <span class="square">{{ square(piece) }}</span>
-                      @if (piece.soldOut) {
-                        <ui-status-chip tone="attention" icon="stop">Sold out</ui-status-chip>
-                      }
-                    } @else {
-                      <span class="square square--none">Not in Square yet</span>
-                    }
-                  </td>
-                  <td class="wide">
-                    <time [attr.datetime]="piece.updatedAt">{{ updated(piece.updatedAt) }}</time>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-        @if (moreFailed()) {
-          <ui-notice tone="error" heading="More artwork couldn’t be loaded">
-            <p>The pieces above are still here.</p>
-          </ui-notice>
-        }
-        @if (nextCursor()) {
-          <p class="more">
-            <button uiButton type="button" [busy]="loadingMore()" (click)="more()">
-              {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
-            </button>
-          </p>
-        }
-      }
-    }
+<cms-list-body [view]="view">
+  @if (rows()) {
+    <div class="scroll" role="region" aria-label="Artwork" tabindex="0">
+      <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
+        <caption class="sr-only">
+          Artwork, sorted by
+          {{
+            sort.description()
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" cmsSortHeader="title">Title</th>
+            <th scope="col" cmsSortHeader="artist">Artist</th>
+            <th scope="col" cmsSortHeader="status">Status</th>
+            <th scope="col" cmsSortHeader="square">In Square</th>
+            <th scope="col" class="wide" cmsSortHeader="updated">Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (piece of items(); track piece.id; let index = $index) {
+            <tr>
+              <th scope="row">
+                <a [routerLink]="['/shop', piece.id]" [attr.data-row]="index">{{ piece.title }}</a>
+                <span class="sub">{{ meta(piece) }}</span>
+              </th>
+              <td>{{ piece.artist?.name || '—' }}</td>
+              <td>
+                <ui-status-chip
+                  [tone]="chips[piece.status].tone"
+                  [icon]="chips[piece.status].icon"
+                  >{{ chips[piece.status].label }}</ui-status-chip
+                >
+              </td>
+              <td>
+                @if (piece.priceCents !== null || piece.stockOnHand !== null) {
+                  <span class="square">{{ square(piece) }}</span>
+                  @if (piece.soldOut) {
+                    <ui-status-chip tone="attention" icon="stop">Sold out</ui-status-chip>
+                  }
+                } @else {
+                  <span class="square square--none">Not in Square yet</span>
+                }
+              </td>
+              <td class="wide">
+                <time [attr.datetime]="piece.updatedAt">{{ updated(piece.updatedAt) }}</time>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
-}
+</cms-list-body>

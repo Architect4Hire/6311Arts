@@ -30,8 +30,7 @@ export const CMS_SECTIONS: readonly CmsSection[] = [
     label: 'Classes',
     icon: 'calendar',
     roles: STAFF_ROLES,
-    summary:
-      'Class and workshop pages and their runs. Seats and prices are managed in Square.',
+    summary: 'Class and workshop pages and their runs. Seats and prices are managed in Square.',
   },
   {
     path: 'exhibitions',

@@ -11,20 +11,32 @@
 
 import {
   CONTENT_CODES,
+  CONTENT_FIELDS,
   ContentCommand,
-  PUBLISH_STATUSES,
+  ContentRecord,
+  Credit,
+  credit,
+  decodeDeletedList,
+  DeletedList,
+  DeletedRow,
   PublishStatus,
   SLUG_MAX_LENGTH,
+  status,
 } from './content';
 import {
   ApiProblem,
+  CursorPage,
   decodeApiProblem,
-  fields,
-  isBoolean,
-  isNullableString,
-  isNumber,
-  isString,
-  oneOf,
+  decodeCursorPage,
+  decodeShape,
+  flag,
+  int64,
+  listOf,
+  nullable,
+  optionalText,
+  shaped,
+  text,
+  whole,
 } from './decode';
 
 /** The limits the API enforces (`ClassPolicy`, `SkuPolicy`, `Slugs`), so the form can stop early and say why. */
@@ -80,12 +92,7 @@ export interface ClassSession {
 }
 
 /** The instructor a run names, as the Instructors module describes them now. */
-export interface ClassInstructor {
-  readonly id: string;
-  readonly name: string;
-  readonly slug: string;
-  readonly status: PublishStatus;
-}
+export type ClassInstructor = Credit;
 
 /** One run: who teaches it, when it meets, and what Square sells for it (ADR 0044). */
 export interface ClassRun {
@@ -116,10 +123,8 @@ export interface ClassRun {
   readonly sessions: readonly ClassSession[];
 }
 
-export interface ClassOffering {
-  readonly id: string;
+export interface ClassOffering extends ContentRecord {
   readonly title: string;
-  readonly slug: string;
   readonly summary: string | null;
   /** Sanitized HTML, exactly as stored. */
   readonly body: string | null;
@@ -132,17 +137,8 @@ export interface ClassOffering {
   readonly imageMediaIds: readonly string[];
   /** The runs, by their first session. */
   readonly runs: readonly ClassRun[];
-  readonly status: PublishStatus;
-  readonly publishedAt: string | null;
-  readonly scheduledFor: string | null;
   /** It has been published, so changing its web address redirects the old one (ADR 0035). */
   readonly slugLocked: boolean;
-  readonly legacyWordPressId: number | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly updatedBy: string;
-  /** The row version, sent back as `If-Match`. */
-  readonly etag: string;
 }
 
 export interface ClassSummary {
@@ -162,10 +158,7 @@ export interface ClassSummary {
   readonly updatedAt: string;
 }
 
-export interface ClassPage {
-  readonly items: readonly ClassSummary[];
-  readonly nextCursor: string | null;
-}
+export type ClassPage = CursorPage<ClassSummary>;
 
 /** A sitting as sent. */
 export interface ClassSessionInput {
@@ -228,193 +221,59 @@ export interface ClassListQuery {
   readonly search?: string;
 }
 
-const isStatus = oneOf(PUBLISH_STATUSES);
-
-/** An integer the OpenAPI schema allows as a number or a numeric string. `undefined` when it is neither. */
-function decodeInteger(value: unknown): number | null | undefined {
-  if (value === null) return null;
-  if (isNumber(value) && Number.isSafeInteger(value)) return value;
-  if (typeof value === 'string' && /^-?(?:0|[1-9]\d*)$/.test(value)) {
-    const parsed = Number(value);
-    return Number.isSafeInteger(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-function decodeSession(body: unknown): ClassSession | null {
-  const f = fields(body);
-  if (!f || !isString(f['id']) || !isString(f['startsAt']) || !isString(f['endsAt'])) return null;
-  return { id: f['id'], startsAt: f['startsAt'], endsAt: f['endsAt'] };
-}
-
-function decodeInstructor(body: unknown): ClassInstructor | null | undefined {
-  if (body === null) return null;
-  const f = fields(body);
-  if (
-    !f ||
-    !isString(f['id']) ||
-    !isString(f['name']) ||
-    !isString(f['slug']) ||
-    !isStatus(f['status'])
-  ) {
-    return undefined;
-  }
-  return { id: f['id'], name: f['name'], slug: f['slug'], status: f['status'] };
-}
-
-function decodeRun(body: unknown): ClassRun | null {
-  const f = fields(body);
-  if (!f) return null;
-  const capacity = decodeInteger(f['capacity']);
-  const startingPriceCents = decodeInteger(f['startingPriceCents']);
-  const priceCents = decodeInteger(f['priceCents']);
-  const seatsRemaining = decodeInteger(f['seatsRemaining']);
-  const instructor = decodeInstructor(f['instructor']);
-  const sessions = Array.isArray(f['sessions']) ? f['sessions'].map(decodeSession) : null;
-  if (
-    !isString(f['id']) ||
-    !isNullableString(f['label']) ||
-    instructor === undefined ||
-    !isNullableString(f['cadence']) ||
-    !isString(f['displayTimeZone']) ||
-    !isString(f['sku']) ||
-    capacity === undefined ||
-    capacity === null ||
-    startingPriceCents === undefined ||
-    !isString(f['currency']) ||
-    !isBoolean(f['startingPriceEditable']) ||
-    priceCents === undefined ||
-    seatsRemaining === undefined ||
-    !isBoolean(f['soldOut']) ||
-    !isBoolean(f['squareHasRecord']) ||
-    sessions === null ||
-    sessions.some((session) => session === null)
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    label: f['label'],
-    instructor,
-    cadence: f['cadence'],
-    displayTimeZone: f['displayTimeZone'],
-    sku: f['sku'],
-    capacity,
-    startingPriceCents,
-    currency: f['currency'],
-    startingPriceEditable: f['startingPriceEditable'],
-    priceCents,
-    seatsRemaining,
-    soldOut: f['soldOut'],
-    squareHasRecord: f['squareHasRecord'],
-    sessions: sessions as ClassSession[],
-  };
-}
+/** One term of a class (ADR 0044): its instructor, sessions, seats and price. */
+const run = shaped({
+  id: text,
+  label: optionalText,
+  instructor: nullable(credit),
+  cadence: optionalText,
+  displayTimeZone: text,
+  sku: text,
+  capacity: whole,
+  startingPriceCents: int64,
+  currency: text,
+  startingPriceEditable: flag,
+  priceCents: int64,
+  seatsRemaining: int64,
+  soldOut: flag,
+  squareHasRecord: flag,
+  sessions: listOf(shaped({ id: text, startsAt: text, endsAt: text })),
+});
 
 export function decodeClassOffering(body: unknown): ClassOffering | null {
-  const f = fields(body);
-  if (!f) return null;
-  const legacyId = decodeInteger(f['legacyWordPressId']);
-  const offeringNumber = decodeInteger(f['offeringNumber']);
-  const images = Array.isArray(f['imageMediaIds']) ? f['imageMediaIds'] : null;
-  const runs = Array.isArray(f['runs']) ? f['runs'].map(decodeRun) : null;
-  if (
-    !isString(f['id']) ||
-    !isString(f['title']) ||
-    !isString(f['slug']) ||
-    !isNullableString(f['summary']) ||
-    !isNullableString(f['body']) ||
-    !isNullableString(f['classType']) ||
-    !isNullableString(f['level']) ||
-    offeringNumber === undefined ||
-    offeringNumber === null ||
-    !isNullableString(f['heroMediaId']) ||
-    images === null ||
-    !images.every(isString) ||
-    runs === null ||
-    runs.some((run) => run === null) ||
-    !isStatus(f['status']) ||
-    !isNullableString(f['publishedAt']) ||
-    !isNullableString(f['scheduledFor']) ||
-    !isBoolean(f['slugLocked']) ||
-    legacyId === undefined ||
-    !isString(f['createdAt']) ||
-    !isString(f['updatedAt']) ||
-    !isString(f['updatedBy']) ||
-    !isString(f['etag'])
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    title: f['title'],
-    slug: f['slug'],
-    summary: f['summary'],
-    body: f['body'],
-    classType: f['classType'],
-    level: f['level'],
-    offeringNumber,
-    heroMediaId: f['heroMediaId'],
-    imageMediaIds: images,
-    runs: runs as ClassRun[],
-    status: f['status'],
-    publishedAt: f['publishedAt'],
-    scheduledFor: f['scheduledFor'],
-    slugLocked: f['slugLocked'],
-    legacyWordPressId: legacyId,
-    createdAt: f['createdAt'],
-    updatedAt: f['updatedAt'],
-    updatedBy: f['updatedBy'],
-    etag: f['etag'],
-  };
+  return decodeShape(body, {
+    ...CONTENT_FIELDS,
+    title: text,
+    summary: optionalText,
+    body: optionalText,
+    classType: optionalText,
+    level: optionalText,
+    offeringNumber: whole,
+    heroMediaId: optionalText,
+    imageMediaIds: listOf(text),
+    runs: listOf(run),
+    slugLocked: flag,
+  });
 }
 
 export function decodeClassSummary(body: unknown): ClassSummary | null {
-  const f = fields(body);
-  if (!f) return null;
-  const runCount = decodeInteger(f['runCount']);
-  const instructors = Array.isArray(f['instructors']) ? f['instructors'] : null;
-  if (
-    !isString(f['id']) ||
-    !isString(f['title']) ||
-    !isString(f['slug']) ||
-    !isStatus(f['status']) ||
-    !isNullableString(f['classType']) ||
-    !isNullableString(f['level']) ||
-    instructors === null ||
-    !instructors.every(isString) ||
-    !isNullableString(f['heroMediaId']) ||
-    runCount === undefined ||
-    runCount === null ||
-    !isNullableString(f['nextSessionStartsAt']) ||
-    !isString(f['updatedAt'])
-  ) {
-    return null;
-  }
-
-  return {
-    id: f['id'],
-    title: f['title'],
-    slug: f['slug'],
-    status: f['status'],
-    classType: f['classType'],
-    level: f['level'],
-    instructors,
-    heroMediaId: f['heroMediaId'],
-    runCount,
-    nextSessionStartsAt: f['nextSessionStartsAt'],
-    updatedAt: f['updatedAt'],
-  };
+  return decodeShape(body, {
+    id: text,
+    title: text,
+    slug: text,
+    status,
+    classType: optionalText,
+    level: optionalText,
+    instructors: listOf(text),
+    heroMediaId: optionalText,
+    runCount: whole,
+    nextSessionStartsAt: optionalText,
+    updatedAt: text,
+  });
 }
 
 export function decodeClassPage(body: unknown): ClassPage | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeClassSummary);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as ClassSummary[], nextCursor: f['nextCursor'] };
+  return decodeCursorPage(body, decodeClassSummary);
 }
 
 export type ClassProblem = ApiProblem;
@@ -422,49 +281,10 @@ export type ClassProblem = ApiProblem;
 export const decodeClassProblem = decodeApiProblem;
 
 /** One row of the Deleted view (`ClassDeletedServiceModel`, ADR 0052). Admin only. */
-export interface ClassDeletedRow {
-  readonly id: string;
-  readonly title: string;
-  readonly slug: string;
-  /** What it was when it was deleted, not where it is now. */
-  readonly status: PublishStatus;
-  readonly deletedAt: string;
-  /** The row version, sent back as `If-Match` when restoring it. */
-  readonly etag: string;
-}
+export type ClassDeletedRow = DeletedRow<'title'>;
 
-export interface ClassDeletedList {
-  readonly items: readonly ClassDeletedRow[];
-  readonly nextCursor: string | null;
-}
-
-export function decodeClassDeletedRow(body: unknown): ClassDeletedRow | null {
-  const f = fields(body);
-  if (
-    !f ||
-    !isString(f['id']) ||
-    !isString(f['title']) ||
-    !isString(f['slug']) ||
-    !isStatus(f['status']) ||
-    !isString(f['deletedAt']) ||
-    !isString(f['etag'])
-  ) {
-    return null;
-  }
-  return {
-    id: f['id'],
-    title: f['title'],
-    slug: f['slug'],
-    status: f['status'],
-    deletedAt: f['deletedAt'],
-    etag: f['etag'],
-  };
-}
+export type ClassDeletedList = DeletedList<'title'>;
 
 export function decodeClassDeletedList(body: unknown): ClassDeletedList | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeClassDeletedRow);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as ClassDeletedRow[], nextCursor: f['nextCursor'] };
+  return decodeDeletedList(body, 'title');
 }

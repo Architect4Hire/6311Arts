@@ -246,7 +246,8 @@ export abstract class RecordEditor<
 
   constructor(protected readonly config: RecordEditorConfig<T, D, C, U, F>) {
     this.draft = signal<D>(config.empty());
-    this.justCreated = this.router.currentNavigation()?.extras.state?.[config.createdState] === true;
+    this.justCreated =
+      this.router.currentNavigation()?.extras.state?.[config.createdState] === true;
     this.view = {
       noun: config.noun,
       plural: config.plural,

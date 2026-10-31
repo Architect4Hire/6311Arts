@@ -72,12 +72,18 @@ describe('MembershipService', () => {
 describe('membership models', () => {
   it('decodes exactly the API shape', () => {
     expect(decodeMembershipPlan(MEMBERSHIP_PLAN)).toEqual(MEMBERSHIP_PLAN);
-    expect(decodeMembershipPlan({ ...MEMBERSHIP_PLAN, startingPriceCents: null })?.startingPriceCents).toBeNull();
-    expect(decodeMembershipPlan({ ...MEMBERSHIP_PLAN, priceCents: '12000' })?.priceCents).toBe(12_000);
+    expect(
+      decodeMembershipPlan({ ...MEMBERSHIP_PLAN, startingPriceCents: null })?.startingPriceCents,
+    ).toBeNull();
+    expect(decodeMembershipPlan({ ...MEMBERSHIP_PLAN, priceCents: '12000' })?.priceCents).toBe(
+      12_000,
+    );
 
     // What Square owns is read, never guessed at: a cadence it has not reported is null, not a CMS value.
     expect(decodeMembershipPlan({ ...MEMBERSHIP_PLAN, cadence: 'ANNUAL' })?.cadence).toBe('ANNUAL');
-    expect(decodeMembershipPlan({ ...MEMBERSHIP_PLAN, startingCadence: 'EVERY_TWO_YEARS' })).toBeNull();
+    expect(
+      decodeMembershipPlan({ ...MEMBERSHIP_PLAN, startingCadence: 'EVERY_TWO_YEARS' }),
+    ).toBeNull();
     expect(decodeMembershipPlan({ ...MEMBERSHIP_PLAN, perks: [1] })).toBeNull();
     expect(decodeMembershipPlan({ ...MEMBERSHIP_PLAN, perks: undefined })).toBeNull();
     expect(decodeMembershipPlan({ ...MEMBERSHIP_PLAN, sitePath: undefined })).toBeNull();

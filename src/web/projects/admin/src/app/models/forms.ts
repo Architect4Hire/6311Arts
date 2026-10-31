@@ -7,7 +7,9 @@
 import { IconName, StatusTone } from '@6311/ui';
 import {
   ApiProblem,
+  CursorPage,
   decodeApiProblem,
+  decodeCursorPage,
   fields,
   isBoolean,
   isNullableString,
@@ -212,15 +214,9 @@ export interface NewsletterSubscriber {
   readonly createdAt: string;
 }
 
-/** `CursorPage<T>`. */
-export interface FormsPage<T> {
-  readonly items: readonly T[];
-  readonly nextCursor: string | null;
-}
-
-export type SubmissionList = FormsPage<SubmissionSummary>;
-export type ContactMessageList = FormsPage<ContactMessage>;
-export type NewsletterList = FormsPage<NewsletterSubscriber>;
+export type SubmissionList = CursorPage<SubmissionSummary>;
+export type ContactMessageList = CursorPage<ContactMessage>;
+export type NewsletterList = CursorPage<NewsletterSubscriber>;
 
 export interface SubmissionListQuery {
   readonly cursor?: string | null;
@@ -267,17 +263,6 @@ function decodeInteger(value: unknown): number | null | undefined {
     return Number.isSafeInteger(parsed) ? parsed : undefined;
   }
   return undefined;
-}
-
-function decodePage<T>(
-  body: unknown,
-  decodeItem: (item: unknown) => T | null,
-): FormsPage<T> | null {
-  const f = fields(body);
-  if (!f || !Array.isArray(f['items']) || !isNullableString(f['nextCursor'])) return null;
-  const items = f['items'].map(decodeItem);
-  if (items.some((item) => item === null)) return null;
-  return { items: items as T[], nextCursor: f['nextCursor'] };
 }
 
 export function decodeSubmissionSummary(body: unknown): SubmissionSummary | null {
@@ -539,13 +524,13 @@ export function decodeNewsletterSubscriber(body: unknown): NewsletterSubscriber 
 }
 
 export const decodeSubmissionList = (body: unknown): SubmissionList | null =>
-  decodePage(body, decodeSubmissionSummary);
+  decodeCursorPage(body, decodeSubmissionSummary);
 
 export const decodeContactMessageList = (body: unknown): ContactMessageList | null =>
-  decodePage(body, decodeContactMessage);
+  decodeCursorPage(body, decodeContactMessage);
 
 export const decodeNewsletterList = (body: unknown): NewsletterList | null =>
-  decodePage(body, decodeNewsletterSubscriber);
+  decodeCursorPage(body, decodeNewsletterSubscriber);
 
 /**
  * A visitor-typed web address as a link target: only an absolute `http(s)` URL is one. Anything else — a bare

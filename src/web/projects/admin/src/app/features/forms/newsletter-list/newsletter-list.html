@@ -1,123 +1,77 @@
 <cms-forms-tabs />
 
-<div class="tools">
-  <ui-field label="Find an address" class="tools__search">
-    <input
-      #searchInput
-      uiControl
-      type="search"
-      name="search"
-      autocomplete="off"
-      [attr.maxlength]="limits.searchMaxLength"
-      [value]="search()"
-      (input)="onSearch(searchInput.value)"
-    />
-  </ui-field>
+<cms-list-tools [view]="view" searchLabel="Find an address" [searchMax]="limits.searchMaxLength">
   @if (isAdmin()) {
-    <button uiButton type="button" variant="dark" [busy]="exporting()" (click)="export()">
+    <button
+      uiButton
+      type="button"
+      variant="dark"
+      class="end"
+      [busy]="exporting()"
+      (click)="export()"
+    >
       Export CSV
     </button>
   } @else {
-    <p class="hint">Only an Admin can export the list or take an address off it.</p>
+    <p class="hint end">Only an Admin can export the list or take an address off it.</p>
   }
-</div>
+</cms-list-tools>
 
-<cms-sort-picker [sort]="sort" />
-
-<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-@if (actionError(); as message) {
-  <ui-notice tone="error">{{ message }}</ui-notice>
-}
-
-@switch (state()) {
-  @case ('loading') {
-    <p role="status">Loading the newsletter list…</p>
+<cms-list-body [view]="view">
+  @if (actionError(); as message) {
+    <ui-notice listNotice tone="error">{{ message }}</ui-notice>
   }
-  @case ('failed') {
-    <ui-notice tone="error" heading="The newsletter list couldn’t be loaded">
-      <p>6311arts may be unreachable for a moment.</p>
-      <button uiButton type="button" size="sm" (click)="reload()">Try again</button>
-    </ui-notice>
-  }
-  @default {
-    @if (items().length === 0) {
-      <ui-empty-state
-        icon="mail"
-        [heading]="query() === '' ? 'No one on the list yet' : 'Nothing to show here'"
-      >
-        <p>
+  @if (rows()) {
+    <div class="scroll" role="region" aria-label="Newsletter list" tabindex="0">
+      <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
+        <caption class="sr-only">
+          Newsletter addresses, sorted by
           {{
-            query() === ''
-              ? 'Addresses from the newsletter sign-up and from artist submissions arrive here.'
-              : 'No address contains “' + query() + '”.'
+            sort.description()
           }}
-        </p>
-      </ui-empty-state>
-    } @else {
-      <div class="scroll" role="region" aria-label="Newsletter list" tabindex="0">
-        <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
-          <caption class="sr-only">
-            Newsletter addresses, sorted by
-            {{
-              sort.description()
-            }}
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col" cmsSortHeader="email">Email</th>
-              <th scope="col" class="wide" cmsSortHeader="consented">Consented</th>
-              <th scope="col" class="wide" cmsSortHeader="wording">Consent wording</th>
-              <th scope="col" cmsSortHeader="source">Source</th>
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" cmsSortHeader="email">Email</th>
+            <th scope="col" class="wide" cmsSortHeader="consented">Consented</th>
+            <th scope="col" class="wide" cmsSortHeader="wording">Consent wording</th>
+            <th scope="col" cmsSortHeader="source">Source</th>
+            @if (isAdmin()) {
+              <th scope="col"><span class="sr-only">Actions</span></th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (subscriber of items(); track subscriber.id; let index = $index) {
+            <tr tabindex="-1" [attr.data-row]="index">
+              <th scope="row" class="text">{{ subscriber.email }}</th>
+              <td class="wide">
+                <time [attr.datetime]="subscriber.consentedAt">{{
+                  instant(subscriber.consentedAt)
+                }}</time>
+              </td>
+              <td class="wide">{{ subscriber.consentVersion }}</td>
+              <td>{{ sources[subscriber.source] }}</td>
               @if (isAdmin()) {
-                <th scope="col"><span class="sr-only">Actions</span></th>
+                <td class="action">
+                  <button
+                    uiButton
+                    type="button"
+                    size="sm"
+                    [attr.data-remove]="index"
+                    [attr.aria-label]="'Remove ' + subscriber.email"
+                    [busy]="removing() === subscriber.id"
+                    [disabled]="removing() !== null"
+                    (click)="remove(subscriber)"
+                  >
+                    Remove
+                  </button>
+                </td>
               }
             </tr>
-          </thead>
-          <tbody>
-            @for (subscriber of items(); track subscriber.id; let index = $index) {
-              <tr tabindex="-1" [attr.data-row]="index">
-                <th scope="row" class="text">{{ subscriber.email }}</th>
-                <td class="wide">
-                  <time [attr.datetime]="subscriber.consentedAt">{{
-                    instant(subscriber.consentedAt)
-                  }}</time>
-                </td>
-                <td class="wide">{{ subscriber.consentVersion }}</td>
-                <td>{{ sources[subscriber.source] }}</td>
-                @if (isAdmin()) {
-                  <td class="action">
-                    <button
-                      uiButton
-                      type="button"
-                      size="sm"
-                      [attr.data-remove]="index"
-                      [attr.aria-label]="'Remove ' + subscriber.email"
-                      [busy]="removing() === subscriber.id"
-                      [disabled]="removing() !== null"
-                      (click)="remove(subscriber)"
-                    >
-                      Remove
-                    </button>
-                  </td>
-                }
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-      @if (moreFailed()) {
-        <ui-notice tone="error" heading="More addresses couldn’t be loaded">
-          <p>The addresses above are still here.</p>
-        </ui-notice>
-      }
-      @if (next()) {
-        <p class="more">
-          <button uiButton type="button" [busy]="loadingMore()" (click)="more()">
-            {{ moreFailed() ? 'Try loading more again' : 'Load more' }}
-          </button>
-        </p>
-      }
-    }
+          }
+        </tbody>
+      </table>
+    </div>
   }
-}
+</cms-list-body>

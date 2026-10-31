@@ -45,9 +45,13 @@ paths:
   - `core/`: session, interceptors, guards, SEO
   - `shared/`: compositions of `@6311/ui`, grouped by kind where a group has real members — site:
     `layout/` (header, footer, staff-access), `cards/`, `forms/`, `media/` (`art-image` today), then `hero/`,
-    `contact/`, `account-panel/` on their own; admin: `pickers/`, then `preview-link/`, `rich-text-editor/`,
-    `schedule-control/`. A category names a kind of component — don't invent one to hold a component that
-    belongs to no kind (ADR 0051).
+    `contact/`, `account-panel/` on their own; admin: `pickers/` (`search-picker`, `record-search` and the two
+    named pickers over them), then `editor-frame/`, `save-actions/`, `publishing-panel/`, `image-panel/`,
+    `list-head/`, `list-tools/`, `list-body/`, `deleted-records/`, `preview-link/`, `rich-text-editor/`,
+    `schedule-control/`, with the bases and helpers they serve at the root of `shared/` (`record-editor.ts`,
+    `content-editor.ts`, `record-list.ts`, `content-list.ts`, `content-lifecycle.ts`, `money.ts`, and the
+    `_panel`, `_editor`, `_list`, `_screen`, `_pairs` style partials). A category names a kind of component —
+    don't invent one to hold a component that belongs to no kind (ADR 0051).
   - `features/` (admin) or `pages/` (site): lazy routes, one folder per component. One component per file, so a
     lazy route carries only its own component's code.
 - **Logic.** Never use `any`. Decode unknown data at boundaries.
@@ -92,6 +96,14 @@ paths:
 ## Admin
 
 - **Every data surface** has loading, empty, error and success states.
+- **Editors and lists are built on the shared bases, never copied from a sibling.** A record's editor extends
+  `RecordEditor` (`ContentEditor` for a publishable type) and supplies only its form, its `compare()` rows and a
+  config of its words and mappers; its template is `<cms-editor-frame [view]="view">` around the form, with
+  `<cms-save-actions>`, `<cms-image-panel>` and `<cms-publishing-panel>` as it needs them. A list extends
+  `RecordList` (`ContentList` for a publishable type) and supplies its columns and cells inside
+  `<cms-list-head>`, `<cms-list-tools>` and `<cms-list-body>`. A content type's service extends `ContentApi`, and
+  its model decodes with `decodeShape`, `CONTENT_FIELDS` and the shared field decoders (`models/decode.ts`). A
+  behaviour every type needs goes into the base once.
 - **Every list table** is `class="cms-table"` (one look, in `styles.scss`) and sorts on the server (ADR 0062): `[cmsSortable]="sort"` on the table, `cmsSortHeader="<api column>"` on each sortable header, a `ListSort` kept in `?sort=`, `cms-sort-picker` for phones, and `sort.announcement()` before the count in the live region. Never sort a paged list in the browser.
 - **Unsaved edits** survive recoverable errors and warn on navigation.
 - **Square-held values** (price, stock, **seats remaining**, sold-out) are never edited in place. Before the first sync, the starting price and quantity are plain fields. After it, each value shows Square's current figure with a **Change** action that sends a command and shows its Pending / Applied / Rejected state, plus the sync status chip (ADR 0032).

@@ -1,90 +1,9 @@
-<section class="panel" [attr.aria-labelledby]="headingId">
-  <h2 [id]="headingId" class="panel__title">{{ heading() }}</h2>
-
-  <!-- Exists from the start, so what is written into it later is read out. -->
-  <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-  @if (instructor(); as credited) {
-    <p class="credited" data-instructor>
-      <span class="credited__name">{{ credited.name }}</span>
-      @if (credited.status !== 'Published') {
-        <ui-status-chip [tone]="chips[credited.status].tone" [icon]="chips[credited.status].icon">{{
-          chips[credited.status].label
-        }}</ui-status-chip>
-      }
-    </p>
-    <div class="actions">
-      <button
-        uiButton
-        type="button"
-        size="sm"
-        data-action="remove-instructor"
-        [disabled]="disabled()"
-        [attr.aria-label]="'Remove ' + credited.name"
-        (click)="clear()"
-      >
-        Remove
-      </button>
-    </div>
-  } @else {
-    <p class="panel__empty">No instructor yet.</p>
-  }
-
-  <ui-field
-    [label]="instructor() ? 'Choose someone else' : 'Choose an instructor'"
-    hint="Search the instructors by name. Archived instructors can’t be chosen."
-    [error]="error()"
-  >
-    <input
-      #searchInput
-      uiControl
-      type="search"
-      name="instructorSearch"
-      autocomplete="off"
-      [attr.maxlength]="searchMaxLength()"
-      [disabled]="disabled()"
-      [value]="search()"
-      (input)="onSearch(searchInput.value)"
-    />
-  </ui-field>
-
-  @switch (state()) {
-    @case ('searching') {
-      <p role="status" class="panel__hint">Searching the instructors…</p>
-    }
-    @case ('failed') {
-      <p class="error">
-        The instructors couldn’t be searched.
-        <button uiButton type="button" size="sm" (click)="runSearch()">Try again</button>
-      </p>
-    }
-    @case ('ready') {
-      @if (offers().length === 0) {
-        <p class="panel__hint">No instructor matches “{{ query() }}”.</p>
-      } @else {
-        <ul class="offers" aria-label="Matching instructors">
-          @for (candidate of offers(); track candidate.id) {
-            <li class="offer">
-              <button
-                uiButton
-                type="button"
-                size="sm"
-                [disabled]="disabled()"
-                [attr.aria-label]="'Choose ' + candidate.name"
-                (click)="choose(candidate)"
-              >
-                Choose
-              </button>
-              <span>
-                {{ candidate.name }}
-                @if (candidate.medium) {
-                  <span class="offer__medium">{{ candidate.medium }}</span>
-                }
-              </span>
-            </li>
-          }
-        </ul>
-      }
-    }
-  }
-</section>
+<cms-search-picker
+  [(picked)]="instructor"
+  [words]="words"
+  [search]="search"
+  [heading]="heading()"
+  [disabled]="disabled()"
+  [error]="error()"
+  [searchMaxLength]="searchMaxLength()"
+/>

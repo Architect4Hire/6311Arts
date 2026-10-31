@@ -5,11 +5,69 @@
 
 import { IconName, StatusTone } from '@6311/ui';
 
-import { fields, isString } from './decode';
+import {
+  CursorPage,
+  decodeCursorPage,
+  field,
+  fields,
+  int64,
+  isString,
+  oneOf,
+  optionalText,
+  shaped,
+  text,
+} from './decode';
 
 /** `PublishStatus`: the content lifecycle every CMS type shares. */
 export const PUBLISH_STATUSES = ['Draft', 'Scheduled', 'Published', 'Archived'] as const;
 export type PublishStatus = (typeof PUBLISH_STATUSES)[number];
+
+export const isStatus = oneOf(PUBLISH_STATUSES);
+export const status = field(isStatus);
+
+/** Another record one credits or names (an artist on a piece, the instructor of a run), as its own module describes it now. */
+export interface Credit {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string;
+  /** Its own status: a credit to an archived or draft record is shown as such. */
+  readonly status: PublishStatus;
+}
+
+/** Another record one credits or names (an artist on a piece, the instructor of a run): who it is, and its status. */
+export const credit = shaped({ id: text, name: text, slug: text, status });
+
+/** What every content record carries, whatever its type (content.md "Lifecycle"). */
+export interface ContentRecord {
+  readonly id: string;
+  readonly slug: string;
+  readonly status: PublishStatus;
+  /** When it was first published; kept through an unpublish. */
+  readonly publishedAt: string | null;
+  readonly scheduledFor: string | null;
+  readonly legacyWordPressId: number | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly updatedBy: string;
+  /** The row version, sent back as `If-Match`. */
+  readonly etag: string;
+}
+
+/** The fields every content record carries, whatever its type (content.md "Lifecycle"), for `decodeShape`. */
+export const CONTENT_FIELDS = {
+  id: text,
+  slug: text,
+  status,
+  /** When it was first published; kept through an unpublish. */
+  publishedAt: optionalText,
+  scheduledFor: optionalText,
+  legacyWordPressId: int64,
+  createdAt: text,
+  updatedAt: text,
+  updatedBy: text,
+  /** The row version, sent back as `If-Match`. */
+  etag: text,
+};
 
 /** How each status reads in a chip: a word, a glyph and a tone, never colour alone (design-system.md). */
 export const STATUS_CHIPS: Readonly<
@@ -96,4 +154,51 @@ export function isSlug(value: string): boolean {
   return (
     value.length > 0 && value.length <= SLUG_MAX_LENGTH && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
   );
+}
+
+/** One row of a content type's Deleted view (`*DeletedServiceModel`, ADR 0052), named by its name or its title. */
+export type DeletedRow<K extends 'name' | 'title'> = {
+  readonly id: string;
+  readonly slug: string;
+  /** What it was when it was deleted, not where it is now. */
+  readonly status: PublishStatus;
+  readonly deletedAt: string;
+  /** The row version, sent back as `If-Match` when restoring it. */
+  readonly etag: string;
+} & { readonly [key in K]: string };
+
+/** The Deleted view's rows, a page at a time. Admin only. */
+export type DeletedList<K extends 'name' | 'title'> = CursorPage<DeletedRow<K>>;
+
+export function decodeDeletedRow<K extends 'name' | 'title'>(
+  body: unknown,
+  key: K,
+): DeletedRow<K> | null {
+  const f = fields(body);
+  if (
+    !f ||
+    !isString(f['id']) ||
+    !isString(f[key]) ||
+    !isString(f['slug']) ||
+    !isStatus(f['status']) ||
+    !isString(f['deletedAt']) ||
+    !isString(f['etag'])
+  ) {
+    return null;
+  }
+  return {
+    id: f['id'],
+    [key]: f[key],
+    slug: f['slug'],
+    status: f['status'],
+    deletedAt: f['deletedAt'],
+    etag: f['etag'],
+  } as DeletedRow<K>;
+}
+
+export function decodeDeletedList<K extends 'name' | 'title'>(
+  body: unknown,
+  key: K,
+): DeletedList<K> | null {
+  return decodeCursorPage(body, (row) => decodeDeletedRow(row, key));
 }
