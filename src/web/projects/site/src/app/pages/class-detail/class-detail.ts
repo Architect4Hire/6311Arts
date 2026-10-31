@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { map, switchMap } from 'rxjs';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
+import { switchMap } from 'rxjs';
 import { UiIcon } from '@6311/ui';
 import { Seo, eventLd } from '../../core/seo.service';
 import { SITE } from '../../core/site';
@@ -30,13 +30,10 @@ export class ClassDetail {
   protected instructorSlug = slugify;
   /** The flyer is shown whole further down the page, so the banner shows the room the class runs in. */
   protected studioPhotos = STUDIO_PHOTOS;
-  private slug = toSignal(inject(ActivatedRoute).paramMap.pipe(map((p) => p.get('slug')!)), {
-    requireSync: true,
-  });
+  /** The route's `:slug`, bound by the router (`withComponentInputBinding`), or the preview page's (ADR 0063). */
+  readonly slug = input.required<string>();
 
-  protected all = toSignal(
-    inject(ActivatedRoute).paramMap.pipe(switchMap(() => this.api.classes())),
-  );
+  protected all = toSignal(toObservable(this.slug).pipe(switchMap(() => this.api.classes())));
   protected loaded = computed(() => this.all() !== undefined);
   protected cls = computed(() => this.all()?.find((c) => c.slug === this.slug()));
   protected more = computed(() =>

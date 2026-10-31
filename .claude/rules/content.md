@@ -133,7 +133,13 @@ Draft ──schedule──▶ Scheduled ──publish──▶ Published ──u
     module's `GetForPreviewAsync` whatever its status, and never cached (ADR 0042).
   - Everything unusable — expired, tampered with, or a record since deleted — is one `resource.not_found`, so a
     holder learns nothing from the answer. The answer is `no-store` and `X-Robots-Tag: noindex, nofollow`.
-  - A new publishable type joins `PreviewPolicy.EntityTypes` and `SitePaths` when it lands.
+  - **The site serves it at `/preview/{token}`** by rendering its real page component over `PreviewSiteApi` — a
+    `SiteApi` with the draft seeded into the one read that asks for it — so a preview is the page visitors will
+    see, with a bar across the top saying it is a draft (ADR 0063). An exhibition and a membership tier have no
+    address of their own, so each previews as the page that shows it. The response is `no-store` with
+    `X-Robots-Tag`, the head is `noindex, nofollow` with no canonical, and any unusable token is the site's 404.
+  - A new publishable type joins `PreviewPolicy.EntityTypes` and `SitePaths` when it lands, and the preview page's
+    branches — which is where it gets a page to render.
 
 ## Content rules
 

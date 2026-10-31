@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { of } from 'rxjs';
 import { ArtistPage, Instructor, Product, ProductPage } from '../../core/models';
@@ -47,7 +47,10 @@ async function render(
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
-      provideRouter([{ path: 'artists/:slug', component: ArtistDetail }]),
+      provideRouter(
+        [{ path: 'artists/:slug', component: ArtistDetail }],
+        withComponentInputBinding(),
+      ),
       {
         provide: SiteApi,
         useValue: { artist: () => of(page), instructors: () => of([TEACHER]), products },

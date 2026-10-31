@@ -2,7 +2,8 @@
 
 - **Status:** Accepted — the preview answer's shape amended by [0042](0042-site-read-api-and-its-cache.md); how an
   invalidation reaches another process amended by [0049](0049-cache-invalidation-bus.md) (the shared L2 alone does
-  not, so "≤1 minute stale" did not hold)
+  not, so "≤1 minute stale" did not hold); the site's preview page, left to "3.x" below and so missing that every
+  preview link answered 404, built by [0063](0063-the-sites-preview-page.md)
 - **Date:** 2026-10-20
 - **Rules affected:** `.claude/rules/content.md`, `.claude/rules/outbox.md`, `.claude/rules/aspire.md`,
   `.claude/rules/backend.md`, `.claude/rules/api-contract.md`
@@ -134,7 +135,9 @@ five-minute staleness.
      editor could already open. A shorter life or a revocation list would need its own ADR.
    - **The site's `/preview/{token}` page is 3.x's**, with the rest of the site's reads. It owes `noindex` in the
      rendered HTML, `no-store` from SSR, and absence from the sitemap and any prerender list; the API's
-     `X-Robots-Tag` covers only the JSON.
+     `X-Robots-Tag` covers only the JSON. *(It was never claimed by a 3.x prompt, so the route did not exist and
+     every minted link answered 404 until [ADR 0063](0063-the-sites-preview-page.md) built it, with all three of
+     those obligations met.)*
    - `Modules/Preview/` is a module of its own: one token must resolve to any content type, so something has to
      know them all, and it reaches each only through its facade and ServiceModels. It has no Business or Data
      layer — there is no rule to own and nothing to persist — as `Operations` has none below Business.

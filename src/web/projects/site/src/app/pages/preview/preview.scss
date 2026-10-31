@@ -1,0 +1,42 @@
+/*
+ * The bar that says this is a draft: the strip's charcoal, above the page itself, so a preview is never mistaken
+ * for the live site. It scrolls away with the page rather than covering it, because what staff came to look at is
+ * the page.
+ */
+.preview-bar {
+  background: var(--strip);
+  color: var(--white);
+  padding: var(--space-4) var(--pad);
+  display: grid;
+  gap: var(--space-1);
+}
+
+.preview-bar__what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-meta);
+}
+
+.preview-bar__tag {
+  background: var(--accent);
+  color: var(--ink);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+.preview-bar__where {
+  font-size: var(--fs-small);
+  color: var(--white-85);
+  line-height: var(--lh-hint);
+
+  code {
+    font-size: inherit;
+    // A slug is one word, and a long one must not push the bar off a narrow screen or at 200% zoom.
+    overflow-wrap: anywhere;
+  }
+}

@@ -1,4 +1,4 @@
-<app-hero [title]="page()?.title ?? fallbackTitle()" />
+<app-hero [title]="heading()" />
 <section class="band band--white" id="content">
   <div class="container container--narrow prose">
     @if (page(); as p) {

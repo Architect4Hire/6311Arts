@@ -4,11 +4,12 @@ import {
   computed,
   effect,
   inject,
+  input,
   linkedSignal,
   signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import { map, switchMap } from 'rxjs';
 import { UiIcon } from '@6311/ui';
 import { Product } from '../../core/models';
@@ -34,17 +35,16 @@ import { NotFound } from '../not-found/not-found';
 })
 export class ArtistDetail {
   private api = inject(SiteApi);
-  private route = inject(ActivatedRoute);
   protected site = SITE;
   /** The artist's own work fills the grid below; the banner shows the shop it sells in. */
   protected shopPhotos = SHOP_PHOTOS;
 
-  private slug = toSignal(this.route.paramMap.pipe(map((p) => p.get('slug')!)), {
-    requireSync: true,
-  });
+  /** The route's `:slug`, bound by the router (`withComponentInputBinding`), or the preview page's (ADR 0063). */
+  readonly slug = input.required<string>();
+
   private data = toSignal(
-    this.route.paramMap.pipe(
-      switchMap((p) => this.api.artist(p.get('slug')!).pipe(map((page) => ({ page })))),
+    toObservable(this.slug).pipe(
+      switchMap((slug) => this.api.artist(slug).pipe(map((page) => ({ page })))),
     ),
   );
   protected loaded = computed(() => this.data() !== undefined);

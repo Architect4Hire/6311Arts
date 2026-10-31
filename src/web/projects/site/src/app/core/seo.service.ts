@@ -2,6 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { Injectable, inject } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { ArtClass, Exhibition, Product } from './models';
+import { PreviewContext } from './preview';
 import { SITE } from './site';
 
 export interface PageSeo {
@@ -26,8 +27,12 @@ export class Seo {
   private title = inject(Title);
   private meta = inject(Meta);
   private doc = inject(DOCUMENT);
+  private preview = inject(PreviewContext);
 
   set(p: PageSeo): void {
+    // A staff preview is noindex whichever page is rendering inside it, and has no canonical address yet: the
+    // record is not published, so the address in `path` is where it *will* be (ADR 0036).
+    const previewing = this.preview.active();
     const fullTitle = p.path === '/' ? p.title : `${p.title} | ${SITE.name}`;
     const url = SITE.url + p.path;
     const image = p.image ?? SITE.ogImage;
@@ -37,7 +42,11 @@ export class Seo {
     this.title.setTitle(fullTitle);
     const tags: Record<string, string> = {
       description,
-      robots: p.noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large',
+      robots: previewing
+        ? 'noindex, nofollow'
+        : p.noindex
+          ? 'noindex, follow'
+          : 'index, follow, max-image-preview:large',
       'og:title': fullTitle,
       'og:description': description,
       'og:url': url,
@@ -55,7 +64,8 @@ export class Seo {
       this.meta.updateTag({ [attr]: key, content }, `${attr}="${key}"`);
     }
 
-    this.link('canonical', url);
+    if (previewing) this.unlink('canonical');
+    else this.link('canonical', url);
 
     const graph: object[] = [organization(), ...(p.jsonLd ?? [])];
     if (p.breadcrumbs?.length)
@@ -71,6 +81,10 @@ export class Seo {
       this.doc.head.appendChild(el);
     }
     el.setAttribute('href', href);
+  }
+
+  private unlink(rel: string): void {
+    this.doc.head.querySelector(`link[rel="${rel}"]`)?.remove();
   }
 
   private jsonLd(graph: object[]): void {

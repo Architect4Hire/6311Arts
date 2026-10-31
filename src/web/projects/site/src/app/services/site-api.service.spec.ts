@@ -33,6 +33,16 @@ const PLAN = {
   cadence: 'ANNUAL',
 };
 
+const ARTIST = {
+  id: '7f1c',
+  slug: 'carrie-haase',
+  name: 'Carrie Haase',
+  medium: 'Jewelry',
+  active: true,
+  portrait: null,
+  bioText: 'Metalsmith in Edgewater.',
+};
+
 function setup(config: Partial<SiteApiConfig> = {}, onServer = true) {
   const response: ResponseInit = { status: 200 };
   TestBed.configureTestingModule({
@@ -271,5 +281,61 @@ describe('SiteApi', () => {
     const classes = firstValueFrom(api.classes());
     http.expectOne('/api/v1/site/classes').flush(null, { status: 500, statusText: 'Server Error' });
     expect(await classes).toEqual([]);
+  });
+
+  it('reads a preview by its token, and keeps the token in the path it was given', async () => {
+    const { api, http, response } = setup();
+
+    const preview = firstValueFrom(api.preview('tok en/+'));
+    const req = http.expectOne((r) => r.url.startsWith('/api/v1/site/preview/'));
+    expect(req.request.url).toBe('/api/v1/site/preview/tok%20en%2F%2B');
+    req.flush({
+      entityType: 'artist',
+      entityId: '7f1c',
+      path: '/artists/carrie-haase',
+      status: 'Draft',
+      noIndex: true,
+      artist: ARTIST,
+    });
+
+    expect((await preview)?.artist?.name).toBe('Carrie Haase');
+    // A preview is a staff tool: a read of one never marks the render unavailable.
+    expect(response.status).toBe(200);
+  });
+
+  it('makes every unusable preview token one answer, and never the sample data', async () => {
+    const { api, http, response } = setup({ mockFallback: true });
+
+    const expired = firstValueFrom(api.preview('expired'));
+    http
+      .expectOne('/api/v1/site/preview/expired')
+      .flush({ code: 'resource.not_found' }, { status: 404, statusText: 'Not Found' });
+    const broken = firstValueFrom(api.preview('broken'));
+    http.expectOne('/api/v1/site/preview/broken').flush({ entityType: 'artist', noIndex: true });
+    const unreachable = firstValueFrom(api.preview('unreachable'));
+    http
+      .expectOne('/api/v1/site/preview/unreachable')
+      .flush('upstream down', { status: 502, statusText: 'Bad Gateway' });
+
+    expect(await expired).toBeUndefined();
+    expect(await broken).toBeUndefined();
+    expect(await unreachable).toBeUndefined();
+    expect(response.status).toBe(200);
+  });
+
+  it('refuses a preview whose type and record disagree', async () => {
+    const { api, http } = setup();
+
+    const preview = firstValueFrom(api.preview('mismatched'));
+    http.expectOne('/api/v1/site/preview/mismatched').flush({
+      entityType: 'exhibition',
+      entityId: '7f1c',
+      path: '/exhibitions/winter',
+      status: 'Draft',
+      noIndex: true,
+      artist: ARTIST,
+    });
+
+    expect(await preview).toBeUndefined();
   });
 });

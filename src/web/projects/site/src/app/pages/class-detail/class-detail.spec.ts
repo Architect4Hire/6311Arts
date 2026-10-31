@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { RESPONSE_INIT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { NEVER, Observable, of } from 'rxjs';
 import { ArtClass, MembershipTier } from '../../core/models';
@@ -45,7 +45,10 @@ async function setup(
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
-      provideRouter([{ path: 'classes/:slug', component: ClassDetail }]),
+      provideRouter(
+        [{ path: 'classes/:slug', component: ClassDetail }],
+        withComponentInputBinding(),
+      ),
       { provide: RESPONSE_INIT, useValue: response },
       {
         provide: SiteApi,

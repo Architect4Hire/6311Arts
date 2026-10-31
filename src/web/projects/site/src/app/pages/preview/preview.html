@@ -1,0 +1,43 @@
+@if (loaded()) {
+  @if (preview(); as preview) {
+    <section class="preview-bar" aria-label="Staff preview">
+      <p class="preview-bar__what">
+        <!-- &ngsp; keeps a space between the two for a screen reader; the layout's gap is only visual. -->
+        <span class="preview-bar__tag">Preview</span>&ngsp;<span
+          >{{ describes() }}, as the site will show it.</span
+        >
+      </p>
+      <p class="preview-bar__where">
+        {{ addresses() }} <code>{{ preview.path }}</code
+        >. This link works for half an hour from when it was made, shows the saved version, and is
+        never indexed.
+      </p>
+    </section>
+
+    @if (artist(); as artist) {
+      <app-artist-detail [slug]="artist.slug" />
+    } @else if (instructor(); as instructor) {
+      <app-instructor-detail [slug]="instructor.slug" />
+    } @else if (classOffering(); as offering) {
+      <app-class-detail [slug]="offering.slug" />
+    } @else if (shopItem(); as item) {
+      <app-product-detail [slug]="item.slug" />
+    } @else if (page(); as page) {
+      <app-cms-page [pageSlug]="page.slug" [fallbackTitle]="page.title" />
+    } @else if (exhibition()) {
+      <!-- A show has no page of its own: this is the exhibitions page, carrying the one being previewed. -->
+      <app-exhibitions />
+    } @else if (membershipPlan()) {
+      <!-- Nor does a tier (ADR 0040): the memberships page, carrying the one being previewed. -->
+      <app-memberships />
+    }
+  } @else {
+    <app-not-found />
+  }
+} @else {
+  <section class="band band--white">
+    <div class="container" role="status">
+      <p>Opening the preview…</p>
+    </div>
+  </section>
+}

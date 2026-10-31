@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import { map, switchMap } from 'rxjs';
 import { UiIcon } from '@6311/ui';
 import { Seo } from '../../core/seo.service';
@@ -29,12 +29,10 @@ import { Reveal } from '../../shared/reveal';
 })
 export class InstructorDetail {
   private api = inject(SiteApi);
-  private route = inject(ActivatedRoute);
   protected studioPhotos = STUDIO_PHOTOS;
 
-  private slug = toSignal(this.route.paramMap.pipe(map((p) => p.get('slug')!)), {
-    requireSync: true,
-  });
+  /** The route's `:slug`, bound by the router (`withComponentInputBinding`), or the preview page's (ADR 0063). */
+  readonly slug = input.required<string>();
   private all = toSignal(this.api.instructors(), { initialValue: [] });
   private allClasses = toSignal(this.api.classes(), { initialValue: [] });
   private artists = toSignal(this.api.artists(), { initialValue: [] });
@@ -66,8 +64,8 @@ export class InstructorDetail {
     return this.artists().find((a) => a.slug === want);
   });
   protected works = toSignal(
-    this.route.paramMap.pipe(
-      switchMap((p) => this.api.products({ artist: p.get('slug')!, limit: 8 })),
+    toObservable(this.slug).pipe(
+      switchMap((slug) => this.api.products({ artist: slug, limit: 8 })),
       map((r) => r.items),
     ),
     { initialValue: [] },

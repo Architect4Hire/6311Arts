@@ -443,3 +443,118 @@ export function decodeSitePage(body: unknown): SitePage | null {
     ? { id, slug, title, bodyHtml, updatedAt }
     : null;
 }
+
+// ---- Previews (ADR 0036) ---------------------------------------------------------------------------------------
+
+/** `PreviewPolicy.PathPrefixes`: the content types a preview link can name. */
+export const SITE_PREVIEW_TYPES = [
+  'artist',
+  'instructor',
+  'exhibition',
+  'page',
+  'class-offering',
+  'shop-item',
+  'membership-plan',
+] as const;
+
+export type SitePreviewType = (typeof SITE_PREVIEW_TYPES)[number];
+
+/** `PublishStatus`, as the API spells it. */
+export const SITE_PUBLISH_STATUSES = ['Draft', 'Scheduled', 'Published', 'Archived'] as const;
+
+export type SitePublishStatus = (typeof SITE_PUBLISH_STATUSES)[number];
+
+/**
+ * `GET /site/preview/{token}`: one record as the site will show it, whatever its status (`ContentPreviewServiceModel`).
+ * Exactly one member is set, and `entityType` says which.
+ *
+ * The records are the site's own models, the ones a published page renders, so a preview carries no staff
+ * bookkeeping. Two of them are the detail shape of a model the site only ever lists — an exhibition's `bodyText`
+ * and a class's `bodyHtml` — and those fields are dropped here, because no page on the site renders them.
+ */
+export interface SitePreview {
+  readonly entityType: SitePreviewType;
+  readonly entityId: string;
+  /** Where the record will live once published; `/memberships` for a tier, which has no address of its own. */
+  readonly path: string;
+  readonly status: SitePublishStatus;
+  /** Always `true`: a preview is never indexed and never enters the sitemap. */
+  readonly noIndex: boolean;
+  readonly artist: SiteArtist | null;
+  readonly instructor: SiteInstructor | null;
+  readonly exhibition: SiteExhibitionSummary | null;
+  readonly page: SitePage | null;
+  readonly classOffering: SiteClassSummary | null;
+  readonly shopItem: SiteShopItem | null;
+  readonly membershipPlan: SiteMembershipPlan | null;
+}
+
+export function decodeSitePreview(body: unknown): SitePreview | null {
+  const f = fields(body);
+  if (!f) return null;
+  const { entityId, path, noIndex } = f;
+  const entityType = SITE_PREVIEW_TYPES.find((t) => t === f['entityType']);
+  const status = SITE_PUBLISH_STATUSES.find((s) => s === f['status']);
+  if (!entityType || !status || !isString(entityId) || !isString(path) || !isBoolean(noIndex))
+    return null;
+
+  // Six of the seven members are null on any one answer, so a member left out of the JSON reads as absent; a
+  // member that *is* there and does not decode fails the whole answer, as every other read's would.
+  const member = <T>(name: string, decode: (body: unknown) => T | null) =>
+    decodeNullable(f[name] ?? null, decode);
+  const artist = member('artist', decodeSiteArtist);
+  const instructor = member('instructor', decodeSiteInstructor);
+  const exhibition = member('exhibition', decodeSiteExhibitionSummary);
+  const page = member('page', decodeSitePage);
+  const classOffering = member('classOffering', decodeSiteClassSummary);
+  const shopItem = member('shopItem', decodeSiteShopItem);
+  const membershipPlan = member('membershipPlan', decodeSiteMembershipPlan);
+  if (
+    artist === undefined ||
+    instructor === undefined ||
+    exhibition === undefined ||
+    page === undefined ||
+    classOffering === undefined ||
+    shopItem === undefined ||
+    membershipPlan === undefined
+  )
+    return null;
+
+  const preview: SitePreview = {
+    entityType,
+    entityId,
+    path,
+    status,
+    noIndex,
+    artist,
+    instructor,
+    exhibition,
+    page,
+    classOffering,
+    shopItem,
+    membershipPlan,
+  };
+
+  // The record the type names has to be there: an answer that says "artist" and carries none is not one we can show.
+  return recordOf(preview) === null ? null : preview;
+}
+
+/** The one member a preview sets, chosen by its `entityType`. */
+function recordOf(preview: SitePreview): object | null {
+  switch (preview.entityType) {
+    case 'artist':
+      return preview.artist;
+    case 'instructor':
+      return preview.instructor;
+    case 'exhibition':
+      return preview.exhibition;
+    case 'page':
+      return preview.page;
+    case 'class-offering':
+      return preview.classOffering;
+    case 'shop-item':
+      return preview.shopItem;
+    case 'membership-plan':
+      return preview.membershipPlan;
+  }
+}

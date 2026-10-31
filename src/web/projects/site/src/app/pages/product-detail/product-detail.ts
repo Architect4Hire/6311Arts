@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import { map, switchMap } from 'rxjs';
 import { UiIcon } from '@6311/ui';
 import { LegacyStore } from '../../core/legacy-store';
@@ -22,17 +22,19 @@ export class ProductDetail {
   private api = inject(SiteApi);
   protected store = inject(LegacyStore);
   protected site = SITE;
-  private route = inject(ActivatedRoute);
+  /** The route's `:slug`, bound by the router (`withComponentInputBinding`), or the preview page's (ADR 0063). */
+  readonly slug = input.required<string>();
+
   private data = toSignal(
-    this.route.paramMap.pipe(
-      switchMap((p) => this.api.product(p.get('slug')!).pipe(map((product) => ({ product })))),
+    toObservable(this.slug).pipe(
+      switchMap((slug) => this.api.product(slug).pipe(map((product) => ({ product })))),
     ),
   );
   protected loaded = computed(() => this.data() !== undefined);
   protected product = computed(() => this.data()?.product);
   protected more = toSignal(
-    this.route.paramMap.pipe(
-      switchMap((p) => this.api.product(p.get('slug')!)),
+    toObservable(this.slug).pipe(
+      switchMap((slug) => this.api.product(slug)),
       switchMap((p) => this.api.products({ artist: p?.artist?.slug, limit: 5 })),
       map((r) => r.items.filter((i) => i.id !== this.product()?.id).slice(0, 4)),
     ),

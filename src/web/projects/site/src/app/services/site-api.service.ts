@@ -18,6 +18,7 @@ import { MOCK_INSTRUCTORS } from '../data/instructors';
 import { MEMBERSHIPS, MOCK_ARTISTS, MOCK_PRODUCTS } from '../data/mock-shop';
 import { decodeArray } from '../models/decode';
 import {
+  SitePreview,
   decodeSiteArtistPage,
   decodeSiteArtistSummary,
   decodeSiteClassSummary,
@@ -25,6 +26,7 @@ import {
   decodeSiteInstructor,
   decodeSiteMembershipPlan,
   decodeSitePage,
+  decodeSitePreview,
   decodeSiteShopItem,
   decodeSiteShopPage,
 } from '../models/site';
@@ -184,6 +186,19 @@ export class SiteApi {
             ? undefined
             : this.fallback(() => undefined, undefined),
       ),
+    );
+  }
+
+  /**
+   * The draft a preview link names (ADR 0036), or `undefined` when the token is no longer usable.
+   *
+   * Everything unusable is one answer, as the API's is: expired, tampered with, or a record since deleted all come
+   * back `undefined`, and the preview page says the link no longer works. There is no sample-data fallback and no
+   * 503 — a preview is a staff tool, and a draft is never cached or indexed either way.
+   */
+  preview(token: string): Observable<SitePreview | undefined> {
+    return this.read(`/preview/${encodeURIComponent(token)}`, decodeSitePreview).pipe(
+      map((r) => (r.kind === 'ok' ? r.value : undefined)),
     );
   }
 

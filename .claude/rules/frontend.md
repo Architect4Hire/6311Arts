@@ -89,6 +89,16 @@ paths:
 - **Legacy URL redirects** come from `/api/v1/site/redirects` (CMS-managed and imported), with the spike's hard-coded map as a fallback. The order is the CMS's list, then the spike's map, then `/product/{slug}` (a published class's slug → `/classes`, otherwise `/shop`) and `/artist/{slug}` (`server/legacy-redirects.ts`). `server/site-data.ts` caches the routing data for 60 s and refreshes it behind the request (5 s after a failed read). Every legacy URL in the spike's map must still 301 with the API down (ADR 0048).
 - **`/sitemap.xml`** comes from `/api/v1/site/sitemap`. When that can't be read it is a `503` with `Retry-After`, never a shorter list. `robots.txt` is fixed text (ADR 0048).
 - **Forms** post through `FormsApi` to `/api/v1/forms/*` with the antiforgery header. The site server has no form routes of its own (ADR 0047, 0048).
+- **Previews** are `preview/:token`, declared before the `**` catch-all (ADR 0036, 0063). The page reads
+  `/api/v1/site/preview/{token}` and renders **the site's own page component** over `PreviewSiteApi`, provided in
+  place of `SiteApi` on that route only: it answers the one read for the previewed record from `PreviewContext` and
+  passes everything else to the real API with `super`, so the surroundings stay the live site's. It is a read seam —
+  no write path takes the token, so never override a write there. The page calls `noStoreNoIndex()`, `Seo` forces
+  `noindex, nofollow` and drops the canonical while `PreviewContext` is active, and an unusable token renders
+  `<app-not-found>` (a real 404). A detail page therefore takes its slug as a **routed input**
+  (`input.required<string>()` with `withComponentInputBinding`), never from `ActivatedRoute.paramMap`, so the
+  preview page can pass the same value; a spec that navigates to one passes `withComponentInputBinding()` to its
+  `provideRouter`.
 - **The logo and default social image** are Media assets at the fixed ids in `SITE_IMAGES` (`core/site.ts`), mirroring `MediaSiteImages`. Name them as `/media/{id}/{rendition}`, never a WordPress upload URL (ADR 0048).
 - **Checkout and member billing** load the Square Web Payments SDK. It runs in the browser only, never during SSR, and its host comes from config. Card fields stay inside Square's iframes.
 - **`security.allowedHosts`** comes from configuration (local gateway host, Container Apps domains, `6311arts.com`): `angular.json` keeps only `localhost` for `ng serve`, and the AppHost's `site-allowed-hosts` parameter becomes Angular's `NG_ALLOWED_HOSTS` (ADR 0046).

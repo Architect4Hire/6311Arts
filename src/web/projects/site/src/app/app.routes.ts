@@ -54,12 +54,12 @@ export const routes: Routes = [
   {
     path: 'privacy',
     loadComponent: () => import('./pages/cms-page/cms-page').then((m) => m.CmsPage),
-    data: { pageSlug: 'privacy', title: 'Privacy Policy' },
+    data: { pageSlug: 'privacy', fallbackTitle: 'Privacy Policy' },
   },
   {
     path: 'terms',
     loadComponent: () => import('./pages/cms-page/cms-page').then((m) => m.CmsPage),
-    data: { pageSlug: 'terms', title: 'Terms and Conditions' },
+    data: { pageSlug: 'terms', fallbackTitle: 'Terms and Conditions' },
   },
   // Staff sign-in. Here rather than in the CMS because /admin/** is behind the session gate (ADR 0024).
   { path: 'signin', loadComponent: () => import('./pages/signin/signin').then((m) => m.Signin) },
@@ -77,6 +77,12 @@ export const routes: Routes = [
   {
     path: 'account/confirm-email',
     loadComponent: () => import('./pages/confirm-email/confirm-email').then((m) => m.ConfirmEmail),
+  },
+  // A signed, expiring preview of one unpublished record (ADR 0036, 0063). Never linked to, never in the
+  // sitemap, disallowed in robots.txt; the token in the address is the whole credential.
+  {
+    path: 'preview/:token',
+    loadComponent: () => import('./pages/preview/preview').then((m) => m.Preview),
   },
   {
     path: '**',

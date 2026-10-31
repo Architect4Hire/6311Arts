@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { of } from 'rxjs';
 import { Product, ProductPage } from '../../core/models';
@@ -38,10 +38,14 @@ async function setup(
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
-      provideRouter([
-        { path: 'shop', component: Shop },
-        { path: 'shop/:slug', component: ProductDetail },
-      ]),
+      provideRouter(
+        [
+          { path: 'shop', component: Shop },
+          { path: 'shop/:slug', component: ProductDetail },
+        ],
+        // The pages take their `:slug` as an input (ADR 0063), as the application's router binds it.
+        withComponentInputBinding(),
+      ),
       { provide: SiteApi, useValue: { products, product: () => of(product) } },
     ],
   });
