@@ -1,7 +1,6 @@
 /**
  * Photographs of the building, galleries, classroom and shop, copied from the 6311arts.com media library
- * on 2026-10-18 (`/wp-json/wp/v2/media`) and downloaded on 2026-10-31 at the Jetpack CDN's 1600×1100 fit
- * (EXIF stripped) into `public/img/`, so the site serves them itself.
+ * on 2026-10-18 and saved at 1600×1100 (EXIF stripped) into `public/img/`, so the site serves them itself.
  *
  * Heroes fall back to these when the page has no content photo of its own, so no page ever renders a flat
  * dark banner. Replace them with CMS media once Arts6311.Importer runs; the paths are the only thing to change.

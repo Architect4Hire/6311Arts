@@ -90,6 +90,11 @@ half nobody is looking at.
 asserts both halves — present in Development, absent from the shipped policy — because a crutch nobody tests is
 a crutch that ships. It comes out when those pages read from `/api/v1/site/**`.
 
+**Removed 2026-10-31.** `WpApi` is gone and the pages read `/api/v1/site/**`. The site's fallback and venue
+photos now ship in `projects/site/public/img/`, so no page names `i0.wp.com` and both origins are out of
+`appsettings.Development.json`. `NoEnvironmentAllowsTheWordPressOrigins` replaces the two-halves test and keeps
+them out of every policy. `AdditionalSources` stays, unused, for the next environment-only source.
+
 ## Options considered
 
 | Option | Cost |

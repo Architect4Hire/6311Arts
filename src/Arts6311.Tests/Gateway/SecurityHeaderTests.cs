@@ -87,19 +87,18 @@ public sealed class SecurityHeaderTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task TheWordPressOriginsAreDevelopmentOnly()
+    public async Task NoEnvironmentAllowsTheWordPressOrigins()
     {
-        // The site still reads classes, exhibitions and shop items from the live WordPress while the migration runs
-        // (ADR 0039). That is a local crutch: it must never reach a deployed policy, where those reads come from the
-        // API on this origin. Both halves are asserted, because a crutch nobody tests is a crutch that ships.
-        var development = await DirectivesAsync(Environments.Development);
-        var shipped = await DirectivesAsync(Environments.Production);
+        // Development once allowed the live WordPress and its Jetpack CDN while the site still read from them
+        // (ADR 0039). The site now reads /api/v1/site/** and serves its own images, so neither origin belongs in
+        // any policy, local or shipped.
+        foreach (var environment in new[] { Environments.Development, Environments.Production })
+        {
+            var directives = await DirectivesAsync(environment);
 
-        Assert.Contains("https://6311arts.com", development["connect-src"]);
-        Assert.Contains("https://i0.wp.com", development["img-src"]);
-
-        Assert.DoesNotContain("https://6311arts.com", shipped["connect-src"]);
-        Assert.DoesNotContain("https://i0.wp.com", shipped["img-src"]);
+            Assert.DoesNotContain("https://6311arts.com", directives["connect-src"]);
+            Assert.DoesNotContain("https://i0.wp.com", directives["img-src"]);
+        }
     }
 
     [Fact]
@@ -138,10 +137,12 @@ public sealed class SecurityHeaderTests : IAsyncLifetime
             TestContext.Current.CancellationToken);
 
         using var document = System.Text.Json.JsonDocument.Parse(developmentSettings);
-        var csp = document.RootElement.GetProperty("Gateway").GetProperty("Csp");
+        var restatesDefault = document.RootElement.TryGetProperty("Gateway", out var gateway)
+            && gateway.TryGetProperty("Csp", out var csp)
+            && csp.TryGetProperty("Default", out _);
 
         Assert.False(
-            csp.TryGetProperty("Default", out _),
+            restatesDefault,
             "appsettings.Development.json restates Gateway:Csp:Default. Add sources through "
                 + "Gateway:Csp:AdditionalSources instead, or its copy of the script hashes will drift (ADR 0039).");
 

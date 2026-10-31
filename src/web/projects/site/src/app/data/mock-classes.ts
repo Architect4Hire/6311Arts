@@ -5,7 +5,7 @@ import { ArtClass } from '../core/models';
  * Served only when the site API fails and SiteApi's mock fallback is on (SITE_MOCK_FALLBACK). Summaries are draft marketing copy for staff to review,
  * and spotsLeft/capacity are illustrative until the FooEvents fields are exposed (see wordpress/6311-headless.php).
  */
-const flyer = (path: string) => `https://i0.wp.com/6311arts.com/wp-content/uploads/${path}?resize=800%2C800&ssl=1`;
+const flyer = (file: string) => `/img/classes/${file}`;
 
 /** WordPress's numeric ids as copied; converted to the site's string ids on export. */
 const CLASSES: (Omit<ArtClass, 'id'> & { id: number })[] = [
@@ -20,8 +20,9 @@ const CLASSES: (Omit<ArtClass, 'id'> & { id: number })[] = [
     level: 'Beginner',
     price: 3000,
     instructor: 'Candice Johnson',
-    image: flyer('2026/10/event-flyer-7660-1791581748.jpg'),
-    summary: 'Build a personal ofrenda to honor someone you love, just in time for Día de los Muertos.',
+    image: flyer('event-flyer-7660-1791581748.jpg'),
+    summary:
+      'Build a personal ofrenda to honor someone you love, just in time for Día de los Muertos.',
     spotsLeft: 4,
     capacity: 14,
   },
@@ -36,8 +37,9 @@ const CLASSES: (Omit<ArtClass, 'id'> & { id: number })[] = [
     level: 'All levels',
     price: 5000,
     instructor: 'Luis Valenzuela Jr.',
-    image: flyer('2026/08/event-flyer-4315-1789689653.jpg'),
-    summary: 'From protest posters to street murals: how artists have moved movements, and how print still does.',
+    image: flyer('event-flyer-4315-1789689653.jpg'),
+    summary:
+      'From protest posters to street murals: how artists have moved movements, and how print still does.',
     spotsLeft: 11,
     capacity: 20,
   },
@@ -52,8 +54,9 @@ const CLASSES: (Omit<ArtClass, 'id'> & { id: number })[] = [
     level: 'All levels',
     price: 0,
     instructor: 'Michelle Peterson-Albandoz',
-    image: flyer('2026/08/event-flyer-4327-1787847489.jpg'),
-    summary: 'Free and open to all. Meet the artist behind the oversized reclaimed-wood constructions filling the gallery.',
+    image: flyer('event-flyer-4327-1787847489.jpg'),
+    summary:
+      'Free and open to all. Meet the artist behind the oversized reclaimed-wood constructions filling the gallery.',
   },
   {
     id: 7662,
@@ -67,8 +70,9 @@ const CLASSES: (Omit<ArtClass, 'id'> & { id: number })[] = [
     level: 'Beginner',
     price: 30000,
     instructor: 'Gwen Schilling',
-    image: flyer('2026/10/event-flyer-7662-1792023622.jpg'),
-    summary: 'Burn your first screen and pull a full edition of prints in five weeks. No experience needed.',
+    image: flyer('event-flyer-7662-1792023622.jpg'),
+    summary:
+      'Burn your first screen and pull a full edition of prints in five weeks. No experience needed.',
     spotsLeft: 3,
     capacity: 10,
   },
@@ -84,8 +88,9 @@ const CLASSES: (Omit<ArtClass, 'id'> & { id: number })[] = [
     level: 'Intermediate',
     price: 30000,
     instructor: 'Diego Granath',
-    image: flyer('2026/10/event-flyer-7855-1792019802.jpg'),
-    summary: 'Multi-color registration, halftones and shop tricks from a working Chicago print studio.',
+    image: flyer('event-flyer-7855-1792019802.jpg'),
+    summary:
+      'Multi-color registration, halftones and shop tricks from a working Chicago print studio.',
     spotsLeft: 6,
     capacity: 10,
   },
@@ -100,8 +105,9 @@ const CLASSES: (Omit<ArtClass, 'id'> & { id: number })[] = [
     level: 'Beginner',
     price: 7500,
     instructor: 'Candice Johnson',
-    image: flyer('2026/09/event-flyer-7653-1790825237.jpg'),
-    summary: 'Draw with light. Scratch bold, high-contrast images out of black clay board in one Friday night.',
+    image: flyer('event-flyer-7653-1790825237.jpg'),
+    summary:
+      'Draw with light. Scratch bold, high-contrast images out of black clay board in one Friday night.',
     spotsLeft: 8,
     capacity: 12,
   },
@@ -117,7 +123,7 @@ const CLASSES: (Omit<ArtClass, 'id'> & { id: number })[] = [
     level: 'Beginner',
     price: 30000,
     instructor: 'Nicholas Waguespack',
-    image: flyer('2026/10/event-flyer-7857-1792107624.jpg'),
+    image: flyer('event-flyer-7857-1792107624.jpg'),
     summary: 'The same beginner course, at a slower Sunday-morning pace.',
     spotsLeft: 7,
     capacity: 10,
@@ -134,8 +140,9 @@ const CLASSES: (Omit<ArtClass, 'id'> & { id: number })[] = [
     level: 'Beginner',
     price: 32500,
     instructor: 'Nicholas Waguespack',
-    image: flyer('2026/10/event-flyer-7735-1792011821.jpg'),
-    summary: 'Monotype, linocut, collagraph and gelli plates. Try a new technique every week and find your favorite.',
+    image: flyer('event-flyer-7735-1792011821.jpg'),
+    summary:
+      'Monotype, linocut, collagraph and gelli plates. Try a new technique every week and find your favorite.',
     spotsLeft: 9,
     capacity: 10,
   },

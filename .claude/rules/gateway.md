@@ -64,10 +64,10 @@ which has no API call to authorize. The rule is about routes whose destination i
     `EveryInlineScriptOnTheRenderedSiteIsAllowedByItsOwnCsp` recomputes the hashes from the rendered page and names
     any that the policy no longer allows. A new inline script is refused by design — bundle it instead.
   - **`Gateway:Csp:AdditionalSources`** (directive → extra sources) appends to whichever policy a path resolved
-    to, and only to a directive that policy already names. It is how an *environment* adds a source: the
-    WordPress origins (`https://6311arts.com`, `https://i0.wp.com`) live in `appsettings.Development.json` under
-    this key for as long as `WpApi` reads the live site, and never reach the shipped policy — a test asserts both
-    halves (ADR 0039). **An environment never restates `Default`:** a second copy of the policy is a second copy
+    to, and only to a directive that policy already names. It is how an *environment* adds a source. No
+    environment uses it today: the WordPress origins (`https://6311arts.com`, `https://i0.wp.com`) it once added
+    in Development are gone, the site serves its own images from `public/img/`, and
+    `NoEnvironmentAllowsTheWordPressOrigins` keeps them out of every policy (ADR 0039). **An environment never restates `Default`:** a second copy of the policy is a second copy
     of the hashes, and the dev copy will mask a stale one in the shipped copy.
 - **Limits and correlation.**
   - Request size limits: **1 MiB for every route** (`Kestrel:Limits:MaxRequestBodySize`, in the gateway and the API), with per-route YARP `MaxRequestBodySize` above or below it. `/webhooks/square` is capped at 256 KB; `cms-media-upload` is raised to 26 MiB, `cms-shop-import` to 8 MiB and `forms-submissions` to 64 MiB. Uploads are streamed; the shop import's CSV is text in a JSON body, bounded by that limit.
