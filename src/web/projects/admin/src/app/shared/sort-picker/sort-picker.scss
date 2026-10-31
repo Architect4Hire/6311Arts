@@ -1,0 +1,11 @@
+// The table's headers sort on a wider screen; this is for the phone, where the wide columns have gone.
+:host {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  :host {
+    display: block;
+    flex: 1 1 100%;
+  }
+}

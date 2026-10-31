@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Memberships.Data.Entities;
 using Arts6311.Domain.Modules.Memberships.Managers;
@@ -37,7 +38,8 @@ internal interface IMembershipsDataLayer
     Task<int> NextDisplayOrderAsync(CancellationToken cancellationToken);
 
     Task<List<MembershipPlanSummaryServiceModel>> ListAsync(
-        MembershipPlanListPosition? after,
+        ListSort sort,
+        ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,

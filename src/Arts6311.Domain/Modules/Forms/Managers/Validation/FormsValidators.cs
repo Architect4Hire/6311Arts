@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Validation;
 using System.Text.RegularExpressions;
 using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Modules.Forms.Managers.ViewModels;
@@ -170,6 +171,7 @@ internal sealed class SubmissionListValidator : AbstractValidator<SubmissionList
     {
         RuleFor(request => request.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(request => request.Limit is not null);
         RuleFor(request => request.Status).IsInEnum().When(request => request.Status is not null);
+        RuleFor(request => request.Sort).SortableBy(FormsListOrder.Submissions);
     }
 }
 
@@ -193,6 +195,7 @@ internal sealed class ContactListValidator : AbstractValidator<ContactListViewMo
     public ContactListValidator()
     {
         RuleFor(request => request.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(request => request.Limit is not null);
+        RuleFor(request => request.Sort).SortableBy(FormsListOrder.Contacts);
     }
 }
 
@@ -210,5 +213,6 @@ internal sealed class NewsletterListValidator : AbstractValidator<NewsletterList
     {
         RuleFor(request => request.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(request => request.Limit is not null);
         RuleFor(request => request.Search).MaximumLength(FormsPolicy.EmailMaxLength).When(request => request.Search is not null);
+        RuleFor(request => request.Sort).SortableBy(FormsListOrder.Subscribers);
     }
 }

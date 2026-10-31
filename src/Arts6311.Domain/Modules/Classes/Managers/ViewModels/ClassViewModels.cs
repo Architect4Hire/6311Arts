@@ -92,11 +92,16 @@ public sealed record ClassUpdateViewModel(
 
 /// <summary>A page of class offerings, by title.</summary>
 /// <param name="Search">Part of a title, matched without regard to case.</param>
+/// <param name="Sort">
+/// title, status, runs, updated — with a leading <c>-</c> for descending (ADR 0062). The Deleted
+/// view ignores it.
+/// </param>
 public sealed record ClassListViewModel(
     string? Cursor = null,
     int? Limit = null,
     PublishStatus? Status = null,
-    string? Search = null);
+    string? Search = null,
+    string? Sort = null);
 
 /// <summary>The site's class list (<c>GET /api/v1/site/classes</c>).</summary>
 /// <param name="Instructor">An instructor's slug: only the runs they teach, for their page (ADR 0044).</param>

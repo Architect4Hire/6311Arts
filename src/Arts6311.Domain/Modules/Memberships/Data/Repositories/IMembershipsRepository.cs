@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Memberships.Data.Entities;
 using Arts6311.Domain.Modules.Memberships.Managers;
@@ -33,9 +34,10 @@ internal interface IMembershipsRepository
     /// <summary>Where a new plan goes: after every existing one.</summary>
     Task<int> NextDisplayOrderAsync(CancellationToken cancellationToken);
 
-    /// <summary>One page of the list in (DisplayOrder, Id) order, projected straight to list rows.</summary>
+    /// <summary>One page of the list in <paramref name="sort"/>'s order (ADR 0062), projected straight to list rows.</summary>
     Task<List<MembershipPlanSummaryServiceModel>> ListAsync(
-        MembershipPlanListPosition? after,
+        ListSort sort,
+        ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,

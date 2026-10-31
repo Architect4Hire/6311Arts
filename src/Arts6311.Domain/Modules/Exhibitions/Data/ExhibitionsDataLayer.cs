@@ -2,6 +2,7 @@ using Arts6311.Domain.Managers.Audit;
 using Arts6311.Domain.Managers.Correlation;
 using Arts6311.Domain.Managers.Outbox;
 using Arts6311.Domain.Managers.Outbox.Events;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Exhibitions.Data.Entities;
@@ -45,8 +46,8 @@ internal sealed class ExhibitionsDataLayer(
         repository.SlugExistsAsync(slug, exceptId, cancellationToken);
 
     public Task<List<ExhibitionSummaryServiceModel>> ListAsync(
-        ExhibitionListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
-        repository.ListAsync(after, take, status, search, cancellationToken);
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        repository.ListAsync(sort, after, take, status, search, cancellationToken);
 
     public async Task<ExhibitionWriteOutcome> CreateAsync(
         Exhibition exhibition, string actorUserId, CancellationToken cancellationToken)

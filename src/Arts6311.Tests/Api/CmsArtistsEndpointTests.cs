@@ -168,11 +168,11 @@ public sealed class CmsArtistsEndpointTests
         using var api = Factory(facade);
         using var client = Client(api, "Editor");
 
-        using var ok = await client.GetAsync($"{Base}?cursor=abc&limit=5&status=Published&search=haase", Ct);
+        using var ok = await client.GetAsync($"{Base}?cursor=abc&limit=5&status=Published&search=haase&sort=-updated", Ct);
         using var bad = await client.GetAsync($"{Base}?status=Live", Ct);
 
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
-        Assert.Equal(new ArtistListViewModel("abc", 5, PublishStatus.Published, "haase"), facade.Listed);
+        Assert.Equal(new ArtistListViewModel("abc", 5, PublishStatus.Published, "haase", "-updated"), facade.Listed);
         Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
     }
 

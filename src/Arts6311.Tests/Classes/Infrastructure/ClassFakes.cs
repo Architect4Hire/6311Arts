@@ -60,7 +60,7 @@ internal sealed class FakeClassesRepository(CallLog log) : IClassesRepository
         Task.FromResult(NextOfferingNumber);
 
     public Task<List<ClassListRow>> ListAsync(
-        ClassListPosition? after,
+        ListSort sort, ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,
@@ -150,7 +150,7 @@ internal sealed class FakeClassesDataLayer : IClassesDataLayer
         Task.FromResult(NextOfferingNumber);
 
     public Task<List<ClassListRow>> ListAsync(
-        ClassListPosition? after,
+        ListSort sort, ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,

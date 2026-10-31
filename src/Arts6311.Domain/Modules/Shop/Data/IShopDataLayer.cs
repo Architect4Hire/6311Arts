@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Catalog;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Shop.Data.Entities;
 using Arts6311.Domain.Modules.Shop.Managers;
@@ -76,7 +77,8 @@ internal interface IShopDataLayer
     Task<int> NextItemNumberAsync(CancellationToken cancellationToken);
 
     Task<List<ShopItemListRow>> ListAsync(
-        ShopItemListPosition? after,
+        ListSort sort,
+        ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,

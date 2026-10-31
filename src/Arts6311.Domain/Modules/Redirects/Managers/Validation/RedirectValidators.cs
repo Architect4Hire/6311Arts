@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Paging;
+using Arts6311.Domain.Managers.Validation;
 using Arts6311.Domain.Modules.Redirects.Managers.ViewModels;
 using FluentValidation;
 
@@ -72,6 +73,7 @@ internal sealed class RedirectListValidator : AbstractValidator<RedirectListView
         RuleFor(list => list.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(list => list.Limit is not null);
         RuleFor(list => list.Source).IsInEnum();
         RuleFor(list => list.Search).MaximumLength(RedirectPolicy.SearchMaxLength);
+        RuleFor(list => list.Sort).SortableBy(RedirectListOrder.Columns);
     }
 }
 

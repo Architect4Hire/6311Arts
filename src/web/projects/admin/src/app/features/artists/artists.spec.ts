@@ -154,6 +154,35 @@ describe('ArtistList', () => {
     expect(text(root.querySelector('[aria-live="polite"]'))).toBe('1 artist.');
   });
 
+  it('sorts by a header’s column on the API, keeps the order in the address bar and says so', async () => {
+    const { http, router } = await configure();
+    const fixture = TestBed.createComponent(ArtistList);
+    fixture.detectChanges();
+    const first = http.expectOne((r) => r.url === BASE);
+    expect(first.request.params.get('sort')).toBe('name');
+    first.flush({ items: [toArtistSummary(ARTIST)], nextCursor: null });
+    await settle(fixture);
+
+    const root = fixture.nativeElement as HTMLElement;
+    const updated = [...root.querySelectorAll('thead th')].find((th) => text(th) === 'Updated')!;
+    expect(root.querySelector('thead th')?.getAttribute('aria-sort')).toBe('ascending');
+    expect(text(root.querySelector('caption'))).toBe('Artists, sorted by Name, A to Z');
+
+    updated.querySelector('button')!.click();
+    fixture.detectChanges();
+    const sorted = http.expectOne((r) => r.url === BASE);
+    expect(sorted.request.params.get('sort')).toBe('-updated');
+    sorted.flush({ items: [toArtistSummary(ARTIST)], nextCursor: null });
+    await settle(fixture);
+
+    expect(updated.getAttribute('aria-sort')).toBe('descending');
+    expect(router.url).toBe('/?sort=-updated');
+    expect(text(root.querySelector('caption'))).toBe('Artists, sorted by Updated, newest first');
+    expect(text(root.querySelector('[aria-live="polite"]'))).toBe(
+      'Sorted by Updated, newest first. 1 artist.',
+    );
+  });
+
   it('offers a retry when the roster cannot be loaded', async () => {
     const { http } = await configure();
     const fixture = TestBed.createComponent(ArtistList);

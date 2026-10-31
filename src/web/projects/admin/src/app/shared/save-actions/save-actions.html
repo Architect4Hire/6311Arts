@@ -1,0 +1,15 @@
+@let editor = view();
+<button
+  uiButton
+  type="submit"
+  variant="dark"
+  [busy]="editor.saving()"
+  [disabled]="!editor.dirty() || editor.busy()"
+>
+  {{ editor.saveLabel() }}
+</button>
+@if (editor.canDiscard()) {
+  <button uiButton type="button" [disabled]="editor.busy()" (click)="editor.discard()">
+    Discard changes
+  </button>
+}

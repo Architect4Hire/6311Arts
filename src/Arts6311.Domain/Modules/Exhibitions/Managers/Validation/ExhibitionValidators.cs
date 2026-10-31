@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
+using Arts6311.Domain.Managers.Validation;
 using Arts6311.Domain.Modules.Exhibitions.Managers.ViewModels;
 using FluentValidation;
 
@@ -95,6 +96,7 @@ internal sealed class ExhibitionListValidator : AbstractValidator<ExhibitionList
         RuleFor(list => list.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(list => list.Limit is not null);
         RuleFor(list => list.Status).IsInEnum();
         RuleFor(list => list.Search).MaximumLength(ExhibitionPolicy.SearchMaxLength);
+        RuleFor(list => list.Sort).SortableBy(ExhibitionListOrder.Columns);
     }
 }
 

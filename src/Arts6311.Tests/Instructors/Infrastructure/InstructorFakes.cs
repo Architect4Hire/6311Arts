@@ -98,7 +98,7 @@ internal sealed class FakeInstructorsRepository(CallLog log) : IInstructorsRepos
         Task.FromResult(Rows.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
 
     public Task<List<InstructorSummaryServiceModel>> ListAsync(
-        InstructorListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         Task.FromResult(new List<InstructorSummaryServiceModel>());
 
     public Task<List<InstructorSummaryServiceModel>> ListByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
@@ -173,7 +173,7 @@ internal sealed class FakeInstructorsDataLayer : IInstructorsDataLayer
         Task.FromResult(SlugExists);
 
     public Task<List<InstructorSummaryServiceModel>> ListAsync(
-        InstructorListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         Task.FromResult(new List<InstructorSummaryServiceModel>());
 
     public List<IReadOnlyCollection<Guid>> SummaryLookups { get; } = [];

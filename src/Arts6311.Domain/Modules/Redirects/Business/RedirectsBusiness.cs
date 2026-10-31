@@ -27,27 +27,32 @@ internal sealed class RedirectsBusiness(IRedirectsDataLayer dataLayer, IClock cl
         var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim().ToLowerInvariant();
         var scope = string.Create(CultureInfo.InvariantCulture, $"redirects|source={request.Source}|search={search}");
 
-        string? after = null;
+        var order = RedirectListOrder.Columns;
+
+        // The facade's validator has already refused a column this list does not sort by.
+        var sort = order.Resolve(request.Sort)
+            ?? throw new ArgumentException("This list does not sort by that column.", nameof(request));
+
+        ListPosition? after = null;
         if (request.Cursor is not null)
         {
-            var decoded = PageCursor.Decode(request.Cursor, scope);
+            var decoded = order.Decode(sort, request.Cursor, scope);
             if (!decoded.Succeeded)
             {
                 return OperationResult.Failure<CursorPage<RedirectServiceModel>>(decoded.Error!);
             }
 
-            after = decoded.Value!.SortValue;
+            after = decoded.Value;
         }
 
         var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
-        var rows = await dataLayer.ListAsync(after, limit + 1, request.Source, search, cancellationToken);
+        var rows = await dataLayer.ListAsync(sort, after, limit + 1, request.Source, search, cancellationToken);
 
         string? next = null;
         if (rows.Count > limit)
         {
             rows.RemoveAt(limit);
-            var last = rows[^1];
-            next = new PageCursor(last.FromPath, last.Id.ToString("N")).Encode(scope);
+            next = order.Encode(sort, rows[^1], scope);
         }
 
         return OperationResult.Success(new CursorPage<RedirectServiceModel>(rows, next));

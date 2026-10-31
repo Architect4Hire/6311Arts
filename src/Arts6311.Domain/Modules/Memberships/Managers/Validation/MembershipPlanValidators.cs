@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Validation;
 using System.Globalization;
 using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
@@ -79,6 +80,7 @@ internal sealed class MembershipPlanListValidator : AbstractValidator<Membership
         RuleFor(list => list.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(list => list.Limit is not null);
         RuleFor(list => list.Status).IsInEnum();
         RuleFor(list => list.Search).MaximumLength(MembershipPolicy.SearchMaxLength);
+        RuleFor(list => list.Sort).SortableBy(MembershipPlanListOrder.Columns);
     }
 }
 

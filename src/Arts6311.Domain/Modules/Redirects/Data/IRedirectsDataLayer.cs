@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Modules.Redirects.Data.Entities;
 using Arts6311.Domain.Modules.Redirects.Managers;
 using Arts6311.Domain.Modules.Redirects.Managers.ServiceModels;
@@ -36,7 +37,7 @@ internal interface IRedirectsDataLayer
     Task<List<Redirect>> ListForSlugChangeAsync(string fromPath, string toPath, CancellationToken cancellationToken);
 
     Task<List<RedirectServiceModel>> ListAsync(
-        string? afterFromPath, int take, RedirectSource? source, string? search, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, RedirectSource? source, string? search, CancellationToken cancellationToken);
 
     Task<List<SiteRedirectServiceModel>> ListForSiteAsync(CancellationToken cancellationToken);
 

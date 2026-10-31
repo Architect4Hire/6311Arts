@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Catalog;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Memberships.Data.Entities;
@@ -66,7 +67,8 @@ internal sealed class MembershipsRepository(ArtsDbContext context) : IMembership
         (await Plans.AsNoTracking().MaxAsync(plan => (int?)plan.DisplayOrder, cancellationToken) ?? 0) + 1;
 
     public Task<List<MembershipPlanSummaryServiceModel>> ListAsync(
-        MembershipPlanListPosition? after,
+        ListSort sort,
+        ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,
@@ -87,15 +89,7 @@ internal sealed class MembershipsRepository(ArtsDbContext context) : IMembership
             query = query.Where(plan => EF.Functions.Like(plan.Name, pattern, LikeEscape.ToString()));
         }
 
-        if (after is not null)
-        {
-            query = query.Where(plan => plan.DisplayOrder > after.DisplayOrder
-                || (plan.DisplayOrder == after.DisplayOrder && plan.Id.CompareTo(after.Id) > 0));
-        }
-
-        return query
-            .OrderBy(plan => plan.DisplayOrder)
-            .ThenBy(plan => plan.Id)
+        return MembershipPlanListOrder.Columns.Apply(query, sort, after)
             .Take(take)
             .Select(plan => new MembershipPlanSummaryServiceModel(
                 plan.Id,

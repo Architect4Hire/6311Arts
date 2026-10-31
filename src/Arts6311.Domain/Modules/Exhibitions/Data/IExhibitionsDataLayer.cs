@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Exhibitions.Data.Entities;
 using Arts6311.Domain.Modules.Exhibitions.Managers;
@@ -41,7 +42,7 @@ internal interface IExhibitionsDataLayer
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 
     Task<List<ExhibitionSummaryServiceModel>> ListAsync(
-        ExhibitionListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
 
     /// <summary>Adds the exhibition Business built, credits included, with its bookkeeping and audit entry, in one save.</summary>
     Task<ExhibitionWriteOutcome> CreateAsync(Exhibition exhibition, string actorUserId, CancellationToken cancellationToken);

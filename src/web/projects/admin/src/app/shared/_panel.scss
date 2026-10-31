@@ -1,0 +1,38 @@
+// A side panel of a record editor (publishing, an image, a picker): a ruled box with an uppercase label.
+// `@use` it from a component's stylesheet; the rules are emitted into that component's own styles.
+.panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-thin) solid var(--line);
+}
+.panel__title {
+  margin: 0;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+.panel__title:focus {
+  outline: none;
+}
+.panel__text,
+.panel__empty,
+.panel__hint {
+  margin: 0;
+}
+.panel__hint,
+.panel__empty {
+  font-size: var(--fs-small);
+  color: var(--text-soft);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.error {
+  margin: 0;
+  color: var(--danger);
+  font-weight: var(--fw-bold);
+}

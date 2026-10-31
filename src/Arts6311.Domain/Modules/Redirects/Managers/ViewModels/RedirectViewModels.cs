@@ -11,13 +11,17 @@ public sealed record RedirectCreateViewModel(string FromPath, string ToPath, int
 /// <summary>An edit. A field left out (or <c>null</c>) is unchanged.</summary>
 public sealed record RedirectUpdateViewModel(string? FromPath = null, string? ToPath = null, int? StatusCode = null);
 
-/// <summary>A page of redirects, by old address.</summary>
+/// <summary>A page of redirects, by old address unless <paramref name="Sort"/> says otherwise.</summary>
 /// <param name="Search">Part of either address, matched without regard to case.</param>
+/// <param name="Sort">
+/// <c>from</c>, <c>to</c>, <c>type</c> or <c>source</c>, with a leading <c>-</c> for descending (ADR 0062).
+/// </param>
 public sealed record RedirectListViewModel(
     string? Cursor = null,
     int? Limit = null,
     RedirectSource? Source = null,
-    string? Search = null);
+    string? Search = null,
+    string? Sort = null);
 
 /// <summary>A slug change the Worker applies (<c>redirects.slug-changed</c>, ADR 0035).</summary>
 /// <param name="OccurredAt">When the rename was saved, so renames applied out of order never undo a later one.</param>

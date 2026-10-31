@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Catalog;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Classes.Data.Entities;
 using Arts6311.Domain.Modules.Classes.Managers;
@@ -51,7 +52,8 @@ internal interface IClassesDataLayer
     Task<int> NextOfferingNumberAsync(CancellationToken cancellationToken);
 
     Task<List<ClassListRow>> ListAsync(
-        ClassListPosition? after,
+        ListSort sort,
+        ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,

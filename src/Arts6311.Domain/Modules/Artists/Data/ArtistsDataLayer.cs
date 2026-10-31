@@ -2,6 +2,7 @@ using Arts6311.Domain.Managers.Audit;
 using Arts6311.Domain.Managers.Correlation;
 using Arts6311.Domain.Managers.Outbox;
 using Arts6311.Domain.Managers.Outbox.Events;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
@@ -42,8 +43,8 @@ internal sealed class ArtistsDataLayer(
         repository.SlugExistsAsync(slug, exceptId, cancellationToken);
 
     public Task<List<ArtistSummaryServiceModel>> ListAsync(
-        ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
-        repository.ListAsync(after, take, status, search, cancellationToken);
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        repository.ListAsync(sort, after, take, status, search, cancellationToken);
 
     public Task<List<ArtistSummaryServiceModel>> GetSummariesAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>

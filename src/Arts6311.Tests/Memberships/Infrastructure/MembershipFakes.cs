@@ -55,7 +55,7 @@ internal sealed class FakeMembershipsRepository(CallLog log) : IMembershipsRepos
     public Task<int> NextDisplayOrderAsync(CancellationToken cancellationToken) => Task.FromResult(NextDisplayOrder);
 
     public Task<List<MembershipPlanSummaryServiceModel>> ListAsync(
-        MembershipPlanListPosition? after,
+        ListSort sort, ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,
@@ -133,7 +133,7 @@ internal sealed class FakeMembershipsDataLayer : IMembershipsDataLayer
     public Task<int> NextDisplayOrderAsync(CancellationToken cancellationToken) => Task.FromResult(NextDisplayOrder);
 
     public Task<List<MembershipPlanSummaryServiceModel>> ListAsync(
-        MembershipPlanListPosition? after,
+        ListSort sort, ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,

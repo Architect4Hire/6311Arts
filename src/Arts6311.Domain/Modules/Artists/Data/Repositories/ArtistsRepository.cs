@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
@@ -73,7 +74,7 @@ internal sealed class ArtistsRepository(ArtsDbContext context) : IArtistsReposit
         [.. await Artists.IgnoreQueryFilters().AsNoTracking().Select(artist => artist.Slug).ToListAsync(cancellationToken)];
 
     public Task<List<ArtistSummaryServiceModel>> ListAsync(
-        ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken)
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken)
     {
         var query = Artists.AsNoTracking();
 
@@ -90,19 +91,7 @@ internal sealed class ArtistsRepository(ArtsDbContext context) : IArtistsReposit
             query = query.Where(artist => EF.Functions.Like(artist.Name, pattern, LikeEscape.ToString()));
         }
 
-        if (after is not null)
-        {
-            // Translated to SQL's ">", under the column's own collation — the same order as the ORDER BY below, which
-            // is what a keyset needs. An ordinal comparison would disagree with that order, and EF cannot translate one.
-#pragma warning disable CA1309
-            query = query.Where(artist => string.Compare(artist.Name, after.Name) > 0
-                || (artist.Name == after.Name && artist.Id.CompareTo(after.Id) > 0));
-#pragma warning restore CA1309
-        }
-
-        return query
-            .OrderBy(artist => artist.Name)
-            .ThenBy(artist => artist.Id)
+        return ArtistListOrder.Columns.Apply(query, sort, after)
             .Take(take)
             .Select(ToSummary)
             .ToListAsync(cancellationToken);

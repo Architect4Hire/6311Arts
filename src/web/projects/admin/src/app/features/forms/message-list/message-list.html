@@ -15,6 +15,8 @@
   }
 </div>
 
+<cms-sort-picker [sort]="sort" />
+
 <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
 
 @switch (state()) {
@@ -45,16 +47,19 @@
       </ui-empty-state>
     } @else {
       <div class="scroll" role="region" aria-label="Messages" tabindex="0">
-        <table class="list" [attr.aria-busy]="refreshing() || null">
+        <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
           <caption class="sr-only">
-            Contact messages, newest first
+            Contact messages, sorted by
+            {{
+              sort.description()
+            }}
           </caption>
           <thead>
             <tr>
-              <th scope="col">From</th>
-              <th scope="col" class="wide">Message</th>
-              <th scope="col">Status</th>
-              <th scope="col" class="wide">Received</th>
+              <th scope="col" cmsSortHeader="from">From</th>
+              <th scope="col" class="wide" cmsSortHeader="message">Message</th>
+              <th scope="col" cmsSortHeader="status">Status</th>
+              <th scope="col" class="wide" cmsSortHeader="received">Received</th>
             </tr>
           </thead>
           <tbody>

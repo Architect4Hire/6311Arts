@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
+using Arts6311.Domain.Managers.Validation;
 using Arts6311.Domain.Modules.Artists.Managers.ViewModels;
 using FluentValidation;
 
@@ -70,5 +71,6 @@ internal sealed class ArtistListValidator : AbstractValidator<ArtistListViewMode
         RuleFor(list => list.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(list => list.Limit is not null);
         RuleFor(list => list.Status).IsInEnum();
         RuleFor(list => list.Search).MaximumLength(ArtistPolicy.SearchMaxLength);
+        RuleFor(list => list.Sort).SortableBy(ArtistListOrder.Columns);
     }
 }

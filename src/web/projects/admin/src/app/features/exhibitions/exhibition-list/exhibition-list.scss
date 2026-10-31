@@ -30,26 +30,6 @@
 .scroll {
   overflow-x: auto;
 }
-.shows {
-  width: 100%;
-  border-collapse: collapse;
-}
-.shows th,
-.shows td {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: var(--border-thin) solid var(--line);
-  text-align: left;
-  vertical-align: top;
-}
-.shows thead th {
-  font-size: var(--fs-label);
-  font-weight: var(--fw-heavy);
-  letter-spacing: var(--track-label);
-  text-transform: uppercase;
-}
-.shows tbody th {
-  font-weight: var(--fw-bold);
-}
 .slug {
   display: block;
   font-size: var(--fs-small);

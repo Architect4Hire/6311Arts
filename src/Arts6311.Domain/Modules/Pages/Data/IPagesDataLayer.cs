@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Pages.Data.Entities;
 using Arts6311.Domain.Modules.Pages.Managers;
@@ -30,7 +31,7 @@ internal interface IPagesDataLayer
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 
     Task<List<PageSummaryServiceModel>> ListAsync(
-        PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
 
     /// <summary>One page of the Deleted view, in the same order and on the same cursor as the list.</summary>
     Task<List<PageDeletedRow>> ListDeletedAsync(

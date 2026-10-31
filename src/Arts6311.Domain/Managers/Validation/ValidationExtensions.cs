@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Results;
 using FluentValidation;
 
@@ -27,5 +28,19 @@ public static class ValidationExtensions
             : OperationError.Validation(
                 "One or more fields are not valid.",
                 result.Errors.Select(failure => (failure.PropertyName, failure.ErrorMessage)));
+    }
+
+    /// <summary>
+    /// A list's <c>sort</c>: absent, or one of the columns <paramref name="order"/> sorts by, with a leading minus for
+    /// descending (ADR 0062). An unknown column is a 400 naming the ones there are, never a quiet fall-back.
+    /// </summary>
+    public static IRuleBuilderOptions<T, string?> SortableBy<T, TEntity, TRow>(
+        this IRuleBuilder<T, string?> rule, ListOrder<TEntity, TRow> order)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        ArgumentNullException.ThrowIfNull(order);
+
+        return rule.Must(order.Allows).WithMessage(
+            $"Sort by one of: {string.Join(", ", order.Columns)}. Put '-' before it for descending.");
     }
 }

@@ -82,6 +82,8 @@ export interface RedirectUpdate {
 export interface RedirectListQuery {
   readonly cursor?: string | null;
   readonly limit?: number;
+  /** A column the list sorts by, `-` before it for descending (ADR 0062). Absent: the list's own order. */
+  readonly sort?: string;
   readonly source?: RedirectSource;
   readonly search?: string;
 }

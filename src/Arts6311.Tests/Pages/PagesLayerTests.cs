@@ -440,7 +440,7 @@ public sealed class PagesLayerTests
         public Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken) => Task.FromResult(new HashSet<string>());
 
         public Task<List<PageSummaryServiceModel>> ListAsync(
-            PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+            ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
             Task.FromResult(new List<PageSummaryServiceModel>());
 
         public Task<List<PageDeletedRow>> ListDeletedAsync(
@@ -505,7 +505,7 @@ public sealed class PagesLayerTests
             Task.FromResult(rows.Values.Any(row => row.Slug == slug && row.Id != exceptId && row.DeletedAt is null));
 
         public Task<List<PageSummaryServiceModel>> ListAsync(
-            PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+            ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
             Task.FromResult(new List<PageSummaryServiceModel>());
 
         public Task<List<PageDeletedRow>> ListDeletedAsync(

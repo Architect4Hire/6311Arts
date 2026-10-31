@@ -68,7 +68,7 @@ internal sealed class FakeShopRepository(CallLog log) : IShopRepository
     public Task<int> NextItemNumberAsync(CancellationToken cancellationToken) => Task.FromResult(NextItemNumber);
 
     public Task<List<ShopItemListRow>> ListAsync(
-        ShopItemListPosition? after,
+        ListSort sort, ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,
@@ -165,7 +165,7 @@ internal sealed class FakeShopDataLayer : IShopDataLayer
     public Task<int> NextItemNumberAsync(CancellationToken cancellationToken) => Task.FromResult(NextItemNumber);
 
     public Task<List<ShopItemListRow>> ListAsync(
-        ShopItemListPosition? after,
+        ListSort sort, ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,

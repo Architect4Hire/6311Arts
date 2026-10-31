@@ -1,0 +1,79 @@
+<section class="panel" aria-labelledby="publishing-heading">
+  <h2 #heading id="publishing-heading" class="panel__title" tabindex="-1">Publishing</h2>
+  <p class="panel__text">{{ statusText() }}</p>
+  @if (dirty()) {
+    <p class="panel__hint" id="publishing-hint">
+      Save your changes first: these act on the saved version.
+    </p>
+  }
+  <div class="actions">
+    @if (canPublish()) {
+      <button
+        uiButton
+        type="button"
+        variant="dark"
+        size="sm"
+        [attr.aria-describedby]="dirty() ? 'publishing-hint' : null"
+        [busy]="lifecycle().commanding() === 'publish'"
+        [disabled]="dirty() || busy()"
+        (click)="run('publish')"
+      >
+        Publish
+      </button>
+    }
+    @if (record().status === 'Published') {
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        [attr.aria-describedby]="dirty() ? 'publishing-hint' : null"
+        [busy]="lifecycle().commanding() === 'unpublish'"
+        [disabled]="dirty() || busy()"
+        (click)="run('unpublish')"
+      >
+        Unpublish
+      </button>
+    }
+    @if (canArchive()) {
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        [attr.aria-describedby]="dirty() ? 'publishing-hint' : null"
+        [busy]="lifecycle().commanding() === 'archive'"
+        [disabled]="dirty() || busy()"
+        (click)="run('archive')"
+      >
+        Archive
+      </button>
+    }
+  </div>
+
+  <cms-schedule-control
+    [noun]="copy().noun"
+    [status]="record().status"
+    [scheduledFor]="record().scheduledFor"
+    [disabled]="dirty() || busy()"
+    [busy]="lifecycle().commanding()"
+    (schedule)="schedule($event)"
+    (unschedule)="run('unschedule')"
+  />
+
+  <cms-preview-link [entityType]="copy().previewType" [entityId]="record().id" [dirty]="dirty()" />
+  @if (isAdmin()) {
+    <div class="cms-danger">
+      <h3 class="cms-danger__title">Delete</h3>
+      <p class="panel__text">{{ copy().deleteText }}</p>
+      <button
+        uiButton
+        type="button"
+        size="sm"
+        [busy]="lifecycle().deleting()"
+        [disabled]="busy()"
+        (click)="remove()"
+      >
+        Delete {{ copy().deleteNoun ?? copy().noun }}
+      </button>
+    </div>
+  }
+</section>

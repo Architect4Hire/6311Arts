@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using System.Globalization;
 using Arts6311.Domain.Managers.Audit;
 using Arts6311.Domain.Managers.Correlation;
@@ -85,8 +86,8 @@ internal sealed class FormsDataLayer(
         repository.FindSubmissionAsync(id, cancellationToken);
 
     public Task<List<ArtistSubmission>> ListSubmissionsAsync(
-        FormsListPosition? after, int take, SubmissionStatus? status, CancellationToken cancellationToken) =>
-        repository.ListSubmissionsAsync(after, take, status, cancellationToken);
+        ListSort sort, ListPosition? after, int take, SubmissionStatus? status, CancellationToken cancellationToken) =>
+        repository.ListSubmissionsAsync(sort, after, take, status, cancellationToken);
 
     public async Task<FormsWriteOutcome> UpdateSubmissionAsync(
         ArtistSubmission submission, string actorUserId, string summary, CancellationToken cancellationToken)
@@ -107,8 +108,8 @@ internal sealed class FormsDataLayer(
         repository.FindContactAsync(id, cancellationToken);
 
     public Task<List<ContactMessage>> ListContactsAsync(
-        FormsListPosition? after, int take, bool? handled, CancellationToken cancellationToken) =>
-        repository.ListContactsAsync(after, take, handled, cancellationToken);
+        ListSort sort, ListPosition? after, int take, bool? handled, CancellationToken cancellationToken) =>
+        repository.ListContactsAsync(sort, after, take, handled, cancellationToken);
 
     public async Task<FormsWriteOutcome> UpdateContactAsync(
         ContactMessage message, string actorUserId, CancellationToken cancellationToken)
@@ -129,8 +130,8 @@ internal sealed class FormsDataLayer(
         repository.FindSubscriberAsync(id, cancellationToken);
 
     public Task<List<NewsletterSubscriber>> ListSubscribersAsync(
-        FormsListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
-        repository.ListSubscribersAsync(after, take, search, cancellationToken);
+        ListSort sort, ListPosition? after, int take, string? search, CancellationToken cancellationToken) =>
+        repository.ListSubscribersAsync(sort, after, take, search, cancellationToken);
 
     public async Task RemoveSubscriberAsync(NewsletterSubscriber subscriber, string actorUserId, CancellationToken cancellationToken)
     {

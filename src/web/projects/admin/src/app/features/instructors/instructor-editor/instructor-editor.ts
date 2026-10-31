@@ -1,46 +1,31 @@
-import { HttpErrorResponse } from '@angular/common/http';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  Injector,
-  afterNextRender,
-  computed,
-  effect,
-  inject,
-  input,
-  signal,
-  untracked,
-  viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
-import { UiButton, UiControl, UiField, UiNotice, UiStatusChip } from '@6311/ui';
-import { ConfirmService } from '../../../core/confirm/confirm.service';
-import { HasUnsavedChanges, warnBeforeUnload } from '../../../core/guards/unsaved-changes.guard';
-import { SessionService } from '../../../core/session/session.service';
+import { UiControl, UiField } from '@6311/ui';
 import {
-  INSTRUCTOR_CODES,
   INSTRUCTOR_LIMITS,
   Instructor,
-  InstructorCommand,
   InstructorCreate,
-  InstructorProblem,
   InstructorUpdate,
-  STATUS_CHIPS,
-  decodeInstructorProblem,
   isInstagramHandle,
   isWebsite,
   normalizeInstagram,
-  slugFromName,
 } from '../../../models/instructor';
-import { MediaAsset, MediaAssetSummary } from '../../../models/media';
-import { ROLES } from '../../../models/session';
 import { InstructorService } from '../../../services/instructor.service';
-import { MediaService } from '../../../services/media.service';
-import { MediaPicker } from '../../media/media-picker/media-picker';
+import { ContentEditor } from '../../../shared/content-editor';
+import { EditorFrame } from '../../../shared/editor-frame/editor-frame';
+import { ImagePanel } from '../../../shared/image-panel/image-panel';
 import { ArtistPicker, PickedArtist } from '../../../shared/pickers/artist-picker/artist-picker';
+import { PublishingPanel } from '../../../shared/publishing-panel/publishing-panel';
+import {
+  CompareRow,
+  FieldErrors,
+  Focusable,
+  excerpt,
+  imageRow,
+  orDash,
+  yesNo,
+} from '../../../shared/record-editor';
+import { SaveActions } from '../../../shared/save-actions/save-actions';
 
 interface Draft {
   readonly name: string;
@@ -55,25 +40,6 @@ interface Draft {
   readonly artist: PickedArtist | null;
 }
 
-/** What the editor shows of the portrait: a thumbnail and whether it has the alt text publishing needs. */
-interface Portrait {
-  readonly id: string;
-  readonly url: string | null;
-  readonly altText: string | null;
-  /** The image's details couldn't be fetched: its alt text is unknown, not missing. */
-  readonly unavailable?: boolean;
-}
-
-type Status =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'load-failed' }
-  | { readonly kind: 'not-found' }
-  | { readonly kind: 'ready' }
-  | { readonly kind: 'saving' }
-  | { readonly kind: 'commanding'; readonly command: InstructorCommand }
-  | { readonly kind: 'deleting' }
-  | { readonly kind: 'conflict'; readonly theirs: Instructor };
-
 const FIELDS = [
   'name',
   'slug',
@@ -84,8 +50,7 @@ const FIELDS = [
   'instagram',
   'artistId',
 ] as const;
-
-type FieldErrors = Partial<Record<(typeof FIELDS)[number], string>>;
+type Field = (typeof FIELDS)[number];
 
 const EMPTY: Draft = {
   name: '',
@@ -99,130 +64,54 @@ const EMPTY: Draft = {
   artist: null,
 };
 
-/** Router state set by "Create instructor", read by the editor it navigates to. */
-const CREATED_STATE = 'instructorCreated';
-
-const COMMAND_LABELS: Readonly<
-  Record<InstructorCommand, { readonly busy: string; readonly done: string }>
-> = {
-  publish: { busy: 'Publishing…', done: 'Published.' },
-  unpublish: { busy: 'Unpublishing…', done: 'Unpublished. The instructor is a draft again.' },
-  archive: { busy: 'Archiving…', done: 'Archived.' },
-  schedule: { busy: 'Scheduling…', done: 'Scheduled.' },
-  unschedule: { busy: 'Unscheduling…', done: 'Unscheduled. The instructor is a draft again.' },
-};
-
 /**
  * One instructor (`/admin/instructors/new`, `/admin/instructors/:id`, ADR 0043): name, web address, what they teach,
  * bio, whether they teach here now, their website and Instagram, the artist they also are, and their portrait from the
- * media library; then publish, unpublish, schedule or (Admins) archive. Cloned from the artist editor.
- *
- * Unsaved edits survive every recoverable failure (frontend.md): a refused save keeps the form as typed, and a 409
- * shows the saved version beside the editor's own so neither is lost. Status commands act on the saved version, so
- * they wait until the form is saved.
+ * media library; then publish, unpublish, schedule or (Admins) archive.
  */
-import { PreviewLinkButton } from '../../../shared/preview-link/preview-link';
-import { ScheduleControl } from '../../../shared/schedule-control/schedule-control';
-import { confirmDelete } from '../../../shared/delete-confirm/delete-confirm';
-
 @Component({
   selector: 'cms-instructor-editor',
   imports: [
     FormsModule,
-    RouterLink,
-    MediaPicker,
-    ArtistPicker,
-    UiButton,
     UiControl,
     UiField,
-    UiNotice,
-    UiStatusChip,
-    PreviewLinkButton,
-    ScheduleControl,
+    ArtistPicker,
+    EditorFrame,
+    ImagePanel,
+    PublishingPanel,
+    SaveActions,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './instructor-editor.html',
   styleUrl: './instructor-editor.scss',
 })
-export class InstructorEditor implements HasUnsavedChanges {
-  /** The route's `:id`; absent on `/instructors/new`. */
-  readonly id = input<string>();
+export class InstructorEditor extends ContentEditor<
+  Instructor,
+  Draft,
+  InstructorCreate,
+  InstructorUpdate,
+  Field
+> {
+  private readonly portrait = viewChild(ImagePanel);
 
-  private readonly instructors = inject(InstructorService);
-  private readonly media = inject(MediaService);
-  private readonly confirm = inject(ConfirmService);
-  private readonly session = inject(SessionService);
-  private readonly router = inject(Router);
-  private readonly injector = inject(Injector);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly conflictBox = viewChild<ElementRef<HTMLElement>>('conflictBox');
-  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
-  private readonly publishingHeading = viewChild<ElementRef<HTMLElement>>('publishingHeading');
-  private readonly portraitButton = viewChild<ElementRef<HTMLElement>>('portraitButton');
-
-  /** Arrived straight from "Create instructor", which navigated here from `instructors/new` (another component). */
-  private readonly justCreated =
-    this.router.currentNavigation()?.extras.state?.[CREATED_STATE] === true;
-
-  protected readonly chips = STATUS_CHIPS;
   protected readonly limits = INSTRUCTOR_LIMITS;
+  protected readonly instructor = this.record;
 
-  protected readonly status = signal<Status>({ kind: 'loading' });
-  /** The instructor as saved; `null` while creating one. */
-  protected readonly instructor = signal<Instructor | null>(null);
-  protected readonly draft = signal<Draft>(EMPTY);
-  protected readonly portrait = signal<Portrait | null>(null);
-  protected readonly errors = signal<FieldErrors>({});
-  protected readonly formError = signal<string | null>(null);
-  protected readonly liveMessage = signal('');
-  protected readonly picking = signal(false);
-
-  protected readonly isAdmin = computed(() => this.session.hasAnyRole([ROLES.admin]));
-  protected readonly busy = computed(() => {
-    const kind = this.status().kind;
-    return kind === 'saving' || kind === 'commanding' || kind === 'deleting';
-  });
-  protected readonly commanding = computed(() => {
-    const status = this.status();
-    return status.kind === 'commanding' ? status.command : null;
-  });
-  protected readonly conflict = computed(() => {
-    const status = this.status();
-    return status.kind === 'conflict' ? status.theirs : null;
-  });
-  protected readonly canPublish = computed(() => {
-    const status = this.instructor()?.status;
-    return status === 'Draft' || status === 'Scheduled';
-  });
-  protected readonly canArchive = computed(() => {
-    const status = this.instructor()?.status;
-    return this.isAdmin() && status !== undefined && status !== 'Archived';
-  });
-
-  protected readonly deleting = computed(() => this.status().kind === 'deleting');
-
-  /** A saved instructor an Admin can delete, whatever its status (ADR 0052). */
-  protected readonly canDelete = computed(() => this.isAdmin() && this.instructor() !== null);
-
-  protected readonly saveLabel = computed(() => {
-    if (this.status().kind === 'saving') return this.instructor() ? 'Saving…' : 'Creating…';
-    return this.instructor() ? 'Save' : 'Create instructor';
-  });
-
-  /** Made from the name on create and never typed (the field only shows it), so the address never moves. */
-  protected readonly slugHint = computed(() => {
-    const slug = this.draft().slug;
-    return this.instructor()
-      ? `6311arts.com/instructors/${slug}`
-      : `6311arts.com/instructors/${slug || '…'} — made from the name. If another instructor has it, a number is added.`;
-  });
-
-  /** Edits not yet saved: the unsaved-changes guard asks before they are lost. */
-  readonly dirty = computed(() => {
-    const draft = this.draft();
-    const instructor = this.instructor();
-    if (!instructor) {
-      return (
+  constructor() {
+    super({
+      api: inject(InstructorService),
+      noun: 'instructor',
+      plural: 'instructors',
+      route: '/instructors',
+      label: (instructor) => instructor.name,
+      address: { path: '6311arts.com/instructors/', from: 'name' },
+      createdMessage: 'Instructor created. Publish it when it’s ready.',
+      createdState: 'instructorCreated',
+      empty: () => EMPTY,
+      draftOf,
+      createOf,
+      changesOf,
+      started: (draft) =>
         draft.name.trim() !== '' ||
         draft.medium.trim() !== '' ||
         draft.bio.trim() !== '' ||
@@ -230,409 +119,48 @@ export class InstructorEditor implements HasUnsavedChanges {
         draft.portraitMediaId !== null ||
         draft.website.trim() !== '' ||
         draft.instagram.trim() !== '' ||
-        draft.artist !== null
-      );
-    }
-    return Object.keys(changesOf(instructor, draft)).length > 0;
-  });
-
-  constructor() {
-    warnBeforeUnload(() => this.hasUnsavedChanges());
-
-    effect(() => {
-      this.id();
-      untracked(() => void this.load());
-    });
-
-    // The portrait's thumbnail and alt text follow whichever image the draft names.
-    effect(() => {
-      const id = this.draft().portraitMediaId;
-      untracked(() => void this.showPortrait(id));
-    });
-  }
-
-  hasUnsavedChanges(): boolean {
-    return this.dirty() || this.busy();
-  }
-
-  async load(): Promise<void> {
-    const id = this.id();
-    this.errors.set({});
-    this.formError.set(null);
-
-    if (!id) {
-      this.instructor.set(null);
-      this.draft.set(EMPTY);
-      this.status.set({ kind: 'ready' });
-      return;
-    }
-
-    this.status.set({ kind: 'loading' });
-    try {
-      const instructor = await firstValueFrom(this.instructors.get(id));
-      this.instructor.set(instructor);
-      this.draft.set(draftOf(instructor));
-      this.status.set({ kind: 'ready' });
-      if (this.justCreated) {
-        this.announce('Instructor created. Publish it when it’s ready.');
-        this.focus(this.heading);
-      }
-    } catch (error: unknown) {
-      this.status.set(
-        problemOf(error)?.code === INSTRUCTOR_CODES.notFound
-          ? { kind: 'not-found' }
-          : { kind: 'load-failed' },
-      );
-    }
-  }
-
-  protected patch(change: Partial<Draft>): void {
-    this.draft.update((draft) => ({ ...draft, ...change }));
-    const cleared = Object.keys(change).filter((key) => key in this.errors());
-    if (cleared.length > 0) {
-      this.errors.update((errors) =>
-        Object.fromEntries(Object.entries(errors).filter(([key]) => !cleared.includes(key))),
-      );
-    }
-  }
-
-  protected setName(name: string): void {
-    // A new instructor's address follows its name; staff never type one, and the API numbers a taken one.
-    const followsName = !this.instructor();
-    this.patch({ name, ...(followsName ? { slug: slugFromName(name) } : {}) });
-  }
-
-  protected choosePortrait(choice: MediaAssetSummary): void {
-    this.portrait.set({ id: choice.id, url: choice.thumbnailUrl, altText: choice.altText });
-    this.patch({ portraitMediaId: choice.id });
-  }
-
-  protected removePortrait(): void {
-    this.patch({ portraitMediaId: null });
-  }
-
-  protected retryPortrait(): void {
-    void this.showPortrait(this.draft().portraitMediaId, true);
-  }
-
-  protected discard(): void {
-    const instructor = this.instructor();
-    if (instructor) this.draft.set(draftOf(instructor));
-    this.errors.set({});
-    this.formError.set(null);
-  }
-
-  protected portraitWord(mine: string | null, theirs: string | null): string {
-    if (!mine) return 'None';
-    return mine === theirs ? 'The same image' : 'A different image';
-  }
-
-  protected excerpt(text: string): string {
-    const flat = text.replace(/\s+/g, ' ').trim();
-    if (flat === '') return '—';
-    return flat.length > 80 ? `${flat.slice(0, 80)}…` : flat;
-  }
-
-  protected statusText(instructor: Instructor): string {
-    switch (instructor.status) {
-      case 'Published':
-        return 'Published: on the public site. Edits show there within a minute.';
-      case 'Archived':
-        return 'Archived: retired from the site. Archiving can’t be undone here.';
-      case 'Scheduled':
-        return 'Scheduled to publish.';
-      default:
-        return instructor.publishedAt
-          ? 'A draft again, after being published. Its web address stays fixed.'
-          : 'A draft: only staff can see it.';
-    }
-  }
-
-  protected async save(etag?: string): Promise<void> {
-    if (this.busy() || !this.dirty()) return;
-
-    const draft = this.draft();
-    const local = localErrors(draft);
-    if (Object.keys(local).length > 0) {
-      this.showErrors(local, null);
-      return;
-    }
-
-    const instructor = this.instructor();
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'saving' });
-    try {
-      if (!instructor) {
-        const created = await firstValueFrom(this.instructors.create(createOf(draft)));
-        this.instructor.set(created);
-        this.draft.set(draftOf(created));
-        this.status.set({ kind: 'ready' });
-        // The editor for the new id is a new component; it announces the creation and takes focus.
-        await this.router.navigate(['/instructors', created.id], {
-          replaceUrl: true,
-          state: { [CREATED_STATE]: true },
-        });
-        return;
-      }
-
-      const saved = await firstValueFrom(
-        this.instructors.update(
-          instructor.id,
-          changesOf(instructor, draft),
-          etag ?? instructor.etag,
-        ),
-      );
-      this.instructor.set(saved);
-      this.draft.set(draftOf(saved));
-      this.status.set({ kind: 'ready' });
-      // Saving disabled the fieldset that held the focused control, so the browser dropped focus to <body>.
-      // Put it on the heading, which is where "Saved." is announced from, rather than leaving a keyboard or
-      // screen-reader user with no position on the page (WCAG 2.4.3 focus order).
-      this.focus(this.heading);
-      this.announce('Saved.');
-    } catch (error: unknown) {
-      await this.saveFailed(error);
-    }
-  }
-
-  /** Saves the editor's own values over the version someone else saved. */
-  protected async keepMine(theirs: Instructor): Promise<void> {
-    this.instructor.set(theirs);
-    this.status.set({ kind: 'ready' });
-    // The comparison and its buttons are gone now, so focus moves to the title rather than being lost.
-    this.focus(this.heading);
-    if (!this.dirty()) {
-      this.announce('Your changes already match the saved version. Nothing more to save.');
-      return;
-    }
-    await this.save(theirs.etag);
-  }
-
-  protected useTheirs(theirs: Instructor): void {
-    this.instructor.set(theirs);
-    this.draft.set(draftOf(theirs));
-    this.status.set({ kind: 'ready' });
-    this.announce('Showing the saved version. Your changes were discarded.');
-    this.focus(this.heading);
-  }
-
-  protected async unpublish(): Promise<void> {
-    const confirmed = await this.confirm.confirm({
-      heading: 'Unpublish this instructor?',
-      message:
-        'They go back to being a draft and leave the public site. Their web address stays the same, so publishing again restores it.',
-      confirmLabel: 'Unpublish',
-      cancelLabel: 'Keep published',
-    });
-    if (confirmed) await this.run('unpublish');
-  }
-
-  protected async archive(): Promise<void> {
-    const confirmed = await this.confirm.confirm({
-      heading: 'Archive this instructor?',
-      message:
-        'An archived instructor is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
-      confirmLabel: 'Archive instructor',
-      cancelLabel: 'Keep them',
-    });
-    if (confirmed) await this.run('archive');
-  }
-
-  /**
-   * Deletes the instructor (ADR 0052). Offered while the form is dirty — asking someone to save a record before
-   * throwing it away would be absurd — and the dialogs say so; the wording is shared by every type
-   * (<c>confirmDelete</c>). It acts on the saved version's row version, as every write does.
-   */
-  protected async remove(): Promise<void> {
-    const instructor = this.instructor();
-    if (!instructor || this.busy()) return;
-
-    const confirmed = await confirmDelete(this.confirm, {
-      noun: 'instructor',
-      label: instructor.name,
-      slug: instructor.slug,
-      live: instructor.status === 'Published',
-      dirty: this.dirty(),
-      inSquare: false,
-      keepLabel: 'Keep them',
-    });
-    if (!confirmed) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'deleting' });
-    try {
-      await firstValueFrom(this.instructors.delete(instructor.id, instructor.etag));
-
-      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
-      this.draft.set(draftOf(instructor));
-      this.status.set({ kind: 'ready' });
-      await this.router.navigate(['/instructors']);
-    } catch (error: unknown) {
-      const problem = problemOf(error);
-      this.status.set({ kind: 'ready' });
-      // cms.in_use names the records that still name this one, which is exactly what the editor needs to read,
-      // so its detail is shown as it came (ADR 0052).
-      this.showErrors(
-        {},
-        problem?.code === INSTRUCTOR_CODES.concurrencyConflict
-          ? 'Someone else changed this instructor a moment ago. Reload it, check it, and try again.'
-          : problem?.code === INSTRUCTOR_CODES.inUse
-            ? (problem.detail ??
-              'Another record still names this instructor. Take it off that record first.')
-            : messageOf(problem, 'The instructor couldn’t be deleted. Try again.'),
-      );
-    }
-  }
-
-  /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */
-  protected async schedule(scheduledFor: string): Promise<void> {
-    const instructor = this.instructor();
-    if (!instructor || this.busy() || this.dirty()) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'commanding', command: 'schedule' });
-    this.announce(COMMAND_LABELS.schedule.busy);
-    try {
-      const updated = await firstValueFrom(
-        this.instructors.schedule(instructor.id, scheduledFor, instructor.etag),
-      );
-      this.instructor.set(updated);
-      this.draft.set(draftOf(updated));
-      this.status.set({ kind: 'ready' });
-      this.announce(COMMAND_LABELS.schedule.done);
-    } catch (error: unknown) {
-      await this.commandFailed(error);
-    }
-  }
-
-  protected async unschedule(): Promise<void> {
-    await this.run('unschedule');
-  }
-
-  protected async run(command: InstructorCommand): Promise<void> {
-    const instructor = this.instructor();
-    if (!instructor || this.busy() || this.dirty()) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'commanding', command });
-    this.announce(COMMAND_LABELS[command].busy);
-    try {
-      const updated = await firstValueFrom(
-        this.instructors.command(instructor.id, command, instructor.etag),
-      );
-      this.instructor.set(updated);
-      this.draft.set(draftOf(updated));
-      this.status.set({ kind: 'ready' });
-      this.announce(COMMAND_LABELS[command].done);
-      // The button pressed may be gone (Publish, once published), so focus goes to the panel's heading.
-      this.focus(this.publishingHeading);
-    } catch (error: unknown) {
-      await this.commandFailed(error);
-    }
-  }
-
-  private async saveFailed(error: unknown): Promise<void> {
-    const problem = problemOf(error);
-
-    if (problem?.code === INSTRUCTOR_CODES.concurrencyConflict && this.instructor()) {
-      try {
-        const theirs = await firstValueFrom(this.instructors.get(this.instructor()!.id));
-        this.status.set({ kind: 'conflict', theirs });
-        this.announce(
-          'Someone else saved this instructor while you were editing. Compare the two versions.',
-        );
-        // Focus follows the news, so a keyboard or screen-reader user lands on the comparison.
-        afterNextRender(() => this.conflictBox()?.nativeElement.focus(), {
-          injector: this.injector,
-        });
-        return;
-      } catch {
-        // Fall through to the plain message; the draft is still in the form.
-      }
-    }
-
-    this.status.set({ kind: 'ready' });
-    this.showErrors(
-      fieldErrorsOf(problem),
-      messageOf(problem, 'The changes couldn’t be saved. Try again.'),
-    );
-  }
-
-  /**
-   * A refused command. The form holds no unsaved edits (commands wait for a save), so the latest saved version is
-   * simply shown again with the reason — a conflict or a status someone else changed included.
-   */
-  private async commandFailed(error: unknown): Promise<void> {
-    const problem = problemOf(error);
-    const stale =
-      problem?.code === INSTRUCTOR_CODES.concurrencyConflict ||
-      problem?.code === INSTRUCTOR_CODES.transitionInvalid;
-
-    if (stale && this.instructor()) {
-      try {
-        const latest = await firstValueFrom(this.instructors.get(this.instructor()!.id));
-        this.instructor.set(latest);
-        this.draft.set(draftOf(latest));
-      } catch {
-        // The message below still says what happened.
-      }
-    }
-
-    this.status.set({ kind: 'ready' });
-    this.showErrors(
-      fieldErrorsOf(problem),
-      problem?.code === INSTRUCTOR_CODES.concurrencyConflict
-        ? 'Someone else changed this instructor a moment ago. Here is the latest version; check it and try again.'
-        : messageOf(problem, 'That didn’t work. Try again.'),
-    );
-  }
-
-  private showErrors(errors: FieldErrors, message: string | null): void {
-    this.errors.set(errors);
-    this.formError.set(message);
-    this.announce(message ?? 'Some fields need attention.');
-    // The message is linked to the field and read when it has focus (UiField), so focus goes to the first one. The
-    // portrait has no field, so its error sends focus to the button that fixes it.
-    afterNextRender(
-      () => {
-        const invalid = this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]');
-        const target =
-          invalid ?? (errors.portraitMediaId ? this.portraitButton()?.nativeElement : null);
-        target?.focus();
+        draft.artist !== null,
+      localErrors,
+      fields: FIELDS,
+      lifecycle: {
+        noun: 'instructor',
+        keepLabel: 'Keep them',
+        inSquare: false,
+        previewType: 'instructor',
+        unpublishMessage:
+          'They go back to being a draft and leave the public site. Their web address stays the same, so publishing again restores it.',
+        archiveMessage:
+          'An archived instructor is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
+        deleteText:
+          'The instructor leaves the site and the list, and their web address is free again. An Admin can restore them from Deleted, as a draft.',
       },
-      { injector: this.injector },
-    );
+    });
   }
 
-  /** Writes to the live region. The same words twice still change it, so they are read out again. */
-  private announce(message: string): void {
-    this.liveMessage.update((current) => (current === message ? `${message}\u00a0` : message));
+  protected override compare(theirs: Instructor, draft: Draft): readonly CompareRow[] {
+    return [
+      { label: 'Name', mine: orDash(draft.name), theirs: theirs.name },
+      {
+        label: 'Web address',
+        mine: `/instructors/${draft.slug}`,
+        theirs: `/instructors/${theirs.slug}`,
+      },
+      { label: 'Medium', mine: orDash(draft.medium), theirs: orDash(theirs.medium) },
+      { label: 'Bio', mine: excerpt(draft.bio), theirs: excerpt(theirs.bio) },
+      { label: 'Teaches here now', mine: yesNo(draft.active), theirs: yesNo(theirs.active) },
+      { label: 'Website', mine: orDash(draft.website), theirs: orDash(theirs.website) },
+      { label: 'Instagram', mine: orDash(draft.instagram), theirs: orDash(theirs.instagram) },
+      { label: 'Artist', mine: orDash(draft.artist?.name), theirs: orDash(theirs.artist?.name) },
+      imageRow('Portrait', draft.portraitMediaId, theirs.portraitMediaId),
+    ];
   }
 
-  private focus(target: () => ElementRef<HTMLElement> | undefined): void {
-    afterNextRender(() => target()?.nativeElement.focus(), { injector: this.injector });
+  protected override fieldsOf(keys: readonly string[]): readonly string[] {
+    return keys.map((key) => (key === 'artist' ? 'artistId' : key));
   }
 
-  private async showPortrait(id: string | null, retry = false): Promise<void> {
-    if (id === null) {
-      this.portrait.set(null);
-      return;
-    }
-    if (!retry && this.portrait()?.id === id) return;
-
-    this.portrait.set(null);
-    try {
-      const asset = await firstValueFrom(this.media.get(id));
-      if (this.draft().portraitMediaId === id) this.portrait.set(portraitOf(asset));
-    } catch {
-      if (this.draft().portraitMediaId === id) {
-        this.portrait.set({ id, url: null, altText: null, unavailable: true });
-      }
-    }
+  protected override focusFallback(errors: FieldErrors<Field>): Focusable | null | undefined {
+    return errors.portraitMediaId ? this.portrait()?.focusTarget() : null;
   }
 }
 
@@ -650,15 +178,6 @@ function draftOf(instructor: Instructor): Draft {
       ? { id: instructor.artist.id, name: instructor.artist.name, status: instructor.artist.status }
       : null,
   };
-}
-
-function portraitOf(asset: MediaAsset): Portrait {
-  const url =
-    asset.renditions.find((rendition) => rendition.name === '800.webp')?.url ??
-    asset.renditions.find((rendition) => rendition.name === '400.webp')?.url ??
-    [...asset.renditions].sort((a, b) => a.width - b.width)[0]?.url ??
-    null;
-  return { id: asset.id, url, altText: asset.altText };
 }
 
 /** Bio line endings as the API stores them, so an untouched bio never looks edited. */
@@ -709,9 +228,8 @@ function changesOf(instructor: Instructor, draft: Draft): InstructorUpdate {
   };
 }
 
-/** What the form can tell before asking: the API checks the same and has the last word. */
-function localErrors(draft: Draft): FieldErrors {
-  const errors: FieldErrors = {};
+function localErrors(draft: Draft): FieldErrors<Field> {
+  const errors: FieldErrors<Field> = {};
   if (draft.name.trim() === '') errors.name = 'Enter the instructor’s name.';
   const website = draft.website.trim();
   if (website !== '' && !isWebsite(website)) {
@@ -723,33 +241,4 @@ function localErrors(draft: Draft): FieldErrors {
     errors.instagram = 'Use letters, digits, periods and underscores, up to 30 characters.';
   }
   return errors;
-}
-
-function problemOf(error: unknown): InstructorProblem | null {
-  return error instanceof HttpErrorResponse
-    ? decodeInstructorProblem(error.error, error.status)
-    : null;
-}
-
-function fieldErrorsOf(problem: InstructorProblem | null): FieldErrors {
-  const errors: FieldErrors = {};
-  for (const key of FIELDS) {
-    const message = problem?.fieldErrors[key]?.[0];
-    if (message) errors[key] = message;
-  }
-  return errors;
-}
-
-function messageOf(problem: InstructorProblem | null, fallback: string): string {
-  if (problem === null || problem.status === 0) {
-    return 'Can’t reach 6311arts. Your changes are still here; try again.';
-  }
-  const message = problem.detail ?? fallback;
-
-  // A 5xx says nothing the editor can act on, so hand them the one thing support can: the correlation id,
-  // which is this request's trace id (ADR 0019). Appended here rather than left to the global problem toast,
-  // because these calls deliberately suppress it to show the failure in place.
-  return problem.status >= 500 && problem.correlationId !== null
-    ? `${message} Quote reference ${problem.correlationId} if you report it.`
-    : message;
 }

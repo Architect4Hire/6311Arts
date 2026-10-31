@@ -38,9 +38,10 @@ public sealed class CmsMembershipsController(IMembershipsFacade facade) : Contro
         [FromQuery(Name = "limit")] int? limit,
         [FromQuery(Name = "status")] PublishStatus? status,
         [FromQuery(Name = "search")] string? search,
+        [FromQuery(Name = "sort")] string? sort,
         CancellationToken cancellationToken) =>
         this.ToActionResult(await facade.ListAsync(
-            new MembershipPlanListViewModel(cursor, limit, status, search), cancellationToken));
+            new MembershipPlanListViewModel(cursor, limit, status, search, sort), cancellationToken));
 
 
     /// <summary>

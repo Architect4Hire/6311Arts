@@ -23,6 +23,10 @@ import { PublishStatus, STATUS_CHIPS } from '../../../models/content';
 import { PAGE_DELETED_STATE, PAGE_LIMITS, PageListQuery, PageSummary } from '../../../models/page';
 import { ROLES } from '../../../models/session';
 import { PageService } from '../../../services/page.service';
+import { ListSort, SortColumn } from '../../../shared/list-sort';
+import { SortHeader } from '../../../shared/sort-header/sort-header';
+import { SortPicker } from '../../../shared/sort-picker/sort-picker';
+import { Sortable } from '../../../shared/sortable';
 
 type Filter = 'all' | PublishStatus | 'deleted';
 
@@ -56,6 +60,13 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/Chicago',
 });
 
+/** The columns a header sorts by (ADR 0062); the API names the same ones. */
+const SORTS: readonly SortColumn[] = [
+  { key: 'title', label: 'Title', kind: 'text' },
+  { key: 'status', label: 'Status', kind: 'status' },
+  { key: 'updated', label: 'Updated', kind: 'date' },
+];
+
 /**
  * Standalone pages (`/admin/pages`) by title — privacy, terms and the site's other copy — with what state each is in.
  * Filter by status, search by title, and open one to edit it.
@@ -63,6 +74,9 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
 @Component({
   selector: 'cms-page-list',
   imports: [
+    Sortable,
+    SortHeader,
+    SortPicker,
     RouterLink,
     UiButton,
     UiControl,
@@ -125,10 +139,14 @@ export class PageList {
     titleOf(this.router.currentNavigation()?.extras.state?.[PAGE_DELETED_STATE]),
   );
 
+  /** The order, kept in the address bar as ?sort= so Back returns to it. */
+  protected readonly sort = new ListSort(SORTS, { column: 'title', direction: 'asc' });
+
   constructor() {
     effect(() => {
       this.filter();
       this.query();
+      this.sort.current();
       untracked(() => void this.reload());
     });
     inject(DestroyRef).onDestroy(() => this.clearSearchTimer());
@@ -183,7 +201,9 @@ export class PageList {
       this.items.set(page.items);
       this.next.set(page.nextCursor);
       this.state.set('ready');
-      this.liveMessage.set(countOf(page.items.length, page.nextCursor !== null));
+      this.liveMessage.set(
+        this.sort.announcement() + countOf(page.items.length, page.nextCursor !== null),
+      );
     } catch {
       if (generation === this.generation) this.state.set('failed');
     } finally {
@@ -223,6 +243,7 @@ export class PageList {
     const filter = this.filter();
     const search = this.query();
     return {
+      sort: this.sort.param(),
       limit: PAGE_SIZE,
       ...(filter === 'all' || filter === 'deleted' ? {} : { status: filter }),
       ...(search ? { search } : {}),

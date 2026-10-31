@@ -30,6 +30,10 @@ import {
 } from '../../../shared/deleted-records/deleted-records';
 import { SessionService } from '../../../core/session/session.service';
 import { ROLES } from '../../../models/session';
+import { ListSort, SortColumn } from '../../../shared/list-sort';
+import { SortHeader } from '../../../shared/sort-header/sort-header';
+import { SortPicker } from '../../../shared/sort-picker/sort-picker';
+import { Sortable } from '../../../shared/sortable';
 
 type Filter = 'all' | PublishStatus | 'deleted';
 
@@ -59,6 +63,20 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
   timeZone: GALLERY_TIME_ZONE,
 });
 
+/** The columns a header sorts by (ADR 0062); the API names the same ones. */
+const SORTS: readonly SortColumn[] = [
+  { key: 'title', label: 'Title', kind: 'text' },
+  { key: 'artist', label: 'Artist', kind: 'text' },
+  { key: 'status', label: 'Status', kind: 'status' },
+  {
+    key: 'square',
+    label: 'In Square',
+    kind: 'number',
+    words: { asc: 'lowest price first', desc: 'highest price first' },
+  },
+  { key: 'updated', label: 'Updated', kind: 'date' },
+];
+
 /**
  * Every piece in the shop (`/admin/shop`), by title, with who made it, what it is filed under, and what Square says
  * about its price and stock. Filter by status or category, search by title, and open one to edit it.
@@ -68,6 +86,9 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
 @Component({
   selector: 'cms-shop-list',
   imports: [
+    Sortable,
+    SortHeader,
+    SortPicker,
     RouterLink,
     UiButton,
     UiControl,
@@ -125,11 +146,15 @@ export class ShopList {
   protected readonly refreshing = signal(false);
   protected readonly liveMessage = signal('');
 
+  /** The order, kept in the address bar as ?sort= so Back returns to it. */
+  protected readonly sort = new ListSort(SORTS, { column: 'title', direction: 'asc' });
+
   constructor() {
     effect(() => {
       this.filter();
       this.category();
       this.query();
+      this.sort.current();
       untracked(() => void this.reload());
     });
     inject(DestroyRef).onDestroy(() => this.clearSearchTimer());
@@ -201,7 +226,9 @@ export class ShopList {
       this.items.set(page.items);
       this.nextCursor.set(page.nextCursor);
       this.state.set('ready');
-      this.liveMessage.set(countOf(page.items.length, page.nextCursor !== null));
+      this.liveMessage.set(
+        this.sort.announcement() + countOf(page.items.length, page.nextCursor !== null),
+      );
     } catch {
       if (generation === this.generation) this.state.set('failed');
     } finally {
@@ -243,6 +270,7 @@ export class ShopList {
     const search = this.query();
     const category = this.category();
     return {
+      sort: this.sort.param(),
       limit: PAGE_SIZE,
       ...(filter === 'all' || filter === 'deleted' ? {} : { status: filter }),
       ...(search ? { search } : {}),

@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Modules.Redirects.Data.Entities;
 using Arts6311.Domain.Modules.Redirects.Managers;
 using Arts6311.Domain.Modules.Redirects.Managers.ServiceModels;
@@ -27,7 +28,7 @@ internal interface IRedirectsRepository
 
     /// <summary>One page of the CMS list in FromPath order, projected straight to rows.</summary>
     Task<List<RedirectServiceModel>> ListAsync(
-        string? afterFromPath, int take, RedirectSource? source, string? search, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, RedirectSource? source, string? search, CancellationToken cancellationToken);
 
     /// <summary>Every redirect, as the site applies them, in FromPath order.</summary>
     Task<List<SiteRedirectServiceModel>> ListForSiteAsync(CancellationToken cancellationToken);

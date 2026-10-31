@@ -1,6 +1,8 @@
 using System.Linq.Expressions;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
+using Arts6311.Domain.Modules.Artists.Data.Entities;
 using Arts6311.Domain.Modules.Shop.Data.Entities;
 using Arts6311.Domain.Modules.Shop.Managers;
 using Microsoft.EntityFrameworkCore;
@@ -74,7 +76,8 @@ internal sealed class ShopRepository(ArtsDbContext context) : IShopRepository
         (await Items.AsNoTracking().MaxAsync(item => (int?)item.ItemNumber, cancellationToken) ?? 0) + 1;
 
     public Task<List<ShopItemListRow>> ListAsync(
-        ShopItemListPosition? after,
+        ListSort sort,
+        ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,
@@ -101,18 +104,9 @@ internal sealed class ShopRepository(ArtsDbContext context) : IShopRepository
             query = query.Where(item => EF.Functions.Like(item.Title, pattern, LikeEscape.ToString()));
         }
 
-        if (after is not null)
-        {
-            // Translated to SQL's ">", under the column's own collation — the same order as the ORDER BY below.
-#pragma warning disable CA1309
-            query = query.Where(item => string.Compare(item.Title, after.Title) > 0
-                || (item.Title == after.Title && item.Id.CompareTo(after.Id) > 0));
-#pragma warning restore CA1309
-        }
+        var artists = context.Set<Artist>();
 
-        return query
-            .OrderBy(item => item.Title)
-            .ThenBy(item => item.Id)
+        return ShopItemListOrder.Columns.Apply(query, sort, after, artists)
             .Take(take)
             .Select(item => new ShopItemListRow(
                 item.Id,
@@ -129,7 +123,13 @@ internal sealed class ShopRepository(ArtsDbContext context) : IShopRepository
                 item.PriceCents,
                 item.StockOnHand,
                 item.SoldOut,
-                item.UpdatedAt))
+                item.UpdatedAt,
+
+                // The cursor's value for the "artist" order, read as ShopItemListOrder reads it (ADR 0062).
+                artists
+                    .Where(artist => artist.Id == item.ArtistId)
+                    .Select(artist => (string?)artist.Name)
+                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
     }
 

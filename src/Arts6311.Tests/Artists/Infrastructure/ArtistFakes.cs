@@ -96,7 +96,7 @@ internal sealed class FakeArtistsRepository(CallLog log) : IArtistsRepository
         Task.FromResult(Rows.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
 
     public Task<List<ArtistSummaryServiceModel>> ListAsync(
-        ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         Task.FromResult(new List<ArtistSummaryServiceModel>());
 
     public Task<List<ArtistSummaryServiceModel>> ListByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
@@ -172,7 +172,7 @@ internal sealed class FakeArtistsDataLayer : IArtistsDataLayer
         Task.FromResult(SlugExists);
 
     public Task<List<ArtistSummaryServiceModel>> ListAsync(
-        ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         Task.FromResult(new List<ArtistSummaryServiceModel>());
 
     public List<IReadOnlyCollection<Guid>> SummaryLookups { get; } = [];

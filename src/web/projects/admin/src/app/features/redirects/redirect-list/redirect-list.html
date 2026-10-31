@@ -38,6 +38,8 @@
   </div>
 </div>
 
+<cms-sort-picker [sort]="sort" />
+
 <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
 
 @switch (state()) {
@@ -57,16 +59,19 @@
       </ui-empty-state>
     } @else {
       <div class="scroll" role="region" aria-label="Redirects" tabindex="0">
-        <table class="redirects" [attr.aria-busy]="refreshing() || null">
+        <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
           <caption class="sr-only">
-            Redirects, by old address
+            Redirects, sorted by
+            {{
+              sort.description()
+            }}
           </caption>
           <thead>
             <tr>
-              <th scope="col">Old address</th>
-              <th scope="col">Leads to</th>
-              <th scope="col" class="wide">Type</th>
-              <th scope="col" class="wide">Made by</th>
+              <th scope="col" cmsSortHeader="from">Old address</th>
+              <th scope="col" cmsSortHeader="to">Leads to</th>
+              <th scope="col" class="wide" cmsSortHeader="type">Type</th>
+              <th scope="col" class="wide" cmsSortHeader="source">Made by</th>
             </tr>
           </thead>
           <tbody>

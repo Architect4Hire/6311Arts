@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,29 +16,23 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { UiButton, UiControl, UiField, UiNotice, UiStatusChip } from '@6311/ui';
-import { ConfirmService } from '../../../core/confirm/confirm.service';
 import { HasUnsavedChanges, warnBeforeUnload } from '../../../core/guards/unsaved-changes.guard';
-import { SessionService } from '../../../core/session/session.service';
+import { messageOf, problemOf } from '../../../core/http/problem-message';
+import { ContentLifecycle, LifecycleCopy } from '../../../shared/content-lifecycle';
+import { PublishingPanel } from '../../../shared/publishing-panel/publishing-panel';
 import { STATUS_CHIPS, isSlug, slugFromName } from '../../../models/content';
 import {
   MEMBERSHIP_CADENCES,
   MEMBERSHIP_CODES,
   MEMBERSHIP_LIMITS,
   MembershipCadence,
-  MembershipCommand,
   MembershipPlan,
   MembershipPlanCreate,
   MembershipPlanUpdate,
-  MembershipPlainCommand,
   MembershipProblem,
-  decodeMembershipProblem,
 } from '../../../models/membership';
-import { ROLES } from '../../../models/session';
 import { MembershipService } from '../../../services/membership.service';
-import { PreviewLinkButton } from '../../../shared/preview-link/preview-link';
-import { ScheduleControl } from '../../../shared/schedule-control/schedule-control';
 import { cadenceWords } from '../membership-list/membership-list';
-import { confirmDelete } from '../../../shared/delete-confirm/delete-confirm';
 
 interface Draft {
   readonly name: string;
@@ -64,8 +57,6 @@ type Status =
   | { readonly kind: 'not-found' }
   | { readonly kind: 'ready' }
   | { readonly kind: 'saving' }
-  | { readonly kind: 'commanding'; readonly command: MembershipCommand }
-  | { readonly kind: 'deleting' }
   | { readonly kind: 'conflict'; readonly theirs: MembershipPlan };
 
 type Field =
@@ -104,14 +95,21 @@ const EMPTY: Draft = {
 /** Router state set by "Create tier", read by the editor it navigates to. */
 const CREATED_STATE = 'membershipPlanCreated';
 
-const COMMAND_LABELS: Readonly<
-  Record<MembershipCommand, { readonly busy: string; readonly done: string }>
-> = {
-  publish: { busy: 'Publishing…', done: 'Published.' },
-  unpublish: { busy: 'Unpublishing…', done: 'Unpublished. The tier is a draft again.' },
-  archive: { busy: 'Archiving…', done: 'Archived.' },
-  schedule: { busy: 'Scheduling…', done: 'Scheduled.' },
-  unschedule: { busy: 'Unscheduling…', done: 'Unscheduled. The tier is a draft again.' },
+const LIFECYCLE: LifecycleCopy = {
+  noun: 'tier',
+  deleteNoun: 'plan',
+  keepLabel: 'Keep it',
+  inSquare: true,
+  previewType: 'membership-plan',
+  unpublishMessage:
+    'It goes back to being a draft and leaves the memberships page. Members who already joined are unaffected: Square owns their subscriptions.',
+  archiveMessage:
+    'An archived tier is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
+  deleteText:
+    'The plan leaves the site and the list, and its web address is free again. An Admin can restore it from Deleted, as a draft.',
+  published: 'Published: on the memberships page. Edits show there within a minute.',
+  redrafted: 'A draft again, after being published.',
+  draft: 'A draft: only staff can see it. Publishing needs a price and at least one perk.',
 };
 
 /**
@@ -132,8 +130,7 @@ const COMMAND_LABELS: Readonly<
     UiField,
     UiNotice,
     UiStatusChip,
-    PreviewLinkButton,
-    ScheduleControl,
+    PublishingPanel,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './membership-plan-editor.html',
@@ -144,14 +141,11 @@ export class MembershipPlanEditor implements HasUnsavedChanges {
   readonly id = input<string>();
 
   private readonly memberships = inject(MembershipService);
-  private readonly confirm = inject(ConfirmService);
-  private readonly session = inject(SessionService);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly conflictBox = viewChild<ElementRef<HTMLElement>>('conflictBox');
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
-  private readonly publishingHeading = viewChild<ElementRef<HTMLElement>>('publishingHeading');
 
   private readonly justCreated =
     this.router.currentNavigation()?.extras.state?.[CREATED_STATE] === true;
@@ -168,14 +162,34 @@ export class MembershipPlanEditor implements HasUnsavedChanges {
   protected readonly formError = signal<string | null>(null);
   protected readonly liveMessage = signal('');
 
-  protected readonly isAdmin = computed(() => this.session.hasAnyRole([ROLES.admin]));
+  /** Publish, unpublish, schedule, archive and delete, shown by `<cms-publishing-panel>`. */
+  protected readonly lifecycle: ContentLifecycle<MembershipPlan> = new ContentLifecycle({
+    copy: LIFECYCLE,
+    api: this.memberships,
+    record: () => this.plan(),
+    label: (saved) => saved.name,
+    dirty: () => this.dirty(),
+    busy: () => this.busy(),
+    replace: (saved) => {
+      this.plan.set(saved);
+      this.draft.set(draftOf(saved));
+    },
+    clearErrors: () => {
+      this.errors.set({});
+      this.formError.set(null);
+    },
+    refused: (message, problem) => this.showErrors(fieldErrorsOf(problem), message),
+    announce: (message) => this.announce(message),
+    deleted: (saved) => {
+      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
+      this.draft.set(draftOf(saved));
+      return this.router.navigate(['/memberships']);
+    },
+  });
+
   protected readonly busy = computed(() => {
     const kind = this.status().kind;
-    return kind === 'saving' || kind === 'commanding' || kind === 'deleting';
-  });
-  protected readonly commanding = computed(() => {
-    const status = this.status();
-    return status.kind === 'commanding' ? status.command : null;
+    return kind === 'saving' || this.lifecycle.busy();
   });
   protected readonly conflict = computed(() => {
     const status = this.status();
@@ -184,20 +198,6 @@ export class MembershipPlanEditor implements HasUnsavedChanges {
 
   /** ADR 0005: the price and the cadence are ordinary fields only until Square holds the plan. */
   protected readonly priceEditable = computed(() => this.plan()?.startingPriceEditable ?? true);
-
-  protected readonly canPublish = computed(() => {
-    const status = this.plan()?.status;
-    return status === 'Draft' || status === 'Scheduled';
-  });
-  protected readonly canArchive = computed(() => {
-    const status = this.plan()?.status;
-    return this.isAdmin() && status !== undefined && status !== 'Archived';
-  });
-
-  protected readonly deleting = computed(() => this.status().kind === 'deleting');
-
-  /** A saved plan an Admin can delete, whatever its status (ADR 0052). */
-  protected readonly canDelete = computed(() => this.isAdmin() && this.plan() !== null);
 
   protected readonly saveLabel = computed(() => {
     if (this.status().kind === 'saving') return this.plan() ? 'Saving…' : 'Creating…';
@@ -342,21 +342,6 @@ export class MembershipPlanEditor implements HasUnsavedChanges {
       : `Bills in Square: ${cadenceWords(plan.cadence)}`;
   }
 
-  protected statusText(plan: MembershipPlan): string {
-    switch (plan.status) {
-      case 'Published':
-        return 'Published: on the memberships page. Edits show there within a minute.';
-      case 'Archived':
-        return 'Archived: retired from the site. Archiving can’t be undone here.';
-      case 'Scheduled':
-        return 'Scheduled to publish.';
-      default:
-        return plan.publishedAt
-          ? 'A draft again, after being published.'
-          : 'A draft: only staff can see it. Publishing needs a price and at least one perk.';
-    }
-  }
-
   protected async save(etag?: string): Promise<void> {
     if (this.busy() || !this.dirty()) return;
 
@@ -433,116 +418,6 @@ export class MembershipPlanEditor implements HasUnsavedChanges {
     this.focus(this.heading);
   }
 
-  protected async unpublish(): Promise<void> {
-    const confirmed = await this.confirm.confirm({
-      heading: 'Unpublish this tier?',
-      message:
-        'It goes back to being a draft and leaves the memberships page. Members who already joined are unaffected: Square owns their subscriptions.',
-      confirmLabel: 'Unpublish',
-      cancelLabel: 'Keep published',
-    });
-    if (confirmed) await this.run('unpublish');
-  }
-
-  protected async archive(): Promise<void> {
-    const confirmed = await this.confirm.confirm({
-      heading: 'Archive this tier?',
-      message:
-        'An archived tier is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
-      confirmLabel: 'Archive tier',
-      cancelLabel: 'Keep it',
-    });
-    if (confirmed) await this.run('archive');
-  }
-
-  /**
-   * Deletes the plan (ADR 0052). Offered while the form is dirty — asking someone to save a record before
-   * throwing it away would be absurd — and the dialogs say so; a record Square holds is asked twice, because that half is not undone by a restore
-   * (<c>confirmDelete</c>). It acts on the saved version's row version, as every write does.
-   */
-  protected async remove(): Promise<void> {
-    const plan = this.plan();
-    if (!plan || this.busy()) return;
-
-    const confirmed = await confirmDelete(this.confirm, {
-      noun: 'plan',
-      label: plan.name,
-      slug: plan.slug,
-      live: plan.status === 'Published',
-      dirty: this.dirty(),
-      inSquare: true,
-      keepLabel: 'Keep it',
-    });
-    if (!confirmed) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'deleting' });
-    try {
-      await firstValueFrom(this.memberships.delete(plan.id, plan.etag));
-
-      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
-      this.draft.set(draftOf(plan));
-      this.status.set({ kind: 'ready' });
-      await this.router.navigate(['/memberships']);
-    } catch (error: unknown) {
-      const problem = problemOf(error);
-      this.status.set({ kind: 'ready' });
-      this.showErrors(
-        {},
-        problem?.code === MEMBERSHIP_CODES.concurrencyConflict
-          ? 'Someone else changed this plan a moment ago. Reload it, check it, and try again.'
-          : messageOf(problem, 'The plan couldn’t be deleted. Try again.'),
-      );
-    }
-  }
-
-  /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */
-  protected async schedule(scheduledFor: string): Promise<void> {
-    const plan = this.plan();
-    if (!plan || this.busy() || this.dirty()) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'commanding', command: 'schedule' });
-    this.announce(COMMAND_LABELS.schedule.busy);
-    try {
-      const updated = await firstValueFrom(
-        this.memberships.schedule(plan.id, scheduledFor, plan.etag),
-      );
-      this.plan.set(updated);
-      this.draft.set(draftOf(updated));
-      this.status.set({ kind: 'ready' });
-      this.announce(COMMAND_LABELS.schedule.done);
-    } catch (error: unknown) {
-      await this.commandFailed(error);
-    }
-  }
-
-  protected async unschedule(): Promise<void> {
-    await this.run('unschedule');
-  }
-
-  protected async run(command: MembershipPlainCommand): Promise<void> {
-    const plan = this.plan();
-    if (!plan || this.busy() || this.dirty()) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'commanding', command });
-    this.announce(COMMAND_LABELS[command].busy);
-    try {
-      const updated = await firstValueFrom(this.memberships.command(plan.id, command, plan.etag));
-      this.plan.set(updated);
-      this.draft.set(draftOf(updated));
-      this.status.set({ kind: 'ready' });
-      this.announce(COMMAND_LABELS[command].done);
-      this.focus(this.publishingHeading);
-    } catch (error: unknown) {
-      await this.commandFailed(error);
-    }
-  }
-
   private async saveFailed(error: unknown): Promise<void> {
     const problem = problemOf(error);
 
@@ -566,31 +441,6 @@ export class MembershipPlanEditor implements HasUnsavedChanges {
     this.showErrors(
       fieldErrorsOf(problem),
       messageOf(problem, 'The changes couldn’t be saved. Try again.'),
-    );
-  }
-
-  private async commandFailed(error: unknown): Promise<void> {
-    const problem = problemOf(error);
-    const stale =
-      problem?.code === MEMBERSHIP_CODES.concurrencyConflict ||
-      problem?.code === MEMBERSHIP_CODES.transitionInvalid;
-
-    if (stale && this.plan()) {
-      try {
-        const latest = await firstValueFrom(this.memberships.get(this.plan()!.id));
-        this.plan.set(latest);
-        this.draft.set(draftOf(latest));
-      } catch {
-        // The message below still says what happened.
-      }
-    }
-
-    this.status.set({ kind: 'ready' });
-    this.showErrors(
-      fieldErrorsOf(problem),
-      problem?.code === MEMBERSHIP_CODES.concurrencyConflict
-        ? 'Someone else changed this tier a moment ago. Here is the latest version; check it and try again.'
-        : messageOf(problem, 'That didn’t work. Try again.'),
     );
   }
 
@@ -745,12 +595,6 @@ function localErrors(draft: Draft): FieldErrors {
   return errors;
 }
 
-function problemOf(error: unknown): MembershipProblem | null {
-  return error instanceof HttpErrorResponse
-    ? decodeMembershipProblem(error.error, error.status)
-    : null;
-}
-
 function fieldErrorsOf(problem: MembershipProblem | null): FieldErrors {
   const errors: FieldErrors = {};
   for (const key of FIELDS) {
@@ -758,17 +602,4 @@ function fieldErrorsOf(problem: MembershipProblem | null): FieldErrors {
     if (message) errors[key] = message;
   }
   return errors;
-}
-
-function messageOf(problem: MembershipProblem | null, fallback: string): string {
-  if (problem === null || problem.status === 0)
-    return 'Can’t reach 6311arts. Your changes are still here; try again.';
-  const message = problem.detail ?? fallback;
-
-  // A 5xx says nothing the editor can act on, so hand them the one thing support can: the correlation id,
-  // which is this request's trace id (ADR 0019). Appended here rather than left to the global problem toast,
-  // because these calls deliberately suppress it to show the failure in place.
-  return problem.status >= 500 && problem.correlationId !== null
-    ? `${message} Quote reference ${problem.correlationId} if you report it.`
-    : message;
 }

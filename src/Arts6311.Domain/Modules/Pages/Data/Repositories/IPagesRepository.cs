@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Pages.Data.Entities;
 using Arts6311.Domain.Modules.Pages.Managers;
@@ -31,9 +32,9 @@ internal interface IPagesRepository
     /// </summary>
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);
 
-    /// <summary>One page of the list in (Title, Id) order, projected straight to list rows.</summary>
+    /// <summary>One page of the list in <paramref name="sort"/>'s order (ADR 0062), projected straight to list rows.</summary>
     Task<List<PageSummaryServiceModel>> ListAsync(
-        PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
 
     /// <summary>
     /// One page of the Deleted view, in the same (Title, Id) order as the list above so the two share their cursor

@@ -38,6 +38,21 @@ describe('ArtistService', () => {
     expect(await page).toEqual({ items: [toArtistSummary(ARTIST)], nextCursor: null });
   });
 
+  it('sends the sort with the list, and leaves it off when there is none (ADR 0062)', async () => {
+    const { artists, http } = setup();
+
+    void firstValueFrom(artists.list({ sort: '-updated' }));
+    expect(http.expectOne((r) => r.url === BASE).request.params.get('sort')).toBe('-updated');
+
+    void firstValueFrom(artists.list());
+    expect(http.expectOne((r) => r.url === BASE).request.params.has('sort')).toBe(false);
+
+    void firstValueFrom(artists.listDeleted({ search: 'haase' }));
+    expect(http.expectOne((r) => r.url === `${BASE}/deleted`).request.params.has('sort')).toBe(
+      false,
+    );
+  });
+
   it('sends an edit and a status command under the ETag it was given', async () => {
     const { artists, http } = setup();
 

@@ -31,21 +31,32 @@ internal sealed class PagesBusiness(IPagesDataLayer dataLayer, IHtmlSanitizer sa
         var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim();
         var scope = string.Create(CultureInfo.InvariantCulture, $"pages|status={request.Status}|search={search}");
 
-        var (after, cursorError) = DecodePosition(request.Cursor, scope);
-        if (cursorError is not null)
+        var order = PageListOrder.Columns;
+
+        // The facade's validator has already refused a column this list does not sort by.
+        var sort = order.Resolve(request.Sort)
+            ?? throw new ArgumentException("This list does not sort by that column.", nameof(request));
+
+        ListPosition? after = null;
+        if (request.Cursor is not null)
         {
-            return OperationResult.Failure<CursorPage<PageSummaryServiceModel>>(cursorError);
+            var decoded = order.Decode(sort, request.Cursor, scope);
+            if (!decoded.Succeeded)
+            {
+                return OperationResult.Failure<CursorPage<PageSummaryServiceModel>>(decoded.Error!);
+            }
+
+            after = decoded.Value;
         }
 
         var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
-        var rows = await dataLayer.ListAsync(after, limit + 1, request.Status, search, cancellationToken);
+        var rows = await dataLayer.ListAsync(sort, after, limit + 1, request.Status, search, cancellationToken);
 
         string? next = null;
         if (rows.Count > limit)
         {
             rows.RemoveAt(limit);
-            var last = rows[^1];
-            next = new PageCursor(last.Title, last.Id.ToString("N")).Encode(scope);
+            next = order.Encode(sort, rows[^1], scope);
         }
 
         return OperationResult.Success(new CursorPage<PageSummaryServiceModel>(rows, next));

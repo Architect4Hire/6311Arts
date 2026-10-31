@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Validation;
 using System.Globalization;
 using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Paging;
@@ -124,6 +125,7 @@ internal sealed class ShopItemListValidator : AbstractValidator<ShopItemListView
         RuleFor(list => list.Category!)
             .Must(ShopPolicy.IsCategory).When(list => list.Category is not null)
             .WithMessage(ShopItemRules.CategoryMessage);
+        RuleFor(list => list.Sort).SortableBy(ShopItemListOrder.Columns);
     }
 }
 

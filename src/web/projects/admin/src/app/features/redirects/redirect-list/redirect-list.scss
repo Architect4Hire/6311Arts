@@ -30,24 +30,7 @@
 .scroll {
   overflow-x: auto;
 }
-.redirects {
-  width: 100%;
-  border-collapse: collapse;
-}
-.redirects th,
-.redirects td {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: var(--border-thin) solid var(--line);
-  text-align: left;
-  vertical-align: top;
-}
-.redirects thead th {
-  font-size: var(--fs-label);
-  font-weight: var(--fw-heavy);
-  letter-spacing: var(--track-label);
-  text-transform: uppercase;
-}
-.redirects tbody th,
+.cms-table tbody th,
 .address {
   overflow-wrap: anywhere;
 }

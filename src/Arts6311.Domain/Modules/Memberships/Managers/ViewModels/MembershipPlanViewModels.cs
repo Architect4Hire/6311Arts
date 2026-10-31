@@ -48,8 +48,13 @@ public sealed record MembershipPlanUpdateViewModel(
 
 /// <summary>A page of membership plans, in the order the site shows them.</summary>
 /// <param name="Search">Part of a name, matched without regard to case.</param>
+/// <param name="Sort">
+/// order, tier, status, price, discount, updated — with a leading <c>-</c> for descending (ADR 0062). The Deleted
+/// view ignores it.
+/// </param>
 public sealed record MembershipPlanListViewModel(
     string? Cursor = null,
     int? Limit = null,
     PublishStatus? Status = null,
-    string? Search = null);
+    string? Search = null,
+    string? Sort = null);

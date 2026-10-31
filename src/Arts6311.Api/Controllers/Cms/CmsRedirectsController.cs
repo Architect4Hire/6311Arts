@@ -29,8 +29,9 @@ public sealed class CmsRedirectsController(IRedirectsFacade facade) : Controller
         [FromQuery(Name = "limit")] int? limit,
         [FromQuery(Name = "source")] RedirectSource? source,
         [FromQuery(Name = "search")] string? search,
+        [FromQuery(Name = "sort")] string? sort,
         CancellationToken cancellationToken) =>
-        this.ToActionResult(await facade.ListAsync(new RedirectListViewModel(cursor, limit, source, search), cancellationToken));
+        this.ToActionResult(await facade.ListAsync(new RedirectListViewModel(cursor, limit, source, search, sort), cancellationToken));
 
     /// <summary>One redirect. The <c>ETag</c> header is what a write sends back as <c>If-Match</c>.</summary>
     [HttpGet("{id:guid}")]

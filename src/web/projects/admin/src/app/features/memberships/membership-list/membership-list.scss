@@ -30,26 +30,6 @@
 .scroll {
   overflow-x: auto;
 }
-.plans {
-  width: 100%;
-  border-collapse: collapse;
-}
-.plans th,
-.plans td {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: var(--border-thin) solid var(--line);
-  text-align: left;
-  vertical-align: top;
-}
-.plans thead th {
-  font-size: var(--fs-label);
-  font-weight: var(--fw-heavy);
-  letter-spacing: var(--track-label);
-  text-transform: uppercase;
-}
-.plans tbody th {
-  font-weight: var(--fw-bold);
-}
 .featured {
   display: inline-block;
   margin-left: var(--space-2);

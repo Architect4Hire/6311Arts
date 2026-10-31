@@ -26,6 +26,7 @@ export class RedirectService {
     let params = new HttpParams();
     if (query.cursor) params = params.set('cursor', query.cursor);
     if (query.limit) params = params.set('limit', query.limit);
+    if (query.sort) params = params.set('sort', query.sort);
     if (query.source) params = params.set('source', query.source);
     if (query.search) params = params.set('search', query.search);
 

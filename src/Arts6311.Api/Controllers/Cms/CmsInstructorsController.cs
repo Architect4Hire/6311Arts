@@ -33,8 +33,9 @@ public sealed class CmsInstructorsController(IInstructorsFacade facade) : Contro
         [FromQuery(Name = "limit")] int? limit,
         [FromQuery(Name = "status")] PublishStatus? status,
         [FromQuery(Name = "search")] string? search,
+        [FromQuery(Name = "sort")] string? sort,
         CancellationToken cancellationToken) =>
-        this.ToActionResult(await facade.ListAsync(new InstructorListViewModel(cursor, limit, status, search), cancellationToken));
+        this.ToActionResult(await facade.ListAsync(new InstructorListViewModel(cursor, limit, status, search, sort), cancellationToken));
 
 
     /// <summary>

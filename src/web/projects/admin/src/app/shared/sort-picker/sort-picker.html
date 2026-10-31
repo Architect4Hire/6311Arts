@@ -1,0 +1,9 @@
+<ui-field label="Sort by">
+  <select #picker uiControl name="sort" (change)="choose(picker.value)">
+    @for (choice of choices(); track choice.value) {
+      <option [value]="choice.value" [selected]="choice.value === sort().param()">
+        {{ choice.label }}
+      </option>
+    }
+  </select>
+</ui-field>

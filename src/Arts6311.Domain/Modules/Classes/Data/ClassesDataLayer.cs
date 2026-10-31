@@ -3,6 +3,7 @@ using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Correlation;
 using Arts6311.Domain.Managers.Outbox;
 using Arts6311.Domain.Managers.Outbox.Events;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Classes.Data.Entities;
@@ -55,13 +56,14 @@ internal sealed class ClassesDataLayer(
         repository.NextOfferingNumberAsync(cancellationToken);
 
     public Task<List<ClassListRow>> ListAsync(
-        ClassListPosition? after,
+        ListSort sort,
+        ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,
         DateTimeOffset asOf,
         CancellationToken cancellationToken) =>
-        repository.ListAsync(after, take, status, search, asOf, cancellationToken);
+        repository.ListAsync(sort, after, take, status, search, asOf, cancellationToken);
 
     public async Task<ClassWriteOutcome> CreateAsync(
         ClassOffering offering, SkuChanges skuChanges, string actorUserId, string summary, CancellationToken cancellationToken)

@@ -92,6 +92,7 @@ paths:
 ## Admin
 
 - **Every data surface** has loading, empty, error and success states.
+- **Every list table** is `class="cms-table"` (one look, in `styles.scss`) and sorts on the server (ADR 0062): `[cmsSortable]="sort"` on the table, `cmsSortHeader="<api column>"` on each sortable header, a `ListSort` kept in `?sort=`, `cms-sort-picker` for phones, and `sort.announcement()` before the count in the live region. Never sort a paged list in the browser.
 - **Unsaved edits** survive recoverable errors and warn on navigation.
 - **Square-held values** (price, stock, **seats remaining**, sold-out) are never edited in place. Before the first sync, the starting price and quantity are plain fields. After it, each value shows Square's current figure with a **Change** action that sends a command and shows its Pending / Applied / Rejected state, plus the sync status chip (ADR 0032).
   - **A membership plan's price and billing cadence** are plain fields before the first push and Square's figures

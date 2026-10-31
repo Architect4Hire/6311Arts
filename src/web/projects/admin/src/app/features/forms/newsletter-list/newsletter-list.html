@@ -22,6 +22,8 @@
   }
 </div>
 
+<cms-sort-picker [sort]="sort" />
+
 <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
 
 @if (actionError(); as message) {
@@ -54,16 +56,19 @@
       </ui-empty-state>
     } @else {
       <div class="scroll" role="region" aria-label="Newsletter list" tabindex="0">
-        <table class="list" [attr.aria-busy]="refreshing() || null">
+        <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
           <caption class="sr-only">
-            Newsletter addresses, newest first
+            Newsletter addresses, sorted by
+            {{
+              sort.description()
+            }}
           </caption>
           <thead>
             <tr>
-              <th scope="col">Email</th>
-              <th scope="col" class="wide">Consented</th>
-              <th scope="col" class="wide">Consent wording</th>
-              <th scope="col">Source</th>
+              <th scope="col" cmsSortHeader="email">Email</th>
+              <th scope="col" class="wide" cmsSortHeader="consented">Consented</th>
+              <th scope="col" class="wide" cmsSortHeader="wording">Consent wording</th>
+              <th scope="col" cmsSortHeader="source">Source</th>
               @if (isAdmin()) {
                 <th scope="col"><span class="sr-only">Actions</span></th>
               }

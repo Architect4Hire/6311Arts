@@ -76,18 +76,27 @@ public sealed record ContactMessageViewModel(string? Name, string? Email, string
 /// <param name="Company">The honeypot.</param>
 public sealed record NewsletterSignupViewModel(string? Email, string? Company = null);
 
-/// <summary>A page of the submissions inbox, newest first.</summary>
-public sealed record SubmissionListViewModel(string? Cursor = null, int? Limit = null, SubmissionStatus? Status = null);
+/// <summary>A page of the submissions inbox, newest first unless <paramref name="Sort"/> says otherwise.</summary>
+/// <param name="Sort">
+/// <c>name</c>, <c>email</c>, <c>status</c>, <c>pictures</c> or <c>received</c>, with a leading <c>-</c> for
+/// descending (ADR 0062).
+/// </param>
+public sealed record SubmissionListViewModel(
+    string? Cursor = null, int? Limit = null, SubmissionStatus? Status = null, string? Sort = null);
 
 /// <summary>Staff's change to a submission. A field left out is unchanged.</summary>
 public sealed record SubmissionUpdateViewModel(SubmissionStatus? Status = null, string? Notes = null);
 
-/// <summary>A page of contact messages, newest first.</summary>
-public sealed record ContactListViewModel(string? Cursor = null, int? Limit = null, bool? Handled = null);
+/// <summary>A page of contact messages, newest first unless <paramref name="Sort"/> says otherwise.</summary>
+/// <param name="Sort"><c>from</c>, <c>status</c> or <c>received</c>, with a leading <c>-</c> for descending (ADR 0062).</param>
+public sealed record ContactListViewModel(string? Cursor = null, int? Limit = null, bool? Handled = null, string? Sort = null);
 
 /// <summary>Staff marking a contact message handled, or not.</summary>
 public sealed record ContactUpdateViewModel(bool? Handled);
 
-/// <summary>A page of the newsletter list, newest first.</summary>
+/// <summary>A page of the newsletter list, newest consent first unless <paramref name="Sort"/> says otherwise.</summary>
 /// <param name="Search">Part of an address, matched without regard to case.</param>
-public sealed record NewsletterListViewModel(string? Cursor = null, int? Limit = null, string? Search = null);
+/// <param name="Sort">
+/// <c>email</c>, <c>consented</c>, <c>wording</c> or <c>source</c>, with a leading <c>-</c> for descending (ADR 0062).
+/// </param>
+public sealed record NewsletterListViewModel(string? Cursor = null, int? Limit = null, string? Search = null, string? Sort = null);

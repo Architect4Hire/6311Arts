@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Pages.Data.Entities;
@@ -31,7 +32,7 @@ internal sealed class PagesRepository(ArtsDbContext context) : IPagesRepository
         [.. await Pages.IgnoreQueryFilters().AsNoTracking().Select(page => page.Slug).ToListAsync(cancellationToken)];
 
     public Task<List<PageSummaryServiceModel>> ListAsync(
-        PageListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken)
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken)
     {
         var query = Pages.AsNoTracking();
 
@@ -41,11 +42,7 @@ internal sealed class PagesRepository(ArtsDbContext context) : IPagesRepository
         }
 
         query = WithSearch(query, search);
-        query = WithPosition(query, after);
-
-        return query
-            .OrderBy(page => page.Title)
-            .ThenBy(page => page.Id)
+        return PageListOrder.Columns.Apply(query, sort, after)
             .Take(take)
             .Select(page => new PageSummaryServiceModel(page.Id, page.Title, page.Slug, page.Status, page.UpdatedAt))
             .ToListAsync(cancellationToken);

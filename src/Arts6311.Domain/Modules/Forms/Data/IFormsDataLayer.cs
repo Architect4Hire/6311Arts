@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Modules.Forms.Data.Entities;
 using Arts6311.Domain.Modules.Forms.Data.Repositories;
 using Arts6311.Domain.Modules.Forms.Managers;
@@ -41,7 +42,7 @@ internal interface IFormsDataLayer
     Task<ArtistSubmission?> FindSubmissionAsync(Guid id, CancellationToken cancellationToken);
 
     Task<List<ArtistSubmission>> ListSubmissionsAsync(
-        FormsListPosition? after, int take, SubmissionStatus? status, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, SubmissionStatus? status, CancellationToken cancellationToken);
 
     /// <summary>A staff change to a submission, audited, under its row version.</summary>
     Task<FormsWriteOutcome> UpdateSubmissionAsync(
@@ -50,14 +51,14 @@ internal interface IFormsDataLayer
     Task<ContactMessage?> FindContactAsync(Guid id, CancellationToken cancellationToken);
 
     Task<List<ContactMessage>> ListContactsAsync(
-        FormsListPosition? after, int take, bool? handled, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, bool? handled, CancellationToken cancellationToken);
 
     Task<FormsWriteOutcome> UpdateContactAsync(ContactMessage message, string actorUserId, CancellationToken cancellationToken);
 
     Task<NewsletterSubscriber?> FindSubscriberAsync(Guid id, CancellationToken cancellationToken);
 
     Task<List<NewsletterSubscriber>> ListSubscribersAsync(
-        FormsListPosition? after, int take, string? search, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, string? search, CancellationToken cancellationToken);
 
     /// <summary>Takes an address off the list, audited.</summary>
     Task RemoveSubscriberAsync(NewsletterSubscriber subscriber, string actorUserId, CancellationToken cancellationToken);

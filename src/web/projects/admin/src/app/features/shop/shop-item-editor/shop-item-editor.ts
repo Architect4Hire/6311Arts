@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,32 +16,27 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { UiButton, UiControl, UiField, UiNotice, UiStatusChip } from '@6311/ui';
-import { ConfirmService } from '../../../core/confirm/confirm.service';
 import { HasUnsavedChanges, warnBeforeUnload } from '../../../core/guards/unsaved-changes.guard';
-import { SessionService } from '../../../core/session/session.service';
+import { messageOf, problemOf } from '../../../core/http/problem-message';
+import { ContentLifecycle, LifecycleCopy } from '../../../shared/content-lifecycle';
+import { PublishingPanel } from '../../../shared/publishing-panel/publishing-panel';
 import { STATUS_CHIPS, slugFromName } from '../../../models/content';
-import { ROLES } from '../../../models/session';
 import {
   SHOP_CATEGORIES,
   SHOP_CODES,
   SHOP_LIMITS,
-  ShopCommand,
   ShopItem,
   ShopItemCreate,
   ShopItemUpdate,
   ShopProblem,
   categoryLabel,
-  decodeShopProblem,
   isSku,
   normalizeSku,
 } from '../../../models/shop';
 import { ShopService } from '../../../services/shop.service';
 import { ArtistPicker, PickedArtist } from '../../../shared/pickers/artist-picker/artist-picker';
-import { PreviewLinkButton } from '../../../shared/preview-link/preview-link';
 import { RichTextEditor } from '../../../shared/rich-text-editor/rich-text-editor';
-import { ScheduleControl } from '../../../shared/schedule-control/schedule-control';
 import { GalleryEditor } from '../gallery-editor/gallery-editor';
-import { confirmDelete } from '../../../shared/delete-confirm/delete-confirm';
 
 interface Draft {
   readonly title: string;
@@ -66,8 +60,6 @@ type Status =
   | { readonly kind: 'not-found' }
   | { readonly kind: 'ready' }
   | { readonly kind: 'saving' }
-  | { readonly kind: 'commanding'; readonly command: ShopCommand }
-  | { readonly kind: 'deleting' }
   | { readonly kind: 'conflict'; readonly theirs: ShopItem };
 
 type FieldName =
@@ -100,14 +92,22 @@ const EMPTY: Draft = {
 /** Router state set by "Create piece", read by the editor it navigates to. */
 const CREATED_STATE = 'shopItemCreated';
 
-const COMMAND_LABELS: Readonly<
-  Record<ShopCommand, { readonly busy: string; readonly done: string }>
-> = {
-  publish: { busy: 'Publishing…', done: 'Published.' },
-  unpublish: { busy: 'Unpublishing…', done: 'Unpublished. The piece is a draft again.' },
-  archive: { busy: 'Archiving…', done: 'Archived.' },
-  schedule: { busy: 'Scheduling…', done: 'Scheduled.' },
-  unschedule: { busy: 'Unscheduling…', done: 'Unscheduled. The piece is a draft again.' },
+const LIFECYCLE: LifecycleCopy = {
+  noun: 'piece',
+  keepLabel: 'Keep it',
+  inSquare: true,
+  previewType: 'shop-item',
+  unpublishMessage:
+    'It goes back to being a draft and leaves the shop. Its web address stays the same, so publishing again restores it.',
+  archiveMessage:
+    'An archived piece is retired from the shop, and archiving can’t be undone from Studio. The archive is recorded under your name.',
+  deleteText:
+    'The piece leaves the site and the list, and its web address is free again. An Admin can restore it from Deleted, as a draft.',
+  published: 'Published: in the shop. Edits show there within a minute.',
+  archived: 'Archived: retired from the shop. Archiving can’t be undone here.',
+  redrafted: 'A draft again, after being published. Its web address stays as it is.',
+  draft:
+    'A draft: only staff can see it. Publishing needs a description, a price and a described photograph.',
 };
 
 /**
@@ -129,9 +129,8 @@ const COMMAND_LABELS: Readonly<
     RouterLink,
     ArtistPicker,
     GalleryEditor,
-    PreviewLinkButton,
     RichTextEditor,
-    ScheduleControl,
+    PublishingPanel,
     UiButton,
     UiControl,
     UiField,
@@ -147,14 +146,11 @@ export class ShopItemEditor implements HasUnsavedChanges {
   readonly id = input<string>();
 
   private readonly shop = inject(ShopService);
-  private readonly confirm = inject(ConfirmService);
-  private readonly session = inject(SessionService);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly conflictBox = viewChild<ElementRef<HTMLElement>>('conflictBox');
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
-  private readonly publishingHeading = viewChild<ElementRef<HTMLElement>>('publishingHeading');
   private readonly descriptionEditor = viewChild(RichTextEditor);
 
   private readonly justCreated =
@@ -172,32 +168,39 @@ export class ShopItemEditor implements HasUnsavedChanges {
   protected readonly formError = signal<string | null>(null);
   protected readonly liveMessage = signal('');
 
-  protected readonly isAdmin = computed(() => this.session.hasAnyRole([ROLES.admin]));
+  /** Publish, unpublish, schedule, archive and delete, shown by `<cms-publishing-panel>`. */
+  protected readonly lifecycle: ContentLifecycle<ShopItem> = new ContentLifecycle({
+    copy: LIFECYCLE,
+    api: this.shop,
+    record: () => this.item(),
+    label: (saved) => saved.title,
+    dirty: () => this.dirty(),
+    busy: () => this.busy(),
+    replace: (saved) => {
+      this.item.set(saved);
+      this.draft.set(draftOf(saved));
+    },
+    clearErrors: () => {
+      this.errors.set({});
+      this.formError.set(null);
+    },
+    refused: (message, problem) => this.showErrors(fieldErrorsOf(problem), message),
+    announce: (message) => this.announce(message),
+    deleted: (saved) => {
+      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
+      this.draft.set(draftOf(saved));
+      return this.router.navigate(['/shop']);
+    },
+  });
+
   protected readonly busy = computed(() => {
     const kind = this.status().kind;
-    return kind === 'saving' || kind === 'commanding' || kind === 'deleting';
-  });
-  protected readonly commanding = computed(() => {
-    const status = this.status();
-    return status.kind === 'commanding' ? status.command : null;
+    return kind === 'saving' || this.lifecycle.busy();
   });
   protected readonly conflict = computed(() => {
     const status = this.status();
     return status.kind === 'conflict' ? status.theirs : null;
   });
-  protected readonly canPublish = computed(() => {
-    const status = this.item()?.status;
-    return status === 'Draft' || status === 'Scheduled';
-  });
-  protected readonly canArchive = computed(() => {
-    const status = this.item()?.status;
-    return this.isAdmin() && status !== undefined && status !== 'Archived';
-  });
-
-  protected readonly deleting = computed(() => this.status().kind === 'deleting');
-
-  /** A saved piece an Admin can delete, whatever its status (ADR 0052). */
-  protected readonly canDelete = computed(() => this.isAdmin() && this.item() !== null);
 
   /** ADR 0032, 0038: the starting figures are ordinary fields only until Square holds the record. */
   protected readonly priceEditable = computed(() => this.item()?.startingPriceEditable ?? true);
@@ -354,21 +357,6 @@ export class ShopItemEditor implements HasUnsavedChanges {
     this.formError.set(null);
   }
 
-  protected statusText(piece: ShopItem): string {
-    switch (piece.status) {
-      case 'Published':
-        return 'Published: in the shop. Edits show there within a minute.';
-      case 'Archived':
-        return 'Archived: retired from the shop. Archiving can’t be undone here.';
-      case 'Scheduled':
-        return 'Scheduled to publish.';
-      default:
-        return piece.publishedAt
-          ? 'A draft again, after being published. Its web address stays as it is.'
-          : 'A draft: only staff can see it. Publishing needs a description, a price and a described photograph.';
-    }
-  }
-
   protected async save(etag?: string): Promise<void> {
     if (this.busy() || !this.dirty()) return;
 
@@ -447,115 +435,6 @@ export class ShopItemEditor implements HasUnsavedChanges {
     this.focus(this.heading);
   }
 
-  protected async unpublish(): Promise<void> {
-    const confirmed = await this.confirm.confirm({
-      heading: 'Unpublish this piece?',
-      message:
-        'It goes back to being a draft and leaves the shop. Its web address stays the same, so publishing again restores it.',
-      confirmLabel: 'Unpublish',
-      cancelLabel: 'Keep published',
-    });
-    if (confirmed) await this.run('unpublish');
-  }
-
-  protected async archive(): Promise<void> {
-    const confirmed = await this.confirm.confirm({
-      heading: 'Archive this piece?',
-      message:
-        'An archived piece is retired from the shop, and archiving can’t be undone from Studio. The archive is recorded under your name.',
-      confirmLabel: 'Archive piece',
-      cancelLabel: 'Keep it',
-    });
-    if (confirmed) await this.run('archive');
-  }
-
-  /**
-   * Deletes the piece (ADR 0052). Offered while the form is dirty — asking someone to save a record before
-   * throwing it away would be absurd — and the dialogs say so; a record Square holds is asked twice, because that half is not undone by a restore
-   * (<c>confirmDelete</c>). It acts on the saved version's row version, as every write does.
-   */
-  protected async remove(): Promise<void> {
-    const item = this.item();
-    if (!item || this.busy()) return;
-
-    const confirmed = await confirmDelete(this.confirm, {
-      noun: 'piece',
-      label: item.title,
-      slug: item.slug,
-      live: item.status === 'Published',
-      dirty: this.dirty(),
-      inSquare: true,
-      keepLabel: 'Keep it',
-    });
-    if (!confirmed) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'deleting' });
-    try {
-      await firstValueFrom(this.shop.delete(item.id, item.etag));
-
-      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
-      this.draft.set(draftOf(item));
-      this.status.set({ kind: 'ready' });
-      await this.router.navigate(['/shop']);
-    } catch (error: unknown) {
-      const problem = problemOf(error);
-      this.status.set({ kind: 'ready' });
-      this.showErrors(
-        {},
-        problem?.code === SHOP_CODES.concurrencyConflict
-          ? 'Someone else changed this piece a moment ago. Reload it, check it, and try again.'
-          : messageOf(problem, 'The piece couldn’t be deleted. Try again.'),
-      );
-    }
-  }
-
-  /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */
-  protected async schedule(scheduledFor: string): Promise<void> {
-    const piece = this.item();
-    if (!piece || this.busy() || this.dirty()) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'commanding', command: 'schedule' });
-    this.announce(COMMAND_LABELS.schedule.busy);
-    try {
-      const updated = await firstValueFrom(this.shop.schedule(piece.id, scheduledFor, piece.etag));
-      this.item.set(updated);
-      this.draft.set(draftOf(updated));
-      this.status.set({ kind: 'ready' });
-      this.announce(COMMAND_LABELS.schedule.done);
-    } catch (error: unknown) {
-      await this.commandFailed(error);
-    }
-  }
-
-  protected async unschedule(): Promise<void> {
-    await this.run('unschedule');
-  }
-
-  /** Every command but `schedule`, which carries a body and has {@link schedule} of its own (ADR 0036). */
-  protected async run(command: Exclude<ShopCommand, 'schedule'>): Promise<void> {
-    const piece = this.item();
-    if (!piece || this.busy() || this.dirty()) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'commanding', command });
-    this.announce(COMMAND_LABELS[command].busy);
-    try {
-      const updated = await firstValueFrom(this.shop.command(piece.id, command, piece.etag));
-      this.item.set(updated);
-      this.draft.set(draftOf(updated));
-      this.status.set({ kind: 'ready' });
-      this.announce(COMMAND_LABELS[command].done);
-      this.focus(this.publishingHeading);
-    } catch (error: unknown) {
-      await this.commandFailed(error);
-    }
-  }
-
   private async saveFailed(error: unknown): Promise<void> {
     const problem = problemOf(error);
 
@@ -579,31 +458,6 @@ export class ShopItemEditor implements HasUnsavedChanges {
     this.showErrors(
       fieldErrorsOf(problem),
       messageOf(problem, 'The changes couldn’t be saved. Try again.'),
-    );
-  }
-
-  private async commandFailed(error: unknown): Promise<void> {
-    const problem = problemOf(error);
-    const stale =
-      problem?.code === SHOP_CODES.concurrencyConflict ||
-      problem?.code === SHOP_CODES.transitionInvalid;
-
-    if (stale && this.item()) {
-      try {
-        const latest = await firstValueFrom(this.shop.get(this.item()!.id));
-        this.item.set(latest);
-        this.draft.set(draftOf(latest));
-      } catch {
-        // The message below still says what happened.
-      }
-    }
-
-    this.status.set({ kind: 'ready' });
-    this.showErrors(
-      fieldErrorsOf(problem),
-      problem?.code === SHOP_CODES.concurrencyConflict
-        ? 'Someone else changed this piece a moment ago. Here is the latest version; check it and try again.'
-        : messageOf(problem, 'That didn’t work. Try again.'),
     );
   }
 
@@ -770,10 +624,6 @@ function priceToCents(price: string): number | null {
   return Math.round(Number(trimmed) * 100);
 }
 
-function problemOf(error: unknown): ShopProblem | null {
-  return error instanceof HttpErrorResponse ? decodeShopProblem(error.error, error.status) : null;
-}
-
 function fieldErrorsOf(problem: ShopProblem | null): FieldErrors {
   const errors: FieldErrors = {};
   const keys: readonly FieldName[] = [
@@ -793,17 +643,4 @@ function fieldErrorsOf(problem: ShopProblem | null): FieldErrors {
     if (message) errors[key] = message;
   }
   return errors;
-}
-
-function messageOf(problem: ShopProblem | null, fallback: string): string {
-  if (problem === null || problem.status === 0)
-    return 'Can’t reach 6311arts. Your changes are still here; try again.';
-  const message = problem.detail ?? fallback;
-
-  // A 5xx says nothing the editor can act on, so hand them the one thing support can: the correlation id,
-  // which is this request's trace id (ADR 0019). Appended here rather than left to the global problem toast,
-  // because these calls deliberately suppress it to show the failure in place.
-  return problem.status >= 500 && problem.correlationId !== null
-    ? `${message} Quote reference ${problem.correlationId} if you report it.`
-    : message;
 }

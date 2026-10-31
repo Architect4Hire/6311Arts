@@ -2,6 +2,7 @@ using Arts6311.Domain.Managers.Audit;
 using Arts6311.Domain.Managers.Correlation;
 using Arts6311.Domain.Managers.Outbox;
 using Arts6311.Domain.Managers.Outbox.Events;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Redirects.Data.Entities;
 using Arts6311.Domain.Modules.Redirects.Data.Repositories;
@@ -44,8 +45,8 @@ internal sealed class RedirectsDataLayer(
         repository.ListForSlugChangeAsync(fromPath, toPath, cancellationToken);
 
     public Task<List<RedirectServiceModel>> ListAsync(
-        string? afterFromPath, int take, RedirectSource? source, string? search, CancellationToken cancellationToken) =>
-        repository.ListAsync(afterFromPath, take, source, search, cancellationToken);
+        ListSort sort, ListPosition? after, int take, RedirectSource? source, string? search, CancellationToken cancellationToken) =>
+        repository.ListAsync(sort, after, take, source, search, cancellationToken);
 
     public Task<List<SiteRedirectServiceModel>> ListForSiteAsync(CancellationToken cancellationToken) =>
         repository.ListForSiteAsync(cancellationToken);

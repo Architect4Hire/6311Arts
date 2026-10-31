@@ -222,6 +222,8 @@ export interface ClassUpdate {
 export interface ClassListQuery {
   readonly cursor?: string | null;
   readonly limit?: number;
+  /** A column the list sorts by, `-` before it for descending (ADR 0062). Absent: the list's own order. */
+  readonly sort?: string;
   readonly status?: PublishStatus;
   readonly search?: string;
 }

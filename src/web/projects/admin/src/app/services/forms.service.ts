@@ -134,10 +134,15 @@ export class FormsService {
   }
 }
 
-function paging(query: { readonly cursor?: string | null; readonly limit?: number }): HttpParams {
+function paging(query: {
+  readonly cursor?: string | null;
+  readonly limit?: number;
+  readonly sort?: string;
+}): HttpParams {
   let params = new HttpParams();
   if (query.cursor) params = params.set('cursor', query.cursor);
   if (query.limit) params = params.set('limit', query.limit);
+  if (query.sort) params = params.set('sort', query.sort);
   return params;
 }
 

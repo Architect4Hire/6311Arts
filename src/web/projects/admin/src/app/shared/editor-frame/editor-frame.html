@@ -1,0 +1,83 @@
+@let editor = view();
+<p class="back">
+  <a [routerLink]="editor.route">← All {{ editor.plural }}</a>
+</p>
+
+<!-- Exists from the start, so what is written into it later is read out. -->
+<p class="sr-only" aria-live="polite">{{ editor.liveMessage() }}</p>
+
+@switch (editor.status().kind) {
+  @case ('loading') {
+    <p role="status">Loading {{ editor.noun }}…</p>
+  }
+  @case ('load-failed') {
+    <ui-notice tone="error" [heading]="'This ' + editor.noun + ' couldn’t be loaded'">
+      <p>6311arts may be unreachable for a moment.</p>
+      <button uiButton type="button" size="sm" (click)="editor.retry()">Try again</button>
+    </ui-notice>
+  }
+  @case ('not-found') {
+    <ui-notice tone="warning" [heading]="'There’s no such ' + editor.noun">
+      <p>It may have been removed, or the link is wrong.</p>
+      <a uiButton size="sm" [routerLink]="editor.route">Back to the {{ editor.listName }}</a>
+    </ui-notice>
+  }
+  @default {
+    <header class="title">
+      <h1 class="cms-title" tabindex="-1">{{ editor.title() }}</h1>
+      @if (editor.chip(); as chip) {
+        <ui-status-chip [tone]="chip.tone" [icon]="chip.icon">{{ chip.label }}</ui-status-chip>
+      }
+    </header>
+
+    @if (editor.comparison(); as rows) {
+      <div
+        class="conflict"
+        role="region"
+        aria-label="Your changes and the saved version"
+        tabindex="-1"
+      >
+        <ui-notice
+          tone="warning"
+          [heading]="'Someone else saved this ' + editor.noun + ' while you were editing'"
+        >
+          <table class="compare">
+            <caption class="sr-only">
+              Your changes and the saved version
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Field</th>
+                <th scope="col">Yours</th>
+                <th scope="col">Saved</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows; track row.label) {
+                <tr>
+                  <th scope="row">{{ row.label }}</th>
+                  <td>{{ row.mine }}</td>
+                  <td>{{ row.theirs }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <div class="actions">
+            <button uiButton type="button" variant="dark" size="sm" (click)="editor.keepMine()">
+              Keep my changes
+            </button>
+            <button uiButton type="button" size="sm" (click)="editor.useTheirs()">
+              Use the saved version and discard mine
+            </button>
+          </div>
+        </ui-notice>
+      </div>
+    }
+
+    @if (editor.formError(); as message) {
+      <ui-notice tone="error">{{ message }}</ui-notice>
+    }
+  }
+}
+
+<ng-content />

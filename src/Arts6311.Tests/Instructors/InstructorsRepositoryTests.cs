@@ -1,7 +1,9 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Instructors.Data;
 using Arts6311.Domain.Modules.Instructors.Data.Repositories;
+using Arts6311.Domain.Modules.Instructors.Managers;
 using Arts6311.Tests.Instructors.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,10 +31,10 @@ public sealed class InstructorsRepositoryTests
         Assert.Equal(["Alice", "Bob", "Bob"], first.Select(row => row.Name));
 
         // The two Bobs tie on name; the id breaks the tie, so resuming after the second never repeats or skips one.
-        var second = await ListAsync(host, new InstructorListPosition(first[^1].Name, first[^1].Id), take: 3);
+        var second = await ListAsync(host, new ListPosition(first[^1].Name, first[^1].Id), take: 3);
         Assert.Equal(["Carol", "Dan"], second.Select(row => row.Name));
 
-        var resumeAfterFirstBob = await ListAsync(host, new InstructorListPosition(first[1].Name, first[1].Id), take: 10);
+        var resumeAfterFirstBob = await ListAsync(host, new ListPosition(first[1].Name, first[1].Id), take: 10);
         Assert.Equal(first[2].Id, resumeAfterFirstBob[0].Id);
     }
 
@@ -120,9 +122,9 @@ public sealed class InstructorsRepositoryTests
     }
 
     private static async Task<List<Arts6311.Domain.Modules.Instructors.Managers.ServiceModels.InstructorSummaryServiceModel>> ListAsync(
-        InstructorsTestHost host, InstructorListPosition? after, int take, PublishStatus? status = null, string? search = null)
+        InstructorsTestHost host, ListPosition? after, int take, PublishStatus? status = null, string? search = null)
     {
         using var scope = host.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<IInstructorsRepository>().ListAsync(after, take, status, search, Ct);
+        return await scope.ServiceProvider.GetRequiredService<IInstructorsRepository>().ListAsync(InstructorListOrder.Columns.Default, after, take, status, search, Ct);
     }
 }

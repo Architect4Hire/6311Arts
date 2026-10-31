@@ -14,6 +14,10 @@ namespace Arts6311.Domain.Modules.Shop.Managers;
 /// A type of its own rather than the ServiceModel with the artist's id hung off it: the id is how this module asks
 /// Artists a question, not part of what the API answers. <see cref="ShopItemDetail"/> is the same arrangement for
 /// one item.
+/// <para>
+/// <see cref="ArtistName"/> is the artist's name read through the item's foreign key, as the "artist" sort reads it,
+/// so a page resumes where that order left off (ADR 0062). It is never shown; the facade's answer is.
+/// </para>
 /// </remarks>
 internal sealed record ShopItemListRow(
     Guid Id,
@@ -28,7 +32,8 @@ internal sealed record ShopItemListRow(
     long? PriceCents,
     int? StockOnHand,
     bool SoldOut,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    string? ArtistName = null)
 {
     /// <summary>The finished row, with the credit described by <paramref name="artist"/> when there is one.</summary>
     public ShopItemSummaryServiceModel ToServiceModel(ShopItemArtistServiceModel? artist) => new(

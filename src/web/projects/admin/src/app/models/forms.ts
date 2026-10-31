@@ -225,18 +225,24 @@ export type NewsletterList = FormsPage<NewsletterSubscriber>;
 export interface SubmissionListQuery {
   readonly cursor?: string | null;
   readonly limit?: number;
+  /** A column the list sorts by, `-` before it for descending (ADR 0062). Absent: the list's own order. */
+  readonly sort?: string;
   readonly status?: SubmissionStatus;
 }
 
 export interface ContactMessageListQuery {
   readonly cursor?: string | null;
   readonly limit?: number;
+  /** A column the list sorts by, `-` before it for descending (ADR 0062). Absent: the list's own order. */
+  readonly sort?: string;
   readonly handled?: boolean;
 }
 
 export interface NewsletterListQuery {
   readonly cursor?: string | null;
   readonly limit?: number;
+  /** A column the list sorts by, `-` before it for descending (ADR 0062). Absent: the list's own order. */
+  readonly sort?: string;
   readonly search?: string;
 }
 

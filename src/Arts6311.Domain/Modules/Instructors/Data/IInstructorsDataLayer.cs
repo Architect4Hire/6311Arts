@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Instructors.Data.Entities;
 using Arts6311.Domain.Modules.Instructors.Managers;
@@ -40,7 +41,7 @@ internal interface IInstructorsDataLayer
     Task<bool> SlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 
     Task<List<InstructorSummaryServiceModel>> ListAsync(
-        InstructorListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
 
     Task<List<InstructorSummaryServiceModel>> GetSummariesAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
 

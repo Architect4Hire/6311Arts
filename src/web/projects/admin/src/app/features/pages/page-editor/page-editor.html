@@ -1,89 +1,6 @@
-<p class="back"><a routerLink="/pages">← All pages</a></p>
-
-<!-- Exists from the start, so what is written into it later is read out. -->
-<p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
-
-@switch (status().kind) {
-  @case ('loading') {
-    <p role="status">Loading page…</p>
-  }
-  @case ('load-failed') {
-    <ui-notice tone="error" heading="This page couldn’t be loaded">
-      <p>6311arts may be unreachable for a moment.</p>
-      <button uiButton type="button" size="sm" (click)="load()">Try again</button>
-    </ui-notice>
-  }
-  @case ('not-found') {
-    <ui-notice tone="warning" heading="There’s no such page">
-      <p>It may have been removed, or the link is wrong.</p>
-      <a uiButton size="sm" routerLink="/pages">Back to the pages</a>
-    </ui-notice>
-  }
-  @default {
-    <header class="title">
-      <h1 #heading class="cms-title" tabindex="-1">{{ page()?.title || 'New page' }}</h1>
-      @if (page(); as page) {
-        <ui-status-chip [tone]="chips[page.status].tone" [icon]="chips[page.status].icon">{{
-          chips[page.status].label
-        }}</ui-status-chip>
-      }
-    </header>
-
-    @if (conflict(); as theirs) {
-      <div
-        #conflictBox
-        class="conflict"
-        role="region"
-        aria-label="Your changes and the saved version"
-        tabindex="-1"
-      >
-        <ui-notice tone="warning" heading="Someone else saved this page while you were editing">
-          <table class="compare">
-            <caption class="sr-only">
-              Your changes and the saved version
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Field</th>
-                <th scope="col">Yours</th>
-                <th scope="col">Saved</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">Title</th>
-                <td>{{ draft().title || '—' }}</td>
-                <td>{{ theirs.title }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Web address</th>
-                <td>/{{ draft().slug }}</td>
-                <td>/{{ theirs.slug }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Text</th>
-                <td>{{ excerpt(draft().body) }}</td>
-                <td>{{ excerpt(theirs.body ?? '') }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="actions">
-            <button uiButton type="button" variant="dark" size="sm" (click)="keepMine(theirs)">
-              Keep my changes
-            </button>
-            <button uiButton type="button" size="sm" (click)="useTheirs(theirs)">
-              Use the saved version and discard mine
-            </button>
-          </div>
-        </ui-notice>
-      </div>
-    }
-
-    @if (formError(); as message) {
-      <ui-notice tone="error">{{ message }}</ui-notice>
-    }
-
-    <div class="layout">
+<cms-editor-frame [view]="view">
+  @if (loaded()) {
+    <div class="layout layout--main">
       <form class="form" novalidate (ngSubmit)="save()">
         <fieldset class="fields" [disabled]="busy()">
           <legend class="sr-only">Page details</legend>
@@ -94,7 +11,7 @@
               autocomplete="off"
               [attr.maxlength]="limits.titleMaxLength"
               [ngModel]="draft().title"
-              (ngModelChange)="setTitle($event)"
+              (ngModelChange)="rename('title', $event)"
             />
           </ui-field>
 
@@ -108,118 +25,24 @@
           label="Text"
           hint="Headings, bold, italic and lists. Needed to publish."
           [value]="draft().body"
-          (valueChange)="setBody($event)"
+          (valueChange)="patch({ body: $event })"
           [disabled]="busy()"
           [error]="errors().body ?? null"
         />
 
-        <div class="actions">
-          <button
-            uiButton
-            type="submit"
-            variant="dark"
-            [busy]="status().kind === 'saving'"
-            [disabled]="!dirty() || busy()"
-          >
-            {{ saveLabel() }}
-          </button>
-          @if (page() && dirty()) {
-            <button uiButton type="button" [disabled]="busy()" (click)="discard()">
-              Discard changes
-            </button>
-          }
-        </div>
+        <cms-save-actions [view]="view" />
       </form>
 
       @if (page(); as page) {
         <aside class="side">
-          <section class="panel" aria-labelledby="publishing-heading">
-            <h2 #publishingHeading id="publishing-heading" class="panel__title" tabindex="-1">
-              Publishing
-            </h2>
-            <p class="panel__text">{{ statusText(page) }}</p>
-            @if (dirty()) {
-              <p class="panel__hint" id="publishing-hint">
-                Save your changes first: these act on the saved version.
-              </p>
-            }
-            <div class="actions">
-              @if (canPublish()) {
-                <button
-                  uiButton
-                  type="button"
-                  variant="dark"
-                  size="sm"
-                  aria-describedby="publishing-hint"
-                  [busy]="commanding() === 'publish'"
-                  [disabled]="dirty() || busy()"
-                  (click)="run('publish')"
-                >
-                  Publish
-                </button>
-              }
-              @if (page.status === 'Published') {
-                <button
-                  uiButton
-                  type="button"
-                  size="sm"
-                  aria-describedby="publishing-hint"
-                  [busy]="commanding() === 'unpublish'"
-                  [disabled]="dirty() || busy()"
-                  (click)="unpublish()"
-                >
-                  Unpublish
-                </button>
-              }
-              @if (canArchive()) {
-                <button
-                  uiButton
-                  type="button"
-                  size="sm"
-                  aria-describedby="publishing-hint"
-                  [busy]="commanding() === 'archive'"
-                  [disabled]="dirty() || busy()"
-                  (click)="archive()"
-                >
-                  Archive
-                </button>
-              }
-            </div>
-
-            <cms-schedule-control
-              noun="page"
-              [status]="page.status"
-              [scheduledFor]="page.scheduledFor"
-              [disabled]="dirty() || busy()"
-              [busy]="commanding()"
-              (schedule)="schedule($event)"
-              (unschedule)="unschedule()"
-            />
-
-            <cms-preview-link entityType="page" [entityId]="page.id" [dirty]="dirty()" />
-
-            @if (canDelete()) {
-              <div class="cms-danger">
-                <h3 class="cms-danger__title">Delete</h3>
-                <p class="panel__text">
-                  The page leaves the site and the list, and its web address is free again. An Admin
-                  can restore it from Deleted, as a draft.
-                </p>
-                <button
-                  uiButton
-                  type="button"
-                  size="sm"
-                  [busy]="deleting()"
-                  [disabled]="busy()"
-                  (click)="remove()"
-                >
-                  Delete page
-                </button>
-              </div>
-            }
-          </section>
+          <cms-publishing-panel
+            [lifecycle]="lifecycle"
+            [record]="page"
+            [dirty]="dirty()"
+            [busy]="busy()"
+          />
         </aside>
       }
     </div>
   }
-}
+</cms-editor-frame>

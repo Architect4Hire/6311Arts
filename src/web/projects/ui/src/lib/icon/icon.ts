@@ -22,6 +22,8 @@ const GLYPHS = {
   calendar: 'M6 10h36v32H6zM6 19h36M15 5v9M33 5v9',
   close: 'M10 10l28 28M38 10L10 38',
   arrow: 'M6 24h34M28 12l12 12-12 12',
+  // points up; turned round for a descending sort
+  chevron: 'M12 30l12-12 12 12',
   frame: 'M6 8h36v32H6zM12 14h24v20H12zM12 30l8-8 6 6 4-4 6 6',
   ticket: 'M4 14h40v6a4 4 0 0 0 0 8v6H4v-6a4 4 0 0 0 0-8zM30 14v20',
   star: 'M24 5l6 13 14 1-11 9 4 14-13-8-13 8 4-14L4 19l14-1z',

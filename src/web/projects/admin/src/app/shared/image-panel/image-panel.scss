@@ -1,0 +1,28 @@
+@use '../panel';
+
+:host {
+  display: block;
+}
+.image {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  background: var(--light);
+}
+.image--pending {
+  display: grid;
+  place-items: center;
+  color: var(--text-soft);
+}
+.image--natural {
+  display: block;
+  height: auto;
+  aspect-ratio: auto;
+  border: var(--border-thin) solid var(--line);
+  background: none;
+}
+.image--natural.image--pending {
+  display: grid;
+  aspect-ratio: 3 / 2;
+  font-size: var(--fs-small);
+}

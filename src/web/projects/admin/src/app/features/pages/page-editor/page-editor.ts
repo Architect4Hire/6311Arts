@@ -1,40 +1,26 @@
-import { HttpErrorResponse } from '@angular/common/http';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  Injector,
-  afterNextRender,
-  computed,
-  effect,
-  inject,
-  input,
-  signal,
-  untracked,
-  viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
-import { UiButton, UiControl, UiField, UiNotice, UiStatusChip } from '@6311/ui';
-import { ConfirmService } from '../../../core/confirm/confirm.service';
-import { HasUnsavedChanges, warnBeforeUnload } from '../../../core/guards/unsaved-changes.guard';
-import { SessionService } from '../../../core/session/session.service';
-import { STATUS_CHIPS, slugFromName } from '../../../models/content';
+import { UiControl, UiField } from '@6311/ui';
 import {
-  PAGE_CODES,
   PAGE_DELETED_STATE,
   PAGE_LIMITS,
   Page,
-  PageCommand,
   PageCreate,
-  PageProblem,
   PageUpdate,
-  decodePageProblem,
 } from '../../../models/page';
-import { ROLES } from '../../../models/session';
 import { PageService } from '../../../services/page.service';
+import { ContentEditor } from '../../../shared/content-editor';
+import { EditorFrame } from '../../../shared/editor-frame/editor-frame';
+import { PublishingPanel } from '../../../shared/publishing-panel/publishing-panel';
+import {
+  CompareRow,
+  FieldErrors,
+  Focusable,
+  htmlExcerpt,
+  orDash,
+} from '../../../shared/record-editor';
 import { RichTextEditor } from '../../../shared/rich-text-editor/rich-text-editor';
+import { SaveActions } from '../../../shared/save-actions/save-actions';
 
 interface Draft {
   readonly title: string;
@@ -43,493 +29,89 @@ interface Draft {
   readonly body: string;
 }
 
-type Status =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'load-failed' }
-  | { readonly kind: 'not-found' }
-  | { readonly kind: 'ready' }
-  | { readonly kind: 'saving' }
-  | { readonly kind: 'commanding'; readonly command: PageCommand }
-  | { readonly kind: 'deleting' }
-  | { readonly kind: 'conflict'; readonly theirs: Page };
-
-type FieldErrors = Partial<Record<'title' | 'slug' | 'body', string>>;
+const FIELDS = ['title', 'slug', 'body'] as const;
+type Field = (typeof FIELDS)[number];
 
 const EMPTY: Draft = { title: '', slug: '', body: '' };
-
-/** Router state set by "Create page", read by the editor it navigates to. */
-const CREATED_STATE = 'pageCreated';
-
-const COMMAND_LABELS: Readonly<
-  Record<PageCommand, { readonly busy: string; readonly done: string }>
-> = {
-  publish: { busy: 'Publishing…', done: 'Published.' },
-  unpublish: { busy: 'Unpublishing…', done: 'Unpublished. The page is a draft again.' },
-  archive: { busy: 'Archiving…', done: 'Archived.' },
-  schedule: { busy: 'Scheduling…', done: 'Scheduled.' },
-  unschedule: { busy: 'Unscheduling…', done: 'Unscheduled. The page is a draft again.' },
-};
 
 /**
  * One page (`/admin/pages/new`, `/admin/pages/:id`): title, web address and a rich-text body; then publish,
  * unpublish or (Admins) archive.
  *
  * The body is edited with `<cms-rich-text>`, whose schema is the server's allow-list (ADR 0034); the API sanitizes it
- * regardless and answers with what it stored, which the form then shows. Unsaved edits survive every recoverable
- * failure, and a 409 shows the saved version beside the editor's own (frontend.md). Status commands act on the saved
- * version, so they wait until the form is saved.
+ * regardless and answers with what it stored, which the form then shows.
  */
-import { PreviewLinkButton } from '../../../shared/preview-link/preview-link';
-import { ScheduleControl } from '../../../shared/schedule-control/schedule-control';
-import { confirmDelete } from '../../../shared/delete-confirm/delete-confirm';
-
 @Component({
   selector: 'cms-page-editor',
   imports: [
     FormsModule,
-    RouterLink,
-    RichTextEditor,
-    UiButton,
     UiControl,
     UiField,
-    UiNotice,
-    UiStatusChip,
-    PreviewLinkButton,
-    ScheduleControl,
+    RichTextEditor,
+    EditorFrame,
+    PublishingPanel,
+    SaveActions,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './page-editor.html',
   styleUrl: './page-editor.scss',
 })
-export class PageEditor implements HasUnsavedChanges {
-  /** The route's `:id`; absent on `/pages/new`. */
-  readonly id = input<string>();
-
-  private readonly pages = inject(PageService);
-  private readonly confirm = inject(ConfirmService);
-  private readonly session = inject(SessionService);
-  private readonly router = inject(Router);
-  private readonly injector = inject(Injector);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly conflictBox = viewChild<ElementRef<HTMLElement>>('conflictBox');
-  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
-  private readonly publishingHeading = viewChild<ElementRef<HTMLElement>>('publishingHeading');
+export class PageEditor extends ContentEditor<Page, Draft, PageCreate, PageUpdate, Field> {
   private readonly body = viewChild(RichTextEditor);
 
-  private readonly justCreated =
-    this.router.currentNavigation()?.extras.state?.[CREATED_STATE] === true;
-
-  protected readonly chips = STATUS_CHIPS;
   protected readonly limits = PAGE_LIMITS;
-
-  protected readonly status = signal<Status>({ kind: 'loading' });
-  /** The page as saved; `null` while creating one. */
-  protected readonly page = signal<Page | null>(null);
-  protected readonly draft = signal<Draft>(EMPTY);
-  protected readonly errors = signal<FieldErrors>({});
-  protected readonly formError = signal<string | null>(null);
-  protected readonly liveMessage = signal('');
-
-  protected readonly isAdmin = computed(() => this.session.hasAnyRole([ROLES.admin]));
-  protected readonly busy = computed(() => {
-    const kind = this.status().kind;
-    return kind === 'saving' || kind === 'commanding' || kind === 'deleting';
-  });
-
-  protected readonly deleting = computed(() => this.status().kind === 'deleting');
-  protected readonly commanding = computed(() => {
-    const status = this.status();
-    return status.kind === 'commanding' ? status.command : null;
-  });
-  protected readonly conflict = computed(() => {
-    const status = this.status();
-    return status.kind === 'conflict' ? status.theirs : null;
-  });
-  protected readonly canPublish = computed(() => {
-    const status = this.page()?.status;
-    return status === 'Draft' || status === 'Scheduled';
-  });
-  protected readonly canArchive = computed(() => {
-    const status = this.page()?.status;
-    return this.isAdmin() && status !== undefined && status !== 'Archived';
-  });
-
-  /** A saved page an Admin can delete, whatever its status (ADR 0052). */
-  protected readonly canDelete = computed(() => this.isAdmin() && this.page() !== null);
-
-  protected readonly saveLabel = computed(() => {
-    if (this.status().kind === 'saving') return this.page() ? 'Saving…' : 'Creating…';
-    return this.page() ? 'Save' : 'Create page';
-  });
-
-  /** Made from the title on create and never typed (the field only shows it), so the address never moves. */
-  protected readonly slugHint = computed(() => {
-    const slug = this.draft().slug;
-    return this.page()
-      ? `6311arts.com/${slug}`
-      : `6311arts.com/${slug || '…'} — made from the title. If another page or the site already has it, a number is added.`;
-  });
-
-  /** Edits not yet saved: the unsaved-changes guard asks before they are lost. */
-  readonly dirty = computed(() => {
-    const draft = this.draft();
-    const page = this.page();
-    if (!page) return draft.title.trim() !== '' || draft.body !== '';
-    return Object.keys(changesOf(page, draft)).length > 0;
-  });
+  protected readonly page = this.record;
 
   constructor() {
-    warnBeforeUnload(() => this.hasUnsavedChanges());
-
-    effect(() => {
-      this.id();
-      untracked(() => void this.load());
-    });
-  }
-
-  hasUnsavedChanges(): boolean {
-    return this.dirty() || this.busy();
-  }
-
-  async load(): Promise<void> {
-    const id = this.id();
-    this.errors.set({});
-    this.formError.set(null);
-
-    if (!id) {
-      this.page.set(null);
-      this.draft.set(EMPTY);
-      this.status.set({ kind: 'ready' });
-      return;
-    }
-
-    this.status.set({ kind: 'loading' });
-    try {
-      const page = await firstValueFrom(this.pages.get(id));
-      this.page.set(page);
-      this.draft.set(draftOf(page));
-      this.status.set({ kind: 'ready' });
-      if (this.justCreated) {
-        this.announce('Page created. Publish it when it’s ready.');
-        this.focus(this.heading);
-      }
-    } catch (error: unknown) {
-      this.status.set(
-        problemOf(error)?.code === PAGE_CODES.notFound
-          ? { kind: 'not-found' }
-          : { kind: 'load-failed' },
-      );
-    }
-  }
-
-  protected patch(change: Partial<Draft>): void {
-    this.draft.update((draft) => ({ ...draft, ...change }));
-    const cleared = Object.keys(change).filter((key) => key in this.errors());
-    if (cleared.length > 0) {
-      this.errors.update((errors) =>
-        Object.fromEntries(Object.entries(errors).filter(([key]) => !cleared.includes(key))),
-      );
-    }
-  }
-
-  protected setTitle(title: string): void {
-    // A new page's address follows its title; staff never type one, and the API numbers a taken one.
-    const followsTitle = !this.page();
-    this.patch({ title, ...(followsTitle ? { slug: slugFromName(title) } : {}) });
-  }
-
-  protected setBody(body: string): void {
-    this.patch({ body });
-  }
-
-  protected discard(): void {
-    const page = this.page();
-    if (page) this.draft.set(draftOf(page));
-    this.errors.set({});
-    this.formError.set(null);
-  }
-
-  /** The words of an HTML body, for the comparison. Parsed inert: a template's content runs and loads nothing. */
-  protected excerpt(html: string): string {
-    const template = document.createElement('template');
-    template.innerHTML = html;
-    const flat = (template.content.textContent ?? '').replace(/\s+/g, ' ').trim();
-    if (flat === '') return '—';
-    return flat.length > 120 ? `${flat.slice(0, 120)}…` : flat;
-  }
-
-  protected statusText(page: Page): string {
-    switch (page.status) {
-      case 'Published':
-        return 'Published: on the public site. Edits show there within a minute.';
-      case 'Archived':
-        return 'Archived: retired from the site. Archiving can’t be undone here.';
-      case 'Scheduled':
-        return 'Scheduled to publish.';
-      default:
-        return page.publishedAt
-          ? 'A draft again, after being published. Its web address stays fixed.'
-          : 'A draft: only staff can see it. Publishing needs some text.';
-    }
-  }
-
-  protected async save(etag?: string): Promise<void> {
-    if (this.busy() || !this.dirty()) return;
-
-    const draft = this.draft();
-    const local = localErrors(draft);
-    if (Object.keys(local).length > 0) {
-      this.showErrors(local, null);
-      return;
-    }
-
-    const page = this.page();
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'saving' });
-    try {
-      if (!page) {
-        const created = await firstValueFrom(this.pages.create(createOf(draft)));
-        this.page.set(created);
-        this.draft.set(draftOf(created));
-        this.status.set({ kind: 'ready' });
-        await this.router.navigate(['/pages', created.id], {
-          replaceUrl: true,
-          state: { [CREATED_STATE]: true },
-        });
-        return;
-      }
-
-      const saved = await firstValueFrom(
-        this.pages.update(page.id, changesOf(page, draft), etag ?? page.etag),
-      );
-      this.page.set(saved);
-      this.draft.set(draftOf(saved));
-      this.status.set({ kind: 'ready' });
-      // Saving disabled the fieldset that held the focused control, so the browser dropped focus to <body>.
-      // Put it on the heading, which is where "Saved." is announced from, rather than leaving a keyboard or
-      // screen-reader user with no position on the page (WCAG 2.4.3 focus order).
-      this.focus(this.heading);
-      this.announce('Saved.');
-    } catch (error: unknown) {
-      await this.saveFailed(error);
-    }
-  }
-
-  protected async keepMine(theirs: Page): Promise<void> {
-    this.page.set(theirs);
-    this.status.set({ kind: 'ready' });
-    this.focus(this.heading);
-    if (!this.dirty()) {
-      this.announce('Your changes already match the saved version. Nothing more to save.');
-      return;
-    }
-    await this.save(theirs.etag);
-  }
-
-  protected useTheirs(theirs: Page): void {
-    this.page.set(theirs);
-    this.draft.set(draftOf(theirs));
-    this.status.set({ kind: 'ready' });
-    this.announce('Showing the saved version. Your changes were discarded.');
-    this.focus(this.heading);
-  }
-
-  protected async unpublish(): Promise<void> {
-    const confirmed = await this.confirm.confirm({
-      heading: 'Unpublish this page?',
-      message:
-        'It goes back to being a draft and leaves the public site. Its web address stays the same, so publishing again restores it.',
-      confirmLabel: 'Unpublish',
-      cancelLabel: 'Keep published',
-    });
-    if (confirmed) await this.run('unpublish');
-  }
-
-  protected async archive(): Promise<void> {
-    const confirmed = await this.confirm.confirm({
-      heading: 'Archive this page?',
-      message:
-        'An archived page is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
-      confirmLabel: 'Archive page',
-      cancelLabel: 'Keep it',
-    });
-    if (confirmed) await this.run('archive');
-  }
-
-  /**
-   * Deletes the page (ADR 0052). Offered while the form is dirty — asking someone to save a record before
-   * throwing it away would be absurd — and the dialogs say so; the wording is shared by every type
-   * (<c>confirmDelete</c>). It acts on the saved version's row version, as every write does.
-   */
-  protected async remove(): Promise<void> {
-    const page = this.page();
-    if (!page || this.busy()) return;
-
-    const confirmed = await confirmDelete(this.confirm, {
+    super({
+      api: inject(PageService),
       noun: 'page',
-      label: page.title,
-      slug: page.slug,
-      live: page.status === 'Published',
-      dirty: this.dirty(),
-      inSquare: false,
-      keepLabel: 'Keep it',
-    });
-    if (!confirmed) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'deleting' });
-    this.announce('Deleting…');
-    try {
-      await firstValueFrom(this.pages.delete(page.id, page.etag));
-
-      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
-      this.draft.set(draftOf(page));
-      this.status.set({ kind: 'ready' });
-      await this.router.navigate(['/pages'], { state: { [PAGE_DELETED_STATE]: page.title } });
-    } catch (error: unknown) {
-      const problem = problemOf(error);
-      this.status.set({ kind: 'ready' });
-      this.showErrors(
-        {},
-        problem?.code === PAGE_CODES.concurrencyConflict
-          ? 'Someone else changed this page a moment ago. Reload it, check it, and try again.'
-          : messageOf(problem, 'The page couldn’t be deleted. Try again.'),
-      );
-    }
-  }
-
-  /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */
-  protected async schedule(scheduledFor: string): Promise<void> {
-    const page = this.page();
-    if (!page || this.busy() || this.dirty()) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'commanding', command: 'schedule' });
-    this.announce(COMMAND_LABELS.schedule.busy);
-    try {
-      const updated = await firstValueFrom(this.pages.schedule(page.id, scheduledFor, page.etag));
-      this.page.set(updated);
-      this.draft.set(draftOf(updated));
-      this.status.set({ kind: 'ready' });
-      this.announce(COMMAND_LABELS.schedule.done);
-    } catch (error: unknown) {
-      await this.commandFailed(error);
-    }
-  }
-
-  protected async unschedule(): Promise<void> {
-    await this.run('unschedule');
-  }
-
-  protected async run(command: PageCommand): Promise<void> {
-    const page = this.page();
-    if (!page || this.busy() || this.dirty()) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'commanding', command });
-    this.announce(COMMAND_LABELS[command].busy);
-    try {
-      const updated = await firstValueFrom(this.pages.command(page.id, command, page.etag));
-      this.page.set(updated);
-      this.draft.set(draftOf(updated));
-      this.status.set({ kind: 'ready' });
-      this.announce(COMMAND_LABELS[command].done);
-      this.focus(this.publishingHeading);
-    } catch (error: unknown) {
-      await this.commandFailed(error);
-    }
-  }
-
-  private async saveFailed(error: unknown): Promise<void> {
-    const problem = problemOf(error);
-
-    if (problem?.code === PAGE_CODES.concurrencyConflict && this.page()) {
-      try {
-        const theirs = await firstValueFrom(this.pages.get(this.page()!.id));
-        this.status.set({ kind: 'conflict', theirs });
-        this.announce(
-          'Someone else saved this page while you were editing. Compare the two versions.',
-        );
-        afterNextRender(() => this.conflictBox()?.nativeElement.focus(), {
-          injector: this.injector,
-        });
-        return;
-      } catch {
-        // Fall through to the plain message; the draft is still in the form.
-      }
-    }
-
-    this.status.set({ kind: 'ready' });
-    this.showErrors(
-      fieldErrorsOf(problem),
-      messageOf(problem, 'The changes couldn’t be saved. Try again.'),
-    );
-  }
-
-  private async commandFailed(error: unknown): Promise<void> {
-    const problem = problemOf(error);
-    const stale =
-      problem?.code === PAGE_CODES.concurrencyConflict ||
-      problem?.code === PAGE_CODES.transitionInvalid;
-
-    if (stale && this.page()) {
-      try {
-        const latest = await firstValueFrom(this.pages.get(this.page()!.id));
-        this.page.set(latest);
-        this.draft.set(draftOf(latest));
-      } catch {
-        // The message below still says what happened.
-      }
-    }
-
-    this.status.set({ kind: 'ready' });
-    this.showErrors(
-      fieldErrorsOf(problem),
-      problem?.code === PAGE_CODES.concurrencyConflict
-        ? 'Someone else changed this page a moment ago. Here is the latest version; check it and try again.'
-        : messageOf(problem, 'That didn’t work. Try again.'),
-    );
-  }
-
-  private showErrors(errors: FieldErrors, message: string | null): void {
-    this.errors.set(errors);
-    this.formError.set(message);
-    this.announce(message ?? 'Some fields need attention.');
-    // The first invalid field takes focus, so its message is read; the body's is the rich text's own.
-    afterNextRender(
-      () => {
-        const invalid = this.host.nativeElement.querySelector<HTMLElement>(
-          'input[aria-invalid="true"]',
-        );
-        if (invalid) invalid.focus();
-        else if (errors.body) this.body()?.focus();
+      plural: 'pages',
+      route: '/pages',
+      label: (page) => page.title,
+      address: { path: '6311arts.com/', from: 'title', clash: 'another page or the site already' },
+      createdMessage: 'Page created. Publish it when it’s ready.',
+      createdState: 'pageCreated',
+      empty: () => EMPTY,
+      draftOf: (page) => ({ title: page.title, slug: page.slug, body: page.body ?? '' }),
+      createOf: (draft) => ({
+        title: draft.title.trim(),
+        ...(draft.body ? { body: draft.body } : {}),
+      }),
+      changesOf,
+      started: (draft) => draft.title.trim() !== '' || draft.body !== '',
+      localErrors: (draft) =>
+        draft.title.trim() === '' ? { title: 'Enter the page’s title.' } : {},
+      fields: FIELDS,
+      deletedState: (page) => ({ [PAGE_DELETED_STATE]: page.title }),
+      lifecycle: {
+        noun: 'page',
+        keepLabel: 'Keep it',
+        inSquare: false,
+        previewType: 'page',
+        unpublishMessage:
+          'It goes back to being a draft and leaves the public site. Its web address stays the same, so publishing again restores it.',
+        archiveMessage:
+          'An archived page is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
+        deleteText:
+          'The page leaves the site and the list, and its web address is free again. An Admin can restore it from Deleted, as a draft.',
+        draft: 'A draft: only staff can see it. Publishing needs some text.',
       },
-      { injector: this.injector },
-    );
+    });
   }
 
-  private announce(message: string): void {
-    this.liveMessage.update((current) => (current === message ? `${message} ` : message));
+  protected override compare(theirs: Page, draft: Draft): readonly CompareRow[] {
+    return [
+      { label: 'Title', mine: orDash(draft.title), theirs: theirs.title },
+      { label: 'Web address', mine: `/${draft.slug}`, theirs: `/${theirs.slug}` },
+      { label: 'Text', mine: htmlExcerpt(draft.body), theirs: htmlExcerpt(theirs.body) },
+    ];
   }
 
-  private focus(target: () => ElementRef<HTMLElement> | undefined): void {
-    afterNextRender(() => target()?.nativeElement.focus(), { injector: this.injector });
+  /** The body's error is the rich text's own. */
+  protected override focusFallback(errors: FieldErrors<Field>): Focusable | null | undefined {
+    return errors.body ? this.body() : null;
   }
-}
-
-function draftOf(page: Page): Draft {
-  return { title: page.title, slug: page.slug, body: page.body ?? '' };
-}
-
-function createOf(draft: Draft): PageCreate {
-  return {
-    title: draft.title.trim(),
-    ...(draft.body ? { body: draft.body } : {}),
-  };
 }
 
 /** Only what changed; an emptied body is sent as "" so the API clears it. */
@@ -539,36 +121,4 @@ function changesOf(page: Page, draft: Draft): PageUpdate {
     ...(title !== page.title ? { title } : {}),
     ...(draft.body !== (page.body ?? '') ? { body: draft.body } : {}),
   };
-}
-
-function localErrors(draft: Draft): FieldErrors {
-  const errors: FieldErrors = {};
-  if (draft.title.trim() === '') errors.title = 'Enter the page’s title.';
-  return errors;
-}
-
-function problemOf(error: unknown): PageProblem | null {
-  return error instanceof HttpErrorResponse ? decodePageProblem(error.error, error.status) : null;
-}
-
-function fieldErrorsOf(problem: PageProblem | null): FieldErrors {
-  const errors: FieldErrors = {};
-  for (const key of ['title', 'slug', 'body'] as const) {
-    const message = problem?.fieldErrors[key]?.[0];
-    if (message) errors[key] = message;
-  }
-  return errors;
-}
-
-function messageOf(problem: PageProblem | null, fallback: string): string {
-  if (problem === null || problem.status === 0)
-    return 'Can’t reach 6311arts. Your changes are still here; try again.';
-  const message = problem.detail ?? fallback;
-
-  // A 5xx says nothing the editor can act on, so hand them the one thing support can: the correlation id,
-  // which is this request's trace id (ADR 0019). Appended here rather than left to the global problem toast,
-  // because these calls deliberately suppress it to show the failure in place.
-  return problem.status >= 500 && problem.correlationId !== null
-    ? `${message} Quote reference ${problem.correlationId} if you report it.`
-    : message;
 }

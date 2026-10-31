@@ -1,7 +1,9 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Classes.Data.Entities;
 using Arts6311.Domain.Modules.Classes.Managers;
+using Arts6311.Domain.Modules.Instructors.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Arts6311.Domain.Modules.Classes.Data.Repositories;
@@ -70,7 +72,8 @@ internal sealed class ClassesRepository(ArtsDbContext context) : IClassesReposit
         (await Offerings.AsNoTracking().MaxAsync(offering => (int?)offering.OfferingNumber, cancellationToken) ?? 0) + 1;
 
     public Task<List<ClassListRow>> ListAsync(
-        ClassListPosition? after,
+        ListSort sort,
+        ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,
@@ -92,18 +95,9 @@ internal sealed class ClassesRepository(ArtsDbContext context) : IClassesReposit
             query = query.Where(offering => EF.Functions.Like(offering.Title, pattern, LikeEscape.ToString()));
         }
 
-        if (after is not null)
-        {
-            // Translated to SQL's ">", under the column's own collation — the same order as the ORDER BY below.
-#pragma warning disable CA1309
-            query = query.Where(offering => string.Compare(offering.Title, after.Title) > 0
-                || (offering.Title == after.Title && offering.Id.CompareTo(after.Id) > 0));
-#pragma warning restore CA1309
-        }
+        var instructors = context.Set<Instructor>();
 
-        return query
-            .OrderBy(offering => offering.Title)
-            .ThenBy(offering => offering.Id)
+        return ClassListOrder.Columns.Apply(query, sort, after, new ClassListContext(instructors, asOf))
             .Take(take)
             .Select(offering => new ClassListRow(
                 offering.Id,
@@ -122,7 +116,12 @@ internal sealed class ClassesRepository(ArtsDbContext context) : IClassesReposit
                     .SelectMany(run => run.Sessions)
                     .Where(session => session.StartsAt >= asOf)
                     .Min(session => (DateTimeOffset?)session.StartsAt),
-                offering.UpdatedAt))
+                offering.UpdatedAt,
+
+                // The cursor's value for the "instructors" order, read as ClassListOrder reads it (ADR 0062).
+                instructors
+                    .Where(instructor => offering.Runs.Any(run => run.InstructorId == instructor.Id))
+                    .Min(instructor => (string?)instructor.Name)))
             .ToListAsync(cancellationToken);
     }
 

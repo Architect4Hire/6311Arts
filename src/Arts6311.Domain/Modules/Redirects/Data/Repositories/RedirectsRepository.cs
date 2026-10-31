@@ -1,4 +1,5 @@
 using Arts6311.Domain.Managers.Concurrency;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Modules.Redirects.Data.Entities;
 using Arts6311.Domain.Modules.Redirects.Managers;
@@ -34,7 +35,7 @@ internal sealed class RedirectsRepository(ArtsDbContext context) : IRedirectsRep
             .ToListAsync(cancellationToken);
 
     public Task<List<RedirectServiceModel>> ListAsync(
-        string? afterFromPath, int take, RedirectSource? source, string? search, CancellationToken cancellationToken)
+        ListSort sort, ListPosition? after, int take, RedirectSource? source, string? search, CancellationToken cancellationToken)
     {
         var query = Redirects.AsNoTracking();
 
@@ -51,17 +52,7 @@ internal sealed class RedirectsRepository(ArtsDbContext context) : IRedirectsRep
                 || EF.Functions.Like(redirect.ToPath, pattern, LikeEscape.ToString()));
         }
 
-        if (afterFromPath is not null)
-        {
-            // FromPath is unique and lower-case ASCII in practice, so it is its own keyset; ">" under the column's
-            // collation matches the ORDER BY below.
-#pragma warning disable CA1309
-            query = query.Where(redirect => string.Compare(redirect.FromPath, afterFromPath) > 0);
-#pragma warning restore CA1309
-        }
-
-        return query
-            .OrderBy(redirect => redirect.FromPath)
+        return RedirectListOrder.Columns.Apply(query, sort, after)
             .Take(take)
             .Select(redirect => new RedirectServiceModel(
                 redirect.Id,

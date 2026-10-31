@@ -55,7 +55,7 @@ internal sealed class FakeExhibitionsRepository(CallLog log) : IExhibitionsRepos
         Task.FromResult(Rows.Select(row => row.Slug).ToHashSet(StringComparer.Ordinal));
 
     public Task<List<ExhibitionSummaryServiceModel>> ListAsync(
-        ExhibitionListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         Task.FromResult(new List<ExhibitionSummaryServiceModel>());
 
     public Task<IReadOnlyList<Guid>> ListDueAsync(DateTimeOffset asOf, int take, CancellationToken cancellationToken)
@@ -123,7 +123,7 @@ internal sealed class FakeExhibitionsDataLayer : IExhibitionsDataLayer
         Task.FromResult(SlugExists);
 
     public Task<List<ExhibitionSummaryServiceModel>> ListAsync(
-        ExhibitionListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken) =>
         Task.FromResult(new List<ExhibitionSummaryServiceModel>());
 
     public Task<ExhibitionWriteOutcome> CreateAsync(Exhibition exhibition, string actorUserId, CancellationToken cancellationToken)

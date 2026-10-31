@@ -21,6 +21,10 @@ import {
 } from '../../../models/forms';
 import { FormsService } from '../../../services/forms.service';
 import { FormsTabs, formatInstant } from '../forms-tabs/forms-tabs';
+import { ListSort, SortColumn } from '../../../shared/list-sort';
+import { SortHeader } from '../../../shared/sort-header/sort-header';
+import { SortPicker } from '../../../shared/sort-picker/sort-picker';
+import { Sortable } from '../../../shared/sortable';
 
 type Filter = 'all' | SubmissionStatus;
 
@@ -39,13 +43,38 @@ function countOf(count: number, more: boolean): string {
   return `${more ? 'Showing the first ' : ''}${count} ${count === 1 ? 'submission' : 'submissions'}.`;
 }
 
+/** The columns a header sorts by (ADR 0062); the API names the same ones. */
+const SORTS: readonly SortColumn[] = [
+  { key: 'name', label: 'Name', kind: 'text' },
+  { key: 'email', label: 'Email', kind: 'text' },
+  { key: 'wants', label: 'Wants to', kind: 'text' },
+  {
+    key: 'status',
+    label: 'Status',
+    kind: 'status',
+    words: { asc: 'new first', desc: 'declined first' },
+  },
+  { key: 'pictures', label: 'Pictures', kind: 'number' },
+  { key: 'received', label: 'Received', kind: 'date' },
+];
+
 /**
  * The artist submissions inbox (`/admin/forms/submissions`), newest first: who wrote, what they want, how far
  * through the inbox each is, and how many pictures came with it. Filter by status and open one to read it.
  */
 @Component({
   selector: 'cms-submission-list',
-  imports: [FormsTabs, RouterLink, UiButton, UiEmptyState, UiNotice, UiStatusChip],
+  imports: [
+    Sortable,
+    SortHeader,
+    SortPicker,
+    FormsTabs,
+    RouterLink,
+    UiButton,
+    UiEmptyState,
+    UiNotice,
+    UiStatusChip,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './submission-list.html',
   styleUrl: './submission-list.scss',
@@ -67,9 +96,13 @@ export class SubmissionList {
   protected readonly refreshing = signal(false);
   protected readonly liveMessage = signal('');
 
+  /** The order, kept in the address bar as ?sort= so Back returns to it. */
+  protected readonly sort = new ListSort(SORTS, { column: 'received', direction: 'desc' });
+
   constructor() {
     effect(() => {
       this.filter();
+      this.sort.current();
       untracked(() => void this.reload());
     });
   }
@@ -94,7 +127,9 @@ export class SubmissionList {
       this.items.set(page.items);
       this.next.set(page.nextCursor);
       this.state.set('ready');
-      this.liveMessage.set(countOf(page.items.length, page.nextCursor !== null));
+      this.liveMessage.set(
+        this.sort.announcement() + countOf(page.items.length, page.nextCursor !== null),
+      );
     } catch {
       if (generation === this.generation) this.state.set('failed');
     } finally {
@@ -134,6 +169,10 @@ export class SubmissionList {
 
   private currentQuery(): SubmissionListQuery {
     const filter = this.filter();
-    return { limit: PAGE_SIZE, ...(filter === 'all' ? {} : { status: filter }) };
+    return {
+      sort: this.sort.param(),
+      limit: PAGE_SIZE,
+      ...(filter === 'all' ? {} : { status: filter }),
+    };
   }
 }

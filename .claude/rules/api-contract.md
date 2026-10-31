@@ -34,6 +34,7 @@ All routes are versioned from the first endpoint: `/api/v1/...`.
 - **Models.** Input is ViewModels and output is ServiceModels. Never return EF entities, Square DTOs or anonymous objects.
 - **Times and money.** ISO 8601 UTC timestamps, written with an explicit `+00:00` offset (not `Z`); `format: date-time` can't tell the two apart, so the spelling is asserted in tests. Class runs also return `displayTimeZone`, the zone their sessions are shown in. Money is integer cents with `currency`.
 - **Paging.** Collections that change often use a cursor (`?cursor=`). Small fixed lists may return everything.
+- **Sorting.** Every CMS list takes `?sort=column` (`-column` for descending; absent is the list's own order) through the kernel's `ListOrder`, one per list in the module's `Managers/` (ADR 0062). The sort is in the cursor's scope, an unknown column is `validation.failed`, and the Deleted views ignore it. Never hand-write a keyset for a new CMS list.
 - **Errors.** `ProblemDetails` with a stable `code` (for example `cms.slug_taken`, `checkout.item_sold_out`, `square.unavailable`) and `correlationId`. The status follows the code, mapped in one place (`Arts6311.Api/Conventions/ApiProblemDetails.cs`, ADR 0021):
 
   | Code | Status |

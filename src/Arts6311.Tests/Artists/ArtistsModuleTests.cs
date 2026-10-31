@@ -588,6 +588,28 @@ public sealed class ArtistsModuleTests
     }
 
     [Fact]
+    public async Task TheListSortsByTheColumnAskedForAndACursorOnlyFitsItsOwnSort()
+    {
+        await using var host = await ArtistsTestHost.CreateAsync(Ct);
+        foreach (var (name, medium) in new[] { ("Ann", "Wood"), ("Ben", "Clay"), ("Cal", (string?)null) })
+        {
+            await CreateAsync(host, new ArtistCreateViewModel(name, Medium: medium));
+        }
+
+        var first = await Ok(host.WithFacadeAsync(facade => facade.ListAsync(new ArtistListViewModel(Limit: 2, Sort: "-medium"), Ct)));
+        var second = await Ok(host.WithFacadeAsync(facade => facade.ListAsync(
+            new ArtistListViewModel(first.NextCursor, Limit: 2, Sort: "-medium"), Ct)));
+        var otherSort = await host.WithFacadeAsync(facade => facade.ListAsync(
+            new ArtistListViewModel(first.NextCursor, Limit: 2, Sort: "medium"), Ct));
+        var unknown = await host.WithFacadeAsync(facade => facade.ListAsync(new ArtistListViewModel(Sort: "colour"), Ct));
+
+        Assert.Equal(["Ann", "Ben"], first.Items.Select(row => row.Name));
+        Assert.Equal(["Cal"], second.Items.Select(row => row.Name));
+        Assert.Equal(ErrorCodes.CursorInvalid, otherSort.Error!.Code);
+        Assert.Equal(ErrorCodes.ValidationFailed, unknown.Error!.Code);
+    }
+
+    [Fact]
     public async Task TheDevelopmentSeedAddsTheSpikeRosterOnceAndNeverUndoesAnEdit()
     {
         await using var host = await ArtistsTestHost.CreateAsync(Ct, withSeeder: true);

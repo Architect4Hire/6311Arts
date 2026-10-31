@@ -365,10 +365,8 @@ describe('ExhibitionEditor', () => {
     button(root, 'Keep my changes')!.click();
     const retry = http.expectOne(ONE);
     expect(retry.request.headers.get('If-Match')).toBe('"theirs"');
-    expect(retry.request.body).toEqual({
-      title: 'Boats & Pianos',
-      summary: 'Reclaimed wood, boats and pianos.',
-    });
+    // Only what this editor changed: their new title is not sent back over with the one this editor loaded.
+    expect(retry.request.body).toEqual({ summary: 'Reclaimed wood, boats and pianos.' });
   });
 
   it('says what publishing still needs beside each field', async () => {

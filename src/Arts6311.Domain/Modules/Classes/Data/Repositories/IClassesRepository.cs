@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Classes.Data.Entities;
 using Arts6311.Domain.Modules.Classes.Managers;
@@ -36,11 +37,12 @@ internal interface IClassesRepository
     Task<int> NextOfferingNumberAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// One page in (Title, Id) order, projected straight to list rows.
+    /// One page in <paramref name="sort"/>'s order (ADR 0062), projected straight to list rows.
     /// </summary>
     /// <param name="asOf">Now, so each row can say when the offering next meets.</param>
     Task<List<ClassListRow>> ListAsync(
-        ClassListPosition? after,
+        ListSort sort,
+        ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,

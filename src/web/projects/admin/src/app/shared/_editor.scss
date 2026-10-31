@@ -1,0 +1,58 @@
+// The form side of a record editor: the two-column layout, the fieldset, side panels and checkboxes.
+// `@use` it from an editor's stylesheet; `<cms-editor-frame>` styles everything around the form.
+@use 'panel';
+
+.layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+// A wide form beside a narrow side column; set `--side-min` on the editor's host to change the column's floor.
+.layout--main {
+  grid-template-columns: minmax(0, 3fr) minmax(min(100%, var(--side-min, 240px)), 1fr);
+}
+@media (max-width: 900px) {
+  .layout--main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.form,
+.side,
+.fields {
+  display: grid;
+  gap: var(--space-4);
+}
+.fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.check {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  cursor: pointer;
+}
+.check input {
+  margin-top: var(--space-1);
+  accent-color: var(--ink);
+}
+.check__label,
+.check__hint {
+  display: block;
+}
+.check__label {
+  font-weight: var(--fw-bold);
+}
+.check__hint {
+  font-size: var(--fs-small);
+  color: var(--text-soft);
+}
+// Two short fields side by side (dates, kind and level); set `--pair-min` on the editor's host to change the floor.
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--pair-min, 160px)), 1fr));
+  gap: var(--space-4);
+}

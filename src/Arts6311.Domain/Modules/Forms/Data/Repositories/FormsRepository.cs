@@ -1,5 +1,7 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Modules.Forms.Data.Entities;
+using Arts6311.Domain.Modules.Forms.Data;
 using Arts6311.Domain.Modules.Forms.Managers;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,7 +30,7 @@ internal sealed class FormsRepository(ArtsDbContext context) : IFormsRepository
             .FirstOrDefaultAsync(submission => submission.Id == id, cancellationToken);
 
     public Task<List<ArtistSubmission>> ListSubmissionsAsync(
-        FormsListPosition? after, int take, SubmissionStatus? status, CancellationToken cancellationToken)
+        ListSort sort, ListPosition? after, int take, SubmissionStatus? status, CancellationToken cancellationToken)
     {
         var query = Submissions.AsNoTracking().Include(submission => submission.Images).AsQueryable();
 
@@ -37,16 +39,7 @@ internal sealed class FormsRepository(ArtsDbContext context) : IFormsRepository
             query = query.Where(submission => submission.Status == wanted);
         }
 
-        // Newest first, the id breaking ties, and the WHERE resuming in exactly the ORDER BY's terms.
-        if (after is not null)
-        {
-            query = query.Where(submission => submission.ReceivedAt < after.At
-                || (submission.ReceivedAt == after.At && submission.Id.CompareTo(after.Id) < 0));
-        }
-
-        return query
-            .OrderByDescending(submission => submission.ReceivedAt)
-            .ThenByDescending(submission => submission.Id)
+        return FormsListOrder.Submissions.Apply(query, sort, after)
             .Take(take)
             .ToListAsync(cancellationToken);
     }
@@ -67,7 +60,7 @@ internal sealed class FormsRepository(ArtsDbContext context) : IFormsRepository
         Contacts.FirstOrDefaultAsync(message => message.Id == id, cancellationToken);
 
     public Task<List<ContactMessage>> ListContactsAsync(
-        FormsListPosition? after, int take, bool? handled, CancellationToken cancellationToken)
+        ListSort sort, ListPosition? after, int take, bool? handled, CancellationToken cancellationToken)
     {
         var query = Contacts.AsNoTracking();
 
@@ -76,15 +69,7 @@ internal sealed class FormsRepository(ArtsDbContext context) : IFormsRepository
             query = query.Where(message => message.Handled == wanted);
         }
 
-        if (after is not null)
-        {
-            query = query.Where(message => message.ReceivedAt < after.At
-                || (message.ReceivedAt == after.At && message.Id.CompareTo(after.Id) < 0));
-        }
-
-        return query
-            .OrderByDescending(message => message.ReceivedAt)
-            .ThenByDescending(message => message.Id)
+        return FormsListOrder.Contacts.Apply(query, sort, after)
             .Take(take)
             .ToListAsync(cancellationToken);
     }
@@ -96,7 +81,7 @@ internal sealed class FormsRepository(ArtsDbContext context) : IFormsRepository
         Subscribers.FirstOrDefaultAsync(subscriber => subscriber.Id == id, cancellationToken);
 
     public Task<List<NewsletterSubscriber>> ListSubscribersAsync(
-        FormsListPosition? after, int take, string? search, CancellationToken cancellationToken)
+        ListSort sort, ListPosition? after, int take, string? search, CancellationToken cancellationToken)
     {
         var query = Subscribers.AsNoTracking();
 
@@ -106,15 +91,7 @@ internal sealed class FormsRepository(ArtsDbContext context) : IFormsRepository
             query = query.Where(subscriber => EF.Functions.Like(subscriber.Email, pattern, LikeEscape.ToString()));
         }
 
-        if (after is not null)
-        {
-            query = query.Where(subscriber => subscriber.CreatedAt < after.At
-                || (subscriber.CreatedAt == after.At && subscriber.Id.CompareTo(after.Id) < 0));
-        }
-
-        return query
-            .OrderByDescending(subscriber => subscriber.CreatedAt)
-            .ThenByDescending(subscriber => subscriber.Id)
+        return FormsListOrder.Subscribers.Apply(query, sort, after)
             .Take(take)
             .ToListAsync(cancellationToken);
     }

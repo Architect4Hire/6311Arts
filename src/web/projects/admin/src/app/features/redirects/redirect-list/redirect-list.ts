@@ -21,6 +21,10 @@ import {
   SOURCE_CHIPS,
 } from '../../../models/redirect';
 import { RedirectService } from '../../../services/redirect.service';
+import { ListSort, SortColumn } from '../../../shared/list-sort';
+import { SortHeader } from '../../../shared/sort-header/sort-header';
+import { SortPicker } from '../../../shared/sort-picker/sort-picker';
+import { Sortable } from '../../../shared/sortable';
 
 type Filter = 'all' | RedirectSource;
 
@@ -40,13 +44,42 @@ function countOf(count: number, more: boolean): string {
   return `${more ? 'Showing the first ' : ''}${count} ${count === 1 ? 'redirect' : 'redirects'}.`;
 }
 
+/** The columns a header sorts by (ADR 0062); the API names the same ones. */
+const SORTS: readonly SortColumn[] = [
+  { key: 'from', label: 'Old address', kind: 'text' },
+  { key: 'to', label: 'Leads to', kind: 'text' },
+  {
+    key: 'type',
+    label: 'Type',
+    kind: 'number',
+    words: { asc: 'permanent first', desc: 'temporary first' },
+  },
+  {
+    key: 'source',
+    label: 'Made by',
+    kind: 'status',
+    words: { asc: 'staff first', desc: 'web address changes first' },
+  },
+];
+
 /**
  * Every redirect (`/admin/redirects`, Admins only), by old address: where each leads, how, and who made it. Filter
  * by source, search either address, and open one to edit or delete it.
  */
 @Component({
   selector: 'cms-redirect-list',
-  imports: [RouterLink, UiButton, UiControl, UiEmptyState, UiField, UiNotice, UiStatusChip],
+  imports: [
+    Sortable,
+    SortHeader,
+    SortPicker,
+    RouterLink,
+    UiButton,
+    UiControl,
+    UiEmptyState,
+    UiField,
+    UiNotice,
+    UiStatusChip,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './redirect-list.html',
   styleUrl: './redirect-list.scss',
@@ -72,10 +105,14 @@ export class RedirectList {
   protected readonly refreshing = signal(false);
   protected readonly liveMessage = signal('');
 
+  /** The order, kept in the address bar as ?sort= so Back returns to it. */
+  protected readonly sort = new ListSort(SORTS, { column: 'from', direction: 'asc' });
+
   constructor() {
     effect(() => {
       this.filter();
       this.query();
+      this.sort.current();
       untracked(() => void this.reload());
     });
     inject(DestroyRef).onDestroy(() => this.clearSearchTimer());
@@ -115,7 +152,9 @@ export class RedirectList {
       this.items.set(page.items);
       this.next.set(page.nextCursor);
       this.state.set('ready');
-      this.liveMessage.set(countOf(page.items.length, page.nextCursor !== null));
+      this.liveMessage.set(
+        this.sort.announcement() + countOf(page.items.length, page.nextCursor !== null),
+      );
     } catch {
       if (generation === this.generation) this.state.set('failed');
     } finally {
@@ -155,6 +194,7 @@ export class RedirectList {
     const filter = this.filter();
     const search = this.query();
     return {
+      sort: this.sort.param(),
       limit: PAGE_SIZE,
       ...(filter === 'all' ? {} : { source: filter }),
       ...(search ? { search } : {}),

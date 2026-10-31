@@ -1,7 +1,9 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Memberships.Data;
 using Arts6311.Domain.Modules.Memberships.Data.Repositories;
 using Arts6311.Domain.Modules.Memberships.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Memberships.Managers;
 using Arts6311.Tests.Memberships.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,11 +28,11 @@ public sealed class MembershipsRepositoryTests
         var first = await ListAsync(host, after: null, take: 3);
         Assert.Equal(["Gray", "Black", "Blue"], first.Select(row => row.Name));
 
-        var second = await ListAsync(host, new MembershipPlanListPosition(first[^1].DisplayOrder, first[^1].Id), take: 3);
+        var second = await ListAsync(host, new ListPosition(first[^1].DisplayOrder, first[^1].Id), take: 3);
         Assert.Equal(2, second.Count);
 
         // The twins tie on order; the id breaks the tie, so resuming after either never repeats or skips the other.
-        var afterFirstTwin = await ListAsync(host, new MembershipPlanListPosition(second[0].DisplayOrder, second[0].Id), take: 10);
+        var afterFirstTwin = await ListAsync(host, new ListPosition(second[0].DisplayOrder, second[0].Id), take: 10);
         Assert.Equal(second[1].Id, Assert.Single(afterFirstTwin).Id);
     }
 
@@ -124,11 +126,11 @@ public sealed class MembershipsRepositoryTests
 
     private static Task<List<MembershipPlanSummaryServiceModel>> ListAsync(
         MembershipsTestHost host,
-        MembershipPlanListPosition? after,
+        ListPosition? after,
         int take,
         PublishStatus? status = null,
         string? search = null) =>
-        WithRepositoryAsync(host, repository => repository.ListAsync(after, take, status, search, Ct));
+        WithRepositoryAsync(host, repository => repository.ListAsync(MembershipPlanListOrder.Columns.Default, after, take, status, search, Ct));
 
     private static async Task<T> WithRepositoryAsync<T>(
         MembershipsTestHost host, Func<IMembershipsRepository, Task<T>> query)

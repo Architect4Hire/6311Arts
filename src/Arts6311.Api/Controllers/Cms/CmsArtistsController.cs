@@ -23,7 +23,10 @@ namespace Arts6311.Api.Controllers.Cms;
 [Authorize(Policy = ApiPolicies.CmsEditor)]
 public sealed class CmsArtistsController(IArtistsFacade facade) : ControllerBase
 {
-    /// <summary>The roster by name, cursor-paged, optionally by status or part of a name.</summary>
+    /// <summary>
+    /// The roster, cursor-paged, by name or by the column <c>sort</c> names (ADR 0062), optionally by status or part
+    /// of a name.
+    /// </summary>
     [HttpGet]
     [ProducesResponseType<CursorPage<ArtistSummaryServiceModel>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -32,8 +35,9 @@ public sealed class CmsArtistsController(IArtistsFacade facade) : ControllerBase
         [FromQuery(Name = "limit")] int? limit,
         [FromQuery(Name = "status")] PublishStatus? status,
         [FromQuery(Name = "search")] string? search,
+        [FromQuery(Name = "sort")] string? sort,
         CancellationToken cancellationToken) =>
-        this.ToActionResult(await facade.ListAsync(new ArtistListViewModel(cursor, limit, status, search), cancellationToken));
+        this.ToActionResult(await facade.ListAsync(new ArtistListViewModel(cursor, limit, status, search, sort), cancellationToken));
 
 
     /// <summary>

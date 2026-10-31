@@ -120,5 +120,8 @@ public sealed class ArtistValidatorTests
         Assert.False((await validator.ValidateAsync(new ArtistListViewModel(Limit: PageRequest.MaxLimit + 1), Ct)).IsValid);
         Assert.False((await validator.ValidateAsync(new ArtistListViewModel(Status: (PublishStatus)7), Ct)).IsValid);
         Assert.False((await validator.ValidateAsync(new ArtistListViewModel(Search: new string('x', ArtistPolicy.SearchMaxLength + 1)), Ct)).IsValid);
+        Assert.True((await validator.ValidateAsync(new ArtistListViewModel(Sort: "-updated"), Ct)).IsValid);
+        Assert.False((await validator.ValidateAsync(new ArtistListViewModel(Sort: "colour"), Ct)).IsValid);
+        Assert.False((await validator.ValidateAsync(new ArtistListViewModel(Sort: "-"), Ct)).IsValid);
     }
 }

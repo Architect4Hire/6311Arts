@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Classes.Data;
 using Arts6311.Domain.Modules.Classes.Data.Repositories;
@@ -25,11 +26,11 @@ public sealed class ClassesRepositoryTests
         var first = await ListAsync(host, after: null, take: 3);
         Assert.Equal(["Bookbinding", "Scratchboard", "Screen Printing"], first.Select(row => row.Title));
 
-        var second = await ListAsync(host, new ClassListPosition(first[^1].Title, first[^1].Id), take: 3);
+        var second = await ListAsync(host, new ListPosition(first[^1].Title, first[^1].Id), take: 3);
         Assert.Equal(["Twin", "Twin"], second.Select(row => row.Title));
 
         // The twins tie on title; the id breaks the tie, so resuming after either never repeats or skips the other.
-        var afterFirstTwin = await ListAsync(host, new ClassListPosition(second[0].Title, second[0].Id), take: 10);
+        var afterFirstTwin = await ListAsync(host, new ListPosition(second[0].Title, second[0].Id), take: 10);
         Assert.Equal(second[1].Id, Assert.Single(afterFirstTwin).Id);
     }
 
@@ -90,13 +91,12 @@ public sealed class ClassesRepositoryTests
 
     private static Task<List<ClassListRow>> ListAsync(
         ClassesTestHost host,
-        ClassListPosition? after,
+        ListPosition? after,
         int take,
         PublishStatus? status = null,
         string? search = null,
         DateTimeOffset? asOf = null) =>
-        WithRepositoryAsync(host, repository => repository.ListAsync(
-            after, take, status, search, asOf ?? host.Time.GetUtcNow(), Ct));
+        WithRepositoryAsync(host, repository => repository.ListAsync(ClassListOrder.Columns.Default, after, take, status, search, asOf ?? host.Time.GetUtcNow(), Ct));
 
     private static async Task<T> WithRepositoryAsync<T>(ClassesTestHost host, Func<IClassesRepository, Task<T>> query)
     {

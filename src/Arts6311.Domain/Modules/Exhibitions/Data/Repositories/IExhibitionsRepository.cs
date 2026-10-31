@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Exhibitions.Data.Entities;
 using Arts6311.Domain.Modules.Exhibitions.Managers;
@@ -30,9 +31,9 @@ internal interface IExhibitionsRepository
     /// <summary>Every slug in use. For the development seed, which adds only the exhibitions that are missing.</summary>
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);
 
-    /// <summary>One page in (StartDate, Id) descending order, projected straight to list rows.</summary>
+    /// <summary>One page in <paramref name="sort"/>'s order (ADR 0062), projected straight to list rows.</summary>
     Task<List<ExhibitionSummaryServiceModel>> ListAsync(
-        ExhibitionListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
 
     /// <summary>
     /// The ids of exhibitions Scheduled for <paramref name="asOf"/> or earlier, oldest first, at most

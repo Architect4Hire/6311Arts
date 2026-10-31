@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
 using Arts6311.Domain.Modules.Artists.Managers;
@@ -30,9 +31,9 @@ internal interface IArtistsRepository
     /// <summary>Every slug in use. For the development seed, which adds only the artists that are missing.</summary>
     Task<HashSet<string>> GetSlugsAsync(CancellationToken cancellationToken);
 
-    /// <summary>One page of the roster in (Name, Id) order, projected straight to list rows.</summary>
+    /// <summary>One page of the roster in <paramref name="sort"/>'s order (ADR 0062), projected straight to list rows.</summary>
     Task<List<ArtistSummaryServiceModel>> ListAsync(
-        ArtistListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken);
 
     /// <summary>The artists with these ids, projected to list rows, in no particular order.</summary>
     Task<List<ArtistSummaryServiceModel>> ListByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);

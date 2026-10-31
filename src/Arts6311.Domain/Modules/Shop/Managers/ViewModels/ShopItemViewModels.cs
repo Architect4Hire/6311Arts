@@ -68,12 +68,17 @@ public sealed record ShopImportViewModel(string Csv, string? FileName = null);
 /// <summary>A page of shop items, by title.</summary>
 /// <param name="Search">Part of a title, matched without regard to case.</param>
 /// <param name="Category">One category slug, to show only what is filed under it.</param>
+/// <param name="Sort">
+/// title, status, updated — with a leading <c>-</c> for descending (ADR 0062). The Deleted
+/// view ignores it.
+/// </param>
 public sealed record ShopItemListViewModel(
     string? Cursor = null,
     int? Limit = null,
     PublishStatus? Status = null,
     string? Search = null,
-    string? Category = null);
+    string? Category = null,
+    string? Sort = null);
 
 /// <summary>A page of the site's shop (ADR 0042): published artwork only, filtered and ordered as the visitor chose.</summary>
 /// <param name="Category">One category slug, to show only what is filed under it.</param>

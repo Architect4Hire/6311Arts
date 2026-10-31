@@ -30,8 +30,9 @@ public sealed class CmsFormsController(IFormsFacade facade) : ControllerBase
         [FromQuery(Name = "cursor")] string? cursor,
         [FromQuery(Name = "limit")] int? limit,
         [FromQuery(Name = "status")] SubmissionStatus? status,
+        [FromQuery(Name = "sort")] string? sort,
         CancellationToken cancellationToken) =>
-        this.ToActionResult(await facade.ListSubmissionsAsync(new SubmissionListViewModel(cursor, limit, status), cancellationToken));
+        this.ToActionResult(await facade.ListSubmissionsAsync(new SubmissionListViewModel(cursor, limit, status, sort), cancellationToken));
 
     /// <summary>One submission with its pictures. The <c>ETag</c> header is what a change sends back as <c>If-Match</c>.</summary>
     [HttpGet("submissions/{id:guid}")]
@@ -62,8 +63,9 @@ public sealed class CmsFormsController(IFormsFacade facade) : ControllerBase
         [FromQuery(Name = "cursor")] string? cursor,
         [FromQuery(Name = "limit")] int? limit,
         [FromQuery(Name = "handled")] bool? handled,
+        [FromQuery(Name = "sort")] string? sort,
         CancellationToken cancellationToken) =>
-        this.ToActionResult(await facade.ListContactsAsync(new ContactListViewModel(cursor, limit, handled), cancellationToken));
+        this.ToActionResult(await facade.ListContactsAsync(new ContactListViewModel(cursor, limit, handled, sort), cancellationToken));
 
     [HttpGet("messages/{id:guid}")]
     [ProducesResponseType<ContactMessageServiceModel>(StatusCodes.Status200OK)]
@@ -93,8 +95,9 @@ public sealed class CmsFormsController(IFormsFacade facade) : ControllerBase
         [FromQuery(Name = "cursor")] string? cursor,
         [FromQuery(Name = "limit")] int? limit,
         [FromQuery(Name = "search")] string? search,
+        [FromQuery(Name = "sort")] string? sort,
         CancellationToken cancellationToken) =>
-        this.ToActionResult(await facade.ListSubscribersAsync(new NewsletterListViewModel(cursor, limit, search), cancellationToken));
+        this.ToActionResult(await facade.ListSubscribersAsync(new NewsletterListViewModel(cursor, limit, search, sort), cancellationToken));
 
     /// <summary>Takes an address off the list, for someone who asked. Admin-only and audited.</summary>
     [HttpDelete("newsletter/{id:guid}")]

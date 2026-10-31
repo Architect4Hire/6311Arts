@@ -29,6 +29,10 @@ import {
 import { ROLES } from '../../../models/session';
 import { FormsService } from '../../../services/forms.service';
 import { FormsTabs, formatInstant } from '../forms-tabs/forms-tabs';
+import { ListSort, SortColumn } from '../../../shared/list-sort';
+import { SortHeader } from '../../../shared/sort-header/sort-header';
+import { SortPicker } from '../../../shared/sort-picker/sort-picker';
+import { Sortable } from '../../../shared/sortable';
 
 /** How long typing pauses before the search is sent. */
 const SEARCH_DELAY_MS = 300;
@@ -40,6 +44,19 @@ function countOf(count: number, more: boolean): string {
   return `${more ? 'Showing the first ' : ''}${count} ${count === 1 ? 'address' : 'addresses'}.`;
 }
 
+/** The columns a header sorts by (ADR 0062); the API names the same ones. */
+const SORTS: readonly SortColumn[] = [
+  { key: 'email', label: 'Email', kind: 'text' },
+  { key: 'consented', label: 'Consented', kind: 'date' },
+  { key: 'wording', label: 'Consent wording', kind: 'text' },
+  {
+    key: 'source',
+    label: 'Source',
+    kind: 'status',
+    words: { asc: 'sign-ups first', desc: 'submissions first' },
+  },
+];
+
 /**
  * The newsletter list (`/admin/forms/newsletter`), newest first: each address, when it agreed and to which wording,
  * and where it joined. Search by part of an address. Exporting the list and taking an address off it are
@@ -47,7 +64,17 @@ function countOf(count: number, more: boolean): string {
  */
 @Component({
   selector: 'cms-newsletter-list',
-  imports: [FormsTabs, UiButton, UiControl, UiEmptyState, UiField, UiNotice],
+  imports: [
+    Sortable,
+    SortHeader,
+    SortPicker,
+    FormsTabs,
+    UiButton,
+    UiControl,
+    UiEmptyState,
+    UiField,
+    UiNotice,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './newsletter-list.html',
   styleUrl: './newsletter-list.scss',
@@ -79,9 +106,13 @@ export class NewsletterList {
   protected readonly actionError = signal<string | null>(null);
   protected readonly liveMessage = signal('');
 
+  /** The order, kept in the address bar as ?sort= so Back returns to it. */
+  protected readonly sort = new ListSort(SORTS, { column: 'consented', direction: 'desc' });
+
   constructor() {
     effect(() => {
       this.query();
+      this.sort.current();
       untracked(() => void this.reload());
     });
     inject(DestroyRef).onDestroy(() => this.clearSearchTimer());
@@ -112,7 +143,9 @@ export class NewsletterList {
       this.items.set(page.items);
       this.next.set(page.nextCursor);
       this.state.set('ready');
-      this.liveMessage.set(countOf(page.items.length, page.nextCursor !== null));
+      this.liveMessage.set(
+        this.sort.announcement() + countOf(page.items.length, page.nextCursor !== null),
+      );
     } catch {
       if (generation === this.generation) this.state.set('failed');
     } finally {
@@ -227,7 +260,7 @@ export class NewsletterList {
 
   private currentQuery(): NewsletterListQuery {
     const search = this.query();
-    return { limit: PAGE_SIZE, ...(search ? { search } : {}) };
+    return { sort: this.sort.param(), limit: PAGE_SIZE, ...(search ? { search } : {}) };
   }
 
   private clearSearchTimer(): void {

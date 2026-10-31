@@ -55,6 +55,10 @@
   </div>
 </div>
 
+@if (!showingDeleted()) {
+  <cms-sort-picker [sort]="sort" />
+}
+
 <!-- Exists from the start, so the counts written into it later are read out. -->
 <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
 
@@ -81,17 +85,20 @@
           <p role="status" class="refreshing">Updating the list…</p>
         }
         <div class="scroll" role="region" aria-label="Artwork" tabindex="0">
-          <table class="pieces" [attr.aria-busy]="refreshing() || null">
+          <table class="cms-table" [cmsSortable]="sort" [attr.aria-busy]="refreshing() || null">
             <caption class="sr-only">
-              Artwork, by title
+              Artwork, sorted by
+              {{
+                sort.description()
+              }}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Title</th>
-                <th scope="col">Artist</th>
-                <th scope="col">Status</th>
-                <th scope="col">In Square</th>
-                <th scope="col" class="wide">Updated</th>
+                <th scope="col" cmsSortHeader="title">Title</th>
+                <th scope="col" cmsSortHeader="artist">Artist</th>
+                <th scope="col" cmsSortHeader="status">Status</th>
+                <th scope="col" cmsSortHeader="square">In Square</th>
+                <th scope="col" class="wide" cmsSortHeader="updated">Updated</th>
               </tr>
             </thead>
             <tbody>

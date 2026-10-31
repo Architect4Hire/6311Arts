@@ -31,31 +31,32 @@ internal sealed class ExhibitionsBusiness(IExhibitionsDataLayer dataLayer, ICloc
         var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim();
         var scope = string.Create(CultureInfo.InvariantCulture, $"exhibitions|status={request.Status}|search={search}");
 
-        ExhibitionListPosition? after = null;
+        var order = ExhibitionListOrder.Columns;
+
+        // The facade's validator has already refused a column this list does not sort by.
+        var sort = order.Resolve(request.Sort)
+            ?? throw new ArgumentException("This list does not sort by that column.", nameof(request));
+
+        ListPosition? after = null;
         if (request.Cursor is not null)
         {
-            var decoded = PageCursor.Decode(request.Cursor, scope);
-            if (!decoded.Succeeded
-                || !DateOnly.TryParseExact(decoded.Value!.SortValue, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var afterDate)
-                || !Guid.TryParseExact(decoded.Value.TieBreaker, "N", out var afterId))
+            var decoded = order.Decode(sort, request.Cursor, scope);
+            if (!decoded.Succeeded)
             {
-                return OperationResult.Failure<CursorPage<ExhibitionSummaryServiceModel>>(
-                    OperationError.Of(ErrorCodes.CursorInvalid, "The cursor is not valid for this list."));
+                return OperationResult.Failure<CursorPage<ExhibitionSummaryServiceModel>>(decoded.Error!);
             }
 
-            after = new ExhibitionListPosition(afterDate, afterId);
+            after = decoded.Value;
         }
 
         var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
-        var rows = await dataLayer.ListAsync(after, limit + 1, request.Status, search, cancellationToken);
+        var rows = await dataLayer.ListAsync(sort, after, limit + 1, request.Status, search, cancellationToken);
 
         string? next = null;
         if (rows.Count > limit)
         {
             rows.RemoveAt(limit);
-            var last = rows[^1];
-            next = new PageCursor(last.StartDate.ToString(DateFormat, CultureInfo.InvariantCulture), last.Id.ToString("N"))
-                .Encode(scope);
+            next = order.Encode(sort, rows[^1], scope);
         }
 
         return OperationResult.Success(new CursorPage<ExhibitionSummaryServiceModel>(rows, next));

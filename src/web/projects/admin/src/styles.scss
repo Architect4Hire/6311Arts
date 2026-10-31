@@ -33,6 +33,65 @@ body {
 }
 
 /*
+ * Every CMS list's table (ADR 0062): one look for all of them, rather than a copy per screen. Headers are the
+ * template's uppercase labels, quiet until they are the column the list is sorted by (shared/sort-header), over an
+ * ink rule; rows lift to white under the pointer; figures line up in their columns; and while a new order or
+ * filter loads, the rows already shown dim rather than vanish (the table is aria-busy then).
+ */
+.cms-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.cms-table th,
+.cms-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-thin) solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.cms-table thead th {
+  border-bottom: var(--border) solid var(--ink);
+  color: var(--text-soft);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.cms-table tbody th {
+  font-weight: var(--fw-bold);
+}
+
+.cms-table tbody tr {
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.cms-table tbody tr:hover {
+  background: var(--white);
+}
+
+.cms-table tbody {
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+// Dimmed, still 4.9:1: the rows stay readable while they wait (WCAG 1.4.3).
+.cms-table[aria-busy='true'] tbody {
+  opacity: 0.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cms-table tbody,
+  .cms-table tbody tr {
+    transition: none;
+  }
+}
+
+/*
  * Small buttons meet the CMS's 40px target size here, at its compact density, without changing the shared rule
  * the site matches spike0 with (design-system.md, rule 6).
  */

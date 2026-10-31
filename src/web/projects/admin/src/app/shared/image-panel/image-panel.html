@@ -1,0 +1,53 @@
+<section class="panel" [attr.aria-labelledby]="headingId">
+  <h2 [id]="headingId" class="panel__title">{{ heading() }}</h2>
+  @if (shown()?.unavailable) {
+    <ui-notice tone="error">
+      This image’s details couldn’t be loaded.
+      <button uiButton type="button" size="sm" (click)="retry()">Try again</button>
+    </ui-notice>
+  } @else if (shown(); as shown) {
+    @if (shown.url) {
+      <img
+        class="image"
+        [class.image--natural]="shape() === 'natural'"
+        [src]="shown.url"
+        [alt]="shown.altText ?? ''"
+      />
+    } @else {
+      <div class="image image--pending" [class.image--natural]="shape() === 'natural'">
+        Preview not ready yet
+      </div>
+    }
+    @if (!shown.altText) {
+      <ui-notice tone="warning">
+        This image has no alt text yet. Add it in Media before publishing the {{ noun() }}.
+      </ui-notice>
+    }
+  } @else if (mediaId()) {
+    <p role="status">Loading {{ word() }}…</p>
+  } @else {
+    <p class="panel__empty">No {{ word() }} yet.</p>
+  }
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+  <div class="actions">
+    <button
+      #chooseButton
+      uiButton
+      type="button"
+      size="sm"
+      [disabled]="disabled()"
+      (click)="picking.set(true)"
+    >
+      {{ mediaId() ? 'Change ' + word() : 'Choose ' + word() }}
+    </button>
+    @if (mediaId()) {
+      <button uiButton type="button" size="sm" [disabled]="disabled()" (click)="remove()">
+        Remove {{ word() }}
+      </button>
+    }
+  </div>
+</section>
+
+<cms-media-picker [(open)]="picking" (picked)="choose($event)" />

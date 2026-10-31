@@ -29,6 +29,7 @@ export class ExhibitionService {
     let params = new HttpParams();
     if (query.cursor) params = params.set('cursor', query.cursor);
     if (query.limit) params = params.set('limit', query.limit);
+    if (query.sort) params = params.set('sort', query.sort);
     if (query.status) params = params.set('status', query.status);
     if (query.search) params = params.set('search', query.search);
 

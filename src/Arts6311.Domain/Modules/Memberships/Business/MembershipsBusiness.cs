@@ -31,31 +31,32 @@ internal sealed class MembershipsBusiness(IMembershipsDataLayer dataLayer, ICloc
         var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim();
         var scope = string.Create(CultureInfo.InvariantCulture, $"memberships|status={request.Status}|search={search}");
 
-        MembershipPlanListPosition? after = null;
+        var order = MembershipPlanListOrder.Columns;
+
+        // The facade's validator has already refused a column this list does not sort by.
+        var sort = order.Resolve(request.Sort)
+            ?? throw new ArgumentException("This list does not sort by that column.", nameof(request));
+
+        ListPosition? after = null;
         if (request.Cursor is not null)
         {
-            var decoded = PageCursor.Decode(request.Cursor, scope);
-            if (!decoded.Succeeded
-                || !int.TryParse(decoded.Value!.SortValue, CultureInfo.InvariantCulture, out var afterOrder)
-                || !Guid.TryParseExact(decoded.Value.TieBreaker, "N", out var afterId))
+            var decoded = order.Decode(sort, request.Cursor, scope);
+            if (!decoded.Succeeded)
             {
-                return OperationResult.Failure<CursorPage<MembershipPlanSummaryServiceModel>>(
-                    OperationError.Of(ErrorCodes.CursorInvalid, "The cursor is not valid for this list."));
+                return OperationResult.Failure<CursorPage<MembershipPlanSummaryServiceModel>>(decoded.Error!);
             }
 
-            after = new MembershipPlanListPosition(afterOrder, afterId);
+            after = decoded.Value;
         }
 
         var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
-        var rows = await dataLayer.ListAsync(after, limit + 1, request.Status, search, cancellationToken);
+        var rows = await dataLayer.ListAsync(sort, after, limit + 1, request.Status, search, cancellationToken);
 
         string? next = null;
         if (rows.Count > limit)
         {
             rows.RemoveAt(limit);
-            var last = rows[^1];
-            next = new PageCursor(
-                last.DisplayOrder.ToString(CultureInfo.InvariantCulture), last.Id.ToString("N")).Encode(scope);
+            next = order.Encode(sort, rows[^1], scope);
         }
 
         return OperationResult.Success(new CursorPage<MembershipPlanSummaryServiceModel>(rows, next));

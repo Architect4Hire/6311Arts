@@ -122,14 +122,16 @@ internal sealed class FormsBusiness(IFormsDataLayer dataLayer, IClock clock) : I
         ArgumentNullException.ThrowIfNull(request);
 
         var scope = string.Create(CultureInfo.InvariantCulture, $"forms-submissions|status={request.Status}");
-        if (!TryResume(request.Cursor, scope, out var after))
+        var order = FormsListOrder.Submissions;
+        var sort = SortOf(order, request.Sort);
+        if (!TryResume(order, sort, request.Cursor, scope, out var after))
         {
             return OperationResult.Failure<CursorPage<SubmissionSummaryServiceModel>>(InvalidCursor());
         }
 
         var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
-        var rows = await dataLayer.ListSubmissionsAsync(after, limit + 1, request.Status, cancellationToken);
-        var next = NextCursor(rows, limit, scope, row => (row.ReceivedAt, row.Id));
+        var rows = await dataLayer.ListSubmissionsAsync(sort, after, limit + 1, request.Status, cancellationToken);
+        var next = NextCursor(order, sort, rows, limit, scope);
 
         return OperationResult.Success(new CursorPage<SubmissionSummaryServiceModel>(
             [.. rows.Select(row => new SubmissionSummaryServiceModel(
@@ -187,14 +189,16 @@ internal sealed class FormsBusiness(IFormsDataLayer dataLayer, IClock clock) : I
         ArgumentNullException.ThrowIfNull(request);
 
         var scope = string.Create(CultureInfo.InvariantCulture, $"forms-contacts|handled={request.Handled}");
-        if (!TryResume(request.Cursor, scope, out var after))
+        var order = FormsListOrder.Contacts;
+        var sort = SortOf(order, request.Sort);
+        if (!TryResume(order, sort, request.Cursor, scope, out var after))
         {
             return OperationResult.Failure<CursorPage<ContactMessageServiceModel>>(InvalidCursor());
         }
 
         var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
-        var rows = await dataLayer.ListContactsAsync(after, limit + 1, request.Handled, cancellationToken);
-        var next = NextCursor(rows, limit, scope, row => (row.ReceivedAt, row.Id));
+        var rows = await dataLayer.ListContactsAsync(sort, after, limit + 1, request.Handled, cancellationToken);
+        var next = NextCursor(order, sort, rows, limit, scope);
 
         return OperationResult.Success(new CursorPage<ContactMessageServiceModel>([.. rows.Select(ToServiceModel)], next));
     }
@@ -241,14 +245,16 @@ internal sealed class FormsBusiness(IFormsDataLayer dataLayer, IClock clock) : I
 
         var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim().ToLowerInvariant();
         var scope = string.Create(CultureInfo.InvariantCulture, $"forms-newsletter|search={search}");
-        if (!TryResume(request.Cursor, scope, out var after))
+        var order = FormsListOrder.Subscribers;
+        var sort = SortOf(order, request.Sort);
+        if (!TryResume(order, sort, request.Cursor, scope, out var after))
         {
             return OperationResult.Failure<CursorPage<NewsletterSubscriberServiceModel>>(InvalidCursor());
         }
 
         var limit = new PageRequest(request.Cursor, request.Limit).EffectiveLimit;
-        var rows = await dataLayer.ListSubscribersAsync(after, limit + 1, search, cancellationToken);
-        var next = NextCursor(rows, limit, scope, row => (row.CreatedAt, row.Id));
+        var rows = await dataLayer.ListSubscribersAsync(sort, after, limit + 1, search, cancellationToken);
+        var next = NextCursor(order, sort, rows, limit, scope);
 
         return OperationResult.Success(new CursorPage<NewsletterSubscriberServiceModel>([.. rows.Select(ToServiceModel)], next));
     }
@@ -314,8 +320,12 @@ internal sealed class FormsBusiness(IFormsDataLayer dataLayer, IClock clock) : I
     private static NewsletterSubscriberServiceModel ToServiceModel(NewsletterSubscriber subscriber) => new(
         subscriber.Id, subscriber.Email, subscriber.ConsentedAt, subscriber.ConsentVersion, subscriber.Source, subscriber.CreatedAt);
 
-    /// <summary>Where a newest-first list resumes, from its cursor; <c>false</c> for one that isn't this list's.</summary>
-    private static bool TryResume(string? cursor, string scope, out FormsListPosition? after)
+    /// <summary>The sort a list was asked for, or its default. The facade's validator has already refused a stranger.</summary>
+    private static ListSort SortOf<T>(ListOrder<T, T> order, string? text) =>
+        order.Resolve(text) ?? throw new ArgumentException("This list does not sort by that column.", nameof(text));
+
+    /// <summary>Where a list resumes, from its cursor; <c>false</c> for one that isn't this list's, or this sort's.</summary>
+    private static bool TryResume<T>(ListOrder<T, T> order, ListSort sort, string? cursor, string scope, out ListPosition? after)
     {
         after = null;
         if (cursor is null)
@@ -323,20 +333,13 @@ internal sealed class FormsBusiness(IFormsDataLayer dataLayer, IClock clock) : I
             return true;
         }
 
-        var decoded = PageCursor.Decode(cursor, scope);
-        if (!decoded.Succeeded
-            || !DateTimeOffset.TryParseExact(decoded.Value!.SortValue, "O", CultureInfo.InvariantCulture, DateTimeStyles.None, out var at)
-            || !Guid.TryParseExact(decoded.Value.TieBreaker, "N", out var id))
-        {
-            return false;
-        }
-
-        after = new FormsListPosition(at, id);
-        return true;
+        var decoded = order.Decode(sort, cursor, scope);
+        after = decoded.Value;
+        return decoded.Succeeded;
     }
 
     /// <summary>Trims the look-ahead row and returns the cursor after the last kept one, or <c>null</c> at the end.</summary>
-    private static string? NextCursor<T>(List<T> rows, int limit, string scope, Func<T, (DateTimeOffset At, Guid Id)> key)
+    private static string? NextCursor<T>(ListOrder<T, T> order, ListSort sort, List<T> rows, int limit, string scope)
     {
         if (rows.Count <= limit)
         {
@@ -344,8 +347,7 @@ internal sealed class FormsBusiness(IFormsDataLayer dataLayer, IClock clock) : I
         }
 
         rows.RemoveAt(limit);
-        var (at, id) = key(rows[^1]);
-        return new PageCursor(at.ToString("O", CultureInfo.InvariantCulture), id.ToString("N")).Encode(scope);
+        return order.Encode(sort, rows[^1], scope);
     }
 
     private static OperationError InvalidCursor() =>

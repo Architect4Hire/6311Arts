@@ -24,6 +24,10 @@ import {
 } from '../../../shared/deleted-records/deleted-records';
 import { SessionService } from '../../../core/session/session.service';
 import { ROLES } from '../../../models/session';
+import { ListSort, SortColumn } from '../../../shared/list-sort';
+import { SortHeader } from '../../../shared/sort-header/sort-header';
+import { SortPicker } from '../../../shared/sort-picker/sort-picker';
+import { Sortable } from '../../../shared/sortable';
 
 type Filter = 'all' | PublishStatus | 'deleted';
 
@@ -59,6 +63,22 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
   timeZone: GALLERY_TIME_ZONE,
 });
 
+/** The columns a header sorts by (ADR 0062); the API names the same ones. */
+const SORTS: readonly SortColumn[] = [
+  { key: 'title', label: 'Title', kind: 'text' },
+  {
+    key: 'next',
+    label: 'Next session',
+    kind: 'date',
+    first: 'asc',
+    words: { asc: 'soonest first', desc: 'furthest off first' },
+  },
+  { key: 'status', label: 'Status', kind: 'status' },
+  { key: 'runs', label: 'Runs', kind: 'number' },
+  { key: 'instructors', label: 'Instructors', kind: 'text' },
+  { key: 'updated', label: 'Updated', kind: 'date' },
+];
+
 /**
  * Every class and workshop (`/admin/classes`), by title, with what it is, who teaches its runs, how many runs it has
  * and when it next meets (ADR 0044). Filter by status, search by title, and open one to edit it.
@@ -66,6 +86,9 @@ const UPDATED = new Intl.DateTimeFormat('en-US', {
 @Component({
   selector: 'cms-class-list',
   imports: [
+    Sortable,
+    SortHeader,
+    SortPicker,
     RouterLink,
     UiButton,
     UiControl,
@@ -121,10 +144,14 @@ export class ClassList {
   protected readonly refreshing = signal(false);
   protected readonly liveMessage = signal('');
 
+  /** The order, kept in the address bar as ?sort= so Back returns to it. */
+  protected readonly sort = new ListSort(SORTS, { column: 'title', direction: 'asc' });
+
   constructor() {
     effect(() => {
       this.filter();
       this.query();
+      this.sort.current();
       untracked(() => void this.reload());
     });
     inject(DestroyRef).onDestroy(() => this.clearSearchTimer());
@@ -182,7 +209,9 @@ export class ClassList {
       this.items.set(page.items);
       this.nextCursor.set(page.nextCursor);
       this.state.set('ready');
-      this.liveMessage.set(countOf(page.items.length, page.nextCursor !== null));
+      this.liveMessage.set(
+        this.sort.announcement() + countOf(page.items.length, page.nextCursor !== null),
+      );
     } catch {
       if (generation === this.generation) this.state.set('failed');
     } finally {
@@ -223,6 +252,7 @@ export class ClassList {
     const filter = this.filter();
     const search = this.query();
     return {
+      sort: this.sort.param(),
       limit: PAGE_SIZE,
       ...(filter === 'all' || filter === 'deleted' ? {} : { status: filter }),
       ...(search ? { search } : {}),

@@ -16,8 +16,13 @@ public sealed record PageUpdateViewModel(string? Title = null, string? Slug = nu
 
 /// <summary>A page of pages, by title.</summary>
 /// <param name="Search">Part of a title, matched without regard to case.</param>
+/// <param name="Sort">
+/// title, status, updated — with a leading <c>-</c> for descending (ADR 0062). The Deleted
+/// view ignores it.
+/// </param>
 public sealed record PageListViewModel(
     string? Cursor = null,
     int? Limit = null,
     PublishStatus? Status = null,
-    string? Search = null);
+    string? Search = null,
+    string? Sort = null);

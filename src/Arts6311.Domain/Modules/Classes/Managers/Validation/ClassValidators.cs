@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Validation;
 using System.Globalization;
 using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Paging;
@@ -81,6 +82,7 @@ internal sealed class ClassListValidator : AbstractValidator<ClassListViewModel>
         RuleFor(list => list.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(list => list.Limit is not null);
         RuleFor(list => list.Status).IsInEnum();
         RuleFor(list => list.Search).MaximumLength(ClassPolicy.SearchMaxLength);
+        RuleFor(list => list.Sort).SortableBy(ClassListOrder.Columns);
     }
 }
 

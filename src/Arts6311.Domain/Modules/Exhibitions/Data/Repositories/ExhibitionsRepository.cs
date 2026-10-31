@@ -1,3 +1,4 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Persistence;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Exhibitions.Data.Entities;
@@ -61,7 +62,7 @@ internal sealed class ExhibitionsRepository(ArtsDbContext context) : IExhibition
         [.. await Exhibitions.IgnoreQueryFilters().AsNoTracking().Select(exhibition => exhibition.Slug).ToListAsync(cancellationToken)];
 
     public Task<List<ExhibitionSummaryServiceModel>> ListAsync(
-        ExhibitionListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken)
+        ListSort sort, ListPosition? after, int take, PublishStatus? status, string? search, CancellationToken cancellationToken)
     {
         var query = Exhibitions.AsNoTracking();
 
@@ -78,16 +79,7 @@ internal sealed class ExhibitionsRepository(ArtsDbContext context) : IExhibition
             query = query.Where(exhibition => EF.Functions.Like(exhibition.Title, pattern, LikeEscape.ToString()));
         }
 
-        if (after is not null)
-        {
-            // Newest first: the next page is strictly earlier in (StartDate, Id), matching the ORDER BY below.
-            query = query.Where(exhibition => exhibition.StartDate < after.StartDate
-                || (exhibition.StartDate == after.StartDate && exhibition.Id.CompareTo(after.Id) < 0));
-        }
-
-        return query
-            .OrderByDescending(exhibition => exhibition.StartDate)
-            .ThenByDescending(exhibition => exhibition.Id)
+        return ExhibitionListOrder.Columns.Apply(query, sort, after)
             .Take(take)
             .Select(exhibition => new ExhibitionSummaryServiceModel(
                 exhibition.Id,

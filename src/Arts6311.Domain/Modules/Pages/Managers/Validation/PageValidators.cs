@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
+using Arts6311.Domain.Managers.Validation;
 using Arts6311.Domain.Modules.Pages.Managers.ViewModels;
 using FluentValidation;
 
@@ -63,5 +64,6 @@ internal sealed class PageListValidator : AbstractValidator<PageListViewModel>
         RuleFor(list => list.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(list => list.Limit is not null);
         RuleFor(list => list.Status).IsInEnum();
         RuleFor(list => list.Search).MaximumLength(PagePolicy.SearchMaxLength);
+        RuleFor(list => list.Sort).SortableBy(PageListOrder.Columns);
     }
 }

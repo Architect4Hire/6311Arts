@@ -10,24 +10,7 @@
 .scroll {
   overflow-x: auto;
 }
-.list {
-  width: 100%;
-  border-collapse: collapse;
-}
-.list th,
-.list td {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: var(--border-thin) solid var(--line);
-  text-align: left;
-  vertical-align: top;
-}
-.list thead th {
-  font-size: var(--fs-label);
-  font-weight: var(--fw-heavy);
-  letter-spacing: var(--track-label);
-  text-transform: uppercase;
-}
-.list tbody th,
+.cms-table tbody th,
 .text {
   overflow-wrap: anywhere;
 }

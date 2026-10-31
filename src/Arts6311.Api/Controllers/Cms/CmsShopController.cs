@@ -40,9 +40,10 @@ public sealed class CmsShopController(IShopFacade facade) : ControllerBase
         [FromQuery(Name = "status")] PublishStatus? status,
         [FromQuery(Name = "search")] string? search,
         [FromQuery(Name = "category")] string? category,
+        [FromQuery(Name = "sort")] string? sort,
         CancellationToken cancellationToken) =>
         this.ToActionResult(await facade.ListAsync(
-            new ShopItemListViewModel(cursor, limit, status, search, category), cancellationToken));
+            new ShopItemListViewModel(cursor, limit, status, search, category, sort), cancellationToken));
 
 
     /// <summary>

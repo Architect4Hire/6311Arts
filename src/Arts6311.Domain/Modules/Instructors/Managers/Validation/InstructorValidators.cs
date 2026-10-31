@@ -1,5 +1,6 @@
 using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
+using Arts6311.Domain.Managers.Validation;
 using Arts6311.Domain.Modules.Instructors.Managers.ViewModels;
 using FluentValidation;
 
@@ -102,5 +103,6 @@ internal sealed class InstructorListValidator : AbstractValidator<InstructorList
         RuleFor(list => list.Limit).InclusiveBetween(1, PageRequest.MaxLimit).When(list => list.Limit is not null);
         RuleFor(list => list.Status).IsInEnum();
         RuleFor(list => list.Search).MaximumLength(InstructorPolicy.SearchMaxLength);
+        RuleFor(list => list.Sort).SortableBy(InstructorListOrder.Columns);
     }
 }

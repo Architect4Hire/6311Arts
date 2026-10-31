@@ -1,45 +1,30 @@
-import { HttpErrorResponse } from '@angular/common/http';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  Injector,
-  afterNextRender,
-  computed,
-  effect,
-  inject,
-  input,
-  signal,
-  untracked,
-  viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
-import { UiButton, UiControl, UiField, UiNotice, UiStatusChip } from '@6311/ui';
-import { ConfirmService } from '../../../core/confirm/confirm.service';
-import { HasUnsavedChanges, warnBeforeUnload } from '../../../core/guards/unsaved-changes.guard';
-import { SessionService } from '../../../core/session/session.service';
+import { UiControl, UiField } from '@6311/ui';
 import { formatDateRange, instantOf, wallClockOf } from '../../../core/time/gallery-time';
-import { STATUS_CHIPS, slugFromName } from '../../../models/content';
 import {
   CreditedArtist,
-  EXHIBITION_CODES,
   EXHIBITION_LIMITS,
   Exhibition,
-  ExhibitionCommand,
   ExhibitionCreate,
-  ExhibitionProblem,
   ExhibitionReception,
   ExhibitionReceptionInput,
   ExhibitionUpdate,
-  decodeExhibitionProblem,
 } from '../../../models/exhibition';
-import { MediaAsset, MediaAssetSummary } from '../../../models/media';
-import { ROLES } from '../../../models/session';
 import { ExhibitionService } from '../../../services/exhibition.service';
-import { MediaService } from '../../../services/media.service';
-import { MediaPicker } from '../../media/media-picker/media-picker';
+import { ContentEditor } from '../../../shared/content-editor';
+import { EditorFrame } from '../../../shared/editor-frame/editor-frame';
+import { ImagePanel } from '../../../shared/image-panel/image-panel';
+import { PublishingPanel } from '../../../shared/publishing-panel/publishing-panel';
+import {
+  CompareRow,
+  FieldErrors,
+  Focusable,
+  excerpt,
+  imageRow,
+  orDash,
+} from '../../../shared/record-editor';
+import { SaveActions } from '../../../shared/save-actions/save-actions';
 import { ArtistCredits } from '../artist-credits/artist-credits';
 
 /** A reception as the form holds it: a day and two times on the gallery's clock. */
@@ -62,25 +47,6 @@ interface Draft {
   readonly artists: readonly CreditedArtist[];
 }
 
-/** What the editor shows of the hero: a thumbnail and whether it has the alt text publishing needs. */
-interface Hero {
-  readonly id: string;
-  readonly url: string | null;
-  readonly altText: string | null;
-  /** The image's details couldn't be fetched: its alt text is unknown, not missing. */
-  readonly unavailable?: boolean;
-}
-
-type Status =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'load-failed' }
-  | { readonly kind: 'not-found' }
-  | { readonly kind: 'ready' }
-  | { readonly kind: 'saving' }
-  | { readonly kind: 'commanding'; readonly command: ExhibitionCommand }
-  | { readonly kind: 'deleting' }
-  | { readonly kind: 'conflict'; readonly theirs: Exhibition };
-
 const FIELDS = [
   'title',
   'slug',
@@ -95,16 +61,7 @@ const FIELDS = [
   'heroMediaId',
   'artistIds',
 ] as const;
-
 type Field = (typeof FIELDS)[number];
-type FieldErrors = Partial<Record<Field, string>>;
-
-/** The API's field names for the reception, as the form's own. */
-const API_FIELDS: Readonly<Record<string, Field>> = {
-  'reception.startsAt': 'receptionStarts',
-  'reception.endsAt': 'receptionEnds',
-  'reception.note': 'receptionNote',
-};
 
 const EMPTY: Draft = {
   title: '',
@@ -118,19 +75,6 @@ const EMPTY: Draft = {
   artists: [],
 };
 
-/** Router state set by "Create exhibition", read by the editor it navigates to. */
-const CREATED_STATE = 'exhibitionCreated';
-
-const COMMAND_LABELS: Readonly<
-  Record<ExhibitionCommand, { readonly busy: string; readonly done: string }>
-> = {
-  publish: { busy: 'Publishing…', done: 'Published.' },
-  unpublish: { busy: 'Unpublishing…', done: 'Unpublished. The exhibition is a draft again.' },
-  archive: { busy: 'Archiving…', done: 'Archived.' },
-  schedule: { busy: 'Scheduling…', done: 'Scheduled.' },
-  unschedule: { busy: 'Unscheduling…', done: 'Unscheduled. The exhibition is a draft again.' },
-};
-
 const RECEPTION_TIME = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
   timeStyle: 'short',
@@ -140,115 +84,51 @@ const RECEPTION_TIME = new Intl.DateTimeFormat('en-US', {
 /**
  * One exhibition (`/admin/exhibitions/new`, `/admin/exhibitions/:id`): title, web address, summary, body, when it
  * hangs, its opening reception, its hero image and the artists it credits; then publish, unpublish or (Admins)
- * archive.
- *
- * Unsaved edits survive every recoverable failure (frontend.md): a refused save keeps the form as typed, and a 409
- * shows the saved version beside the editor's own so neither is lost. Status commands act on the saved version, so
- * they wait until the form is saved. Reception times are typed and shown on the gallery's clock and travel as UTC.
+ * archive. Reception times are typed and shown on the gallery's clock and travel as UTC.
  */
-import { PreviewLinkButton } from '../../../shared/preview-link/preview-link';
-import { ScheduleControl } from '../../../shared/schedule-control/schedule-control';
-import { confirmDelete } from '../../../shared/delete-confirm/delete-confirm';
-
 @Component({
   selector: 'cms-exhibition-editor',
   imports: [
     FormsModule,
-    RouterLink,
-    ArtistCredits,
-    MediaPicker,
-    UiButton,
     UiControl,
     UiField,
-    UiNotice,
-    UiStatusChip,
-    PreviewLinkButton,
-    ScheduleControl,
+    ArtistCredits,
+    EditorFrame,
+    ImagePanel,
+    PublishingPanel,
+    SaveActions,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './exhibition-editor.html',
   styleUrl: './exhibition-editor.scss',
 })
-export class ExhibitionEditor implements HasUnsavedChanges {
-  /** The route's `:id`; absent on `/exhibitions/new`. */
-  readonly id = input<string>();
+export class ExhibitionEditor extends ContentEditor<
+  Exhibition,
+  Draft,
+  ExhibitionCreate,
+  ExhibitionUpdate,
+  Field
+> {
+  private readonly hero = viewChild(ImagePanel);
 
-  private readonly exhibitions = inject(ExhibitionService);
-  private readonly media = inject(MediaService);
-  private readonly confirm = inject(ConfirmService);
-  private readonly session = inject(SessionService);
-  private readonly router = inject(Router);
-  private readonly injector = inject(Injector);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly conflictBox = viewChild<ElementRef<HTMLElement>>('conflictBox');
-  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
-  private readonly publishingHeading = viewChild<ElementRef<HTMLElement>>('publishingHeading');
-  private readonly heroButton = viewChild<ElementRef<HTMLElement>>('heroButton');
-
-  /** Arrived straight from "Create exhibition", which navigated here from `exhibitions/new` (another component). */
-  private readonly justCreated =
-    this.router.currentNavigation()?.extras.state?.[CREATED_STATE] === true;
-
-  protected readonly chips = STATUS_CHIPS;
   protected readonly limits = EXHIBITION_LIMITS;
-  protected readonly receptionDraftOf = receptionDraftOf;
+  protected readonly exhibition = this.record;
 
-  protected readonly status = signal<Status>({ kind: 'loading' });
-  /** The exhibition as saved; `null` while creating one. */
-  protected readonly exhibition = signal<Exhibition | null>(null);
-  protected readonly draft = signal<Draft>(EMPTY);
-  protected readonly hero = signal<Hero | null>(null);
-  protected readonly errors = signal<FieldErrors>({});
-  protected readonly formError = signal<string | null>(null);
-  protected readonly liveMessage = signal('');
-  protected readonly picking = signal(false);
-
-  protected readonly isAdmin = computed(() => this.session.hasAnyRole([ROLES.admin]));
-  protected readonly busy = computed(() => {
-    const kind = this.status().kind;
-    return kind === 'saving' || kind === 'commanding' || kind === 'deleting';
-  });
-  protected readonly commanding = computed(() => {
-    const status = this.status();
-    return status.kind === 'commanding' ? status.command : null;
-  });
-  protected readonly conflict = computed(() => {
-    const status = this.status();
-    return status.kind === 'conflict' ? status.theirs : null;
-  });
-  protected readonly canPublish = computed(() => {
-    const status = this.exhibition()?.status;
-    return status === 'Draft' || status === 'Scheduled';
-  });
-  protected readonly canArchive = computed(() => {
-    const status = this.exhibition()?.status;
-    return this.isAdmin() && status !== undefined && status !== 'Archived';
-  });
-
-  protected readonly deleting = computed(() => this.status().kind === 'deleting');
-
-  /** A saved exhibition an Admin can delete, whatever its status (ADR 0052). */
-  protected readonly canDelete = computed(() => this.isAdmin() && this.exhibition() !== null);
-
-  protected readonly saveLabel = computed(() => {
-    if (this.status().kind === 'saving') return this.exhibition() ? 'Saving…' : 'Creating…';
-    return this.exhibition() ? 'Save' : 'Create exhibition';
-  });
-
-  /** Made from the title on create and never typed (the field only shows it), so the address never moves. */
-  protected readonly slugHint = computed(() => {
-    const slug = this.draft().slug;
-    return this.exhibition()
-      ? `6311arts.com/exhibitions/${slug}`
-      : `6311arts.com/exhibitions/${slug || '…'} — made from the title. If another exhibition has it, a number is added.`;
-  });
-
-  /** Edits not yet saved: the unsaved-changes guard asks before they are lost. */
-  readonly dirty = computed(() => {
-    const draft = this.draft();
-    const exhibition = this.exhibition();
-    if (!exhibition) {
-      return (
+  constructor() {
+    super({
+      api: inject(ExhibitionService),
+      noun: 'exhibition',
+      plural: 'exhibitions',
+      route: '/exhibitions',
+      label: (exhibition) => exhibition.title,
+      address: { path: '6311arts.com/exhibitions/', from: 'title' },
+      createdMessage: 'Exhibition created. Publish it when it’s ready.',
+      createdState: 'exhibitionCreated',
+      empty: () => EMPTY,
+      draftOf,
+      createOf,
+      changesOf,
+      started: (draft) =>
         draft.title.trim() !== '' ||
         draft.summary.trim() !== '' ||
         draft.body.trim() !== '' ||
@@ -256,65 +136,30 @@ export class ExhibitionEditor implements HasUnsavedChanges {
         draft.endDate !== '' ||
         draft.reception !== null ||
         draft.heroMediaId !== null ||
-        draft.artists.length > 0
-      );
-    }
-    return Object.keys(changesOf(exhibition, draft)).length > 0;
-  });
-
-  constructor() {
-    warnBeforeUnload(() => this.hasUnsavedChanges());
-
-    effect(() => {
-      this.id();
-      untracked(() => void this.load());
+        draft.artists.length > 0,
+      localErrors,
+      fields: FIELDS,
+      // The API's field names for the reception, as the form's own.
+      apiFields: {
+        'reception.startsAt': 'receptionStarts',
+        'reception.endsAt': 'receptionEnds',
+        'reception.note': 'receptionNote',
+      },
+      lifecycle: {
+        noun: 'exhibition',
+        keepLabel: 'Keep it',
+        inSquare: false,
+        previewType: 'exhibition',
+        unpublishMessage:
+          'It goes back to being a draft and leaves the public site. Its web address stays the same, so publishing again restores it.',
+        archiveMessage:
+          'An archived exhibition is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
+        deleteText:
+          'The exhibition leaves the site and the list, and its web address is free again. An Admin can restore it from Deleted, as a draft.',
+        draft:
+          'A draft: only staff can see it. Publishing needs a summary, and alt text on the hero image.',
+      },
     });
-
-    // The hero's thumbnail and alt text follow whichever image the draft names.
-    effect(() => {
-      const id = this.draft().heroMediaId;
-      untracked(() => void this.showHero(id));
-    });
-  }
-
-  hasUnsavedChanges(): boolean {
-    return this.dirty() || this.busy();
-  }
-
-  async load(): Promise<void> {
-    const id = this.id();
-    this.errors.set({});
-    this.formError.set(null);
-
-    if (!id) {
-      this.exhibition.set(null);
-      this.draft.set(EMPTY);
-      this.status.set({ kind: 'ready' });
-      return;
-    }
-
-    this.status.set({ kind: 'loading' });
-    try {
-      const exhibition = await firstValueFrom(this.exhibitions.get(id));
-      this.exhibition.set(exhibition);
-      this.draft.set(draftOf(exhibition));
-      this.status.set({ kind: 'ready' });
-      if (this.justCreated) {
-        this.announce('Exhibition created. Publish it when it’s ready.');
-        this.focus(this.heading);
-      }
-    } catch (error: unknown) {
-      this.status.set(
-        problemOf(error)?.code === EXHIBITION_CODES.notFound
-          ? { kind: 'not-found' }
-          : { kind: 'load-failed' },
-      );
-    }
-  }
-
-  protected patch(change: Partial<Draft>): void {
-    this.draft.update((draft) => ({ ...draft, ...change }));
-    this.clearErrors(Object.keys(change) as Field[]);
   }
 
   protected patchReception(change: Partial<ReceptionDraft>, field: Field): void {
@@ -334,371 +179,58 @@ export class ExhibitionEditor implements HasUnsavedChanges {
     this.clearErrors(['receptionDate', 'receptionStarts', 'receptionEnds', 'receptionNote']);
   }
 
-  protected setTitle(title: string): void {
-    // A new exhibition's address follows its title; staff never type one, and the API numbers a taken one.
-    const followsTitle = !this.exhibition();
-    this.patch({ title, ...(followsTitle ? { slug: slugFromName(title) } : {}) });
-  }
-
-  protected setArtists(artists: readonly CreditedArtist[]): void {
-    this.draft.update((draft) => ({ ...draft, artists }));
-    this.clearErrors(['artistIds']);
-  }
-
-  protected chooseHero(choice: MediaAssetSummary): void {
-    this.hero.set({ id: choice.id, url: choice.thumbnailUrl, altText: choice.altText });
-    this.patch({ heroMediaId: choice.id });
-  }
-
-  protected removeHero(): void {
-    this.patch({ heroMediaId: null });
-  }
-
-  protected retryHero(): void {
-    void this.showHero(this.draft().heroMediaId, true);
-  }
-
-  protected discard(): void {
-    const exhibition = this.exhibition();
-    if (exhibition) this.draft.set(draftOf(exhibition));
-    this.errors.set({});
-    this.formError.set(null);
-  }
-
-  protected heroWord(mine: string | null, theirs: string | null): string {
-    if (!mine) return 'None';
-    return mine === theirs ? 'The same image' : 'A different image';
-  }
-
-  protected namesOf(artists: readonly CreditedArtist[]): string {
-    return artists.length === 0 ? 'None' : artists.map((artist) => artist.name).join(', ');
-  }
-
-  protected runOf(start: string, end: string): string {
-    return start && end ? formatDateRange(start, end) : '—';
-  }
-
-  protected receptionWords(reception: ReceptionDraft | null): string {
-    if (!reception) return 'None';
-    const starts = instantOf(reception.date, reception.starts);
-    if (!starts) return 'Not finished';
-    const time = RECEPTION_TIME.format(new Date(starts));
-    return reception.note.trim() ? `${time} — ${reception.note.trim()}` : time;
-  }
-
-  protected excerpt(text: string): string {
-    const flat = text.replace(/\s+/g, ' ').trim();
-    if (flat === '') return '—';
-    return flat.length > 80 ? `${flat.slice(0, 80)}…` : flat;
-  }
-
-  protected statusText(exhibition: Exhibition): string {
-    switch (exhibition.status) {
-      case 'Published':
-        return 'Published: on the public site. Edits show there within a minute.';
-      case 'Archived':
-        return 'Archived: retired from the site. Archiving can’t be undone here.';
-      case 'Scheduled':
-        return 'Scheduled to publish.';
-      default:
-        return exhibition.publishedAt
-          ? 'A draft again, after being published. Its web address stays fixed.'
-          : 'A draft: only staff can see it. Publishing needs a summary, and alt text on the hero image.';
-    }
-  }
-
-  protected async save(etag?: string): Promise<void> {
-    if (this.busy() || !this.dirty()) return;
-
-    const draft = this.draft();
-    const local = localErrors(draft);
-    if (Object.keys(local).length > 0) {
-      this.showErrors(local, null);
-      return;
-    }
-
-    const exhibition = this.exhibition();
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'saving' });
-    try {
-      if (!exhibition) {
-        const created = await firstValueFrom(this.exhibitions.create(createOf(draft)));
-        this.exhibition.set(created);
-        this.draft.set(draftOf(created));
-        this.status.set({ kind: 'ready' });
-        // The editor for the new id is a new component; it announces the creation and takes focus.
-        await this.router.navigate(['/exhibitions', created.id], {
-          replaceUrl: true,
-          state: { [CREATED_STATE]: true },
-        });
-        return;
-      }
-
-      const saved = await firstValueFrom(
-        this.exhibitions.update(
-          exhibition.id,
-          changesOf(exhibition, draft),
-          etag ?? exhibition.etag,
-        ),
-      );
-      this.exhibition.set(saved);
-      this.draft.set(draftOf(saved));
-      this.status.set({ kind: 'ready' });
-      // Saving disabled the fieldset that held the focused control, so the browser dropped focus to <body>.
-      // Put it on the heading, which is where "Saved." is announced from, rather than leaving a keyboard or
-      // screen-reader user with no position on the page (WCAG 2.4.3 focus order).
-      this.focus(this.heading);
-      this.announce('Saved.');
-    } catch (error: unknown) {
-      await this.saveFailed(error);
-    }
-  }
-
-  /** Saves the editor's own values over the version someone else saved. */
-  protected async keepMine(theirs: Exhibition): Promise<void> {
-    this.exhibition.set(theirs);
-    this.status.set({ kind: 'ready' });
-    // The comparison and its buttons are gone now, so focus moves to the title rather than being lost.
-    this.focus(this.heading);
-    if (!this.dirty()) {
-      this.announce('Your changes already match the saved version. Nothing more to save.');
-      return;
-    }
-    await this.save(theirs.etag);
-  }
-
-  protected useTheirs(theirs: Exhibition): void {
-    this.exhibition.set(theirs);
-    this.draft.set(draftOf(theirs));
-    this.status.set({ kind: 'ready' });
-    this.announce('Showing the saved version. Your changes were discarded.');
-    this.focus(this.heading);
-  }
-
-  protected async unpublish(): Promise<void> {
-    const confirmed = await this.confirm.confirm({
-      heading: 'Unpublish this exhibition?',
-      message:
-        'It goes back to being a draft and leaves the public site. Its web address stays the same, so publishing again restores it.',
-      confirmLabel: 'Unpublish',
-      cancelLabel: 'Keep published',
-    });
-    if (confirmed) await this.run('unpublish');
-  }
-
-  protected async archive(): Promise<void> {
-    const confirmed = await this.confirm.confirm({
-      heading: 'Archive this exhibition?',
-      message:
-        'An archived exhibition is retired from the site, and archiving can’t be undone from Studio. The archive is recorded under your name.',
-      confirmLabel: 'Archive exhibition',
-      cancelLabel: 'Keep it',
-    });
-    if (confirmed) await this.run('archive');
-  }
-
-  /**
-   * Deletes the exhibition (ADR 0052). Offered while the form is dirty — asking someone to save a record before
-   * throwing it away would be absurd — and the dialogs say so; the wording is shared by every type
-   * (<c>confirmDelete</c>). It acts on the saved version's row version, as every write does.
-   */
-  protected async remove(): Promise<void> {
-    const exhibition = this.exhibition();
-    if (!exhibition || this.busy()) return;
-
-    const confirmed = await confirmDelete(this.confirm, {
-      noun: 'exhibition',
-      label: exhibition.title,
-      slug: exhibition.slug,
-      live: exhibition.status === 'Published',
-      dirty: this.dirty(),
-      inSquare: false,
-      keepLabel: 'Keep it',
-    });
-    if (!confirmed) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'deleting' });
-    try {
-      await firstValueFrom(this.exhibitions.delete(exhibition.id, exhibition.etag));
-
-      // Back to the saved version first, so the unsaved-changes guard has nothing to ask about on the way out.
-      this.draft.set(draftOf(exhibition));
-      this.status.set({ kind: 'ready' });
-      await this.router.navigate(['/exhibitions']);
-    } catch (error: unknown) {
-      const problem = problemOf(error);
-      this.status.set({ kind: 'ready' });
-      this.showErrors(
-        {},
-        problem?.code === EXHIBITION_CODES.concurrencyConflict
-          ? 'Someone else changed this exhibition a moment ago. Reload it, check it, and try again.'
-          : messageOf(problem, 'The exhibition couldn’t be deleted. Try again.'),
-      );
-    }
-  }
-
-  /** The `schedule` command: the only one with a body, so it does not go through {@link run} (ADR 0036). */
-  protected async schedule(scheduledFor: string): Promise<void> {
-    const exhibition = this.exhibition();
-    if (!exhibition || this.busy() || this.dirty()) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'commanding', command: 'schedule' });
-    this.announce(COMMAND_LABELS.schedule.busy);
-    try {
-      const updated = await firstValueFrom(
-        this.exhibitions.schedule(exhibition.id, scheduledFor, exhibition.etag),
-      );
-      this.exhibition.set(updated);
-      this.draft.set(draftOf(updated));
-      this.status.set({ kind: 'ready' });
-      this.announce(COMMAND_LABELS.schedule.done);
-    } catch (error: unknown) {
-      await this.commandFailed(error);
-    }
-  }
-
-  protected async unschedule(): Promise<void> {
-    await this.run('unschedule');
-  }
-
-  protected async run(command: ExhibitionCommand): Promise<void> {
-    const exhibition = this.exhibition();
-    if (!exhibition || this.busy() || this.dirty()) return;
-
-    this.errors.set({});
-    this.formError.set(null);
-    this.status.set({ kind: 'commanding', command });
-    this.announce(COMMAND_LABELS[command].busy);
-    try {
-      const updated = await firstValueFrom(
-        this.exhibitions.command(exhibition.id, command, exhibition.etag),
-      );
-      this.exhibition.set(updated);
-      this.draft.set(draftOf(updated));
-      this.status.set({ kind: 'ready' });
-      this.announce(COMMAND_LABELS[command].done);
-      // The button pressed may be gone (Publish, once published), so focus goes to the panel's heading.
-      this.focus(this.publishingHeading);
-    } catch (error: unknown) {
-      await this.commandFailed(error);
-    }
-  }
-
-  private clearErrors(fields: readonly string[]): void {
-    const cleared = fields.filter((key) => key in this.errors());
-    if (cleared.length === 0) return;
-    this.errors.update((errors) =>
-      Object.fromEntries(Object.entries(errors).filter(([key]) => !cleared.includes(key))),
-    );
-  }
-
-  private async saveFailed(error: unknown): Promise<void> {
-    const problem = problemOf(error);
-
-    if (problem?.code === EXHIBITION_CODES.concurrencyConflict && this.exhibition()) {
-      try {
-        const theirs = await firstValueFrom(this.exhibitions.get(this.exhibition()!.id));
-        this.status.set({ kind: 'conflict', theirs });
-        this.announce(
-          'Someone else saved this exhibition while you were editing. Compare the two versions.',
-        );
-        // Focus follows the news, so a keyboard or screen-reader user lands on the comparison.
-        afterNextRender(() => this.conflictBox()?.nativeElement.focus(), {
-          injector: this.injector,
-        });
-        return;
-      } catch {
-        // Fall through to the plain message; the draft is still in the form.
-      }
-    }
-
-    this.status.set({ kind: 'ready' });
-    this.showErrors(
-      fieldErrorsOf(problem),
-      messageOf(problem, 'The changes couldn’t be saved. Try again.'),
-    );
-  }
-
-  /**
-   * A refused command. The form holds no unsaved edits (commands wait for a save), so the latest saved version is
-   * simply shown again with the reason — a conflict, a status someone else changed, or what publishing still needs.
-   */
-  private async commandFailed(error: unknown): Promise<void> {
-    const problem = problemOf(error);
-    const stale =
-      problem?.code === EXHIBITION_CODES.concurrencyConflict ||
-      problem?.code === EXHIBITION_CODES.transitionInvalid;
-
-    if (stale && this.exhibition()) {
-      try {
-        const latest = await firstValueFrom(this.exhibitions.get(this.exhibition()!.id));
-        this.exhibition.set(latest);
-        this.draft.set(draftOf(latest));
-      } catch {
-        // The message below still says what happened.
-      }
-    }
-
-    this.status.set({ kind: 'ready' });
-    this.showErrors(
-      fieldErrorsOf(problem),
-      problem?.code === EXHIBITION_CODES.concurrencyConflict
-        ? 'Someone else changed this exhibition a moment ago. Here is the latest version; check it and try again.'
-        : messageOf(problem, 'That didn’t work. Try again.'),
-    );
-  }
-
-  private showErrors(errors: FieldErrors, message: string | null): void {
-    this.errors.set(errors);
-    this.formError.set(message);
-    this.announce(message ?? 'Some fields need attention.');
-    // The message is linked to the field and read when it has focus (UiField), so focus goes to the first one. The
-    // hero and the credits have no field of their own, so their errors send focus to what fixes them.
-    afterNextRender(
-      () => {
-        const root = this.host.nativeElement;
-        const invalid = root.querySelector<HTMLElement>('[aria-invalid="true"]');
-        const target =
-          invalid ??
-          (errors.heroMediaId ? this.heroButton()?.nativeElement : null) ??
-          (errors.artistIds ? root.querySelector<HTMLElement>('[name="artistSearch"]') : null);
-        target?.focus();
+  protected override compare(theirs: Exhibition, draft: Draft): readonly CompareRow[] {
+    return [
+      { label: 'Title', mine: orDash(draft.title), theirs: theirs.title },
+      {
+        label: 'Web address',
+        mine: `/exhibitions/${draft.slug}`,
+        theirs: `/exhibitions/${theirs.slug}`,
       },
-      { injector: this.injector },
-    );
+      {
+        label: 'Dates',
+        mine: runOf(draft.startDate, draft.endDate),
+        theirs: runOf(theirs.startDate, theirs.endDate),
+      },
+      {
+        label: 'Reception',
+        mine: receptionWords(draft.reception),
+        theirs: receptionWords(receptionDraftOf(theirs.reception)),
+      },
+      { label: 'Summary', mine: excerpt(draft.summary), theirs: excerpt(theirs.summary) },
+      { label: 'About the show', mine: excerpt(draft.body), theirs: excerpt(theirs.body) },
+      imageRow('Hero image', draft.heroMediaId, theirs.heroMediaId),
+      { label: 'Artists', mine: namesOf(draft.artists), theirs: namesOf(theirs.artists) },
+    ];
   }
 
-  /** Writes to the live region. The same words twice still change it, so they are read out again. */
-  private announce(message: string): void {
-    this.liveMessage.update((current) => (current === message ? `${message} ` : message));
+  protected override fieldsOf(keys: readonly string[]): readonly string[] {
+    return keys.map((key) => (key === 'artists' ? 'artistIds' : key));
   }
 
-  private focus(target: () => ElementRef<HTMLElement> | undefined): void {
-    afterNextRender(() => target()?.nativeElement.focus(), { injector: this.injector });
+  /** The hero and the credits have no field of their own, so their errors send focus to what fixes them. */
+  protected override focusFallback(errors: FieldErrors<Field>): Focusable | null | undefined {
+    if (errors.heroMediaId) return this.hero()?.focusTarget();
+    return errors.artistIds
+      ? this.host.nativeElement.querySelector<HTMLElement>('[name="artistSearch"]')
+      : null;
   }
+}
 
-  private async showHero(id: string | null, retry = false): Promise<void> {
-    if (id === null) {
-      this.hero.set(null);
-      return;
-    }
-    if (!retry && this.hero()?.id === id) return;
+function namesOf(artists: readonly CreditedArtist[]): string {
+  return artists.length === 0 ? 'None' : artists.map((artist) => artist.name).join(', ');
+}
 
-    this.hero.set(null);
-    try {
-      const asset = await firstValueFrom(this.media.get(id));
-      if (this.draft().heroMediaId === id) this.hero.set(heroOf(asset));
-    } catch {
-      if (this.draft().heroMediaId === id) {
-        this.hero.set({ id, url: null, altText: null, unavailable: true });
-      }
-    }
-  }
+function runOf(start: string, end: string): string {
+  return start && end ? formatDateRange(start, end) : '—';
+}
+
+function receptionWords(reception: ReceptionDraft | null): string {
+  if (!reception) return 'None';
+  const starts = instantOf(reception.date, reception.starts);
+  if (!starts) return 'Not finished';
+  const time = RECEPTION_TIME.format(new Date(starts));
+  return reception.note.trim() ? `${time} — ${reception.note.trim()}` : time;
 }
 
 /** A saved reception on the gallery's clock. Its day is the day it starts. */
@@ -722,15 +254,6 @@ function draftOf(exhibition: Exhibition): Draft {
     heroMediaId: exhibition.heroMediaId,
     artists: exhibition.artists,
   };
-}
-
-function heroOf(asset: MediaAsset): Hero {
-  const url =
-    asset.renditions.find((rendition) => rendition.name === '800.webp')?.url ??
-    asset.renditions.find((rendition) => rendition.name === '400.webp')?.url ??
-    [...asset.renditions].sort((a, b) => a.width - b.width)[0]?.url ??
-    null;
-  return { id: asset.id, url, altText: asset.altText };
 }
 
 /** Long-text line endings as the API stores them, so untouched text never looks edited. */
@@ -802,9 +325,8 @@ function changesOf(exhibition: Exhibition, draft: Draft): ExhibitionUpdate {
   };
 }
 
-/** What the form can tell before asking: the API checks the same and has the last word. */
-function localErrors(draft: Draft): FieldErrors {
-  const errors: FieldErrors = {};
+function localErrors(draft: Draft): FieldErrors<Field> {
+  const errors: FieldErrors<Field> = {};
   if (draft.title.trim() === '') errors.title = 'Enter the exhibition’s title.';
   if (!draft.startDate) errors.startDate = 'Enter the first day of the show.';
   if (!draft.endDate) errors.endDate = 'Enter the last day of the show.';
@@ -822,33 +344,4 @@ function localErrors(draft: Draft): FieldErrors {
     }
   }
   return errors;
-}
-
-function problemOf(error: unknown): ExhibitionProblem | null {
-  return error instanceof HttpErrorResponse
-    ? decodeExhibitionProblem(error.error, error.status)
-    : null;
-}
-
-function fieldErrorsOf(problem: ExhibitionProblem | null): FieldErrors {
-  const errors: FieldErrors = {};
-  for (const [key, messages] of Object.entries(problem?.fieldErrors ?? {})) {
-    const field = API_FIELDS[key] ?? (FIELDS as readonly string[]).find((name) => name === key);
-    if (field && messages[0] && !errors[field as Field]) errors[field as Field] = messages[0];
-  }
-  return errors;
-}
-
-function messageOf(problem: ExhibitionProblem | null, fallback: string): string {
-  if (problem === null || problem.status === 0) {
-    return 'Can’t reach 6311arts. Your changes are still here; try again.';
-  }
-  const message = problem.detail ?? fallback;
-
-  // A 5xx says nothing the editor can act on, so hand them the one thing support can: the correlation id,
-  // which is this request's trace id (ADR 0019). Appended here rather than left to the global problem toast,
-  // because these calls deliberately suppress it to show the failure in place.
-  return problem.status >= 500 && problem.correlationId !== null
-    ? `${message} Quote reference ${problem.correlationId} if you report it.`
-    : message;
 }

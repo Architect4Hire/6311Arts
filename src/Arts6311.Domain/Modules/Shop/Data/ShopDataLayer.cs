@@ -3,6 +3,7 @@ using Arts6311.Domain.Managers.Catalog;
 using Arts6311.Domain.Managers.Correlation;
 using Arts6311.Domain.Managers.Outbox;
 using Arts6311.Domain.Managers.Outbox.Events;
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Managers.Time;
 using Arts6311.Domain.Modules.Shop.Data.Entities;
@@ -56,13 +57,14 @@ internal sealed class ShopDataLayer(
         repository.NextItemNumberAsync(cancellationToken);
 
     public Task<List<ShopItemListRow>> ListAsync(
-        ShopItemListPosition? after,
+        ListSort sort,
+        ListPosition? after,
         int take,
         PublishStatus? status,
         string? search,
         string? category,
         CancellationToken cancellationToken) =>
-        repository.ListAsync(after, take, status, search, category, cancellationToken);
+        repository.ListAsync(sort, after, take, status, search, category, cancellationToken);
 
     public async Task<ShopWriteOutcome> CreateAsync(
         ShopItem item, SkuChanges skuChanges, string actorUserId, string summary, CancellationToken cancellationToken)

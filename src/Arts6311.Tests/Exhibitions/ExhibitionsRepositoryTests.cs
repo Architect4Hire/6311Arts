@@ -1,9 +1,11 @@
+using Arts6311.Domain.Managers.Paging;
 using Arts6311.Domain.Managers.Publishing;
 using Arts6311.Domain.Modules.Artists.Data.Entities;
 using Arts6311.Domain.Modules.Exhibitions.Data;
 using Arts6311.Domain.Modules.Exhibitions.Data.Entities;
 using Arts6311.Domain.Modules.Exhibitions.Data.Repositories;
 using Arts6311.Domain.Modules.Exhibitions.Managers.ServiceModels;
+using Arts6311.Domain.Modules.Exhibitions.Managers;
 using Arts6311.Tests.Exhibitions.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,10 +32,10 @@ public sealed class ExhibitionsRepositoryTests
         Assert.Equal([new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 1)], first[1..].Select(row => row.StartDate));
 
         // The twins tie on date; the id breaks the tie, so resuming after either never repeats or skips the other.
-        var second = await ListAsync(host, new ExhibitionListPosition(first[^1].StartDate, first[^1].Id), take: 3);
+        var second = await ListAsync(host, new ListPosition(first[^1].StartDate, first[^1].Id), take: 3);
         Assert.Equal(["Spring", "Winter"], second.Select(row => row.Title));
 
-        var afterFirstTwin = await ListAsync(host, new ExhibitionListPosition(first[1].StartDate, first[1].Id), take: 10);
+        var afterFirstTwin = await ListAsync(host, new ListPosition(first[1].StartDate, first[1].Id), take: 10);
         Assert.Equal(first[2].Id, afterFirstTwin[0].Id);
     }
 
@@ -104,9 +106,9 @@ public sealed class ExhibitionsRepositoryTests
     }
 
     private static async Task<List<ExhibitionSummaryServiceModel>> ListAsync(
-        ExhibitionsTestHost host, ExhibitionListPosition? after, int take, PublishStatus? status = null, string? search = null)
+        ExhibitionsTestHost host, ListPosition? after, int take, PublishStatus? status = null, string? search = null)
     {
         using var scope = host.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<IExhibitionsRepository>().ListAsync(after, take, status, search, Ct);
+        return await scope.ServiceProvider.GetRequiredService<IExhibitionsRepository>().ListAsync(ExhibitionListOrder.Columns.Default, after, take, status, search, Ct);
     }
 }

@@ -35,8 +35,9 @@ public sealed class CmsPagesController(IPagesFacade facade) : ControllerBase
         [FromQuery(Name = "limit")] int? limit,
         [FromQuery(Name = "status")] PublishStatus? status,
         [FromQuery(Name = "search")] string? search,
+        [FromQuery(Name = "sort")] string? sort,
         CancellationToken cancellationToken) =>
-        this.ToActionResult(await facade.ListAsync(new PageListViewModel(cursor, limit, status, search), cancellationToken));
+        this.ToActionResult(await facade.ListAsync(new PageListViewModel(cursor, limit, status, search, sort), cancellationToken));
 
     /// <summary>
     /// The pages staff deleted (ADR 0052), by title, cursor-paged. Admin only, like the delete itself. Each row

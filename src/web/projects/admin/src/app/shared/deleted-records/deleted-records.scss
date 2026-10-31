@@ -6,22 +6,10 @@
 .scroll {
   overflow-x: auto;
 }
-.rows {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
+// The shared .cms-table look (styles.scss), centred on each row's Restore button.
 .rows th,
 .rows td {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: var(--border-thin) solid var(--line);
   vertical-align: middle;
-}
-.rows thead th {
-  font-size: var(--fs-label);
-  font-weight: var(--fw-heavy);
-  letter-spacing: var(--track-label);
-  text-transform: uppercase;
 }
 .slug {
   display: block;

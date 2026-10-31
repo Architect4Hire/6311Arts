@@ -15,6 +15,10 @@ import { UiButton, UiEmptyState, UiNotice, UiStatusChip } from '@6311/ui';
 import { ContactMessage, ContactMessageListQuery, HANDLED_CHIPS } from '../../../models/forms';
 import { FormsService } from '../../../services/forms.service';
 import { FormsTabs, formatInstant } from '../forms-tabs/forms-tabs';
+import { ListSort, SortColumn } from '../../../shared/list-sort';
+import { SortHeader } from '../../../shared/sort-header/sort-header';
+import { SortPicker } from '../../../shared/sort-picker/sort-picker';
+import { Sortable } from '../../../shared/sortable';
 
 type Filter = 'all' | 'unhandled' | 'handled';
 
@@ -34,13 +38,36 @@ function countOf(count: number, more: boolean): string {
   return `${more ? 'Showing the first ' : ''}${count} ${count === 1 ? 'message' : 'messages'}.`;
 }
 
+/** The columns a header sorts by (ADR 0062); the API names the same ones. */
+const SORTS: readonly SortColumn[] = [
+  { key: 'from', label: 'From', kind: 'text' },
+  { key: 'message', label: 'Message', kind: 'text' },
+  {
+    key: 'status',
+    label: 'Status',
+    kind: 'flag',
+    words: { asc: 'new first', desc: 'handled first' },
+  },
+  { key: 'received', label: 'Received', kind: 'date' },
+];
+
 /**
  * Messages from the site's contact form (`/admin/forms/messages`), newest first, with whether each has been dealt
  * with. Filter by handled, and open one to read it in full and mark it.
  */
 @Component({
   selector: 'cms-message-list',
-  imports: [FormsTabs, RouterLink, UiButton, UiEmptyState, UiNotice, UiStatusChip],
+  imports: [
+    Sortable,
+    SortHeader,
+    SortPicker,
+    FormsTabs,
+    RouterLink,
+    UiButton,
+    UiEmptyState,
+    UiNotice,
+    UiStatusChip,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './message-list.html',
   styleUrl: './message-list.scss',
@@ -61,9 +88,13 @@ export class MessageList {
   protected readonly refreshing = signal(false);
   protected readonly liveMessage = signal('');
 
+  /** The order, kept in the address bar as ?sort= so Back returns to it. */
+  protected readonly sort = new ListSort(SORTS, { column: 'received', direction: 'desc' });
+
   constructor() {
     effect(() => {
       this.filter();
+      this.sort.current();
       untracked(() => void this.reload());
     });
   }
@@ -94,7 +125,9 @@ export class MessageList {
       this.items.set(page.items);
       this.next.set(page.nextCursor);
       this.state.set('ready');
-      this.liveMessage.set(countOf(page.items.length, page.nextCursor !== null));
+      this.liveMessage.set(
+        this.sort.announcement() + countOf(page.items.length, page.nextCursor !== null),
+      );
     } catch {
       if (generation === this.generation) this.state.set('failed');
     } finally {
@@ -135,6 +168,7 @@ export class MessageList {
   private currentQuery(): ContactMessageListQuery {
     const filter = this.filter();
     return {
+      sort: this.sort.param(),
       limit: PAGE_SIZE,
       ...(filter === 'all' ? {} : { handled: filter === 'handled' }),
     };

@@ -330,90 +330,12 @@
 
       @if (plan(); as plan) {
         <aside class="side">
-          <section class="panel" aria-labelledby="publishing-heading">
-            <h2 #publishingHeading id="publishing-heading" class="panel__title" tabindex="-1">
-              Publishing
-            </h2>
-            <p class="panel__text">{{ statusText(plan) }}</p>
-            @if (dirty()) {
-              <p class="panel__hint" id="publishing-hint">
-                Save your changes first: these act on the saved version.
-              </p>
-            }
-            <div class="actions">
-              @if (canPublish()) {
-                <button
-                  uiButton
-                  type="button"
-                  variant="dark"
-                  size="sm"
-                  aria-describedby="publishing-hint"
-                  [busy]="commanding() === 'publish'"
-                  [disabled]="dirty() || busy()"
-                  (click)="run('publish')"
-                >
-                  Publish
-                </button>
-              }
-              @if (plan.status === 'Published') {
-                <button
-                  uiButton
-                  type="button"
-                  size="sm"
-                  aria-describedby="publishing-hint"
-                  [busy]="commanding() === 'unpublish'"
-                  [disabled]="dirty() || busy()"
-                  (click)="unpublish()"
-                >
-                  Unpublish
-                </button>
-              }
-              @if (canArchive()) {
-                <button
-                  uiButton
-                  type="button"
-                  size="sm"
-                  aria-describedby="publishing-hint"
-                  [busy]="commanding() === 'archive'"
-                  [disabled]="dirty() || busy()"
-                  (click)="archive()"
-                >
-                  Archive
-                </button>
-              }
-            </div>
-
-            <cms-schedule-control
-              noun="tier"
-              [status]="plan.status"
-              [scheduledFor]="plan.scheduledFor"
-              [disabled]="dirty() || busy()"
-              [busy]="commanding()"
-              (schedule)="schedule($event)"
-              (unschedule)="unschedule()"
-            />
-
-            <cms-preview-link entityType="membership-plan" [entityId]="plan.id" [dirty]="dirty()" />
-            @if (canDelete()) {
-              <div class="cms-danger">
-                <h3 class="cms-danger__title">Delete</h3>
-                <p class="panel__text">
-                  The plan leaves the site and the list, and its web address is free again. An Admin
-                  can restore it from Deleted, as a draft.
-                </p>
-                <button
-                  uiButton
-                  type="button"
-                  size="sm"
-                  [busy]="deleting()"
-                  [disabled]="busy()"
-                  (click)="remove()"
-                >
-                  Delete plan
-                </button>
-              </div>
-            }
-          </section>
+          <cms-publishing-panel
+            [lifecycle]="lifecycle"
+            [record]="plan"
+            [dirty]="dirty()"
+            [busy]="busy()"
+          />
         </aside>
       }
     </div>

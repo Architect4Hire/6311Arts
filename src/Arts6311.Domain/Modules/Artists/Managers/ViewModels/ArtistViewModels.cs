@@ -28,10 +28,15 @@ public sealed record ArtistUpdateViewModel(
     Guid? PortraitMediaId = null,
     bool? RemovePortrait = null);
 
-/// <summary>A page of the roster, by name.</summary>
+/// <summary>A page of the roster, by name unless <paramref name="Sort"/> says otherwise.</summary>
 /// <param name="Search">Part of a name, matched without regard to case.</param>
+/// <param name="Sort">
+/// <c>name</c>, <c>medium</c>, <c>status</c>, <c>showing</c> or <c>updated</c>, with a leading <c>-</c> for
+/// descending (ADR 0062). The Deleted view ignores it.
+/// </param>
 public sealed record ArtistListViewModel(
     string? Cursor = null,
     int? Limit = null,
     PublishStatus? Status = null,
-    string? Search = null);
+    string? Search = null,
+    string? Sort = null);
